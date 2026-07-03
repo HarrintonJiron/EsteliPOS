@@ -44,10 +44,10 @@
 
                 {{-- Botones --}}
                 <div class="flex items-end gap-2">
-                    <button type="submit" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                    <button type="submit" class="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
                         Generar
                     </button>
-                    <a href="{{ route('reportes.export', request()->all()) }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2" title="Exportar a Excel">
+                    <a href="{{ route('reportes.export', request()->all()) }}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2" title="Exportar a Excel">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                         Excel
                     </a>
@@ -241,7 +241,7 @@
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 @if($reportType == 'sales')
-                    <thead class="bg-green-700 text-white">
+                    <thead class="bg-slate-800 text-white">
                         <tr>
                             <th class="px-4 py-3 text-left">Factura</th>
                             <th class="px-4 py-3 text-left">Fecha</th>
@@ -257,7 +257,7 @@
                         @forelse($data as $sale)
                             <tr class="hover:bg-gray-50">
                                 <td class="px-4 py-3 font-medium">
-                                    <a href="{{ route('facturacion.show', $sale->id) }}" class="text-blue-600 hover:underline">
+                                    <a href="{{ route('facturacion.show', $sale->id) }}" class="text-indigo-600 hover:underline">
                                         {{ $sale->invoice_number ?? '#' . str_pad($sale->id, 6, '0', STR_PAD_LEFT) }}
                                     </a>
                                 </td>

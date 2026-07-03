@@ -10,7 +10,7 @@
             Gestión de Compras
         </h1>
 
-        <a href="{{ route('compras.create') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">+ Nueva Compra</a>
+        <a href="{{ route('compras.create') }}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">+ Nueva Compra</a>
     </div>
 
     <!-- Filtros -->
@@ -42,7 +42,7 @@
                 </select>
             </div>
             <div class="md:col-span-4 flex justify-end space-x-2">
-                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrar</button>
+                <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrar</button>
                 <a href="{{ route('compras.index') }}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Limpiar</a>
             </div>
         </form>
@@ -102,7 +102,7 @@
                             </span>
                         </td>
                         <td class="px-6 py-4">
-                            <a href="{{ route('compras.show', $purchase->id) }}" class="text-blue-600 hover:underline mr-2">Ver</a>
+                            <a href="{{ route('compras.show', $purchase->id) }}" class="text-indigo-600 hover:underline mr-2">Ver</a>
                             <a href="{{ route('compras.edit', $purchase->id) }}" class="text-yellow-600 hover:underline mr-2">Editar</a>
                             <form action="{{ route('compras.destroy', $purchase->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Estás seguro de eliminar esta compra?')">
                                 @csrf

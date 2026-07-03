@@ -121,7 +121,7 @@
 
         <div class="flex justify-end gap-3">
             <a href="{{ route('proveedores.show', $supplier->id) }}" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 inline-block">Cancelar</a>
-            <button type="submit" class="bg-green-700 text-white px-6 py-2 rounded-lg hover:bg-green-800 shadow">Guardar Cambios</button>
+            <button type="submit" class="bg-slate-800 text-white px-6 py-2 rounded-lg hover:bg-green-800 shadow">Guardar Cambios</button>
         </div>
     </form>
 </div>

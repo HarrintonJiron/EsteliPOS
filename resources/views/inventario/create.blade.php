@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Crear Producto')
+@section('title', 'Crear Producto (Modo Pro)')
 
 @section('content')
 
@@ -8,11 +8,13 @@
 
     <div class="flex justify-between items-center">
         <div>
-            <h1 class="text-2xl font-bold text-gray-800">Crear Producto</h1>
-            <p class="text-sm text-gray-500">Registro de nuevo producto agrícola o agroquímico</p>
+            <h1 class="page-title">Modo Pro — Producto Completo</h1>
+            <p class="page-subtitle">Trazabilidad, lotes, agroquímicos y todos los campos</p>
         </div>
-
-        <a href="{{ route('inventario.index') }}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Volver</a>
+        <div class="flex gap-2">
+            <a href="{{ route('inventario.quick') }}" class="btn-primary text-sm">← Registro Rápido</a>
+            <a href="{{ route('inventario.index') }}" class="btn-outline text-sm">Volver</a>
+        </div>
     </div>
 
     @if($errors->any())
@@ -181,7 +183,7 @@
 
         <div class="flex justify-end gap-3">
             <a href="{{ route('inventario.index') }}" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">Cancelar</a>
-            <button type="submit" class="bg-green-700 text-white px-6 py-2 rounded-lg hover:bg-green-800 shadow">
+            <button type="submit" class="bg-slate-800 text-white px-6 py-2 rounded-lg hover:bg-green-800 shadow">
                 Guardar Producto
             </button>
         </div>

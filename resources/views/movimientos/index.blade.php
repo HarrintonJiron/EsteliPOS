@@ -39,7 +39,7 @@
 
         <table class="min-w-full text-sm">
 
-            <thead class="bg-green-700 text-white">
+            <thead class="bg-slate-800 text-white">
     <tr>
         <th class="px-4 py-2 text-left">Fecha</th>
         <th class="px-4 py-2 text-left">Producto</th>

@@ -60,7 +60,7 @@
         <div class="bg-white border rounded-xl p-4 space-y-3">
             <div class="flex justify-between items-center">
                 <h3 class="text-lg font-semibold text-gray-700">Detalle de productos</h3>
-                <button type="button" id="add-item" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm">+ Agregar</button>
+                <button type="button" id="add-item" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm">+ Agregar</button>
             </div>
 
             <div id="items" class="space-y-3">

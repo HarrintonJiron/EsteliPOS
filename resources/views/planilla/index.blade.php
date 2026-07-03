@@ -10,13 +10,13 @@
         </h1>
 
         <a href="{{ route('nomina.index') }}"
-   class="bg-blue-600 text-white px-4 py-2 rounded-lg">
+   class="bg-indigo-600 text-white px-4 py-2 rounded-lg">
    Ver Nómina
 </a>
 
 
         <button onclick="document.getElementById('modalEmpleado').classList.remove('hidden')"
-            class="bg-green-600 text-white px-4 py-2 rounded-lg">
+            class="bg-indigo-600 text-white px-4 py-2 rounded-lg">
             + Nuevo Empleado
         </button>
     </div>
@@ -79,7 +79,7 @@
         <button onclick="pagarEmpleado()" class="text-green-600 hover:underline">
             Pagar
         </button>
-        <button onclick="editarEmpleado()" class="text-blue-600 hover:underline">
+        <button onclick="editarEmpleado()" class="text-indigo-600 hover:underline">
             Editar
         </button>
         <button onclick="eliminarEmpleado()" class="text-red-600 hover:underline">
@@ -104,7 +104,7 @@
         <button onclick="pagarEmpleado()" class="text-green-600 hover:underline">
             Pagar
         </button>
-        <button onclick="editarEmpleado()" class="text-blue-600 hover:underline">
+        <button onclick="editarEmpleado()" class="text-indigo-600 hover:underline">
             Editar
         </button>
         <button onclick="eliminarEmpleado()" class="text-red-600 hover:underline">
@@ -129,7 +129,7 @@
         <button onclick="pagarEmpleado()" class="text-green-600 hover:underline">
             Pagar
         </button>
-        <button onclick="editarEmpleado()" class="text-blue-600 hover:underline">
+        <button onclick="editarEmpleado()" class="text-indigo-600 hover:underline">
             Editar
         </button>
         <button onclick="eliminarEmpleado()" class="text-red-600 hover:underline">
@@ -181,7 +181,7 @@
             </button>
 
             <button onclick="guardarEmpleado()"
-                class="px-4 py-2 bg-green-600 text-white rounded-lg">
+                class="px-4 py-2 bg-indigo-600 text-white rounded-lg">
                 Guardar
             </button>
         </div>

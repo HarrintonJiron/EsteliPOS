@@ -130,7 +130,7 @@
             <div class="flex justify-between items-center">
                 <h3 class="text-lg font-semibold text-gray-700">Detalle de Productos</h3>
 
-                <button type="button" id="addItemBtn" class="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm">
+                <button type="button" id="addItemBtn" class="bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm">
                     + Agregar Producto
                 </button>
             </div>
@@ -138,7 +138,7 @@
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm" id="itemsTable">
 
-                    <thead class="bg-green-700 text-white">
+                    <thead class="bg-slate-800 text-white">
                         <tr>
                             <th class="px-3 py-2 text-left">Producto</th>
                             <th class="px-3 py-2 text-left">Cantidad</th>
@@ -194,7 +194,7 @@
                 Cancelar
             </a>
 
-            <button type="submit" class="bg-green-700 text-white px-6 py-2 rounded-lg hover:bg-green-800 shadow inline-block">
+            <button type="submit" class="bg-slate-800 text-white px-6 py-2 rounded-lg hover:bg-green-800 shadow inline-block">
                 Actualizar Factura
             </button>
 

@@ -90,7 +90,7 @@
                     <td class="px-6 py-4 font-semibold">C$ 11,950</td>
                     <td class="px-6 py-4">
     <button onclick="abrirRecibo('Luis García')" 
-        class="text-blue-600 hover:underline">
+        class="text-indigo-600 hover:underline">
         Ver Recibo
     </button>
 
@@ -112,7 +112,7 @@
                     <td class="px-6 py-4 font-semibold">C$ 11,950</td>
                     <td class="px-6 py-4">
     <button onclick="abrirRecibo('Luis García')" 
-        class="text-blue-600 hover:underline">
+        class="text-indigo-600 hover:underline">
         Ver Recibo
     </button>
     <button onclick="verHistorial()"
@@ -133,7 +133,7 @@
                     <td class="px-6 py-4 font-semibold">C$ 11,950</td>
                     <td class="px-6 py-4">
     <button onclick="abrirRecibo('Luis García')" 
-        class="text-blue-600 hover:underline">
+        class="text-indigo-600 hover:underline">
         Ver Recibo
     </button>
 
@@ -155,7 +155,7 @@
                     <td class="px-6 py-4 font-semibold">C$ 11,950</td>
                     <td class="px-6 py-4">
     <button onclick="abrirRecibo('Luis García')" 
-        class="text-blue-600 hover:underline">
+        class="text-indigo-600 hover:underline">
         Ver Recibo
     </button>
 
@@ -273,7 +273,7 @@
         <div class="flex justify-end pt-6 space-x-4">
 
             <button onclick="imprimirRecibo()"
-                class="bg-blue-600 text-white px-4 py-2 rounded-lg">
+                class="bg-indigo-600 text-white px-4 py-2 rounded-lg">
                 Imprimir
             </button>
 

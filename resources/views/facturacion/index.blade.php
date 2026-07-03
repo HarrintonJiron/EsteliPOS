@@ -6,86 +6,88 @@
 
 <div class="space-y-6">
 
-    {{-- Encabezado --}}
     <div class="flex justify-between items-center">
         <div>
-            <h2 class="text-2xl font-bold text-gray-700">Gestión de Facturas</h2>
-            <p class="text-sm text-gray-500">Administra las ventas realizadas</p>
+            <h2 class="page-title">Gestión de Facturas</h2>
+            <p class="page-subtitle">Administra las ventas realizadas desde el POS</p>
         </div>
-
-        <a href="{{ route('facturacion.create') }}" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg shadow">
-            + Nueva Factura
+        <a href="{{ route('facturacion.pos') }}" class="btn-primary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Nueva Venta (POS)
         </a>
     </div>
 
-    {{-- Filtros --}}
-    <div class="bg-white p-4 rounded-xl shadow">
-        <form method="GET" action="{{ route('facturacion.index') }}" class="flex flex-wrap gap-4 items-center">
-            <input type="text" name="search" placeholder="Buscar por cliente o factura..." value="{{ request('search') }}"
-                   class="border rounded-lg px-4 py-2 w-64 focus:outline-none focus:ring-2 focus:ring-green-500">
-
-            <input type="date" name="date" value="{{ request('date') }}"
-                   class="border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
-
-            <select name="status" class="border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
-                <option value="">Todos los estados</option>
-                <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Pagada</option>
-                <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pendiente</option>
-            </select>
-
-            <button type="submit" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Filtrar</button>
-            <a href="{{ route('facturacion.index') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Limpiar</a>
+    <div class="card p-4">
+        <form method="GET" action="{{ route('facturacion.index') }}" class="flex flex-wrap gap-3 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs font-medium text-slate-500 mb-1">Buscar</label>
+                <input type="text" name="search" placeholder="Cliente o factura..." value="{{ request('search') }}" class="input-field">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1">Fecha</label>
+                <input type="date" name="date" value="{{ request('date') }}" class="input-field">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1">Estado</label>
+                <select name="status" class="select-field">
+                    <option value="">Todos</option>
+                    <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Pagada</option>
+                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pendiente</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-secondary">Filtrar</button>
+            <a href="{{ route('facturacion.index') }}" class="btn-outline">Limpiar</a>
         </form>
     </div>
 
-    {{-- Tabla --}}
-    <div class="bg-white rounded-xl shadow overflow-hidden">
-
-        <table class="min-w-full text-sm">
-
-            <thead class="bg-green-700 text-white">
+    <div class="card overflow-hidden">
+        <table class="min-w-full table-agro">
+            <thead>
                 <tr>
-                    <th class="px-6 py-3 text-left"># Factura</th>
-                    <th class="px-6 py-3 text-left">Cliente</th>
-                    <th class="px-6 py-3 text-left">Fecha</th>
-                    <th class="px-6 py-3 text-left">Método</th>
-                    <th class="px-6 py-3 text-left">Total</th>
-                    <th class="px-6 py-3 text-left">Estado</th>
-                    <th class="px-6 py-3 text-center">Acciones</th>
+                    <th># Factura</th>
+                    <th>Cliente</th>
+                    <th>Fecha</th>
+                    <th>Método</th>
+                    <th>Total</th>
+                    <th>Estado</th>
+                    <th class="text-center">Acciones</th>
                 </tr>
             </thead>
-
-            <tbody class="bg-white">
-                @foreach($sales as $sale)
-                <tr class="border-t hover:bg-gray-50">
-                    <td class="px-6 py-3 font-semibold">{{ str_pad($sale->id, 6, '0', STR_PAD_LEFT) }}</td>
-                    <td class="px-6 py-3">{{ $sale->client->name ?? 'N/A' }}</td>
-                    <td class="px-6 py-3">{{ $sale->date ? $sale->date->format('d/m/Y') : 'N/A' }}</td>
-                    <td class="px-6 py-3">{{ ucfirst($sale->payment_type) }}</td>
-                    <td class="px-6 py-3 font-semibold text-green-700">C$ {{ number_format($sale->total, 2) }}</td>
-                    <td class="px-6 py-3">
-                        <span class="{{ $sale->status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700' }} px-3 py-1 rounded-full text-xs">
+            <tbody>
+                @forelse($sales as $sale)
+                <tr>
+                    <td class="font-semibold text-indigo-600">{{ $sale->invoice_number ?? str_pad($sale->id, 6, '0', STR_PAD_LEFT) }}</td>
+                    <td>{{ $sale->client->name ?? $sale->billing_name ?? 'N/A' }}</td>
+                    <td>{{ $sale->date ? $sale->date->format('d/m/Y') : 'N/A' }}</td>
+                    <td>
+                        @php
+                            $methods = ['cash' => 'Efectivo', 'card' => 'Tarjeta', 'transfer' => 'Transferencia', 'credit' => 'Crédito'];
+                        @endphp
+                        <span class="badge-info">{{ $methods[$sale->payment_type] ?? ucfirst($sale->payment_type) }}</span>
+                    </td>
+                    <td class="font-semibold">C$ {{ number_format($sale->total, 2) }}</td>
+                    <td>
+                        <span class="{{ $sale->status === 'completed' ? 'badge-success' : 'badge-warning' }}">
                             {{ $sale->status === 'completed' ? 'Pagada' : 'Pendiente' }}
                         </span>
                     </td>
-                    <td class="px-6 py-3 text-center space-x-2">
-                        <a href="{{ route('facturacion.show', $sale->id) }}" class="text-blue-600 hover:underline">Ver</a>
-                        <a href="{{ route('facturacion.edit', $sale->id) }}" class="text-yellow-600 hover:underline">Editar</a>
-                        <a href="{{ route('facturacion.print', ['sale_id' => $sale->id]) }}" target="_blank" class="text-gray-600 hover:underline">PDF</a>
+                    <td class="text-center space-x-2">
+                        <a href="{{ route('facturacion.show', $sale->id) }}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">Ver</a>
+                        <a href="{{ route('facturacion.receipt', $sale->id) }}" target="_blank" class="text-slate-600 hover:text-slate-800 text-sm">Recibo</a>
+                        <a href="{{ route('facturacion.edit', $sale->id) }}" class="text-amber-600 hover:text-amber-800 text-sm">Editar</a>
                         @if(auth()->user()?->isAdmin())
-                        <form action="{{ route('facturacion.destroy', $sale->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Estás seguro de eliminar esta factura?')">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="text-red-600 hover:underline">Eliminar</button>
+                        <form action="{{ route('facturacion.destroy', $sale->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Eliminar esta factura?')">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm">Eliminar</button>
                         </form>
                         @endif
                     </td>
                 </tr>
-                @endforeach
+                @empty
+                <tr><td colspan="7" class="text-center py-8 text-slate-500">No hay facturas registradas</td></tr>
+                @endforelse
             </tbody>
-
         </table>
-
     </div>
 
     {{ $sales->links() }}

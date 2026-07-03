@@ -50,6 +50,26 @@ class Product extends Model
         return $this->hasMany(InventoryMovement::class);
     }
 
+    public function calculatedStock(): int
+    {
+        $in = (int) $this->inventoryMovements()->where('type', 'in')->sum('quantity');
+        $out = (int) $this->inventoryMovements()->where('type', 'out')->sum('quantity');
+
+        return $in - $out;
+    }
+
+    public function hasStockDiscrepancy(): bool
+    {
+        return $this->stock !== $this->calculatedStock();
+    }
+
+    public function rotationIndex(int $soldQty): float
+    {
+        $base = max($this->stock, 1);
+
+        return round($soldQty / $base, 2);
+    }
+
     public function inventoryAdjustments()
     {
         return $this->hasMany(InventoryAdjustment::class);
@@ -62,23 +82,25 @@ class Product extends Model
 
     public function isExpired(): bool
     {
-        if (!$this->expiry_date) {
+        if (! $this->expiry_date) {
             return false;
         }
+
         return \Carbon\Carbon::parse($this->expiry_date)->isPast();
     }
 
     public function expiresSoon(int $days = 30): bool
     {
-        if (!$this->expiry_date) {
+        if (! $this->expiry_date) {
             return false;
         }
+
         return \Carbon\Carbon::parse($this->expiry_date)->diffInDays(now()) <= $days;
     }
 
     public function getStatusLabelAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'active' => 'Activo',
             'inactive' => 'Inactivo',
             'discontinued' => 'Descontinuado',
@@ -88,7 +110,7 @@ class Product extends Model
 
     public function getStatusColorAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'active' => 'green',
             'inactive' => 'gray',
             'discontinued' => 'red',
@@ -107,12 +129,13 @@ class Product extends Model
         if ($this->isLowStock()) {
             return 'low_stock';
         }
+
         return 'normal';
     }
 
     public function getInventoryStatusLabelAttribute(): string
     {
-        return match($this->inventory_status) {
+        return match ($this->inventory_status) {
             'expired' => 'Vencido',
             'expiring_soon' => 'Por Vencer',
             'low_stock' => 'Bajo Stock',

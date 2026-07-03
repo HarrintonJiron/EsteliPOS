@@ -13,7 +13,7 @@
             <p class="text-sm text-gray-500">Control de ajustes, conteos físicos y correcciones de stock</p>
         </div>
 
-        <a href="{{ route('ajustes.create') }}" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg shadow">
+        <a href="{{ route('ajustes.create') }}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg shadow">
             + Nuevo Ajuste
         </a>
     </div>
@@ -77,7 +77,7 @@
             </div>
 
             <div class="flex items-end space-x-2">
-                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrar</button>
+                <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrar</button>
                 <a href="{{ route('ajustes.index') }}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Limpiar</a>
             </div>
         </form>
@@ -87,7 +87,7 @@
     <div class="bg-white rounded-xl shadow overflow-hidden">
 
         <table class="min-w-full text-sm">
-            <thead class="bg-green-700 text-white">
+            <thead class="bg-slate-800 text-white">
                 <tr>
                     <th class="px-4 py-3 text-left">Fecha</th>
                     <th class="px-4 py-3 text-left">Producto</th>
@@ -129,7 +129,7 @@
                         </td>
                         <td class="px-4 py-3">{{ $adjustment->user->name ?? '—' }}</td>
                         <td class="px-4 py-3 text-center space-x-2">
-                            <a href="{{ route('ajustes.show', $adjustment->id) }}" class="text-blue-600 hover:underline">Ver</a>
+                            <a href="{{ route('ajustes.show', $adjustment->id) }}" class="text-indigo-600 hover:underline">Ver</a>
                             <form action="{{ route('ajustes.destroy', $adjustment->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Estás seguro de eliminar este ajuste? El stock se restaurará.')">
                                 @csrf
                                 @method('DELETE')

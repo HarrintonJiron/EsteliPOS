@@ -8,23 +8,33 @@
 
     {{-- Encabezado --}}
     <div class="flex justify-between items-center">
-        <div class="flex items-center gap-4">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-800">{{ $product->name }}</h1>
-                <p class="text-sm text-gray-500">
-                    Código: <span class="font-mono">{{ $product->code ?? '—' }}</span>
-                    @if($product->category)
-                        | Categoría: {{ $product->category->name }}
-                    @endif
-                </p>
-            </div>
+        <div>
+            <h1 class="page-title">{{ $product->name }}</h1>
+            <p class="page-subtitle">
+                Código: <span class="font-mono">{{ $product->code }}</span>
+                @if($product->category) · {{ $product->category->name }} @endif
+            </p>
         </div>
-
-        <div class="flex space-x-2">
-            <a href="{{ route('inventario.edit', $product->id) }}" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700">Editar</a>
-            <a href="{{ route('inventario.index') }}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Volver</a>
+        <div class="flex gap-2">
+            <a href="{{ route('inventario.edit', $product->id) }}" class="btn-outline text-sm">Editar</a>
+            <a href="{{ route('inventario.index') }}" class="btn-outline text-sm">Volver</a>
         </div>
     </div>
+
+    @if($productStats['has_discrepancy'])
+    <div class="card p-4 border border-amber-300 bg-amber-50 flex items-center justify-between">
+        <div>
+            <p class="font-semibold text-amber-800">Discrepancia de stock detectada</p>
+            <p class="text-sm text-amber-700">Registrado: <strong>{{ $product->stock }}</strong> · Según kardex: <strong>{{ $productStats['calculated_stock'] }}</strong></p>
+        </div>
+        @if(auth()->user()?->isAdmin())
+        <form action="{{ route('inventario.reconcile') }}" method="POST">
+            @csrf
+            <button type="submit" class="btn-primary text-sm">Reconciliar</button>
+        </form>
+        @endif
+    </div>
+    @endif
 
     {{-- Badge de Estado --}}
     <div class="flex gap-2">
@@ -108,9 +118,31 @@
             </div>
         </div>
 
-        {{-- Estadísticas --}}
-        <div class="bg-white p-6 rounded-xl shadow">
-            <h2 class="text-lg font-semibold text-gray-700 mb-4">Estadísticas</h2>
+        {{-- Rotación y ventas --}}
+        <div class="card p-6">
+            <h2 class="text-lg font-semibold text-slate-800 mb-4">Rotación ({{ $periodDays }} días)</h2>
+            <div class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="p-3 bg-indigo-50 rounded-xl text-center">
+                        <p class="text-xs text-indigo-600">Vendido</p>
+                        <p class="text-2xl font-bold text-indigo-700">{{ $productStats['sold_qty'] }}</p>
+                    </div>
+                    <div class="p-3 bg-violet-50 rounded-xl text-center">
+                        <p class="text-xs text-violet-600">Índice Rotación</p>
+                        <p class="text-2xl font-bold text-violet-700">{{ number_format($productStats['rotation_index'], 2) }}x</p>
+                    </div>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl">
+                    <p class="text-xs text-slate-500">Ingresos por ventas</p>
+                    <p class="text-lg font-semibold">C$ {{ number_format($productStats['sold_revenue'], 2) }}</p>
+                    <p class="text-xs text-slate-400">{{ $productStats['sale_count'] }} facturas</p>
+                </div>
+            </div>
+        </div>
+
+        {{-- Estadísticas kardex --}}
+        <div class="card p-6">
+            <h2 class="text-lg font-semibold text-slate-800 mb-4">Kardex</h2>
 
             <div class="space-y-3">
                 <div class="p-3 bg-gray-50 rounded-lg">
@@ -129,13 +161,10 @@
                     </div>
                 </div>
 
-                @if($productStats['last_movement'])
-                    <div class="p-3 bg-gray-50 rounded-lg">
-                        <p class="text-xs text-gray-500">Último Movimiento</p>
-                        <p class="text-sm font-medium">{{ $productStats['last_movement']->created_at->format('d/m/Y H:i') }}</p>
-                        <p class="text-xs text-gray-500">{{ $productStats['last_movement']->note ?? 'Sin nota' }}</p>
-                    </div>
-                @endif
+                <div class="p-3 bg-slate-50 rounded-xl">
+                    <p class="text-xs text-slate-500">Stock según kardex</p>
+                    <p class="text-xl font-bold {{ $productStats['has_discrepancy'] ? 'text-amber-600' : 'text-emerald-600' }}">{{ $productStats['calculated_stock'] }}</p>
+                </div>
             </div>
         </div>
     </div>
@@ -161,40 +190,36 @@
         </div>
     @endif
 
-    {{-- Historial de Movimientos --}}
-    <div class="bg-white rounded-xl shadow overflow-hidden">
-        <div class="p-4 flex items-center justify-between border-b">
-            <h2 class="text-lg font-semibold text-gray-700">Historial de Movimientos</h2>
-            <a href="{{ route('movimientos.index', ['producto' => $product->id]) }}" class="text-blue-600 hover:underline text-sm">Ver todos</a>
+    {{-- Historial de Movimientos (Kardex) --}}
+    <div class="card overflow-hidden">
+        <div class="card-header">
+            <h2 class="text-lg font-semibold text-slate-800">Historial de Movimientos</h2>
+            <a href="{{ route('movimientos.index', ['producto' => $product->id]) }}" class="text-indigo-600 text-sm font-medium">Ver todos</a>
         </div>
 
         @if($movements->count() > 0)
-            <table class="min-w-full text-sm">
-                <thead class="bg-gray-100">
+            <table class="min-w-full table-agro">
+                <thead>
                     <tr>
-                        <th class="px-4 py-2 text-left">Fecha</th>
-                        <th class="px-4 py-2 text-left">Tipo</th>
-                        <th class="px-4 py-2 text-left">Cantidad</th>
-                        <th class="px-4 py-2 text-left">Stock Después</th>
-                        <th class="px-4 py-2 text-left">Referencia</th>
-                        <th class="px-4 py-2 text-left">Usuario</th>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Cantidad</th>
+                        <th>Stock Después</th>
+                        <th>Referencia</th>
+                        <th>Nota</th>
+                        <th>Usuario</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200">
+                <tbody>
                     @foreach($movements as $movement)
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-2">{{ $movement->created_at->format('d/m/Y H:i') }}</td>
-                            <td class="px-4 py-2">
-                                <span class="px-2 py-1 rounded-full text-xs {{ $movement->type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
-                                    {{ $movement->type === 'in' ? 'Entrada' : 'Salida' }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-2 font-medium {{ $movement->type === 'in' ? 'text-green-600' : 'text-red-600' }}">
-                                {{ $movement->type === 'in' ? '+' : '-' }}{{ $movement->quantity }}
-                            </td>
-                            <td class="px-4 py-2">{{ $movement->stock_after ?? '—' }}</td>
-                            <td class="px-4 py-2 text-xs text-gray-500">{{ $movement->reference ?? '—' }}</td>
-                            <td class="px-4 py-2">{{ $movement->user->name ?? '—' }}</td>
+                        <tr>
+                            <td>{{ $movement->created_at->format('d/m/Y H:i') }}</td>
+                            <td><span class="{{ $movement->type === 'in' ? 'badge-success' : 'badge-danger' }}">{{ $movement->type === 'in' ? 'Entrada' : 'Salida' }}</span></td>
+                            <td class="font-bold {{ $movement->type === 'in' ? 'text-emerald-600' : 'text-red-600' }}">{{ $movement->type === 'in' ? '+' : '-' }}{{ $movement->quantity }}</td>
+                            <td class="font-semibold">{{ $movement->stock_after ?? '—' }}</td>
+                            <td class="text-xs font-mono text-slate-500">{{ $movement->reference ?? '—' }}</td>
+                            <td class="text-xs text-slate-500 max-w-[150px] truncate">{{ $movement->note ?? '—' }}</td>
+                            <td>{{ $movement->user->name ?? '—' }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -210,18 +235,14 @@
         @endif
     </div>
 
-    {{-- Acciones --}}
     <div class="flex justify-end gap-3">
-        <a href="{{ route('ajustes.create', ['product_id' => $product->id]) }}" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
-            Hacer Ajuste
-        </a>
-        <form action="{{ route('inventario.destroy', $product->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Estás seguro de eliminar este producto?')">
-            @csrf
-            @method('DELETE')
-            <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700">
-                Eliminar Producto
-            </button>
+        <a href="{{ route('ajustes.create', ['product_id' => $product->id]) }}" class="btn-primary text-sm">Ajustar Stock</a>
+        @if(auth()->user()?->isAdmin())
+        <form action="{{ route('inventario.destroy', $product->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Eliminar este producto?')">
+            @csrf @method('DELETE')
+            <button type="submit" class="btn-danger text-sm">Eliminar</button>
         </form>
+        @endif
     </div>
 
 </div>

@@ -2,25 +2,50 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Client;
-use Illuminate\Http\Request;
 use App\Http\Requests\ClientRequest;
+use App\Models\Client;
+use App\Services\CreditService;
+use Illuminate\Http\Request;
 
 class ClienteController extends Controller
 {
+    public function __construct(private CreditService $credit) {}
+
     public function index(Request $request)
     {
         $perPage = (int) $request->query('per_page', 15);
-        $clients = Client::latest()->paginate($perPage);
+        $query = Client::query()->latest();
 
-        return view('clientes.index', compact('clients'));
+        if ($search = $request->query('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('ruc', 'like', "%{$search}%");
+            });
+        }
+
+        $clients = $query->paginate($perPage)->through(function (Client $client) {
+            $summary = $this->credit->clientCreditSummary($client);
+
+            return (object) array_merge($client->toArray(), $summary);
+        });
+
+        $stats = [
+            'total' => Client::count(),
+            'with_credit' => Client::where('credit_enabled', true)->count(),
+            'over_limit' => Client::where('credit_enabled', true)->get()->filter(fn (Client $c) => $c->isOverCreditLimit())->count(),
+            'portfolio' => $this->credit->portfolioSummary(),
+        ];
+
+        return view('clientes.index', compact('clients', 'stats'));
     }
 
     public function show($id)
     {
-        $client = Client::with('sales')->findOrFail($id);
+        $client = Client::with(['sales' => fn ($q) => $q->latest()->limit(10)])->findOrFail($id);
+        $creditSummary = $this->credit->clientCreditSummary($client);
 
-        return view('clientes.show', compact('client'));
+        return view('clientes.show', compact('client', 'creditSummary'));
     }
 
     public function create()
@@ -32,22 +57,25 @@ class ClienteController extends Controller
     {
         $client = Client::create($request->validated());
 
-        return redirect()->route('clientes.show', $client->id);
+        return redirect()->route('clientes.show', $client->id)
+            ->with('success', 'Cliente registrado correctamente.');
     }
 
     public function edit($id)
     {
         $client = Client::findOrFail($id);
-        return view('clientes.edit', compact('client'));
+        $creditSummary = $this->credit->clientCreditSummary($client);
+
+        return view('clientes.edit', compact('client', 'creditSummary'));
     }
 
     public function update(ClientRequest $request, $id)
     {
         $client = Client::findOrFail($id);
-
         $client->update($request->validated());
 
-        return redirect()->route('clientes.show', $client->id);
+        return redirect()->route('clientes.show', $client->id)
+            ->with('success', 'Cliente actualizado correctamente.');
     }
 
     public function destroy($id)
@@ -55,6 +83,7 @@ class ClienteController extends Controller
         $client = Client::findOrFail($id);
         $client->delete();
 
-        return redirect()->route('clientes.index');
+        return redirect()->route('clientes.index')
+            ->with('success', 'Cliente eliminado.');
     }
 }

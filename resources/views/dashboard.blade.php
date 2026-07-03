@@ -16,12 +16,12 @@
     {{-- Tarjetas Resumen --}}
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
 
-        <div class="bg-green-600 text-white p-5 rounded-xl shadow">
+        <div class="bg-indigo-600 text-white p-5 rounded-xl shadow">
             <h4 class="text-sm">Ventas del Día</h4>
             <p class="text-2xl font-bold mt-2">C$ 12,450</p>
         </div>
 
-        <div class="bg-blue-600 text-white p-5 rounded-xl shadow">
+        <div class="bg-indigo-600 text-white p-5 rounded-xl shadow">
             <h4 class="text-sm">Ventas del Mes</h4>
             <p class="text-2xl font-bold mt-2">C$ 285,300</p>
         </div>
@@ -69,7 +69,7 @@
 
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
-                <thead class="bg-green-700 text-white">
+                <thead class="bg-slate-800 text-white">
                     <tr>
                         <th class="px-4 py-2 text-left"># Factura</th>
                         <th class="px-4 py-2 text-left">Cliente</th>

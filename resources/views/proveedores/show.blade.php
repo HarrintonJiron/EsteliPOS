@@ -143,7 +143,7 @@
             <h2 class="text-lg font-semibold text-gray-700">Historial de Compras</h2>
             <div class="flex gap-2">
                 <span class="text-sm text-gray-500">{{ $supplierStats['total_orders'] }} total</span>
-                <a href="{{ route('compras.create', ['supplier_id' => $supplier->id]) }}" class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700">+ Nueva Compra</a>
+                <a href="{{ route('compras.create', ['supplier_id' => $supplier->id]) }}" class="bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700">+ Nueva Compra</a>
             </div>
         </div>
 
@@ -164,7 +164,7 @@
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-2">{{ $p->date ? $p->date->format('d/m/Y') : '—' }}</td>
                             <td class="px-4 py-2">
-                                <a class="text-blue-600 hover:underline font-medium" href="{{ route('compras.show', $p->id) }}">
+                                <a class="text-indigo-600 hover:underline font-medium" href="{{ route('compras.show', $p->id) }}">
                                     #{{ str_pad($p->id, 4, '0', STR_PAD_LEFT) }}
                                 </a>
                             </td>
@@ -176,7 +176,7 @@
                                 </span>
                             </td>
                             <td class="px-4 py-2 text-center">
-                                <a href="{{ route('compras.show', $p->id) }}" class="text-blue-600 hover:underline text-xs">Ver</a>
+                                <a href="{{ route('compras.show', $p->id) }}" class="text-indigo-600 hover:underline text-xs">Ver</a>
                             </td>
                         </tr>
                     @endforeach
@@ -185,7 +185,7 @@
         @else
             <div class="p-8 text-center text-gray-500">
                 <p class="mb-4">No hay compras registradas con este proveedor.</p>
-                <a href="{{ route('compras.create', ['supplier_id' => $supplier->id]) }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                <a href="{{ route('compras.create', ['supplier_id' => $supplier->id]) }}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
                     Registrar primera compra
                 </a>
             </div>

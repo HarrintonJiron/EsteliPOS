@@ -14,10 +14,10 @@
         </div>
 
         <div class="flex space-x-2">
-            <a href="{{ route('proveedores.export') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
+            <a href="{{ route('proveedores.export') }}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
                 📥 Exportar
             </a>
-            <a href="{{ route('proveedores.create') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+            <a href="{{ route('proveedores.create') }}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
                 + Nuevo Proveedor
             </a>
         </div>
@@ -82,7 +82,7 @@
             </div>
 
             <div class="flex items-end space-x-2">
-                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrar</button>
+                <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrar</button>
                 <a href="{{ route('proveedores.index') }}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Limpiar</a>
             </div>
         </form>
@@ -91,7 +91,7 @@
     {{-- Tabla --}}
     <div class="bg-white rounded-xl shadow overflow-hidden">
         <table class="min-w-full text-sm">
-            <thead class="bg-green-700 text-white">
+            <thead class="bg-slate-800 text-white">
                 <tr>
                     <th class="px-4 py-3 text-left">
                         <a href="{{ route('proveedores.index', array_merge(request()->all(), ['sort_by' => 'name', 'sort_order' => request('sort_order') == 'asc' ? 'desc' : 'asc'])) }}" class="flex items-center">
@@ -150,7 +150,7 @@
                             </span>
                         </td>
                         <td class="px-4 py-3 text-center space-x-1">
-                            <a href="{{ route('proveedores.show', $supplier->id) }}" class="text-blue-600 hover:underline text-xs">Ver</a>
+                            <a href="{{ route('proveedores.show', $supplier->id) }}" class="text-indigo-600 hover:underline text-xs">Ver</a>
                             @if(auth()->user()?->isAdmin())
                             <a href="{{ route('proveedores.edit', $supplier->id) }}" class="text-gray-600 hover:underline text-xs">Editar</a>
                             @endif

@@ -1,92 +1,80 @@
 @extends('layouts.app')
 
+@section('title', 'Crear Cliente')
+
 @section('content')
-<div class="max-w-4xl mx-auto space-y-6">
-    <div class="flex items-center justify-between">
+<div class="max-w-3xl mx-auto space-y-6">
+    <div class="flex justify-between items-center">
         <div>
-            <h1 class="text-2xl font-bold text-gray-800">Crear Cliente</h1>
-            <p class="text-sm text-gray-500">Datos para facturación y contacto</p>
+            <h1 class="page-title">Registro Completo (Pro)</h1>
+            <p class="page-subtitle">Datos de facturación, RUC y configuración de crédito</p>
         </div>
-        <span class="bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm">Nuevo</span>
+        <a href="{{ route('clientes.index') }}" class="btn-outline text-sm">← Volver</a>
     </div>
 
-    @if($errors->any())
-        <div class="bg-red-100 text-red-800 px-4 py-3 rounded">
-            <ul>
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
-    <form action="{{ route('clientes.store') }}" method="POST" class="space-y-6">
+    <form action="{{ route('clientes.store') }}" method="POST" class="space-y-4">
         @csrf
 
-        <div class="bg-white p-6 rounded-xl shadow space-y-6">
-            <h2 class="text-lg font-semibold text-gray-700">Identificación</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="card p-5 space-y-4">
+            <h2 class="font-semibold text-slate-800">Datos básicos</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="text-sm text-gray-600">Código (interno)</label>
-                    <input name="code" value="{{ old('code') }}" placeholder="Ej: CL-00023"
-                           class="mt-1 w-full border rounded-lg px-4 py-2 bg-white"/>
+                    <label class="block text-sm text-slate-600 mb-1">Nombre *</label>
+                    <input name="name" value="{{ old('name') }}" required class="input-field">
                 </div>
-
-                <div class="md:col-span-2">
-                    <label class="text-sm text-gray-600">Nombre / Contacto</label>
-                    <input name="name" value="{{ old('name') }}" required placeholder="Ej: Juan Pérez"
-                           class="mt-1 w-full border rounded-lg px-4 py-2 bg-white"/>
-                </div>
-
-                <div class="md:col-span-2">
-                    <label class="text-sm text-gray-600">Razón social (si aplica)</label>
-                    <input name="business_name" value="{{ old('business_name') }}" placeholder="Ej: Cooperativa San José R.L."
-                           class="mt-1 w-full border rounded-lg px-4 py-2 bg-white"/>
-                </div>
-
                 <div>
-                    <label class="text-sm text-gray-600">RUC</label>
-                    <input name="ruc" value="{{ old('ruc') }}" placeholder="001-123456-0000A"
-                           class="mt-1 w-full border rounded-lg px-4 py-2 bg-white"/>
-                    <p class="text-xs text-gray-400 mt-1">Formato sugerido: 001-123456-0000A</p>
+                    <label class="block text-sm text-slate-600 mb-1">Teléfono</label>
+                    <input name="phone" value="{{ old('phone') }}" class="input-field">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">Código interno</label>
+                    <input name="code" value="{{ old('code') }}" class="input-field" placeholder="CL-001">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">Email</label>
+                    <input name="email" type="email" value="{{ old('email') }}" class="input-field">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm text-slate-600 mb-1">Razón social</label>
+                    <input name="business_name" value="{{ old('business_name') }}" class="input-field">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">RUC</label>
+                    <input name="ruc" value="{{ old('ruc') }}" class="input-field" placeholder="001-123456-0000A">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm text-slate-600 mb-1">Dirección</label>
+                    <textarea name="address" rows="2" class="input-field">{{ old('address') }}</textarea>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white p-6 rounded-xl shadow space-y-6">
-            <h2 class="text-lg font-semibold text-gray-700">Contacto</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="card p-5 space-y-4 border-l-4 border-indigo-500">
+            <div class="flex items-center justify-between">
+                <h2 class="font-semibold text-slate-800">Configuración de Crédito</h2>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="credit_enabled" value="1" {{ old('credit_enabled') ? 'checked' : '' }} class="rounded text-indigo-600">
+                    <span class="text-sm">Habilitar crédito</span>
+                </label>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="text-sm text-gray-600">Teléfono</label>
-                    <input name="phone" value="{{ old('phone') }}" placeholder="Ej: 8888-9999"
-                           class="mt-1 w-full border rounded-lg px-4 py-2 bg-white"/>
+                    <label class="block text-sm text-slate-600 mb-1">Límite de crédito (C$)</label>
+                    <input type="number" name="credit_limit" step="0.01" min="0" value="{{ old('credit_limit', 5000) }}" class="input-field">
+                    <p class="text-xs text-slate-400 mt-1">Dejar en 0 para crédito sin tope</p>
                 </div>
-
-                <div class="md:col-span-2">
-                    <label class="text-sm text-gray-600">Email</label>
-                    <input name="email" value="{{ old('email') }}" placeholder="correo@cliente.com"
-                           class="mt-1 w-full border rounded-lg px-4 py-2 bg-white"/>
-                </div>
-
-                <div class="md:col-span-3">
-                    <label class="text-sm text-gray-600">Dirección</label>
-                    <textarea name="address" rows="3" placeholder="Municipio, departamento, referencias..."
-                              class="mt-1 w-full border rounded-lg px-4 py-2 bg-white">{{ old('address') }}</textarea>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">Plazo de pago (días)</label>
+                    <input type="number" name="credit_days" min="1" max="365" value="{{ old('credit_days', 30) }}" class="input-field">
+                    <p class="text-xs text-slate-400 mt-1">Fecha límite al facturar a crédito</p>
                 </div>
             </div>
         </div>
 
-        <div class="flex justify-end space-x-4">
-            <a href="{{ route('clientes.index') }}" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 inline-block">
-                Cancelar
-            </a>
-            <button type="submit" class="bg-green-700 text-white px-6 py-2 rounded-lg hover:bg-green-800 shadow inline-block">
-                Guardar Cliente
-            </button>
+        <div class="flex justify-end gap-3">
+            <a href="{{ route('clientes.index') }}" class="btn-outline">Cancelar</a>
+            <button type="submit" class="btn-primary">Guardar Cliente</button>
         </div>
     </form>
 </div>
-
 @endsection
