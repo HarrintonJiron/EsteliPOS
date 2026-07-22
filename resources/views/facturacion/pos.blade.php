@@ -131,7 +131,10 @@
 
             <div class="grid grid-cols-2 gap-2">
                 <button type="button" onclick="clearTicket()" class="bg-slate-400 hover:bg-slate-500 text-white font-semibold py-2 rounded-xl text-sm">Descartar</button>
-                <button type="button" id="dailyReportBtn" class="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 rounded-xl text-sm">Corte del Día</button>
+                <div class="flex gap-2">
+                    <button type="button" id="dailyReportBtn" class="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 rounded-xl text-sm">Corte del Día</button>
+                    <button type="button" id="closeCashBtn" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 rounded-xl text-sm" title="Cierre de Caja (Arqueo)">Cierre Caja</button>
+                </div>
             </div>
         </div>
     </div>
@@ -263,10 +266,22 @@ document.addEventListener('DOMContentLoaded', function() {
         stock: parseInt(p.stock ?? 0),
         category_id: p.category_id,
         category_name: p.category?.name ?? 'Sin categoría',
+        image_url: p.image_url ?? null,
     }));
     const clientsData = JSON.parse(app.dataset.clients)
         .filter(c => c.code !== 'GEN')
-        .map(c => ({ id: c.id, name: c.name ?? '', business_name: c.business_name ?? '', ruc: c.ruc ?? '' }));
+        .map(c => ({
+            id: c.id,
+            name: c.name ?? '',
+            business_name: c.business_name ?? '',
+            ruc: c.ruc ?? '',
+            credit_enabled: !!c.credit_enabled,
+            credit_limit: parseFloat(c.credit_limit ?? 0),
+            credit_days: parseInt(c.credit_days ?? 30),
+            balance: parseFloat(c.balance ?? 0),
+            available_credit: c.available_credit === null ? null : parseFloat(c.available_credit ?? 0),
+            over_limit: !!c.over_limit,
+        }));
     const categories = JSON.parse(app.dataset.categories);
     const dailyReportUrl = app.dataset.dailyReportUrl;
 
@@ -282,6 +297,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const HELD_KEY = 'pos_held_tickets';
 
     document.getElementById('ticketNumber').textContent = ticketCounter;
+
+    // Cierre de caja button - abre la pantalla de arqueo
+    const closeBtn = document.getElementById('closeCashBtn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function(){
+            // Abrir en la misma pestaña la vista de apertura/cierre
+            window.location.href = '{{ route('arqueo.index') }}';
+        });
+    }
 
     function formatMoney(v) {
         return 'C$ ' + parseFloat(v || 0).toFixed(2);
@@ -488,8 +512,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return `
             <button type="button" onclick="addProductToTicket(${p.id})" ${outStock ? 'disabled' : ''}
                 class="bg-white border-2 ${outStock ? 'border-slate-100 opacity-50 cursor-not-allowed' : 'border-slate-200 hover:border-indigo-500 hover:shadow-md'} rounded-xl p-3 transition-all group text-left">
-                <div class="w-10 h-10 mb-2 bg-slate-100 rounded-lg flex items-center justify-center mx-auto">
-                    <svg class="w-5 h-5 text-slate-400 group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                <div class="w-full h-20 mb-2 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center mx-auto">
+                    ${p.image_url
+                        ? `<img src="${p.image_url}" alt="${p.name}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                           <span style="display:none" class="w-full h-full items-center justify-center"><svg class=\"w-8 h-8 text-slate-400\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4\"></path></svg></span>`
+                        : `<svg class="w-8 h-8 text-slate-400 group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>`
+                    }
                 </div>
                 <p class="font-semibold text-slate-800 text-xs line-clamp-2 text-center">${p.name}</p>
                 <p class="text-xs text-slate-400 text-center mt-0.5">${p.code || '—'}</p>

@@ -71,7 +71,7 @@ class CreditController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        CreditPayment::create([
+        $payment = CreditPayment::create([
             'client_id' => $validated['client_id'],
             'amount' => $validated['amount'],
             'payment_type' => $validated['payment_type'],
@@ -81,8 +81,92 @@ class CreditController extends Controller
             'user_id' => $request->user()->id,
         ]);
 
+        // Si se solicita imprimir inmediatamente, redirigimos a la vista de factura del abono
+        if ($request->boolean('print')) {
+            return redirect()->route('creditos.invoice', ['paymentId' => $payment->id]);
+        }
+
         return redirect()->route('creditos.show', $validated['client_id'])
             ->with('success', 'Abono registrado correctamente');
+    }
+
+    /**
+     * Búsqueda rápida de clientes y su resumen de crédito (JSON).
+     */
+    public function search(Request $request)
+    {
+        $q = $request->query('q');
+
+        $clients = Client::query()
+            ->when($q, fn($qb) => $qb->where('name', 'like', "%{$q}%")
+                ->orWhere('phone', 'like', "%{$q}%")
+                ->orWhere('email', 'like', "%{$q}%"))
+            ->limit(12)
+            ->get();
+
+        $results = $clients->map(fn (Client $c) => [
+            'id' => $c->id,
+            'name' => $c->name,
+            'phone' => $c->phone,
+            'email' => $c->email,
+            'credit_summary' => $this->credit->clientCreditSummary($c),
+            'pending_sales' => Sale::where('client_id', $c->id)
+                ->where('payment_type', 'credit')
+                ->where('status', 'pending')
+                ->with('details.product')
+                ->get()
+                ->map(fn ($s) => [
+                    'id' => $s->id,
+                    'invoice_number' => $s->invoice_number,
+                    'date' => $s->date?->toDateString(),
+                    'due_date' => $s->due_date?->toDateString(),
+                    'total' => (float) $s->total,
+                    'items' => $s->details->map(fn ($d) => [
+                        'product' => $d->product?->name ?? 'N/A',
+                        'quantity' => $d->quantity,
+                        'price' => (float) $d->price,
+                        'subtotal' => (float) $d->subtotal,
+                    ]),
+                ]),
+        ]);
+
+        return response()->json($results);
+    }
+
+    /**
+     * Vista imprimible para un abono (factura/recibo del pago).
+     */
+    public function invoice($paymentId)
+    {
+        $payment = CreditPayment::with('client', 'user', 'sale.details.product')->findOrFail($paymentId);
+        $client = $payment->client;
+        $pendingSales = Sale::where('client_id', $client->id)
+            ->where('payment_type', 'credit')
+            ->where('status', 'pending')
+            ->with('details.product')
+            ->get();
+
+        return view('creditos.invoice', compact('payment', 'client', 'pendingSales'));
+    }
+
+    /**
+     * Estado de cuenta / recibo térmico 80mm para un cliente con créditos pendientes
+     */
+    public function statement($clientId)
+    {
+        $client = Client::findOrFail($clientId);
+        $creditSummary = $this->credit->clientCreditSummary($client);
+
+        $pendingSales = Sale::where('client_id', $clientId)
+            ->where('payment_type', 'credit')
+            ->where('status', 'pending')
+            ->with('details.product')
+            ->latest()
+            ->get();
+
+        $payments = CreditPayment::where('client_id', $clientId)->latest()->get();
+
+        return view('creditos.statement', compact('client', 'creditSummary', 'pendingSales', 'payments'));
     }
 
     public function overdue()

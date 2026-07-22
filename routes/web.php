@@ -13,6 +13,7 @@ use App\Http\Controllers\NominaController;
 use App\Http\Controllers\PlanillaController;
 use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\ReporteController;
+use App\Http\Controllers\ProformaController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas públicas (sin autenticación)
@@ -41,12 +42,20 @@ Route::middleware(['auth'])->group(function () {
 
     // Rutas de Crédito y Abonos
     Route::get('/creditos', [CreditController::class, 'index'])->name('creditos.index');
+    Route::get('/creditos/search', [CreditController::class, 'search'])->name('creditos.search');
+    Route::get('/creditos/statement/{clientId}', [CreditController::class, 'statement'])->name('creditos.statement');
     Route::get('/creditos/cliente/{clientId}', [CreditController::class, 'show'])->name('creditos.show');
     Route::get('/creditos/abono/nuevo/{clientId}', [CreditController::class, 'create'])->name('creditos.create');
     Route::post('/creditos/abono', [CreditController::class, 'store'])->name('creditos.store');
+    Route::get('/creditos/payment/{paymentId}/invoice', [CreditController::class, 'invoice'])->name('creditos.invoice');
     Route::get('/creditos/vencidos', [CreditController::class, 'overdue'])->name('creditos.overdue');
     Route::get('/creditos/reporte', [CreditController::class, 'report'])->name('creditos.report');
     Route::get('/creditos/reporte/export', [CreditController::class, 'export'])->name('creditos.export');
+
+    // Arqueo de caja (cierre diario)
+    Route::get('/arqueo', [\App\Http\Controllers\ArqueoController::class, 'index'])->name('arqueo.index');
+    Route::post('/arqueo/open', [\App\Http\Controllers\ArqueoController::class, 'open'])->name('arqueo.open');
+    Route::post('/arqueo/run', [\App\Http\Controllers\ArqueoController::class, 'run'])->name('arqueo.run');
 
     Route::get('/inventario', [InventarioController::class, 'index'])->name('inventario.index');
     Route::get('/inventario/create', [InventarioController::class, 'create'])->name('inventario.create');
@@ -93,9 +102,21 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/clientes/{id}', [ClienteController::class, 'show'])->name('clientes.show');
     Route::post('/clientes', [ClienteController::class, 'store'])->name('clientes.store');
     Route::match(['put', 'patch'], '/clientes/{id}', [ClienteController::class, 'update'])->name('clientes.update');
+    Route::post('/clientes/{id}/toggle-credit', [ClienteController::class, 'toggleCredit'])->name('clientes.toggle_credit');
     Route::delete('/clientes/{id}', [ClienteController::class, 'destroy'])->name('clientes.destroy');
 
     Route::get('/planilla', [PlanillaController::class, 'index'])->name('planilla.index');
+
+    // Proformas / Cotizaciones
+    Route::get('/proformas', [ProformaController::class, 'index'])->name('proformas.index');
+    Route::get('/proformas/nueva', [ProformaController::class, 'pos'])->name('proformas.pos');
+    Route::post('/proformas', [ProformaController::class, 'store'])->name('proformas.store');
+    Route::get('/proformas/{id}', [ProformaController::class, 'show'])->name('proformas.show');
+    Route::patch('/proformas/{id}/status', [ProformaController::class, 'updateStatus'])->name('proformas.status');
+    Route::delete('/proformas/{id}', [ProformaController::class, 'destroy'])->name('proformas.destroy');
+    Route::get('/proformas/{id}/pdf', [ProformaController::class, 'pdf'])->name('proformas.pdf');
+    Route::get('/proformas/{id}/ticket', [ProformaController::class, 'ticket'])->name('proformas.ticket');
+    Route::post('/proformas/{id}/convert', [ProformaController::class, 'convertToSale'])->name('proformas.convert');
 
     // Reportes solo para admin
     Route::middleware(['role:admin'])->group(function () {

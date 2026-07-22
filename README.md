@@ -57,3 +57,16 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Local development notes
+
+- If you run the application outside of Docker/Sail (for example with `php artisan serve`), set `SESSION_DRIVER=file` in your `.env` to avoid Laravel attempting to read sessions from the database container (common `php_network_getaddresses: getaddrinfo for mysql failed` errors).
+- Prefer running the app with Sail where the DB hostname `mysql` is resolvable:
+
+```bash
+./vendor/bin/sail up -d
+./vendor/bin/sail artisan migrate
+./vendor/bin/sail artisan db:seed
+```
+
+This project defaults DB host to `mysql` to match Sail configuration.

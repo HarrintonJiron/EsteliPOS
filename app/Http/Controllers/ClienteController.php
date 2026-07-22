@@ -86,4 +86,26 @@ class ClienteController extends Controller
         return redirect()->route('clientes.index')
             ->with('success', 'Cliente eliminado.');
     }
+
+    /**
+     * Toggle credit enabled for a client and optionally set limit/days.
+     */
+    public function toggleCredit(Request $request, $id)
+    {
+        $client = Client::findOrFail($id);
+
+        $data = $request->validate([
+            'credit_enabled' => 'required|boolean',
+            'credit_limit' => 'nullable|numeric|min:0',
+            'credit_days' => 'nullable|integer|min:1|max:365',
+        ]);
+
+        $client->update([
+            'credit_enabled' => $data['credit_enabled'],
+            'credit_limit' => $data['credit_limit'] ?? $client->credit_limit,
+            'credit_days' => $data['credit_days'] ?? $client->credit_days,
+        ]);
+
+        return redirect()->route('clientes.show', $client->id)->with('success', 'Configuración de crédito actualizada.');
+    }
 }

@@ -28,6 +28,7 @@ class Product extends Model
         'concentration',
         'status',
         'observations',
+        'image_url',
     ];
 
     public function category()

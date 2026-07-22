@@ -47,6 +47,9 @@
     </div>
 
     <div class="grid grid-cols-2 gap-6">
+        <div class="col-span-2 text-right mb-4">
+            <a href="{{ route('creditos.statement', $client->id) }}" class="btn-outline text-sm">Imprimir Estado de Cuenta</a>
+        </div>
 
         {{-- Ventas a Crédito --}}
         <div class="bg-white rounded shadow overflow-hidden">

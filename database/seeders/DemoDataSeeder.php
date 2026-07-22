@@ -4,12 +4,14 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Client;
-use App\Models\supplier;
-use App\Models\product;
+use App\Models\Supplier;
+use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Purchase;
 use App\Models\PurchaseDetail;
+use App\Models\Category;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -91,14 +93,28 @@ class DemoDataSeeder extends Seeder
         ];
 
         foreach ($productos as $producto) {
-            product::updateOrCreate(['codigo' => $producto['codigo']], $producto);
+            $category = Category::firstOrCreate(['name' => $producto['categoria']]);
+
+            Product::updateOrCreate(
+                ['code' => $producto['codigo']],
+                [
+                    'category_id' => $category->id,
+                    'name' => $producto['name'],
+                    'description' => $producto['name'],
+                    'purchase_price' => $producto['precio_compra'],
+                    'sale_price' => $producto['precio_venta'],
+                    'stock' => $producto['stock'],
+                    'unit' => $producto['unidad'],
+                ]
+            );
         }
     }
 
     private function seedVentas(): void
     {
         $clientes = Client::pluck('id')->toArray();
-        $productos = product::all();
+        $productos = Product::all();
+        $userId = User::first()?->id ?? 1;
         
         // Fechas variadas: últimos 90 días
         $fechas = [];
@@ -116,9 +132,12 @@ class DemoDataSeeder extends Seeder
             $total = 0;
             
             $sale = Sale::create([
-                'cliente_id' => $clienteId,
+                'client_id' => $clienteId,
+                'user_id' => $userId,
+                'date' => $fecha->format('Y-m-d'),
                 'total' => 0, // Se actualiza después
-                'estado' => rand(0, 10) > 2 ? 'completada' : 'pendiente',
+                'status' => rand(0, 10) > 2 ? 'completed' : 'pending',
+                'payment_type' => rand(0, 10) > 6 ? 'credit' : 'cash',
                 'created_at' => $fecha,
                 'updated_at' => $fecha,
             ]);
@@ -126,18 +145,16 @@ class DemoDataSeeder extends Seeder
             for ($j = 0; $j < $itemsCount; $j++) {
                 $producto = $productos->random();
                 $cantidad = rand(1, 20);
-                $precio = $producto->precio_venta;
+                $precio = $producto->sale_price;
                 $subtotal = $cantidad * $precio;
                 $total += $subtotal;
                 
                 SaleDetail::create([
                     'sale_id' => $sale->id,
-                    'producto_id' => $producto->id,
-                    'cantidad' => $cantidad,
-                    'precio' => $precio,
+                    'product_id' => $producto->id,
+                    'quantity' => $cantidad,
+                    'price' => $precio,
                     'subtotal' => $subtotal,
-                    'created_at' => $fecha,
-                    'updated_at' => $fecha,
                 ]);
             }
             
@@ -148,7 +165,8 @@ class DemoDataSeeder extends Seeder
     private function seedCompras(): void
     {
         $proveedores = supplier::pluck('id')->toArray();
-        $productos = product::all();
+        $productos = Product::all();
+        $userId = User::first()?->id ?? 1;
         
         $fechas = [];
         for ($i = 0; $i < 60; $i++) {
@@ -164,11 +182,11 @@ class DemoDataSeeder extends Seeder
             $total = 0;
             
             $compra = Purchase::create([
-                'proveedor_id' => $proveedorId,
-                'numero_factura' => 'FAC-' . strtoupper(uniqid()),
-                'fecha' => $fecha->format('Y-m-d'),
+                'supplier_id' => $proveedorId,
+                'user_id' => $userId,
+                'date' => $fecha->format('Y-m-d'),
                 'total' => 0,
-                'estado' => 'recibida',
+                'status' => 'completed',
                 'created_at' => $fecha,
                 'updated_at' => $fecha,
             ]);
@@ -176,18 +194,16 @@ class DemoDataSeeder extends Seeder
             for ($j = 0; $j < $itemsCount; $j++) {
                 $producto = $productos->random();
                 $cantidad = rand(10, 100);
-                $precio = $producto->precio_compra;
+                $precio = $producto->purchase_price;
                 $subtotal = $cantidad * $precio;
                 $total += $subtotal;
                 
                 PurchaseDetail::create([
-                    'compra_id' => $compra->id,
-                    'producto_id' => $producto->id,
-                    'cantidad' => $cantidad,
-                    'precio' => $precio,
+                    'purchase_id' => $compra->id,
+                    'product_id' => $producto->id,
+                    'quantity' => $cantidad,
+                    'price' => $precio,
                     'subtotal' => $subtotal,
-                    'created_at' => $fecha,
-                    'updated_at' => $fecha,
                 ]);
                 
                 // Actualizar stock
