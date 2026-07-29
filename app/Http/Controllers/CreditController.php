@@ -43,9 +43,12 @@ class CreditController extends Controller
         $totalDebt = $creditSales->sum('total');
         $totalPaid = $payments->sum('amount');
         $balance = max(0, $totalDebt - $totalPaid);
+        $moraBreakdown = $this->credit->moraSalesBreakdown($client);
+        $totalMora = $this->credit->moraForClient($client);
 
         return view('creditos.show', compact(
-            'client', 'creditSales', 'payments', 'totalDebt', 'totalPaid', 'balance', 'creditSummary'
+            'client', 'creditSales', 'payments', 'totalDebt', 'totalPaid', 'balance', 'creditSummary',
+            'moraBreakdown', 'totalMora'
         ));
     }
 

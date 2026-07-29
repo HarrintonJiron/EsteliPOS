@@ -37,6 +37,10 @@ class ClientRequest extends FormRequest
             'credit_enabled' => 'nullable|boolean',
             'credit_limit' => 'nullable|numeric|min:0',
             'credit_days' => 'nullable|integer|min:1|max:365',
+            'mora_enabled' => 'nullable|boolean',
+            'mora_rate' => 'nullable|numeric|min:0|max:100',
+            'mora_grace_days' => 'nullable|integer|min:0|max:90',
+            'mora_max_pct' => 'nullable|numeric|min:0|max:100',
         ];
     }
 

@@ -29,7 +29,17 @@ class Product extends Model
         'status',
         'observations',
         'image_url',
+        'discount_pct',
+        'discount_label',
     ];
+
+    public function effectivePrice(): float
+    {
+        if ((float) $this->discount_pct > 0) {
+            return round((float) $this->sale_price * (1 - (float) $this->discount_pct / 100), 2);
+        }
+        return (float) $this->sale_price;
+    }
 
     public function category()
     {

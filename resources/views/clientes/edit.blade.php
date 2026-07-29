@@ -91,6 +91,46 @@
             </div>
         </div>
 
+        {{-- MORA --}}
+        <div class="card p-5 space-y-4 border-l-4 border-red-400">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="font-semibold text-slate-800">Cargo por Mora</h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Se calcula sobre facturas vencidas y se muestra en el estado de cuenta.</p>
+                </div>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="mora_enabled" value="1" {{ old('mora_enabled', $client->mora_enabled) ? 'checked' : '' }} class="rounded text-red-500">
+                    <span class="text-sm">Habilitar mora</span>
+                </label>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">% mora por día vencido</label>
+                    <input type="number" name="mora_rate" step="0.01" min="0" max="100"
+                           value="{{ old('mora_rate', $client->mora_rate ?? 0.5) }}" class="input-field">
+                    <p class="text-xs text-slate-400 mt-1">Ej: 0.5 = 0.5% diario sobre el principal</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">Días de gracia</label>
+                    <input type="number" name="mora_grace_days" min="0" max="90"
+                           value="{{ old('mora_grace_days', $client->mora_grace_days ?? 0) }}" class="input-field">
+                    <p class="text-xs text-slate-400 mt-1">Días extra antes de aplicar mora</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">Mora máxima (% del principal)</label>
+                    <input type="number" name="mora_max_pct" step="0.01" min="0" max="100"
+                           value="{{ old('mora_max_pct', $client->mora_max_pct ?? 30) }}" class="input-field">
+                    <p class="text-xs text-slate-400 mt-1">0 = sin tope de mora</p>
+                </div>
+            </div>
+            @if($client->mora_enabled && ($creditSummary['mora'] ?? 0) > 0)
+            <div class="bg-red-50 rounded-xl p-3 flex items-center justify-between">
+                <p class="text-sm text-red-700 font-medium">Mora acumulada actual</p>
+                <p class="text-lg font-bold text-red-700">C$ {{ number_format($creditSummary['mora'] ?? 0, 2) }}</p>
+            </div>
+            @endif
+        </div>
+
         <div class="flex justify-end gap-3">
             <button type="submit" class="btn-primary">Guardar Cambios</button>
         </div>

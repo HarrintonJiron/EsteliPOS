@@ -9,6 +9,94 @@ use Illuminate\Support\Collection;
 
 class CreditService
 {
+    /**
+     * Calculate total mora (late-payment fee) owed by a client.
+     * mora = sum of (sale.total * mora_rate% * overdue_days) per overdue sale,
+     * capped at mora_max_pct% of the principal if configured.
+     */
+    public function moraForClient(Client $client): float
+    {
+        if (! $client->mora_enabled || (float) $client->mora_rate <= 0) {
+            return 0;
+        }
+
+        $today      = now()->startOfDay();
+        $ratePerDay = (float) $client->mora_rate / 100;
+        $graceDays  = (int) ($client->mora_grace_days ?? 0);
+        $maxPct     = (float) ($client->mora_max_pct ?? 0);
+        $totalMora  = 0.0;
+
+        $overdueSales = Sale::query()
+            ->where('client_id', $client->id)
+            ->where('payment_type', 'credit')
+            ->where('status', 'pending')
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', now()->toDateString())
+            ->get(['total', 'due_date']);
+
+        foreach ($overdueSales as $sale) {
+            $daysLate = (int) $today->diffInDays($sale->due_date->startOfDay(), false) * -1;
+            $billableDays = max(0, $daysLate - $graceDays);
+            if ($billableDays <= 0) continue;
+
+            $principal   = (float) $sale->total;
+            $saleMora    = $principal * $ratePerDay * $billableDays;
+
+            if ($maxPct > 0) {
+                $saleMora = min($saleMora, $principal * $maxPct / 100);
+            }
+
+            $totalMora += $saleMora;
+        }
+
+        return round($totalMora, 2);
+    }
+
+    /**
+     * Returns per-sale mora details for a client.
+     */
+    public function moraSalesBreakdown(Client $client): array
+    {
+        if (! $client->mora_enabled || (float) $client->mora_rate <= 0) {
+            return [];
+        }
+
+        $today      = now()->startOfDay();
+        $ratePerDay = (float) $client->mora_rate / 100;
+        $graceDays  = (int) ($client->mora_grace_days ?? 0);
+        $maxPct     = (float) ($client->mora_max_pct ?? 0);
+        $breakdown  = [];
+
+        $overdueSales = Sale::query()
+            ->where('client_id', $client->id)
+            ->where('payment_type', 'credit')
+            ->where('status', 'pending')
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', now()->toDateString())
+            ->get(['id', 'invoice_number', 'total', 'due_date']);
+
+        foreach ($overdueSales as $sale) {
+            $daysLate     = (int) $today->diffInDays($sale->due_date->startOfDay(), false) * -1;
+            $billableDays = max(0, $daysLate - $graceDays);
+            $principal    = (float) $sale->total;
+            $mora         = $principal * $ratePerDay * $billableDays;
+
+            if ($maxPct > 0) {
+                $mora = min($mora, $principal * $maxPct / 100);
+            }
+
+            $breakdown[] = [
+                'invoice_number' => $sale->invoice_number,
+                'principal'      => $principal,
+                'days_late'      => $daysLate,
+                'billable_days'  => $billableDays,
+                'mora'           => round($mora, 2),
+            ];
+        }
+
+        return $breakdown;
+    }
+
     public function pendingDebt(Client $client): float
     {
         $totalSales = (float) Sale::query()
@@ -74,6 +162,8 @@ class CreditService
             'credit_days' => (int) ($client->credit_days ?? 30),
             'over_limit' => $client->credit_enabled && $limit > 0 && $balance > $limit,
             'usage_percent' => $limit > 0 ? min(100, round(($balance / $limit) * 100, 1)) : 0,
+            'mora' => $this->moraForClient($client),
+            'mora_enabled' => (bool) $client->mora_enabled,
         ];
     }
 

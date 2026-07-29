@@ -14,6 +14,7 @@ use App\Http\Controllers\PlanillaController;
 use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\ProformaController;
+use App\Http\Controllers\ReparacionController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas públicas (sin autenticación)
@@ -117,6 +118,18 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/proformas/{id}/pdf', [ProformaController::class, 'pdf'])->name('proformas.pdf');
     Route::get('/proformas/{id}/ticket', [ProformaController::class, 'ticket'])->name('proformas.ticket');
     Route::post('/proformas/{id}/convert', [ProformaController::class, 'convertToSale'])->name('proformas.convert');
+
+    // Reparaciones
+    Route::get('/reparaciones', [ReparacionController::class, 'index'])->name('reparaciones.index');
+    Route::get('/reparaciones/nueva', [ReparacionController::class, 'create'])->name('reparaciones.create');
+    Route::post('/reparaciones', [ReparacionController::class, 'store'])->name('reparaciones.store');
+    Route::get('/reparaciones/{id}', [ReparacionController::class, 'show'])->name('reparaciones.show');
+    Route::get('/reparaciones/{id}/edit', [ReparacionController::class, 'edit'])->name('reparaciones.edit');
+    Route::put('/reparaciones/{id}', [ReparacionController::class, 'update'])->name('reparaciones.update');
+    Route::patch('/reparaciones/{id}/status', [ReparacionController::class, 'updateStatus'])->name('reparaciones.status');
+    Route::delete('/reparaciones/{id}', [ReparacionController::class, 'destroy'])->name('reparaciones.destroy');
+    Route::get('/reparaciones/{id}/ticket', [ReparacionController::class, 'ticket'])->name('reparaciones.ticket');
+    Route::get('/reparaciones/{id}/pdf', [ReparacionController::class, 'pdf'])->name('reparaciones.pdf');
 
     // Reportes solo para admin
     Route::middleware(['role:admin'])->group(function () {

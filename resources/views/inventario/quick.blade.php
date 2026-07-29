@@ -46,7 +46,7 @@
         <div class="grid grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-2">Precio venta (C$) *</label>
-                <input type="number" name="sale_price" id="priceInput" value="{{ old('sale_price') }}" step="0.01" min="0" required
+                <input type="number" name="sale_price" id="quick_sale_price" value="{{ old('sale_price') }}" step="0.01" min="0" required
                     class="input-field text-2xl font-bold text-center py-3 text-indigo-600">
             </div>
             <div>
@@ -79,20 +79,29 @@
             </div>
         </div>
 
-        <details class="group">
+        <details class="group" open>
             <summary class="cursor-pointer text-sm text-indigo-600 font-medium hover:text-indigo-800">
-                Opciones adicionales (Modo Pro)
+                Precio de compra + Calculadora de utilidad
             </summary>
-            <div class="mt-4 grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
-                <div>
-                    <label class="block text-xs text-slate-500 mb-1">Precio compra (opcional)</label>
-                    <input type="number" name="purchase_price" step="0.01" min="0" placeholder="Auto: 85% del venta"
-                        class="input-field">
+            <div class="mt-4 space-y-4 pt-4 border-t border-slate-100">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1">Precio de compra (C$)</label>
+                        <input type="number" name="purchase_price" id="quick_purchase_price"
+                               step="0.01" min="0" placeholder="Costo del producto"
+                               value="{{ old('purchase_price') }}"
+                               class="input-field">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1">Stock mínimo alerta</label>
+                        <input type="number" name="low_stock_threshold" value="5" min="1" class="input-field">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-xs text-slate-500 mb-1">Stock mínimo alerta</label>
-                    <input type="number" name="low_stock_threshold" value="5" min="1" class="input-field">
-                </div>
+
+                @include('inventario._price_calc', [
+                    'purchaseInputId' => 'quick_purchase_price',
+                    'saleInputId'     => 'quick_sale_price',
+                ])
             </div>
         </details>
 
@@ -118,7 +127,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     const barcode = document.getElementById('barcodeInput');
     const nameInput = document.getElementById('nameInput');
-    const priceInput = document.getElementById('priceInput');
+    const priceInput = document.getElementById('quick_sale_price');
     const existsAlert = document.getElementById('existsAlert');
     const lookupBase = document.getElementById('quickApp').dataset.lookupUrl;
 

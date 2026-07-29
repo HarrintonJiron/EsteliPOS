@@ -177,7 +177,15 @@
                         </span>
                     </td>
                     @endif
-                    <td>C$ {{ number_format($product->sale_price, 2) }}</td>
+                    <td>
+                        C$ {{ number_format($product->sale_price, 2) }}
+                        @if((float)$product->discount_pct > 0)
+                            <span class="ml-1 inline-block bg-amber-100 text-amber-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                                -{{ $product->discount_pct }}%
+                            </span>
+                            <span class="block text-xs text-amber-700 font-semibold">C$ {{ number_format($product->effectivePrice(), 2) }}</span>
+                        @endif
+                    </td>
                     <td><span class="badge-{{ match($product->inventory_status) { 'expired' => 'danger', 'expiring_soon', 'low_stock' => 'warning', default => 'success' } }}">{{ $product->inventory_status_label }}</span></td>
                     <td class="text-center space-x-2">
                         <a href="{{ route('inventario.show', $product->id) }}" class="text-indigo-600 text-sm font-medium">Kardex</a>

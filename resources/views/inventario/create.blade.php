@@ -89,13 +89,15 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Precio de Compra (C$) *</label>
-                    <input type="number" name="purchase_price" value="{{ old('purchase_price') }}" step="0.01" min="0" required
+                    <input type="number" name="purchase_price" id="create_purchase_price"
+                           value="{{ old('purchase_price') }}" step="0.01" min="0" required
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Precio de Venta (C$) *</label>
-                    <input type="number" name="sale_price" value="{{ old('sale_price') }}" step="0.01" min="0" required
+                    <input type="number" name="sale_price" id="create_sale_price"
+                           value="{{ old('sale_price') }}" step="0.01" min="0" required
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
@@ -118,6 +120,42 @@
                         <option value="inactive" {{ old('status') == 'inactive' ? 'selected' : '' }}>Inactivo</option>
                         <option value="discontinued" {{ old('status') == 'discontinued' ? 'selected' : '' }}>Descontinuado</option>
                     </select>
+                </div>
+            </div>
+
+            {{-- Calculadora de precio de venta --}}
+            <div class="mt-4">
+                @include('inventario._price_calc', [
+                    'purchaseInputId' => 'create_purchase_price',
+                    'saleInputId'     => 'create_sale_price',
+                ])
+            </div>
+        </div>
+
+        {{-- Descuento del Producto --}}
+        <div class="bg-white p-4 rounded-xl shadow border-l-4 border-amber-400">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Descuento / Promoción</h2>
+            <p class="text-xs text-gray-500 mb-3">Si se configura un descuento, se aplica automáticamente al agregar este producto al ticket/factura en el POS.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Descuento (%)</label>
+                    <input type="number" name="discount_pct" value="{{ old('discount_pct', 0) }}"
+                           step="0.01" min="0" max="100"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                           placeholder="0 = sin descuento">
+                    <p class="text-xs text-gray-400 mt-1">Ej: 10 = 10% de descuento automático</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Etiqueta de promoción</label>
+                    <input type="text" name="discount_label" value="{{ old('discount_label') }}"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+                           placeholder="Ej: Oferta, Promo Verano...">
+                </div>
+                <div class="flex items-end">
+                    <div class="p-3 bg-amber-50 rounded-xl w-full text-center">
+                        <p class="text-xs text-gray-500">Precio con descuento</p>
+                        <p class="font-bold text-amber-700 text-lg" id="discountPreview">C$ —</p>
+                    </div>
                 </div>
             </div>
         </div>

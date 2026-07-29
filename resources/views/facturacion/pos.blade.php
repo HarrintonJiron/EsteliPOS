@@ -263,6 +263,8 @@ document.addEventListener('DOMContentLoaded', function() {
         code: p.code ?? '',
         name: p.name,
         price: parseFloat(p.sale_price ?? 0),
+        discount_pct: parseFloat(p.discount_pct ?? 0),
+        discount_label: p.discount_label ?? '',
         stock: parseInt(p.stock ?? 0),
         category_id: p.category_id,
         category_name: p.category?.name ?? 'Sin categoría',
@@ -418,7 +420,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 name: product.name,
                 price: product.price,
                 quantity: qty,
-                discount: 0,
+                discount: product.discount_pct || 0,
                 max_stock: product.stock,
             });
         }
@@ -522,6 +524,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <p class="font-semibold text-slate-800 text-xs line-clamp-2 text-center">${p.name}</p>
                 <p class="text-xs text-slate-400 text-center mt-0.5">${p.code || '—'}</p>
                 <p class="text-base font-bold text-indigo-600 text-center mt-1">${formatMoney(p.price)}</p>
+                ${p.discount_pct > 0 ? `<p class="text-xs text-center font-bold text-amber-600">${p.discount_label || p.discount_pct + '% OFF'} → ${formatMoney(p.price * (1 - p.discount_pct/100))}</p>` : ''}
                 <p class="text-xs text-center mt-1 ${outStock ? 'text-red-600 font-bold' : lowStock ? 'text-amber-600' : 'text-slate-400'}">
                     ${outStock ? 'Sin stock' : 'Stock: ' + p.stock}
                 </p>

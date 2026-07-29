@@ -46,6 +46,50 @@
         </div>
     </div>
 
+    {{-- MORA CARD --}}
+    @if($client->mora_enabled && $totalMora > 0)
+    <div class="card p-5 mb-6 border border-red-200 bg-red-50">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h3 class="font-bold text-red-800 text-lg mb-1">
+                    ⚠ Mora Acumulada: C$ {{ number_format($totalMora, 2) }}
+                </h3>
+                <p class="text-xs text-red-600 mb-3">
+                    Tasa: {{ $client->mora_rate }}% diario
+                    @if($client->mora_grace_days > 0) · {{ $client->mora_grace_days }} días de gracia @endif
+                    @if((float)$client->mora_max_pct > 0) · Tope: {{ $client->mora_max_pct }}% del principal @endif
+                </p>
+                @if(count($moraBreakdown))
+                <table class="text-xs w-full max-w-lg">
+                    <thead><tr class="text-red-700 font-semibold">
+                        <th class="text-left py-1 pr-3">Factura</th>
+                        <th class="text-right pr-3">Principal</th>
+                        <th class="text-right pr-3">Días venc.</th>
+                        <th class="text-right pr-3">Días mora</th>
+                        <th class="text-right">Mora</th>
+                    </tr></thead>
+                    <tbody>
+                    @foreach($moraBreakdown as $row)
+                    <tr class="border-t border-red-200">
+                        <td class="py-1 pr-3 font-mono">{{ $row['invoice_number'] }}</td>
+                        <td class="text-right pr-3">C$ {{ number_format($row['principal'], 2) }}</td>
+                        <td class="text-right pr-3">{{ $row['days_late'] }}d</td>
+                        <td class="text-right pr-3">{{ $row['billable_days'] }}d</td>
+                        <td class="text-right font-bold text-red-700">C$ {{ number_format($row['mora'], 2) }}</td>
+                    </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+                @endif
+            </div>
+            <div class="text-right shrink-0">
+                <p class="text-3xl font-black text-red-700">C$ {{ number_format($totalMora, 2) }}</p>
+                <p class="text-xs text-red-500 mt-1">Total + mora: C$ {{ number_format($balance + $totalMora, 2) }}</p>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <div class="grid grid-cols-2 gap-6">
         <div class="col-span-2 text-right mb-4">
             <a href="{{ route('creditos.statement', $client->id) }}" class="btn-outline text-sm">Imprimir Estado de Cuenta</a>
@@ -66,6 +110,7 @@
                                 <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Fecha</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600">Monto</th>
                                 <th class="px-4 py-2 text-center text-xs font-semibold text-gray-600">Vence</th>
+                                @if($client->mora_enabled)<th class="px-4 py-2 text-right text-xs font-semibold text-red-600">Mora</th>@endif
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">
@@ -85,6 +130,14 @@
                                             {{ $sale->due_date->format('d/m/Y') }}
                                         </span>
                                     </td>
+                                    @if($client->mora_enabled)
+                                    @php
+                                        $saleRow = collect($moraBreakdown)->firstWhere('invoice_number', $sale->invoice_number);
+                                    @endphp
+                                    <td class="px-4 py-3 text-sm text-right font-semibold {{ ($saleRow['mora'] ?? 0) > 0 ? 'text-red-600' : 'text-slate-400' }}">
+                                        {{ ($saleRow['mora'] ?? 0) > 0 ? 'C$ '.number_format($saleRow['mora'], 2) : '—' }}
+                                    </td>
+                                    @endif
                                 </tr>
                             @endforeach
                         </tbody>

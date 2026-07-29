@@ -22,6 +22,10 @@ class Client extends Model
         'credit_enabled',
         'credit_limit',
         'credit_days',
+        'mora_enabled',
+        'mora_rate',
+        'mora_grace_days',
+        'mora_max_pct',
     ];
 
     protected function casts(): array
@@ -30,6 +34,10 @@ class Client extends Model
             'credit_enabled' => 'boolean',
             'credit_limit' => 'decimal:2',
             'credit_days' => 'integer',
+            'mora_enabled' => 'boolean',
+            'mora_rate' => 'decimal:2',
+            'mora_grace_days' => 'integer',
+            'mora_max_pct' => 'decimal:2',
         ];
     }
 
