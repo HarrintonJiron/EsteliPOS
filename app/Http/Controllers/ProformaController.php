@@ -12,6 +12,7 @@ use App\Models\SaleDetail;
 use App\Models\InventoryMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class ProformaController extends Controller
 {
@@ -19,13 +20,18 @@ class ProformaController extends Controller
 
     private function nextProformaNumber(): string
     {
-        $max = (int) Proforma::query()
+        $maxNumber = Proforma::query()
             ->whereNotNull('proforma_number')
-            ->where('proforma_number', 'REGEXP', '^PRO-[0-9]+$')
-            ->selectRaw("MAX(CAST(SUBSTRING(proforma_number, 5) AS UNSIGNED)) as max_num")
-            ->value('max_num');
+            ->pluck('proforma_number')
+            ->filter(fn ($value) => is_string($value) && preg_match('/^PRO-[0-9]+$/', $value) === 1)
+            ->map(function ($value) {
+                return (int) substr($value, 4);
+            })
+            ->max();
 
-        return 'PRO-' . str_pad((string) ($max + 1), 6, '0', STR_PAD_LEFT);
+        $next = (int) ($maxNumber ?? 0) + 1;
+
+        return 'PRO-' . str_pad((string) $next, 6, '0', STR_PAD_LEFT);
     }
 
     public function index(Request $request)
@@ -200,66 +206,92 @@ class ProformaController extends Controller
 
         $sale = null;
 
-        DB::transaction(function () use ($proforma, $paymentType, &$sale, $request) {
-            $userId = $request->user()?->id ?? 1;
+        try {
+            DB::transaction(function () use ($proforma, $paymentType, &$sale, $request) {
+                $userId = $request->user()?->id ?? 1;
 
-            // Determine next invoice number
-            $maxNum = (int) Sale::query()
-                ->whereNotNull('invoice_number')
-                ->where('invoice_number', 'REGEXP', '^[0-9]+$')
-                ->max(DB::raw('CAST(invoice_number AS UNSIGNED)'));
-            $invoiceNumber = str_pad((string) ($maxNum + 1), 6, '0', STR_PAD_LEFT);
+                $clientId = $proforma->client_id;
+                if (! $clientId) {
+                    $genericClient = Client::firstOrCreate(
+                        ['code' => 'GEN'],
+                        [
+                            'name' => 'Cliente General',
+                            'business_name' => 'Cliente General',
+                            'ruc' => null,
+                            'phone' => '',
+                            'email' => '',
+                            'address' => 'Cliente generado automáticamente para conversiones sin cliente.',
+                            'credit_enabled' => false,
+                            'credit_limit' => 0,
+                            'credit_days' => 0,
+                        ]
+                    );
+                    $clientId = $genericClient->id;
+                }
 
-            $status = $paymentType === 'credit' ? 'pending' : 'completed';
+                // Determine next invoice number
+                $maxNum = Sale::query()
+                    ->whereNotNull('invoice_number')
+                    ->pluck('invoice_number')
+                    ->filter(fn ($value) => is_string($value) && preg_match('/^\d+$/', $value) === 1)
+                    ->map(fn ($value) => (int) $value)
+                    ->max();
+                $invoiceNumber = str_pad((string) ((int) ($maxNum ?? 0) + 1), 6, '0', STR_PAD_LEFT);
 
-            $sale = Sale::create([
-                'invoice_number'        => $invoiceNumber,
-                'client_id'             => $proforma->client_id,
-                'user_id'               => $userId,
-                'billing_name'          => $proforma->client_name,
-                'billing_phone'         => $proforma->client_phone,
-                'billing_email'         => $proforma->client_email,
-                'billing_address'       => $proforma->client_address,
-                'date'                  => now(),
-                'payment_type'          => $paymentType,
-                'tax_included'          => $proforma->tax_included,
-                'tax_rate'              => $proforma->tax_rate,
-                'status'                => $status,
-                'notes'                 => 'Generada desde Proforma ' . $proforma->proforma_number,
-                'subtotal'              => $proforma->subtotal,
-                'tax_total'             => $proforma->tax_total,
-                'total'                 => $proforma->total,
-            ]);
+                $status = $paymentType === 'credit' ? 'pending' : 'completed';
 
-            foreach ($proforma->details as $detail) {
-                SaleDetail::create([
-                    'sale_id'    => $sale->id,
-                    'product_id' => $detail->product_id,
-                    'quantity'   => $detail->quantity,
-                    'price'      => $detail->price,
-                    'subtotal'   => $detail->subtotal,
+                $sale = Sale::create([
+                    'invoice_number'        => $invoiceNumber,
+                    'client_id'             => $clientId,
+                    'user_id'               => $userId,
+                    'billing_name'          => $proforma->client_name ?: 'Cliente General',
+                    'billing_phone'         => $proforma->client_phone,
+                    'billing_email'         => $proforma->client_email,
+                    'billing_address'       => $proforma->client_address,
+                    'date'                  => now(),
+                    'payment_type'          => $paymentType,
+                    'tax_included'          => $proforma->tax_included,
+                    'tax_rate'              => $proforma->tax_rate,
+                    'status'                => $status,
+                    'notes'                 => 'Generada desde Proforma ' . $proforma->proforma_number,
+                    'subtotal'              => $proforma->subtotal,
+                    'tax_total'             => $proforma->tax_total,
+                    'total'                 => $proforma->total,
                 ]);
 
-                if ($detail->product_id) {
-                    Product::where('id', $detail->product_id)->decrement('stock', $detail->quantity);
-                    $product = Product::find($detail->product_id);
-                    InventoryMovement::create([
-                        'product_id'  => $detail->product_id,
-                        'type'        => 'out',
-                        'quantity'    => $detail->quantity,
-                        'stock_after' => $product?->stock,
-                        'reference'   => 'proforma_sale:' . $sale->id,
-                        'note'        => 'Venta desde Proforma ' . $proforma->proforma_number,
-                        'user_id'     => $userId,
+                foreach ($proforma->details as $detail) {
+                    SaleDetail::create([
+                        'sale_id'    => $sale->id,
+                        'product_id' => $detail->product_id,
+                        'quantity'   => $detail->quantity,
+                        'price'      => $detail->price,
+                        'subtotal'   => $detail->subtotal,
                     ]);
+
+                    if ($detail->product_id) {
+                        Product::where('id', $detail->product_id)->decrement('stock', $detail->quantity);
+                        $product = Product::find($detail->product_id);
+                        InventoryMovement::create([
+                            'product_id'  => $detail->product_id,
+                            'type'        => 'out',
+                            'quantity'    => $detail->quantity,
+                            'stock_after' => $product?->stock,
+                            'reference'   => 'proforma_sale:' . $sale->id,
+                            'note'        => 'Venta desde Proforma ' . $proforma->proforma_number,
+                            'user_id'     => $userId,
+                        ]);
+                    }
                 }
-            }
 
-            // Mark proforma as accepted
-            $proforma->update(['status' => 'accepted']);
-        });
+                // Mark proforma as accepted
+                $proforma->update(['status' => 'accepted']);
+            });
 
-        return redirect()->route('facturacion.show', $sale->id)
-            ->with('success', 'Proforma convertida a factura correctamente.');
+            return redirect()->route('facturacion.show', $sale->id)
+                ->with('success', 'Proforma convertida a factura correctamente.');
+        } catch (Throwable $exception) {
+            return redirect()->back()
+                ->with('error', 'No se pudo convertir la proforma. ' . $exception->getMessage());
+        }
     }
 }

@@ -6,13 +6,13 @@
 
 @section('content')
 
-<div id="proformaApp" class="h-full overflow-hidden bg-slate-50 flex"
+<div id="proformaApp" class="h-full overflow-hidden bg-slate-50 flex flex-col xl:flex-row"
      data-products='@json($products)'
      data-clients='@json($clients)'
      data-categories='@json($categories)'>
 
     {{-- COLUMNA IZQUIERDA: ITEMS --}}
-    <div class="w-2/5 bg-white flex flex-col border-r border-slate-200">
+    <div class="w-full xl:w-[42%] 2xl:w-2/5 bg-white flex flex-col border-b xl:border-b-0 xl:border-r border-slate-200">
 
         <div class="px-4 py-2 bg-indigo-700 text-white flex items-center justify-between text-xs shrink-0">
             <div class="flex items-center gap-2">
@@ -66,7 +66,7 @@
                 Editando: <span id="selectedItemName" class="font-semibold"></span> · Cant: <span id="selectedItemQty" class="font-bold">0</span>
             </div>
 
-            <div class="grid grid-cols-3 gap-2">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 @foreach(['7','8','9','4','5','6','1','2','3'] as $key)
                 <button type="button" onclick="padInput('{{ $key }}')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 rounded-xl text-sm shadow-sm">{{ $key }}</button>
                 @endforeach
@@ -105,7 +105,7 @@
         </div>
 
         <div id="productsGrid" class="flex-1 overflow-y-auto p-4 bg-slate-50">
-            <div class="grid grid-cols-3 xl:grid-cols-4 gap-3"></div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3"></div>
         </div>
     </div>
 

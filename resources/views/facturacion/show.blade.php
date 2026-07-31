@@ -7,7 +7,7 @@
 <div class="space-y-6">
 
     {{-- Encabezado --}}
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
         <div>
             <h2 class="text-2xl font-bold text-gray-700">Factura #{{ $sale->id }}</h2>
             <p class="text-sm text-gray-500">Detalles de la venta</p>
@@ -42,7 +42,7 @@
     {{-- Datos principales --}}
     <div class="bg-white p-6 rounded-xl shadow space-y-6">
 
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
 
             <div>
                 <label class="text-sm text-gray-600">Cliente</label>
@@ -73,7 +73,7 @@
 
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
             <div>
                 <label class="text-sm text-gray-600">No. Factura</label>
                 <p class="mt-1 text-gray-900">{{ $sale->invoice_number ?: ('#' . $sale->id) }}</p>

@@ -6,14 +6,14 @@
 
 @section('content')
 
-<div id="posApp" class="h-full overflow-hidden bg-slate-50 flex"
+<div id="posApp" class="h-full overflow-hidden bg-slate-50 flex flex-col xl:flex-row"
      data-products='@json($products)'
      data-clients='@json($clients)'
      data-categories='@json($categories)'
      data-daily-report-url="{{ route('facturacion.pos-daily-report') }}">
 
     {{-- COLUMNA IZQUIERDA: TICKET --}}
-    <div class="w-2/5 bg-white flex flex-col border-r border-slate-200">
+    <div class="w-full xl:w-[42%] 2xl:w-2/5 bg-white flex flex-col border-b xl:border-b-0 xl:border-r border-slate-200">
 
         {{-- Barra de acciones rápidas --}}
         <div class="px-4 py-2 bg-slate-800 text-white flex items-center justify-between text-xs shrink-0">
@@ -69,7 +69,7 @@
                 Editando: <span id="selectedItemName" class="font-semibold"></span> · Cant: <span id="selectedItemQty" class="font-bold">0</span>
             </div>
 
-            <div class="grid grid-cols-3 gap-2">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 @foreach(['7','8','9','4','5','6','1','2','3'] as $key)
                 <button type="button" onclick="padInput('{{ $key }}')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 rounded-xl text-sm shadow-sm">{{ $key }}</button>
                 @endforeach
@@ -97,7 +97,7 @@
         </div>
 
         <div id="productsGrid" class="flex-1 overflow-y-auto p-4 bg-slate-50">
-            <div class="grid grid-cols-3 xl:grid-cols-4 gap-3"></div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3"></div>
         </div>
 
         <div class="bg-white border-t border-slate-200 p-4 space-y-2 shrink-0 max-h-[50%] overflow-y-auto">
@@ -190,7 +190,7 @@
                         <input type="number" id="amountReceived" step="0.01" placeholder="0.00"
                             class="w-full px-4 py-3 text-2xl font-bold border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:outline-none text-center bg-slate-50">
                         <p class="text-sm text-slate-600 text-center">Cambio: <span id="changeDisplay" class="font-bold text-slate-900">C$ 0.00</span></p>
-                        <div class="grid grid-cols-4 gap-2">
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             @foreach([10, 20, 50, 100, 200, 500, 1000] as $bill)
                             <button type="button" onclick="addBill({{ $bill }})" class="py-2 bg-slate-100 rounded-xl text-xs font-bold hover:bg-indigo-100 hover:text-indigo-700">C$ {{ $bill }}</button>
                             @endforeach

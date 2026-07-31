@@ -104,10 +104,10 @@
 
 <body class="bg-slate-100">
 
-    <div class="flex h-screen overflow-hidden">
+    <div class="flex h-screen overflow-hidden flex-col lg:flex-row">
 
         {{-- SIDEBAR --}}
-        <aside class="w-64 bg-slate-800 text-white flex flex-col relative z-10 shrink-0">
+        <aside class="w-full lg:w-64 bg-slate-800 text-white flex flex-col relative z-10 shrink-0">
 
             <div class="p-6 border-b border-slate-700">
                 <h2 class="text-xl font-bold tracking-tight">EsteliPOS</h2>
@@ -177,12 +177,12 @@
         <div class="flex-1 flex flex-col min-w-0">
 
             @unless(View::hasSection('hide-header'))
-            <header class="sticky top-0 bg-white border-b border-slate-200 z-30 px-6 py-3 flex justify-between items-center shrink-0">
+            <header class="sticky top-0 bg-white border-b border-slate-200 z-30 px-4 sm:px-6 py-3 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center shrink-0">
 
                 <h1 class="text-lg font-semibold text-slate-800">@yield('title')</h1>
 
-                <div class="flex items-center space-x-3">
-                    <div class="hidden md:flex items-center space-x-2 border-r border-slate-200 pr-4">
+                <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <div class="hidden lg:flex items-center space-x-2 border-r border-slate-200 pr-4">
                         <a href="{{ route('facturacion.pos') }}" class="btn-primary text-sm py-1.5 px-3">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                             Nueva Venta
@@ -222,32 +222,76 @@
             </header>
             @endunless
 
-            @if(session('success') || session('error') || $errors->any())
-            <div class="px-6 pt-4 shrink-0">
+            @if(session('success') || session('error') || session('warning') || $errors->any())
+            <div class="fixed top-4 right-4 z-50 w-full max-w-md space-y-3 pointer-events-none px-4">
                 @if(session('success'))
-                    <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                        {{ session('success') }}
+                    <div data-flash="success" class="pointer-events-auto flex items-start justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg transition-all duration-300">
+                        <div class="flex items-start gap-2">
+                            <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            <span>{{ session('success') }}</span>
+                        </div>
+                        <button type="button" data-dismiss="flash" class="text-emerald-700 hover:text-emerald-900" aria-label="Cerrar mensaje">✕</button>
                     </div>
                 @endif
                 @if(session('error'))
-                    <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm">{{ session('error') }}</div>
+                    <div data-flash="error" class="pointer-events-auto rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-lg transition-all duration-300">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex items-start gap-2">
+                                <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path></svg>
+                                <span>{{ session('error') }}</span>
+                            </div>
+                            <button type="button" data-dismiss="flash" class="text-red-700 hover:text-red-900" aria-label="Cerrar mensaje">✕</button>
+                        </div>
+                    </div>
+                @endif
+                @if(session('warning'))
+                    <div data-flash="warning" class="pointer-events-auto rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-lg transition-all duration-300">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex items-start gap-2">
+                                <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path></svg>
+                                <span>{{ session('warning') }}</span>
+                            </div>
+                            <button type="button" data-dismiss="flash" class="text-amber-700 hover:text-amber-900" aria-label="Cerrar mensaje">✕</button>
+                        </div>
+                    </div>
                 @endif
                 @if($errors->any())
-                    <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm">
-                        <ul class="list-disc list-inside">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                    <div data-flash="errors" class="pointer-events-auto rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-lg transition-all duration-300">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="font-semibold mb-1">Se encontraron errores:</p>
+                                <ul class="list-disc list-inside space-y-1">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+                            </div>
+                            <button type="button" data-dismiss="flash" class="text-red-700 hover:text-red-900" aria-label="Cerrar mensaje">✕</button>
+                        </div>
                     </div>
                 @endif
             </div>
             @endif
 
-            <main class="flex-1 overflow-y-auto bg-slate-50 @yield('main-class', 'p-6')">
+            <main class="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50 @yield('main-class', 'p-4 sm:p-6')">
                 @yield('content')
             </main>
 
         </div>
 
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('[data-dismiss="flash"]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    const flash = this.closest('[data-flash]');
+                    if (flash) {
+                        flash.classList.add('opacity-0', 'translate-y-2');
+                        setTimeout(function () {
+                            flash.remove();
+                        }, 220);
+                    }
+                });
+            });
+        });
+    </script>
 
     @stack('scripts')
 

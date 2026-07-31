@@ -42,10 +42,10 @@
         <div class="mb-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded-xl text-sm">{{ session('success') }}</div>
     @endif
 
-    <div class="grid grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {{-- Main content --}}
-        <div class="col-span-2 space-y-4">
+        <div class="lg:col-span-2 space-y-4">
 
             {{-- Client info --}}
             <div class="bg-white rounded-xl border border-slate-200 p-5">

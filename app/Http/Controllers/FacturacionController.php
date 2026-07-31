@@ -22,12 +22,16 @@ class FacturacionController extends Controller
 
     private function nextInvoiceNumber(): string
     {
-        $max = (int) Sale::query()
+        $maxNumber = Sale::query()
             ->whereNotNull('invoice_number')
-            ->where('invoice_number', 'REGEXP', '^[0-9]+$')
-            ->max(DB::raw('CAST(invoice_number AS UNSIGNED)'));
+            ->pluck('invoice_number')
+            ->filter(fn ($value) => is_string($value) && preg_match('/^\d+$/', $value) === 1)
+            ->map(fn ($value) => (int) $value)
+            ->max();
 
-        return str_pad((string) ($max + 1), 6, '0', STR_PAD_LEFT);
+        $next = (int) ($maxNumber ?? 0) + 1;
+
+        return str_pad((string) $next, 6, '0', STR_PAD_LEFT);
     }
 
     public function index(Request $request)

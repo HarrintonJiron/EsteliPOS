@@ -13,8 +13,8 @@ return new class extends Migration {
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->date('date');
             $table->decimal('total', 10, 2);
-            $table->enum('payment_type', ['cash', 'credit']);
-            $table->enum('status', ['completed', 'canceled']);
+            $table->string('payment_type')->default('cash');
+            $table->string('status')->default('completed');
             $table->timestamps();
         });
     }
