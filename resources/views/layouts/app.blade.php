@@ -1,23 +1,63 @@
+@php
+    $appearanceSettings = \App\Models\Setting::getByGroup('appearance');
+    $theme = $appearanceSettings['theme'] ?? 'light';
+    $primaryColor = $appearanceSettings['primary_color'] ?? '#6366f1';
+    $systemName = $appearanceSettings['system_name'] ?? 'Agroservicio POS';
+    
+    // Determinar si usar tema oscuro
+    $isDark = false;
+    if ($theme === 'dark') {
+        $isDark = true;
+    } elseif ($theme === 'auto') {
+        $isDark = isset($_COOKIE['theme']) ? $_COOKIE['theme'] === 'dark' : false;
+    }
+    
+    // Clases CSS dinámicas según tema
+    $bodyBg = $isDark ? 'bg-slate-900' : 'bg-slate-100';
+    $sidebarBg = $isDark ? 'bg-slate-900' : 'bg-slate-800';
+    $sidebarBorder = $isDark ? 'border-slate-800' : 'border-slate-700';
+    $cardBg = $isDark ? 'bg-slate-800' : 'bg-white';
+    $cardBorder = $isDark ? 'border-slate-700' : 'border-slate-200';
+    $textPrimary = $isDark ? 'text-white' : 'text-slate-900';
+    $textSecondary = $isDark ? 'text-slate-400' : 'text-slate-600';
+    $inputBg = $isDark ? 'bg-slate-700' : 'bg-white';
+    $inputBorder = $isDark ? 'border-slate-600' : 'border-slate-300';
+@endphp
+
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="{{ $isDark ? 'dark' : '' }}">
 
 <head>
     <meta charset="UTF-8">
-    <title>@yield('title', 'Sistema Agroservicio')</title>
+    <title>@yield('title', $systemName)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: { sans: ['Inter', 'sans-serif'] },
                     colors: {
                         brand: {
                             50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc',
-                            400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca',
+                            400: '#818cf8', 500: '{{ $primaryColor }}', 600: '#4f46e5', 700: '#4338ca',
                             800: '#3730a3', 900: '#312e81',
+                        },
+                        primary: {
+                            DEFAULT: '{{ $primaryColor }}',
+                            50: '{{ $primaryColor }}0d',
+                            100: '{{ $primaryColor }}1a',
+                            200: '{{ $primaryColor }}33',
+                            300: '{{ $primaryColor }}4d',
+                            400: '{{ $primaryColor }}66',
+                            500: '{{ $primaryColor }}',
+                            600: '{{ $primaryColor }}b3',
+                            700: '{{ $primaryColor }}cc',
+                            800: '{{ $primaryColor }}e6',
+                            900: '{{ $primaryColor }}f2',
                         }
                     }
                 }
@@ -63,13 +103,14 @@
         .btn-outline:hover { background: #f8fafc; }
 
         .card {
-            background: #fff; border-radius: 0.75rem;
-            box-shadow: 0 1px 2px rgba(0,0,0,.05); border: 1px solid #e2e8f0;
+            background: {{ $cardBg }}; border-radius: 0.75rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,.05); border: 1px solid {{ $cardBorder }};
         }
 
         .input-field, .select-field {
             width: 100%; padding: 0.5rem 1rem; font-size: 0.875rem;
-            border: 1px solid #cbd5e1; border-radius: 0.75rem; background: #fff;
+            border: 1px solid {{ $inputBorder }}; border-radius: 0.75rem; background: {{ $inputBg }};
+            color: {{ $textPrimary }};
         }
         .input-field:focus, .select-field:focus {
             outline: none; border-color: #4f46e5;
@@ -92,8 +133,8 @@
         .badge-danger  { padding: 0.25rem 0.625rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: #fee2e2; color: #b91c1c; }
         .badge-info    { padding: 0.25rem 0.625rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: #e0e7ff; color: #4338ca; }
 
-        .page-title { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
-        .page-subtitle { font-size: 0.875rem; color: #64748b; margin-top: 0.125rem; }
+        .page-title { font-size: 1.5rem; font-weight: 700; color: {{ $textPrimary }}; }
+        .page-subtitle { font-size: 0.875rem; color: {{ $textSecondary }}; margin-top: 0.125rem; }
 
         .tab-link { padding: 0.625rem 1rem; font-size: 0.875rem; font-weight: 500; border-bottom: 2px solid transparent; transition: color 0.15s; }
         .tab-link-active { color: #4f46e5; border-bottom-color: #4f46e5; }
@@ -102,15 +143,15 @@
     </style>
 </head>
 
-<body class="bg-slate-100">
+<body class="{{ $bodyBg }}">
 
     <div class="flex h-screen overflow-hidden">
 
         {{-- SIDEBAR --}}
-        <aside class="w-64 bg-slate-800 text-white flex flex-col relative z-10 shrink-0">
+        <aside class="w-64 {{ $sidebarBg }} text-white flex flex-col relative z-10 shrink-0">
 
-            <div class="p-6 border-b border-slate-700">
-                <h2 class="text-xl font-bold tracking-tight">EsteliPOS</h2>
+            <div class="p-6 border-b {{ $sidebarBorder }}">
+                <h2 class="text-xl font-bold tracking-tight">{{ $systemName }}</h2>
                 <p class="text-xs text-slate-400 mt-1">Sistema Administrativo</p>
             </div>
 
@@ -156,11 +197,16 @@
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     <span>Reportes</span>
                 </a>
+                <a href="{{ route('settings.index') }}"
+                   class="nav-link {{ request()->routeIs('settings.*') ? 'nav-link-active' : 'nav-link-inactive' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <span>Configuración</span>
+                </a>
                 @endif
 
             </nav>
 
-            <div class="p-4 border-t border-slate-700 text-xs">
+            <div class="p-4 border-t {{ $sidebarBorder }} text-xs">
                 <p class="text-slate-400 mb-1">Usuario</p>
                 <p class="font-semibold text-white truncate">{{ auth()->user()?->name ?? 'Invitado' }}</p>
                 <p class="text-slate-500 text-xs mt-1 truncate">{{ auth()->user()?->email ?? '' }}</p>

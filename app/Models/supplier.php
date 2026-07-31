@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Product;
 
 class Supplier extends Model
 {
@@ -25,6 +26,20 @@ class Supplier extends Model
         'credit_limit',
         'status',
     ];
+
+    public function products()
+    {
+        return $this->belongsToMany(
+            Product::class,
+            'product_supplier'
+        )
+            ->withPivot(
+                'purchase_price',
+                'supplier_code',
+                'preferred'
+            )
+            ->withTimestamps();
+    }
 
     public function purchases()
     {

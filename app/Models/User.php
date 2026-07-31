@@ -22,6 +22,9 @@ class User extends Authenticatable
         'email',
         'role',
         'password',
+        'is_active',
+        'profile_photo',
+        'last_login_at',
     ];
 
     /**
@@ -44,25 +47,88 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
     }
-    public function roles() {
-        return $this->belongsToMany(Role::class);
+
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'role_user');
     }
 
-    // Simple role check methods
+    public function permissions()
+    {
+        return $this->roles()->with('permissions')->get()
+            ->pluck('permissions')
+            ->flatten()
+            ->unique('id');
+    }
+
+    public function hasRole(string $roleSlug): bool
+    {
+        return $this->roles()->where('slug', $roleSlug)->exists();
+    }
+
+    public function hasPermission(string $permissionSlug): bool
+    {
+        return $this->roles()->whereHas('permissions', function ($query) use ($permissionSlug) {
+            $query->where('slug', $permissionSlug);
+        })->exists();
+    }
+
+    public function hasAnyPermission(array $permissionSlugs): bool
+    {
+        return $this->roles()->whereHas('permissions', function ($query) use ($permissionSlugs) {
+            $query->whereIn('slug', $permissionSlugs);
+        })->exists();
+    }
+
+    public function hasAllPermissions(array $permissionSlugs): bool
+    {
+        foreach ($permissionSlugs as $slug) {
+            if (!$this->hasPermission($slug)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public function assignRole(string $roleSlug)
+    {
+        $role = Role::where('slug', $roleSlug)->first();
+        if ($role && !$this->hasRole($roleSlug)) {
+            $this->roles()->attach($role->id);
+        }
+    }
+
+    public function removeRole(string $roleSlug)
+    {
+        $role = Role::where('slug', $roleSlug)->first();
+        if ($role) {
+            $this->roles()->detach($role->id);
+        }
+    }
+
+    public function syncRoles(array $roleSlugs)
+    {
+        $roleIds = Role::whereIn('slug', $roleSlugs)->pluck('id');
+        $this->roles()->sync($roleIds);
+    }
+
+    // Legacy methods for backward compatibility
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return $this->hasRole('admin') || $this->role === 'admin';
     }
 
     public function isUser(): bool
     {
-        return $this->role === 'user';
+        return $this->hasRole('user') || $this->role === 'user';
     }
 
-    public function hasRole(string $role): bool
+    public function isActive(): bool
     {
-        return $this->role === $role;
+        return $this->is_active ?? true;
     }
 }

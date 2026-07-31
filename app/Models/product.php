@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Supplier;
 
 class Product extends Model
 {
@@ -144,6 +145,20 @@ class Product extends Model
         return 'normal';
     }
 
+    public function suppliers()
+    {
+     return $this->belongsToMany(
+        Supplier::class,
+        'product_supplier'
+     )
+         ->withPivot(
+        'purchase_price',
+        'supplier_code',
+        'preferred'
+     )
+     ->withTimestamps();
+    }
+
     public function getInventoryStatusLabelAttribute(): string
     {
         return match ($this->inventory_status) {
@@ -154,4 +169,5 @@ class Product extends Model
             default => 'Desconocido',
         };
     }
+    
 }

@@ -15,6 +15,9 @@ use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\ProformaController;
 use App\Http\Controllers\ReparacionController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas públicas (sin autenticación)
@@ -96,6 +99,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/compras/{id}/edit', [CompraController::class, 'edit'])->name('compras.edit');
     Route::match(['put', 'patch'], '/compras/{id}', [CompraController::class, 'update'])->name('compras.update');
     Route::delete('/compras/{id}', [CompraController::class, 'destroy'])->name('compras.destroy');
+    
 
     Route::get('/clientes', [ClienteController::class, 'index'])->name('clientes.index');
     Route::get('/clientes/create', [ClienteController::class, 'create'])->name('clientes.create');
@@ -150,5 +154,43 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/ajustes/{id}', [AjusteInventarioController::class, 'destroy'])->name('ajustes.destroy');
         Route::get('/api/products/{id}/info', [AjusteInventarioController::class, 'getProductInfo'])->name('api.products.info');
     });
+
+    // Configuración del sistema solo para admin
+    Route::middleware(['role:admin'])->prefix('settings')->name('settings.')->group(function () {
+        Route::get('/', [SettingsController::class, 'index'])->name('index');
+        Route::get('/users', [UserController::class, 'index'])->name('users');
+        Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
+        Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+        Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::post('/users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+        Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+        Route::get('/roles', [RoleController::class, 'index'])->name('roles');
+        Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
+        Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
+        Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
+        Route::get('/roles/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit');
+        Route::match(['put', 'patch'], '/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
+        Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
+        Route::get('/permissions', [SettingsController::class, 'permissions'])->name('permissions');
+        Route::match(['get', 'post'], '/general', [SettingsController::class, 'general'])->name('general');
+        Route::match(['get', 'post'], '/modules', [SettingsController::class, 'modules'])->name('modules');
+        Route::match(['get', 'post'], '/security', [SettingsController::class, 'security'])->name('security');
+        Route::match(['get', 'post'], '/appearance', [SettingsController::class, 'appearance'])->name('appearance');
+        Route::match(['get', 'post'], '/sequences', [SettingsController::class, 'sequences'])->name('sequences');
+    });
+
+   
+
+Route::get(
+    '/proveedores/{supplier}/productos',
+    [CompraController::class, 'productosPorProveedor']
+)->name('proveedores.productos');
+
+Route::get('/proveedores/{supplier}/productos/buscar',
+    [CompraController::class, 'buscarProductos']
+)->name('proveedores.productos.buscar');
 
 }); // Cierre del grupo auth middleware

@@ -1,0 +1,20 @@
+[90m= [39m[34;4mApp\Models\Supplier[39;24m {#6160
+    [34mid[39m: [35m1[39m,
+    [34mcode[39m: [36mnull[39m,
+    [34mname[39m: "[32mAgroDistribuidor S.A.[39m",
+    [34mbusiness_name[39m: [36mnull[39m,
+    [34mruc[39m: [36mnull[39m,
+    [34mcontact_name[39m: [36mnull[39m,
+    [34mcity[39m: [36mnull[39m,
+    [34mtype[39m: [36mnull[39m,
+    [34mpayment_condition[39m: [36mnull[39m,
+    [34mcredit_limit[39m: [36mnull[39m,
+    [34mstatus[39m: "[32mactive[39m",
+    [34mphone[39m: "[32m555-1234[39m",
+    [34memail[39m: "[32mcontacto@agrodistribuidor.com[39m",
+    [34maddress[39m: "[32mKm 5 Carretera Norte[39m",
+    [34mcreated_at[39m: [36mnull[39m,
+    [34mupdated_at[39m: [36mnull[39m,
+    [34mdeleted_at[39m: [36mnull[39m,
+  }
+

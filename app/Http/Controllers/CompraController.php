@@ -40,6 +40,36 @@ class CompraController extends Controller
         return view('compras.index', compact('purchases', 'suppliers'));
     }
 
+    public function buscarProductos(Request $request, $supplierId)
+    {
+        $search = $request->get('search', '');
+
+        $products = Product::whereHas('suppliers', function ($query) use ($supplierId) {
+            $query->where('supplier_id', $supplierId);
+        })
+            ->where(function ($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('code', 'like', "%{$search}%");
+            })
+            ->limit(10)
+            ->get()
+            ->map(function ($product) use ($supplierId) {
+
+                $supplier = $product->suppliers()
+                    ->where('supplier_id', $supplierId)
+                    ->first();
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'code' => $product->code,
+                    'price' => $supplier?->pivot?->purchase_price ?? $product->purchase_price,
+                ];
+            });
+
+        return response()->json($products);
+    }
+
     public function show($id)
     {
         $purchase = Purchase::with('details.product', 'supplier')->findOrFail($id);
@@ -109,6 +139,32 @@ class CompraController extends Controller
         $suppliers = Supplier::orderBy('name')->get();
 
         return view('compras.edit', compact('purchase', 'products', 'suppliers'));
+    }
+
+   
+
+    public function productosPorProveedor($supplierId)
+    {
+        $supplier = Supplier::findOrFail($supplierId);
+
+        $products = $supplier->products()
+            ->select(
+                'products.id',
+                'products.name',
+                'products.code'
+            )
+            ->get()
+            ->map(function ($product) {
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'code' => $product->code,
+                    'price' => $product->pivot->purchase_price ?? 0,
+                ];
+            });
+
+        return response()->json($products);
     }
 
     public function update(PurchaseRequest $request, $id)
