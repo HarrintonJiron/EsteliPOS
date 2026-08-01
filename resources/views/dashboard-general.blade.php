@@ -16,12 +16,14 @@
                 Resumen ejecutivo del sistema | {{ now()->format('d/m/Y H:i') }}
             </p>
         </div>
+        @if($dashboardModules->contains('reportes'))
         <div class="flex gap-2">
             <a href="{{ route('reportes.index') }}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 Reportes
             </a>
         </div>
+        @endif
     </div>
 
     {{-- Alertas del Sistema --}}
@@ -43,6 +45,7 @@
 
     {{-- KPIs Principales --}}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        @if($dashboardModules->contains('ventas'))
         {{-- Ventas Hoy --}}
         <div class="bg-gradient-to-br from-indigo-600 to-indigo-700 text-white p-5 rounded-xl shadow-lg">
             <div class="flex justify-between items-start">
@@ -70,7 +73,9 @@
                 </div>
             </div>
         </div>
+        @endif
 
+        @if($dashboardModules->contains('inventario'))
         {{-- Valor Inventario --}}
         <div class="bg-gradient-to-br from-violet-600 to-violet-700 text-white p-5 rounded-xl shadow-lg">
             <div class="flex justify-between items-start">
@@ -84,7 +89,9 @@
                 </div>
             </div>
         </div>
+        @endif
 
+        @if($dashboardModules->contains('clientes'))
         {{-- Clientes --}}
         <div class="bg-gradient-to-br from-amber-500 to-amber-600 text-white p-5 rounded-xl shadow-lg">
             <div class="flex justify-between items-start">
@@ -98,10 +105,12 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
 
     {{-- Segunda fila de estadísticas --}}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        @if($dashboardModules->contains('inventario'))
         <div class="bg-white p-5 rounded-xl shadow border-l-4 {{ $inventoryStats['low_stock'] > 0 ? 'border-yellow-500' : 'border-green-500' }}">
             <div class="flex justify-between">
                 <div>
@@ -125,7 +134,9 @@
                 </a>
             </div>
         </div>
+        @endif
 
+        @if($dashboardModules->contains('ventas'))
         <div class="bg-white p-5 rounded-xl shadow border-l-4 border-blue-500">
             <div class="flex justify-between">
                 <div>
@@ -137,10 +148,12 @@
                 </a>
             </div>
         </div>
+        @endif
     </div>
 
     {{-- Gráficos y Tablas --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        @if($dashboardModules->contains('ventas'))
         {{-- Gráfico de Ventas --}}
         <div class="bg-white rounded-xl shadow p-6">
             <h3 class="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
@@ -170,7 +183,9 @@
                 @endforeach
             </div>
         </div>
+        @endif
 
+        @if($dashboardModules->contains('ventas') && $dashboardModules->contains('inventario'))
         {{-- Productos Más Vendidos --}}
         <div class="bg-white rounded-xl shadow p-6">
             <h3 class="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
@@ -199,10 +214,12 @@
                 <p class="text-gray-500 text-center py-4">No hay datos de ventas disponibles</p>
             @endif
         </div>
+        @endif
     </div>
 
     {{-- Últimas Facturas y Movimientos --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        @if($dashboardModules->contains('ventas'))
         {{-- Últimas Facturas --}}
         <div class="bg-white rounded-xl shadow overflow-hidden">
             <div class="p-4 border-b flex justify-between items-center">
@@ -244,7 +261,9 @@
                 </table>
             </div>
         </div>
+        @endif
 
+        @if($dashboardModules->contains('inventario'))
         {{-- Movimientos Recientes --}}
         <div class="bg-white rounded-xl shadow overflow-hidden">
             <div class="p-4 border-b flex justify-between items-center">
@@ -284,6 +303,7 @@
                 </table>
             </div>
         </div>
+        @endif
     </div>
 
 </div>

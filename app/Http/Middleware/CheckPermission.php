@@ -15,21 +15,19 @@ class CheckPermission
      */
     public function handle(Request $request, Closure $next, string $permission): Response
     {
-        if (! auth()->check()) {
+        if (!auth()->check()) {
             return redirect()->route('login');
         }
 
         $user = auth()->user();
 
         // Check if user is active
-        if (! $user->isActive()) {
+        if (!$user->isActive()) {
             auth()->logout();
-
             return redirect()->route('login')->with('error', 'Tu cuenta ha sido desactivada.');
         }
 
-        // Check permission
-        if (! $user->hasPermission($permission)) {
+        if (!$user->isAdmin() && !$user->hasPermission($permission)) {
             abort(403, 'No tienes permiso para realizar esta acción.');
         }
 

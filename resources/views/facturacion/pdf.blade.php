@@ -29,7 +29,7 @@
 </head>
 <body class="bg-white p-6 text-sm">
 
-<div class="watermark">AGROSERVICIO</div>
+<div class="watermark">{{ mb_strtoupper($companyProfile['system_name']) }}</div>
 
 <div class="max-w-3xl mx-auto">
     {{-- Marco decorativo con doble borde --}}
@@ -39,19 +39,22 @@
     {{-- Logo y Encabezado --}}
     <div class="flex justify-between items-start mb-6">
         <div class="flex items-center gap-4">
+            @if($companyProfile['company_logo_url'])
+                <img src="{{ $companyProfile['company_logo_url'] }}" alt="Logo" class="h-24 w-24 object-contain">
+            @else
             <div class="w-24 h-24 bg-gradient-to-br from-green-700 to-green-900 rounded-xl flex items-center justify-center text-white shadow-lg">
                 <div class="text-center">
-                    <div class="text-3xl font-bold">AS</div>
-                    <div class="text-xs">AGRO</div>
+                    <div class="text-3xl font-bold">{{ mb_strtoupper(mb_substr($companyProfile['company_name'], 0, 2)) }}</div>
                 </div>
             </div>
+            @endif
             <div>
-                <h1 class="text-2xl font-black text-green-900 tracking-tight">AGROSERVICIO S.A.</h1>
-                <p class="text-xs text-gray-600 font-medium">SUMINISTROS AGRÍCOLAS Y AGROQUÍMICOS</p>
+                <h1 class="text-2xl font-black text-green-900 tracking-tight">{{ $companyProfile['company_name'] }}</h1>
+                @if($companyProfile['company_legal_name'])<p class="text-xs text-gray-600 font-medium">{{ mb_strtoupper($companyProfile['company_legal_name']) }}</p>@endif
                 <div class="mt-2 space-y-0.5 text-xs text-gray-600">
-                    <p><span class="font-semibold">RUC:</span> J10240330417</p>
-                    <p><span class="font-semibold">Dir:</span> Carretera Norte Km. 4.5, Managua, NI</p>
-                    <p><span class="font-semibold">Tel:</span> +505 2772-0000 | info@agroservicio.com.ni</p>
+                    @if($companyProfile['company_ruc'])<p><span class="font-semibold">RUC:</span> {{ $companyProfile['company_ruc'] }}</p>@endif
+                    @if($companyProfile['company_address'])<p><span class="font-semibold">Dir:</span> {{ $companyProfile['company_address'] }}, {{ $companyProfile['company_city'] }}</p>@endif
+                    <p>@if($companyProfile['company_phone'])<span class="font-semibold">Tel:</span> {{ $companyProfile['company_phone'] }}@endif @if($companyProfile['company_email']) · {{ $companyProfile['company_email'] }}@endif</p>
                 </div>
             </div>
         </div>
@@ -76,7 +79,7 @@
             <div class="space-y-1.5 text-xs">
                 <div class="flex justify-between">
                     <span class="text-gray-600">Fecha de Emisión:</span>
-                    <span class="font-semibold">{{ $sale?->date?->format('d/m/Y') ?? now()->format('d/m/Y') }}</span>
+                    <span class="font-semibold">{{ $sale?->date?->format($companyProfile['date_format']) ?? now()->format($companyProfile['date_format']) }}</span>
                 </div>
                 <div class="flex justify-between">
                     <span class="text-gray-600">Condición de Pago:</span>
@@ -165,21 +168,21 @@
             </div>
             <div class="flex justify-between text-xs py-1 border-t border-gray-200">
                 <span class="text-gray-600">Subtotal:</span>
-                <span>C$ {{ number_format($sale?->subtotal ?? 0, 2) }}</span>
+                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->subtotal ?? 0, 2) }}</span>
             </div>
             <div class="flex justify-between text-xs py-1">
-                <span class="text-gray-600">IVA ({{ number_format(($sale?->tax_rate ?? 0.15) * 100, 0) }}%):</span>
-                <span>C$ {{ number_format($sale?->tax_total ?? 0, 2) }}</span>
+                <span class="text-gray-600">IVA ({{ number_format(($sale?->tax_rate ?? 0) * 100, 2) }}%):</span>
+                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->tax_total ?? 0, 2) }}</span>
             </div>
             @if($sale?->discount > 0)
             <div class="flex justify-between text-xs py-1 text-red-600">
                 <span>Descuento:</span>
-                <span>- C$ {{ number_format($sale->discount, 2) }}</span>
+                <span>- {{ $companyProfile['currency_symbol'] }} {{ number_format($sale->discount, 2) }}</span>
             </div>
             @endif
             <div class="flex justify-between text-sm py-2 border-t-2 border-green-800 font-black text-green-900 bg-green-50 px-3 rounded">
                 <span>TOTAL A PAGAR:</span>
-                <span>C$ {{ number_format($sale?->total ?? 0, 2) }}</span>
+                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->total ?? 0, 2) }}</span>
             </div>
             <div class="text-xs text-gray-500 text-center italic mt-1">
                 {{ $sale?->total ? ucfirst(\App\Helpers\NumberToWords::convert($sale->total)) . ' CÓRDOBAS EXACTOS' : '' }}
@@ -210,15 +213,15 @@
         <div class="text-center">
             <div class="border-t border-gray-400 pt-2 mt-16">
                 <p class="text-xs font-semibold">FIRMA Y SELLO AUTORIZADO</p>
-                <p class="text-xs text-gray-500">Agroservicio S.A.</p>
+                <p class="text-xs text-gray-500">{{ $companyProfile['company_name'] }}</p>
             </div>
         </div>
     </div>
 
     {{-- Pie de página --}}
     <div class="mt-6 pt-4 border-t border-green-200 text-center">
-        <p class="text-xs text-gray-500">Documento generado el {{ now()->format('d/m/Y H:i:s') }} | Agroservicio S.A. - {{ config('app.url', 'www.agroservicio.com.ni') }}</p>
-        <p class="text-xs text-gray-400 mt-1">"Su aliado en el campo"</p>
+        <p class="text-xs text-gray-500">Documento generado el {{ now()->format($companyProfile['date_format'].' H:i:s') }} | {{ $companyProfile['company_name'] }}</p>
+        @if($companyProfile['invoice_footer'])<p class="text-xs text-gray-400 mt-1">{{ $companyProfile['invoice_footer'] }}</p>@endif
     </div>
 
     </div>{{-- cierre border-green-600 --}}

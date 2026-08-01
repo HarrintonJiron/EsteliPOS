@@ -1,26 +1,28 @@
 @extends('layouts.app')
 
 @section('title', 'POS - Punto de Venta')
-@section('hide-header')
+@section('hide-header', 'true')
 @section('main-class', 'p-0 overflow-hidden')
 
 @section('content')
 
-<div id="posApp" class="h-full overflow-hidden bg-slate-50 flex flex-col xl:flex-row"
+<div id="posApp" class="h-full overflow-hidden bg-slate-50 flex"
      data-products='@json($products)'
      data-clients='@json($clients)'
      data-categories='@json($categories)'
+     data-default-tax-rate="{{ $defaultTaxRate }}"
+     data-product-search-url="{{ route('facturacion.pos-products') }}"
      data-daily-report-url="{{ route('facturacion.pos-daily-report') }}">
 
     {{-- COLUMNA IZQUIERDA: TICKET --}}
-    <div class="w-full xl:w-[42%] 2xl:w-2/5 bg-white flex flex-col border-b xl:border-b-0 xl:border-r border-slate-200">
+    <div class="w-2/5 bg-white flex flex-col border-r border-slate-200">
 
         {{-- Barra de acciones rápidas --}}
         <div class="px-4 py-2 bg-slate-800 text-white flex items-center justify-between text-xs shrink-0">
             <span class="font-semibold">Ticket #<span id="ticketNumber">1</span></span>
             <div class="flex gap-2">
-                <button type="button" onclick="holdTicket()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg" title="F4 - Apartar">Apartar</button>
-                <button type="button" onclick="showHeldTickets()" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg">
+                <button type="button" onclick="holdTicket()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg" title="F4 - Apartar">Apartar · F4</button>
+                <button type="button" onclick="showHeldTickets()" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg" title="F6 - Recuperar ticket">
                     Recuperar <span id="heldCount" class="bg-white/20 px-1 rounded">0</span>
                 </button>
             </div>
@@ -48,7 +50,7 @@
                     <span id="discountDisplay" class="font-medium text-red-600 hidden">-C$ 0.00</span>
                 </div>
                 <div class="flex justify-between text-sm text-slate-600">
-                    <span>IVA (15%)</span>
+                    <span id="taxLabel">IVA ({{ number_format($defaultTaxRate * 100, 2) }}%)</span>
                     <span id="taxDisplay" class="font-medium">C$ 0.00</span>
                 </div>
                 <div class="border-t border-slate-300 pt-2 flex justify-between">
@@ -59,7 +61,7 @@
         </div>
 
         <div class="p-4 space-y-3 overflow-y-auto shrink-0 max-h-[45%]">
-            <button type="button" id="clientBtn" onclick="document.getElementById('clientModal').classList.remove('hidden')"
+            <button type="button" id="clientBtn" onclick="openClientModal()"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl px-4 transition-all shadow-md text-sm flex items-center justify-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                 <span id="clientDisplay">Cliente General</span>
@@ -69,7 +71,7 @@
                 Editando: <span id="selectedItemName" class="font-semibold"></span> · Cant: <span id="selectedItemQty" class="font-bold">0</span>
             </div>
 
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div class="grid grid-cols-3 gap-2">
                 @foreach(['7','8','9','4','5','6','1','2','3'] as $key)
                 <button type="button" onclick="padInput('{{ $key }}')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 rounded-xl text-sm shadow-sm">{{ $key }}</button>
                 @endforeach
@@ -88,17 +90,25 @@
     <div class="flex-1 bg-white flex flex-col min-w-0">
 
         <div class="p-3 border-b border-slate-200 bg-white shrink-0 space-y-2">
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 text-[11px] text-slate-500" aria-label="Atajos de teclado del punto de venta">
+                <button type="button" onclick="showShortcutHelp()" class="shrink-0 rounded-md bg-slate-800 px-2 py-1 font-semibold text-white" title="Ver todos los atajos">F1 Atajos</button>
+                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F2</b> Buscar</span>
+                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F3</b> Cliente</span>
+                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F4</b> Apartar</span>
+                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F6</b> Recuperar</span>
+                <span class="shrink-0 rounded-md bg-indigo-50 px-2 py-1 font-semibold text-indigo-700"><b>F9</b> Cobrar</span>
+                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F10</b> Corte</span>
+            </div>
             <div class="flex gap-2">
                 <input type="text" id="productSearch" placeholder="Buscar por nombre o código de barras..."
                     class="flex-1 px-4 py-2 text-sm border border-slate-300 rounded-xl focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600" autocomplete="off">
-                <button type="button" onclick="applyOrderDiscount('percentage')" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium" title="Descuento porcentaje">% Dto.</button>
-                <button type="button" onclick="applyOrderDiscount('fixed')" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium" title="Descuento fijo">$ Dto.</button>
+                <button type="button" onclick="applyOrderDiscount()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium" title="Descuento global">% Dto.</button>
             </div>
             <div id="categoryTabs" class="flex gap-2 overflow-x-auto pb-1"></div>
         </div>
 
         <div id="productsGrid" class="flex-1 overflow-y-auto p-4 bg-slate-50">
-            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+            <div class="grid grid-cols-3 xl:grid-cols-4 gap-3"></div>
         </div>
 
         <div class="bg-white border-t border-slate-200 p-4 space-y-2 shrink-0 max-h-[50%] overflow-y-auto">
@@ -133,7 +143,7 @@
             <div class="grid grid-cols-2 gap-2">
                 <button type="button" onclick="clearTicket()" class="bg-slate-400 hover:bg-slate-500 text-white font-semibold py-2 rounded-xl text-sm">Descartar</button>
                 <div class="flex gap-2">
-                    <button type="button" id="dailyReportBtn" class="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 rounded-xl text-sm">Corte del Día</button>
+                    <button type="button" id="dailyReportBtn" class="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 rounded-xl text-sm" title="F10 - Corte del día">Corte del Día</button>
                     <button type="button" id="closeCashBtn" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 rounded-xl text-sm" title="Cierre de Caja (Arqueo)">Cierre Caja</button>
                 </div>
             </div>
@@ -167,6 +177,33 @@
         </div>
     </div>
 
+    {{-- MODAL: Atajos de teclado --}}
+    <div id="shortcutModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="shortcutModalTitle">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+            <div class="p-5 border-b border-slate-200 flex justify-between items-center">
+                <div>
+                    <h2 id="shortcutModalTitle" class="text-lg font-bold text-slate-900">Atajos del Punto de Venta</h2>
+                    <p class="text-xs text-slate-500 mt-1">En Mac puede ser necesario usar fn + la tecla F.</p>
+                </div>
+                <button type="button" onclick="closeModal('shortcutModal')" class="text-slate-400 hover:text-slate-600" aria-label="Cerrar atajos">✕</button>
+            </div>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 p-5 text-sm">
+                <dt class="font-bold text-indigo-700">F2</dt><dd>Buscar producto o código de barras</dd>
+                <dt class="font-bold text-indigo-700">F3</dt><dd>Seleccionar cliente</dd>
+                <dt class="font-bold text-indigo-700">F4</dt><dd>Apartar el ticket actual</dd>
+                <dt class="font-bold text-indigo-700">F6</dt><dd>Recuperar un ticket apartado</dd>
+                <dt class="font-bold text-indigo-700">F8</dt><dd>Colocar monto exacto durante el cobro</dd>
+                <dt class="font-bold text-indigo-700">F9</dt><dd>Abrir el cobro; pulsar nuevamente para confirmar</dd>
+                <dt class="font-bold text-indigo-700">F10</dt><dd>Abrir el corte del día</dd>
+                <dt class="font-bold text-indigo-700">Supr</dt><dd>Quitar el producto seleccionado</dd>
+                <dt class="font-bold text-indigo-700">Esc</dt><dd>Cerrar la ventana activa</dd>
+            </dl>
+            <div class="p-4 border-t border-slate-200">
+                <button type="button" onclick="closeModal('shortcutModal')" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 rounded-xl">Entendido</button>
+            </div>
+        </div>
+    </div>
+
     {{-- MODAL: Pago --}}
     <div id="paymentModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
         <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -191,7 +228,7 @@
                         <input type="number" id="amountReceived" step="0.01" placeholder="0.00"
                             class="w-full px-4 py-3 text-2xl font-bold border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:outline-none text-center bg-slate-50">
                         <p class="text-sm text-slate-600 text-center">Cambio: <span id="changeDisplay" class="font-bold text-slate-900">C$ 0.00</span></p>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div class="grid grid-cols-4 gap-2">
                             @foreach([10, 20, 50, 100, 200, 500, 1000] as $bill)
                             <button type="button" onclick="addBill({{ $bill }})" class="py-2 bg-slate-100 rounded-xl text-xs font-bold hover:bg-indigo-100 hover:text-indigo-700">C$ {{ $bill }}</button>
                             @endforeach
@@ -214,10 +251,9 @@
                 <input type="hidden" name="client_id" id="clientIdInput">
                 <input type="hidden" name="items" id="itemsInput" value="[]">
                 <input type="hidden" name="notes" id="notesInput">
-                <input type="hidden" name="discount_percentage" id="discountPercentageInput" value="0">
-                <input type="hidden" name="discount_fixed" id="discountFixedInput" value="0">
                 <input type="hidden" name="amount_received" id="amountReceivedInput">
                 <input type="hidden" name="reference_number" id="referenceNumberInput">
+                <input type="hidden" name="order_discount_pct" id="orderDiscountPctInput" value="0">
 
                 <div class="p-4 border-t border-slate-200 space-y-2 sticky bottom-0 bg-white">
                     <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl">Confirmar Pago</button>
@@ -261,7 +297,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const app = document.getElementById('posApp');
-    const products = JSON.parse(app.dataset.products).map(p => ({
+    const normalizeProduct = p => ({
         id: p.id,
         code: p.code ?? '',
         name: p.name,
@@ -272,7 +308,9 @@ document.addEventListener('DOMContentLoaded', function() {
         category_id: p.category_id,
         category_name: p.category?.name ?? 'Sin categoría',
         image_url: p.image_url ?? null,
-    }));
+        tax_rate: parseFloat(p.effective_tax_rate ?? app.dataset.defaultTaxRate ?? 0),
+    });
+    let products = JSON.parse(app.dataset.products).map(normalizeProduct);
     const clientsData = JSON.parse(app.dataset.clients)
         .filter(c => c.code !== 'GEN')
         .map(c => ({
@@ -296,13 +334,31 @@ document.addEventListener('DOMContentLoaded', function() {
     let padBuffer = '';
     let currentCategory = 'all';
     let orderDiscountPct = 0;
-    let orderDiscountFixed = 0;
     let ticketCounter = parseInt(localStorage.getItem('pos_ticket_counter') || '1');
     let currentPaymentMethod = 'cash';
-    const TAX_RATE = 0.15;
     const HELD_KEY = 'pos_held_tickets';
+    const modalIds = ['shortcutModal', 'clientModal', 'paymentModal', 'heldModal', 'dailyReportModal'];
 
     document.getElementById('ticketNumber').textContent = ticketCounter;
+
+    function visibleModal() {
+        return modalIds
+            .map(id => document.getElementById(id))
+            .find(modal => modal && !modal.classList.contains('hidden')) || null;
+    }
+
+    window.closeModal = function(id) {
+        document.getElementById(id)?.classList.add('hidden');
+    };
+
+    window.showShortcutHelp = function() {
+        document.getElementById('shortcutModal').classList.remove('hidden');
+    };
+
+    window.openClientModal = function() {
+        document.getElementById('clientModal').classList.remove('hidden');
+        window.setTimeout(() => document.getElementById('clientSearch')?.focus(), 0);
+    };
 
     // Cierre de caja button - abre la pantalla de arqueo
     const closeBtn = document.getElementById('closeCashBtn');
@@ -321,13 +377,19 @@ document.addEventListener('DOMContentLoaded', function() {
         return item.price * item.quantity * (1 - item.discount / 100);
     }
 
+    function itemTaxRate(item) {
+        if (Number.isFinite(parseFloat(item.tax_rate))) return parseFloat(item.tax_rate);
+        const product = products.find(p => p.id == item.product_id);
+        return parseFloat(product?.tax_rate ?? app.dataset.defaultTaxRate ?? 0);
+    }
+
     function getTotal() {
         const subtotal = ticket.reduce((sum, item) => sum + lineSubtotal(item), 0);
-        const percentageDiscount = subtotal * (orderDiscountPct / 100);
-        const totalDiscount = percentageDiscount + orderDiscountFixed;
-        const taxable = subtotal - totalDiscount;
-        const tax = taxable * TAX_RATE;
-        return { subtotal, orderDiscount: totalDiscount, tax, total: taxable + tax };
+        const orderDiscount = subtotal * (orderDiscountPct / 100);
+        const discountedLines = ticket.map(item => lineSubtotal(item) * (1 - orderDiscountPct / 100));
+        const taxable = discountedLines.reduce((sum, value) => sum + value, 0);
+        const tax = ticket.reduce((sum, item, index) => sum + discountedLines[index] * itemTaxRate(item), 0);
+        return { subtotal, orderDiscount, tax, total: taxable + tax };
     }
 
     function updateTotals() {
@@ -338,20 +400,16 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('paymentTotalDisplay').textContent = formatMoney(total);
         document.getElementById('payBtnAmount').textContent = formatMoney(total);
 
+        const rates = [...new Set(ticket.map(item => itemTaxRate(item).toFixed(4)))];
+        const labelRate = rates.length === 1 ? `${(parseFloat(rates[0]) * 100).toFixed(2)}%` : (rates.length > 1 ? 'mixto' : `${(parseFloat(app.dataset.defaultTaxRate || 0) * 100).toFixed(2)}%`);
+        document.getElementById('taxLabel').textContent = `IVA (${labelRate})`;
+
         const discLabel = document.getElementById('discountLabel');
         const discDisplay = document.getElementById('discountDisplay');
         if (orderDiscount > 0) {
             discLabel.classList.remove('hidden');
             discDisplay.classList.remove('hidden');
-            let discountText = '-' + formatMoney(orderDiscount);
-            if (orderDiscountPct > 0 && orderDiscountFixed > 0) {
-                discountText += ` (${orderDiscountPct}% + C$ ${orderDiscountFixed.toFixed(2)})`;
-            } else if (orderDiscountPct > 0) {
-                discountText += ` (${orderDiscountPct}%)`;
-            } else if (orderDiscountFixed > 0) {
-                discountText += ` (C$ ${orderDiscountFixed.toFixed(2)})`;
-            }
-            discDisplay.textContent = discountText;
+            discDisplay.textContent = '-' + formatMoney(orderDiscount) + ` (${orderDiscountPct}%)`;
         } else {
             discLabel.classList.add('hidden');
             discDisplay.classList.add('hidden');
@@ -434,6 +492,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 price: product.price,
                 quantity: qty,
                 discount: product.discount_pct || 0,
+                tax_rate: product.tax_rate,
                 max_stock: product.stock,
             });
         }
@@ -451,24 +510,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    window.applyOrderDiscount = function(type) {
-        if (type === 'percentage') {
-            const discount = prompt('Descuento global del ticket (%):', orderDiscountPct || '0');
-            if (discount !== null) {
-                const v = parseFloat(discount);
-                if (!isNaN(v) && v >= 0 && v <= 100) {
-                    orderDiscountPct = v;
-                    updateTotals();
-                }
-            }
-        } else if (type === 'fixed') {
-            const discount = prompt('Descuento fijo del ticket (C$):', orderDiscountFixed || '0');
-            if (discount !== null) {
-                const v = parseFloat(discount);
-                if (!isNaN(v) && v >= 0) {
-                    orderDiscountFixed = v;
-                    updateTotals();
-                }
+    window.applyOrderDiscount = function() {
+        const discount = prompt('Descuento global del ticket (%):', orderDiscountPct || '0');
+        if (discount !== null) {
+            const v = parseFloat(discount);
+            if (!isNaN(v) && v >= 0 && v <= 100) {
+                orderDiscountPct = v;
+                updateTotals();
             }
         }
     };
@@ -572,7 +620,34 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     const searchInput = document.getElementById('productSearch');
-    searchInput.addEventListener('input', (e) => renderProducts(e.target.value));
+    let productSearchTimer = null;
+    let productSearchRequest = 0;
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        renderProducts(query);
+        window.clearTimeout(productSearchTimer);
+        if (query.length < 2) return;
+
+        productSearchTimer = window.setTimeout(async () => {
+            const requestId = ++productSearchRequest;
+            const params = new URLSearchParams({ search: query });
+            if (currentCategory !== 'all') params.set('category_id', currentCategory);
+            try {
+                const response = await fetch(`${app.dataset.productSearchUrl}?${params}`, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (!response.ok) return;
+                const remoteProducts = (await response.json()).map(normalizeProduct);
+                if (requestId !== productSearchRequest) return;
+                const known = new Map(products.map(product => [product.id, product]));
+                remoteProducts.forEach(product => known.set(product.id, product));
+                products = [...known.values()];
+                renderProducts(query);
+            } catch (error) {
+                console.error('No se pudo consultar el catálogo', error);
+            }
+        }, 250);
+    });
     searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             const q = e.target.value.trim();
@@ -709,12 +784,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         let notes = document.getElementById('saleNotes').value;
-        if (orderDiscountPct > 0 || orderDiscountFixed > 0) {
-            let discountNotes = [];
-            if (orderDiscountPct > 0) discountNotes.push(`Descuento %: ${orderDiscountPct}%`);
-            if (orderDiscountFixed > 0) discountNotes.push(`Descuento fijo: C$ ${orderDiscountFixed.toFixed(2)}`);
-            notes += (notes ? ' | ' : '') + discountNotes.join(' + ');
-        }
+        if (orderDiscountPct > 0) notes += (notes ? ' | ' : '') + `Descuento global: ${orderDiscountPct}%`;
 
         document.getElementById('itemsInput').value = JSON.stringify(ticket.map(item => ({
             product_id: item.product_id,
@@ -723,8 +793,7 @@ document.addEventListener('DOMContentLoaded', function() {
             discount: item.discount || 0,
         })));
         document.getElementById('notesInput').value = notes;
-        document.getElementById('discountPercentageInput').value = orderDiscountPct;
-        document.getElementById('discountFixedInput').value = orderDiscountFixed;
+        document.getElementById('orderDiscountPctInput').value = orderDiscountPct;
         e.target.submit();
     });
 
@@ -732,7 +801,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (ticket.length > 0 && !confirm('¿Descartar ticket actual?')) return;
         ticket = [];
         orderDiscountPct = 0;
-        orderDiscountFixed = 0;
         selectedItemIndex = -1;
         padBuffer = '';
         searchInput.value = '';
@@ -758,13 +826,11 @@ document.addEventListener('DOMContentLoaded', function() {
             client: currentClient,
             clientName: document.getElementById('clientDisplay').textContent,
             orderDiscountPct,
-            orderDiscountFixed,
             savedAt: new Date().toLocaleString(),
         });
         localStorage.setItem(HELD_KEY, JSON.stringify(held));
         ticket = [];
         orderDiscountPct = 0;
-        orderDiscountFixed = 0;
         currentClient = null;
         document.getElementById('clientDisplay').textContent = 'Cliente General';
         renderTicket();
@@ -805,7 +871,6 @@ document.addEventListener('DOMContentLoaded', function() {
         ticket = saved.items;
         currentClient = saved.client;
         orderDiscountPct = saved.orderDiscountPct || 0;
-        orderDiscountFixed = saved.orderDiscountFixed || 0;
         document.getElementById('clientDisplay').textContent = saved.clientName;
         held.splice(idx, 1);
         localStorage.setItem(HELD_KEY, JSON.stringify(held));
@@ -854,14 +919,74 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-            if (e.key === 'Escape') e.target.blur();
+        const supportedFunctionKeys = ['F1', 'F2', 'F3', 'F4', 'F6', 'F8', 'F9', 'F10'];
+        const editingText = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable;
+        const openModal = visibleModal();
+
+        if (supportedFunctionKeys.includes(e.key)) {
+            e.preventDefault();
+            if (e.repeat) return;
+        }
+
+        if (e.key === 'F1') {
+            if (openModal?.id === 'shortcutModal') closeModal('shortcutModal');
+            else if (!openModal) showShortcutHelp();
             return;
         }
-        if (e.key === 'F2') { e.preventDefault(); searchInput.focus(); }
-        if (e.key === 'F9') { e.preventDefault(); initiatePayment(); }
-        if (e.key === 'F4') { e.preventDefault(); holdTicket(); }
-        if (e.key === 'Escape') clearTicket();
+
+        if (e.key === 'F2') {
+            if (!openModal) {
+                searchInput.focus();
+                searchInput.select();
+            }
+            return;
+        }
+
+        if (e.key === 'F3') {
+            if (!openModal) openClientModal();
+            return;
+        }
+
+        if (e.key === 'F4') {
+            if (!openModal) holdTicket();
+            return;
+        }
+
+        if (e.key === 'F6') {
+            if (!openModal) showHeldTickets();
+            return;
+        }
+
+        if (e.key === 'F8') {
+            if (openModal?.id === 'paymentModal' && currentPaymentMethod === 'cash') setExactAmount();
+            return;
+        }
+
+        if (e.key === 'F9') {
+            if (openModal?.id === 'paymentModal') {
+                document.getElementById('paymentForm').requestSubmit();
+            } else if (!openModal) {
+                initiatePayment();
+            }
+            return;
+        }
+
+        if (e.key === 'F10') {
+            if (!openModal) document.getElementById('dailyReportBtn').click();
+            return;
+        }
+
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            if (openModal) openModal.classList.add('hidden');
+            else if (editingText) e.target.blur();
+            return;
+        }
+
+        if (e.key === 'Delete' && !editingText && !openModal && selectedItemIndex >= 0) {
+            e.preventDefault();
+            removeTicketItem(selectedItemIndex);
+        }
     });
 
     renderCategoryTabs();

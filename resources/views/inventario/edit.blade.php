@@ -25,7 +25,7 @@
         </div>
     @endif
 
-    <form action="{{ route('inventario.update', $product->id) }}" method="POST" class="space-y-4">
+    <form action="{{ route('inventario.update', $product->id) }}" method="POST" enctype="multipart/form-data" class="space-y-4">
         @csrf
         @method('PUT')
 
@@ -48,23 +48,13 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Categoría *</label>
-                    <div class="flex items-center gap-2">
-                        <select id="categorySelectEdit" name="category_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                            @foreach($categories as $category)
-                                <option value="{{ $category->id }}" {{ old('category_id', $product->category_id) == $category->id ? 'selected' : '' }}>
-                                    {{ $category->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <button type="button" onclick="toggleNewCategoryForm('Edit')" class="btn-outline text-sm whitespace-nowrap">+ Nueva</button>
-                    </div>
-                    <div id="newCategoryFormEdit" class="hidden mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <input id="newCategoryNameEdit" type="text" placeholder="Nombre de categoría" class="input-field" />
-                            <button type="button" onclick="submitNewCategory('Edit')" class="btn-primary">Agregar</button>
-                        </div>
-                        <p id="newCategoryErrorEdit" class="text-xs text-red-600 hidden"></p>
-                    </div>
+                    <select name="category_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        @foreach($categories as $category)
+                            <option value="{{ $category->id }}" {{ old('category_id', $product->category_id) == $category->id ? 'selected' : '' }}>
+                                {{ $category->name }}
+                            </option>
+                        @endforeach
+                    </select>
                 </div>
 
                 <div>
@@ -83,6 +73,38 @@
                     <label class="block text-sm font-medium text-gray-700">Descripción</label>
                     <textarea name="description" rows="2"
                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">{{ old('description', $product->description) }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        {{-- Imagen del producto --}}
+        <div class="bg-white p-4 rounded-xl shadow">
+            <h2 class="text-lg font-semibold text-gray-700 mb-1">Imagen del Producto</h2>
+            <p class="text-sm text-gray-500 mb-4">Puedes reemplazar la imagen actual o eliminarla sin afectar los datos del producto.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-5 items-center">
+                <div class="h-40 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden">
+                    <div id="editImagePlaceholder" class="{{ $product->image_url ? 'hidden' : '' }} text-center text-gray-400 px-4">
+                        <div class="text-4xl mb-1">📷</div>
+                        <span class="text-xs">Sin imagen</span>
+                    </div>
+                    <img id="editImagePreview" src="{{ $product->image_url }}"
+                         class="{{ $product->image_url ? '' : 'hidden' }} w-full h-full object-contain"
+                         alt="Imagen de {{ $product->name }}">
+                </div>
+                <div>
+                    <label for="product_image" class="block text-sm font-medium text-gray-700">Reemplazar imagen</label>
+                    <input id="product_image" type="file" name="image" accept="image/jpeg,image/png,image/webp"
+                           class="mt-2 block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-700">
+                    <p class="mt-2 text-xs text-gray-500">Formatos JPG, PNG o WebP. Máximo 3 MB y 3000 × 3000 px.</p>
+
+                    @if($product->image_url)
+                        <label class="mt-3 inline-flex items-center gap-2 text-sm text-red-700 cursor-pointer">
+                            <input id="remove_product_image" type="checkbox" name="remove_image" value="1"
+                                   class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                            Eliminar imagen actual
+                        </label>
+                    @endif
                 </div>
             </div>
         </div>
@@ -118,6 +140,18 @@
                         <option value="active" {{ old('status', $product->status) == 'active' ? 'selected' : '' }}>Activo</option>
                         <option value="inactive" {{ old('status', $product->status) == 'inactive' ? 'selected' : '' }}>Inactivo</option>
                         <option value="discontinued" {{ old('status', $product->status) == 'discontinued' ? 'selected' : '' }}>Descontinuado</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Impuesto (IVA)</label>
+                    <select name="tax_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <option value="">Usar impuesto predeterminado</option>
+                        @foreach($taxes as $tax)
+                            <option value="{{ $tax->id }}" {{ old('tax_id', $product->tax_id) == $tax->id ? 'selected' : '' }}>
+                                {{ $tax->name }} ({{ number_format($tax->rate * 100, 2) }}%)
+                            </option>
+                        @endforeach
                     </select>
                 </div>
             </div>
@@ -228,59 +262,19 @@
     </form>
 </div>
 
-@push('scripts')
 <script>
-function toggleNewCategoryForm(mode) {
-    const form = document.getElementById(`newCategoryForm${mode}`);
-    if (!form) return;
-    form.classList.toggle('hidden');
-}
+    document.getElementById('product_image')?.addEventListener('change', function () {
+        const file = this.files?.[0];
+        if (!file) return;
 
-function submitNewCategory(mode) {
-    const input = document.getElementById(`newCategoryName${mode}`);
-    const error = document.getElementById(`newCategoryError${mode}`);
-    const select = document.getElementById(`categorySelect${mode}`);
-    if (!input || !select || !error) return;
+        const preview = document.getElementById('editImagePreview');
+        preview.src = URL.createObjectURL(file);
+        preview.classList.remove('hidden');
+        document.getElementById('editImagePlaceholder').classList.add('hidden');
 
-    const name = input.value.trim();
-    if (!name) {
-        error.textContent = 'Ingresa un nombre de categoría';
-        error.classList.remove('hidden');
-        return;
-    }
-
-    error.classList.add('hidden');
-
-    fetch('{{ route('categorias.store') }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-        },
-        body: JSON.stringify({ name })
-    })
-    .then(async response => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(data.message || 'No se pudo crear la categoría');
-        }
-        return data;
-    })
-    .then((data) => {
-        const option = document.createElement('option');
-        option.value = data.id;
-        option.textContent = data.name;
-        option.selected = true;
-        select.appendChild(option);
-        input.value = '';
-        document.getElementById(`newCategoryForm${mode}`).classList.add('hidden');
-    })
-    .catch((err) => {
-        error.textContent = err.message;
-        error.classList.remove('hidden');
+        const remove = document.getElementById('remove_product_image');
+        if (remove) remove.checked = false;
     });
-}
 </script>
-@endpush
 
 @endsection

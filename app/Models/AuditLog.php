@@ -42,7 +42,6 @@ class AuditLog extends Model
         if ($modelId !== null) {
             $query->where('model_id', $modelId);
         }
-
         return $query;
     }
 

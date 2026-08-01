@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class SaleRequest extends FormRequest
 {
@@ -16,7 +17,12 @@ class SaleRequest extends FormRequest
         return [
             'client_id' => 'required|exists:clients,id',
             // 'user_id' is set server-side from the authenticated user
-            'invoice_number' => 'nullable|string|max:50',
+            'invoice_number' => [
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('sales', 'invoice_number')->ignore($this->route('id')),
+            ],
             'date' => 'required|date',
             'due_date' => 'nullable|date|after_or_equal:date',
             'payment_type' => 'required|in:cash,transfer,credit',
@@ -37,7 +43,7 @@ class SaleRequest extends FormRequest
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_id' => 'required|distinct|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric|min:0',
         ];

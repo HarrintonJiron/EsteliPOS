@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class NumberSequence extends Model
 {
@@ -40,12 +41,30 @@ class NumberSequence extends Model
 
     public static function getNext($type)
     {
-        $sequence = static::byType($type)->active()->first();
-        if (! $sequence) {
-            throw new \Exception("No active sequence found for type: {$type}");
-        }
+        return DB::transaction(function () use ($type) {
+            $defaults = [
+                'factura' => ['prefix' => 'FAC-', 'padding' => 6],
+                'compra' => ['prefix' => 'COM-', 'padding' => 6],
+                'cotizacion' => ['prefix' => 'COT-', 'padding' => 6],
+                'recibo' => ['prefix' => 'REC-', 'padding' => 6],
+                'ajuste' => ['prefix' => 'AJU-', 'padding' => 6],
+                'asiento' => ['prefix' => 'POL-', 'padding' => 6],
+            ];
 
-        return $sequence->incrementNumber();
+            if (isset($defaults[$type])) {
+                static::firstOrCreate(['type' => $type], $defaults[$type] + [
+                    'current_number' => 1,
+                    'is_active' => true,
+                ]);
+            }
+
+            $sequence = static::byType($type)->active()->lockForUpdate()->first();
+            if (! $sequence) {
+                throw new \RuntimeException("No existe una secuencia activa para: {$type}");
+            }
+
+            return $sequence->incrementNumber();
+        });
     }
 
     public static function reset($type, $newNumber = 1)

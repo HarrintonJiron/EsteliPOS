@@ -5,13 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\CreditPayment;
 use App\Models\Sale;
+use App\Services\AccountingService;
 use App\Services\CreditService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 class CreditController extends Controller
 {
-    public function __construct(private CreditService $credit) {}
+    public function __construct(private CreditService $credit, private AccountingService $accountingService) {}
 
     public function index(Request $request)
     {
@@ -74,15 +76,25 @@ class CreditController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $payment = CreditPayment::create([
-            'client_id' => $validated['client_id'],
-            'amount' => $validated['amount'],
-            'payment_type' => $validated['payment_type'],
-            'reference_number' => $validated['reference_number'],
-            'notes' => $validated['notes'],
-            'payment_date' => now(),
-            'user_id' => $request->user()->id,
-        ]);
+        try {
+            $payment = DB::transaction(function () use ($validated, $request) {
+                $payment = CreditPayment::create([
+                    'client_id' => $validated['client_id'],
+                    'amount' => $validated['amount'],
+                    'payment_type' => $validated['payment_type'],
+                    'reference_number' => $validated['reference_number'],
+                    'notes' => $validated['notes'],
+                    'payment_date' => now(),
+                    'user_id' => $request->user()->id,
+                ]);
+
+                $this->accountingService->recordCreditPayment($payment);
+
+                return $payment;
+            });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         // Si se solicita imprimir inmediatamente, redirigimos a la vista de factura del abono
         if ($request->boolean('print')) {

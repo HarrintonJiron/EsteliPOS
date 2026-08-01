@@ -25,6 +25,11 @@ class Role extends Model
         return $this->belongsToMany(Permission::class, 'permission_role');
     }
 
+    public function modules()
+    {
+        return $this->belongsToMany(Module::class, 'module_role');
+    }
+
     public function hasPermission($permissionSlug)
     {
         return $this->permissions()->where('slug', $permissionSlug)->exists();
@@ -33,7 +38,7 @@ class Role extends Model
     public function givePermission($permissionSlug)
     {
         $permission = Permission::where('slug', $permissionSlug)->first();
-        if ($permission && ! $this->hasPermission($permissionSlug)) {
+        if ($permission && !$this->hasPermission($permissionSlug)) {
             $this->permissions()->attach($permission->id);
         }
     }

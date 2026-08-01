@@ -2,114 +2,36 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Module;
-use App\Models\Role;
-use App\Models\Setting;
-use App\Models\User;
 use Illuminate\Http\Request;
+use App\Models\Setting;
+use App\Support\SettingDefinition;
+use App\Services\SettingsDashboardService;
+use App\Services\CompanySettingsService;
+use App\Http\Requests\UpdateCompanySettingsRequest;
 
 class SettingsController extends Controller
 {
-    public function index()
+    public function index(SettingsDashboardService $dashboard)
     {
-        $stats = [
-            'users' => User::count(),
-            'roles' => Role::count(),
-            'active_modules' => Module::active()->count(),
-            'total_modules' => Module::count(),
-        ];
-
-        $recentActivity = \App\Models\AuditLog::with('user')
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
-
-        return view('settings.index', compact('stats', 'recentActivity'));
+        return view('settings.index', $dashboard->build());
     }
 
-    public function users()
+    public function general(CompanySettingsService $companySettings)
     {
-        $users = User::with('roles')->paginate(20);
-        $roles = Role::all();
-
-        return view('settings.users.index', compact('users', 'roles'));
-    }
-
-    public function roles()
-    {
-        $roles = Role::with('permissions')->withCount('users')->paginate(20);
-
-        return view('settings.roles.index', compact('roles'));
-    }
-
-    public function permissions()
-    {
-        $permissions = \App\Models\Permission::orderBy('module')->orderBy('action')->get();
-        $groupedPermissions = $permissions->groupBy('module');
-
-        return view('settings.permissions.index', compact('groupedPermissions'));
-    }
-
-    public function general(Request $request)
-    {
-        if ($request->isMethod('POST')) {
-            $validated = $request->validate([
-                'company_name' => 'required|string|max:255',
-                'company_address' => 'nullable|string',
-                'company_phone' => 'nullable|string',
-                'company_email' => 'nullable|email',
-                'company_ruc' => 'nullable|string',
-                'currency' => 'required|string|max:10',
-                'tax_rate' => 'required|numeric|min:0|max:100',
-                'timezone' => 'required|string',
-            ]);
-
-            foreach ($validated as $key => $value) {
-                Setting::set($key, $value, 'string', 'general');
-            }
-
-            return redirect()->route('settings.general')->with('success', 'Configuración guardada exitosamente.');
-        }
-
-        $settings = Setting::getByGroup('general');
+        $settings = $companySettings->get();
 
         return view('settings.general', compact('settings'));
     }
 
-    public function modules(Request $request)
+    public function updateGeneral(UpdateCompanySettingsRequest $request, CompanySettingsService $companySettings)
     {
-        if ($request->isMethod('POST')) {
-            $validated = $request->validate([
-                'modules' => 'required|array',
-                'modules.*.is_active' => 'boolean',
-                'modules.*.sort_order' => 'integer',
-            ]);
+        $companySettings->update(
+            $request->validated(),
+            $request->file('company_logo'),
+            $request->file('ticket_logo'),
+        );
 
-            // Obtener todos los módulos
-            $allModules = Module::all();
-
-            foreach ($allModules as $module) {
-                $moduleId = $module->id;
-
-                // Si el módulo está en el request, actualizar con los datos enviados
-                if (isset($validated['modules'][$moduleId])) {
-                    $data = $validated['modules'][$moduleId];
-                    $module->update([
-                        'is_active' => isset($data['is_active']) ? (bool) $data['is_active'] : false,
-                        'sort_order' => $data['sort_order'] ?? $module->sort_order,
-                    ]);
-                } else {
-                    // Si el módulo no está en el request, desactivarlo
-                    $module->update(['is_active' => false]);
-                }
-            }
-
-            return redirect()->route('settings.modules')->with('success', 'Módulos actualizados exitosamente.');
-        }
-
-        $modules = Module::ordered()->get();
-
-        return view('settings.modules', compact('modules'));
+        return redirect()->route('settings.general')->with('success', 'La información de empresa se guardó correctamente.');
     }
 
     public function security(Request $request)
@@ -126,15 +48,26 @@ class SettingsController extends Controller
                 'two_factor_enabled' => 'boolean',
             ]);
 
+            $booleanKeys = [
+                'password_require_uppercase',
+                'password_require_lowercase',
+                'password_require_numbers',
+                'password_require_special_chars',
+                'two_factor_enabled',
+            ];
+
+            foreach ($booleanKeys as $key) {
+                $validated[$key] = $request->boolean($key);
+            }
+
             foreach ($validated as $key => $value) {
-                Setting::set($key, $value, is_bool($value) ? 'boolean' : 'integer', 'security');
+                Setting::set($key, $value, SettingDefinition::typeFor($key), 'security');
             }
 
             return redirect()->route('settings.security')->with('success', 'Configuración de seguridad guardada exitosamente.');
         }
 
         $settings = Setting::getByGroup('security');
-
         return view('settings.security', compact('settings'));
     }
 
@@ -143,7 +76,7 @@ class SettingsController extends Controller
         if ($request->isMethod('POST')) {
             $validated = $request->validate([
                 'theme' => 'required|in:light,dark,auto',
-                'primary_color' => 'required|string|max:20',
+                'primary_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
                 'system_name' => 'required|string|max:100',
             ]);
 
@@ -155,7 +88,6 @@ class SettingsController extends Controller
         }
 
         $settings = Setting::getByGroup('appearance');
-
         return view('settings.appearance', compact('settings'));
     }
 
@@ -181,7 +113,6 @@ class SettingsController extends Controller
         }
 
         $sequences = \App\Models\NumberSequence::all()->keyBy('type');
-
         return view('settings.sequences', compact('sequences'));
     }
 }

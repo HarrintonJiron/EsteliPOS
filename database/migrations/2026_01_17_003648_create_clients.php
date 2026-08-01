@@ -10,7 +10,9 @@ return new class extends Migration {
         Schema::create('clients', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('phone');
+            // Nullable from the initial schema so fresh SQLite test databases
+            // match the production migration that relaxes this field.
+            $table->string('phone')->nullable();
             $table->string('email')->nullable();
             $table->string('address')->nullable();
             $table->timestamps();

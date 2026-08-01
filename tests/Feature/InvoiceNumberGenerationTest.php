@@ -6,12 +6,11 @@ use App\Models\Client;
 use App\Models\Proforma;
 use App\Models\Sale;
 use App\Models\User;
-use App\Services\CreditService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('facturacion controller generates the next numeric invoice number without regex sql', function () {
+test('facturacion controller generates the next configured invoice sequence without regex sql', function () {
     $user = User::create([
         'name' => 'Test User',
         'email' => 'test@example.com',
@@ -42,11 +41,11 @@ test('facturacion controller generates the next numeric invoice number without r
         'status' => 'completed',
     ]);
 
-    $controller = new FacturacionController(app(CreditService::class));
+    $controller = app(FacturacionController::class);
     $method = new ReflectionMethod($controller, 'nextInvoiceNumber');
     $method->setAccessible(true);
 
-    expect($method->invoke($controller))->toBe('000002');
+    expect($method->invoke($controller))->toBe('FAC-000001');
 });
 
 test('proforma controller generates the next proforma number without regex sql', function () {

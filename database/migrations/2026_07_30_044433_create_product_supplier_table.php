@@ -13,14 +13,14 @@ return new class extends Migration
             $table->id();
 
             $table->foreignId('product_id')
-                ->constrained()
-                ->cascadeOnDelete();
+                  ->constrained()
+                  ->cascadeOnDelete();
 
             $table->foreignId('supplier_id')
-                ->constrained()
-                ->cascadeOnDelete();
+                  ->constrained()
+                  ->cascadeOnDelete();
 
-            $table->decimal('purchase_price', 10, 2)->nullable();
+            $table->decimal('purchase_price',10,2)->nullable();
 
             $table->string('supplier_code')->nullable();
 
@@ -28,7 +28,7 @@ return new class extends Migration
 
             $table->timestamps();
 
-            $table->unique(['product_id', 'supplier_id']);
+            $table->unique(['product_id','supplier_id']);
 
         });
     }

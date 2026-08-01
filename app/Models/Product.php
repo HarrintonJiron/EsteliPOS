@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class Product extends Model
 {
@@ -31,6 +33,7 @@ class Product extends Model
         'image_url',
         'discount_pct',
         'discount_label',
+        'tax_id',
     ];
 
     public function effectivePrice(): float
@@ -40,6 +43,29 @@ class Product extends Model
         }
 
         return (float) $this->sale_price;
+    }
+
+    public function getImageUrlAttribute(?string $value): ?string
+    {
+        if (! $value || str_starts_with($value, 'http://') || str_starts_with($value, 'https://') || str_starts_with($value, '/')) {
+            return $value;
+        }
+
+        return Storage::disk('public')->url($value);
+    }
+
+    public function effectiveTaxRate(): float
+    {
+        if ($this->tax_id && $this->tax?->is_active) {
+            return (float) $this->tax->rate;
+        }
+
+        return Tax::defaultRate();
+    }
+
+    public function tax()
+    {
+        return $this->belongsTo(Tax::class);
     }
 
     public function category()
@@ -98,7 +124,7 @@ class Product extends Model
             return false;
         }
 
-        return \Carbon\Carbon::parse($this->expiry_date)->isPast();
+        return Carbon::parse($this->expiry_date)->isPast();
     }
 
     public function expiresSoon(int $days = 30): bool
@@ -107,7 +133,7 @@ class Product extends Model
             return false;
         }
 
-        return \Carbon\Carbon::parse($this->expiry_date)->diffInDays(now()) <= $days;
+        return Carbon::parse($this->expiry_date)->diffInDays(now()) <= $days;
     }
 
     public function getStatusLabelAttribute(): string

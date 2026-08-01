@@ -14,9 +14,19 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call(ProductionSeeder::class);
+
+        if (! filter_var(env('SEED_DEMO_DATA', false), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
+        if (! app()->environment(['local', 'testing'])) {
+            $this->command?->warn('Los datos de demostración solo pueden cargarse en local o testing.');
+
+            return;
+        }
+
         $this->call([
-            ConfigurationSeeder::class,
-            RoleSeeder::class,
             UserSeeder::class,
             CategorySeeder::class,
             SupplierSeeder::class,
@@ -26,7 +36,6 @@ class DatabaseSeeder extends Seeder
             DemoDataSeeder::class,
             CreditHeavySeeder::class,
             AgroProductSeeder::class,
-            RichDemoSeeder::class,
         ]);
     }
 }

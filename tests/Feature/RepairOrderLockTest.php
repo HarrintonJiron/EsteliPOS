@@ -1,13 +1,17 @@
 <?php
 
 use App\Models\User;
+use App\Models\Role;
+use Database\Seeders\ConfigurationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
 describe('repair order lock handling', function () {
     it('stores a repair order with a pattern lock', function () {
+        $this->seed(ConfigurationSeeder::class);
         $user = User::factory()->create();
+        $user->roles()->attach(Role::where('slug', 'admin')->value('id'));
 
         $response = $this->actingAs($user)->post('/reparaciones', [
             'client_name' => 'Ana García',

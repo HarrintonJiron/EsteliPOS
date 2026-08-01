@@ -2,33 +2,39 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Seeder;
+use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Models\Role;
 
 class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        $users = [
+        // Usuario admin - updateOrCreate evita duplicados
+        $admin = User::updateOrCreate(
+            ['email' => 'admin@agroservicio.com'],
             [
                 'name' => 'Administrador',
-                'email' => 'admin@agroservicio.com',
                 'role' => 'admin',
-                'password' => Hash::make('password'),
-                'is_active' => true,
-            ],
-            [
-                'name' => 'Vendedor Demo',
-                'email' => 'vendedor@agroservicio.com',
-                'role' => 'user',
-                'password' => Hash::make('password'),
-                'is_active' => true,
-            ],
-        ];
+                'password' => Hash::make('password')
+            ]
+        );
+        if ($adminRole = Role::where('slug', 'admin')->first()) {
+            $admin->roles()->syncWithoutDetaching([$adminRole->id]);
+        }
 
-        foreach ($users as $userData) {
-            User::updateOrCreate(['email' => $userData['email']], $userData);
+        // Usuario común
+        $user = User::updateOrCreate(
+            ['email' => 'usuario@agroservicio.com'],
+            [
+                'name' => 'Usuario Ventas',
+                'role' => 'user',
+                'password' => Hash::make('password')
+            ]
+        );
+        if ($userRole = Role::where('slug', 'user')->first()) {
+            $user->roles()->syncWithoutDetaching([$userRole->id]);
         }
     }
 }

@@ -38,7 +38,7 @@
                     <span class="font-semibold">C$ {{ number_format($sale->subtotal, 2) }}</span>
                 </div>
                 <div class="flex justify-between text-slate-700">
-                    <span>IVA (15%):</span>
+                    <span>IVA ({{ number_format($sale->tax_rate * 100, 2) }}%):</span>
                     <span class="font-semibold">C$ {{ number_format($sale->tax_total, 2) }}</span>
                 </div>
                 <div class="flex justify-between text-lg font-bold text-slate-900">
