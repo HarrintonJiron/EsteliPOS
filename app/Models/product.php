@@ -38,6 +38,7 @@ class Product extends Model
         if ((float) $this->discount_pct > 0) {
             return round((float) $this->sale_price * (1 - (float) $this->discount_pct / 100), 2);
         }
+
         return (float) $this->sale_price;
     }
 
@@ -142,6 +143,20 @@ class Product extends Model
         }
 
         return 'normal';
+    }
+
+    public function suppliers()
+    {
+        return $this->belongsToMany(
+            Supplier::class,
+            'product_supplier'
+        )
+            ->withPivot(
+                'purchase_price',
+                'supplier_code',
+                'preferred'
+            )
+            ->withTimestamps();
     }
 
     public function getInventoryStatusLabelAttribute(): string

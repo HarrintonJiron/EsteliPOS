@@ -26,6 +26,20 @@ class Supplier extends Model
         'status',
     ];
 
+    public function products()
+    {
+        return $this->belongsToMany(
+            Product::class,
+            'product_supplier'
+        )
+            ->withPivot(
+                'purchase_price',
+                'supplier_code',
+                'preferred'
+            )
+            ->withTimestamps();
+    }
+
     public function purchases()
     {
         return $this->hasMany(Purchase::class);
@@ -53,6 +67,7 @@ class Supplier extends Model
     public function getCreditAvailable(): float
     {
         $limit = $this->credit_limit ?? 0;
+
         return max(0, $limit - $this->getCreditUsed());
     }
 
@@ -63,7 +78,7 @@ class Supplier extends Model
 
     public function getStatusLabelAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'active' => 'Activo',
             'inactive' => 'Inactivo',
             default => $this->status ?? 'Activo',
@@ -72,7 +87,7 @@ class Supplier extends Model
 
     public function getPaymentConditionLabelAttribute(): string
     {
-        return match($this->payment_condition) {
+        return match ($this->payment_condition) {
             'contado' => 'Contado',
             'credito_15' => 'Crédito 15 días',
             'credito_30' => 'Crédito 30 días',

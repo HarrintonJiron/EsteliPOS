@@ -166,6 +166,21 @@
                     <span id="subtotal">C$ 0.00</span>
                 </div>
 
+                <div class="flex justify-between text-sm items-center">
+                    <span>Descuento %</span>
+                    <input type="number" id="discountPercentage" name="discount_percentage" value="{{ old('discount_percentage', $sale->discount_percentage ?? 0) }}" step="0.01" min="0" max="100" class="w-24 border rounded px-2 py-1 text-right text-sm" onchange="recalc()">
+                </div>
+
+                <div class="flex justify-between text-sm items-center">
+                    <span>Descuento Fijo</span>
+                    <input type="number" id="discountFixed" name="discount_amount" value="{{ old('discount_amount', $sale->discount_amount ?? 0) }}" step="0.01" min="0" class="w-24 border rounded px-2 py-1 text-right text-sm" onchange="recalc()">
+                </div>
+
+                <div class="flex justify-between text-sm text-red-600 hidden" id="discountRow">
+                    <span>Total Descuento</span>
+                    <span id="totalDiscount">C$ 0.00</span>
+                </div>
+
                 <div class="flex justify-between text-sm">
                     <span>IVA (15%)</span>
                     <span id="tax">C$ 0.00</span>
@@ -236,9 +251,13 @@
             });
             const rate = 0.15;
             const included = document.getElementById('taxIncluded')?.value === '1';
+            const discountPct = parseFloat(document.getElementById('discountPercentage').value) || 0;
+            const discountFixed = parseFloat(document.getElementById('discountFixed').value) || 0;
+            
             let subtotalExcl = 0;
             let tax = 0;
             let total = 0;
+            let totalDiscount = 0;
 
             if (included) {
                 subtotalExcl = subtotal / (1 + rate);
@@ -250,8 +269,24 @@
                 total = subtotal + tax;
             }
 
+            // Apply discounts
+            const percentageDiscount = subtotalExcl * (discountPct / 100);
+            totalDiscount = percentageDiscount + discountFixed;
+            const taxable = subtotalExcl - percentageDiscount;
+            tax = taxable * rate;
+            total = taxable + tax - discountFixed;
+
             document.getElementById('subtotal').textContent = formatMoney(subtotalExcl);
             document.getElementById('tax').textContent = formatMoney(tax);
+            document.getElementById('total').textContent = formatMoney(total);
+            
+            const discountRow = document.getElementById('discountRow');
+            if (totalDiscount > 0) {
+                discountRow.classList.remove('hidden');
+                document.getElementById('totalDiscount').textContent = '-' + formatMoney(totalDiscount);
+            } else {
+                discountRow.classList.add('hidden');
+            }
             document.getElementById('total').textContent = formatMoney(total);
         }
 

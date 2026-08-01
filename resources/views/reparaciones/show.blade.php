@@ -190,7 +190,15 @@
                 @if($order->delivered_date)
                 <div class="flex justify-between"><span class="text-slate-500">Entregado</span><span>{{ $order->delivered_date->format('d/m/Y') }}</span></div>
                 @endif
-                @if($order->device_password)
+                @php
+                    $lockType = $order->lock_type ?? ($order->device_password ? (preg_match('/^[1-9](?:-[1-9])*$/', $order->device_password) ? 'pattern' : 'password') : 'none');
+                @endphp
+                @if($order->device_password && $lockType === 'pattern')
+                <div class="space-y-2">
+                    <span class="text-slate-500">Patrón</span>
+                    <x-pattern-viewer :pattern="$order->device_password" />
+                </div>
+                @elseif($order->device_password)
                 <div class="flex justify-between"><span class="text-slate-500">Contraseña</span><span class="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded">{{ $order->device_password }}</span></div>
                 @endif
             </div>

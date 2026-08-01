@@ -91,7 +91,8 @@
             <div class="flex gap-2">
                 <input type="text" id="productSearch" placeholder="Buscar por nombre o código de barras..."
                     class="flex-1 px-4 py-2 text-sm border border-slate-300 rounded-xl focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600" autocomplete="off">
-                <button type="button" onclick="applyOrderDiscount()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium" title="Descuento global">% Dto.</button>
+                <button type="button" onclick="applyOrderDiscount('percentage')" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium" title="Descuento porcentaje">% Dto.</button>
+                <button type="button" onclick="applyOrderDiscount('fixed')" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium" title="Descuento fijo">$ Dto.</button>
             </div>
             <div id="categoryTabs" class="flex gap-2 overflow-x-auto pb-1"></div>
         </div>
@@ -213,6 +214,8 @@
                 <input type="hidden" name="client_id" id="clientIdInput">
                 <input type="hidden" name="items" id="itemsInput" value="[]">
                 <input type="hidden" name="notes" id="notesInput">
+                <input type="hidden" name="discount_percentage" id="discountPercentageInput" value="0">
+                <input type="hidden" name="discount_fixed" id="discountFixedInput" value="0">
                 <input type="hidden" name="amount_received" id="amountReceivedInput">
                 <input type="hidden" name="reference_number" id="referenceNumberInput">
 
@@ -293,6 +296,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let padBuffer = '';
     let currentCategory = 'all';
     let orderDiscountPct = 0;
+    let orderDiscountFixed = 0;
     let ticketCounter = parseInt(localStorage.getItem('pos_ticket_counter') || '1');
     let currentPaymentMethod = 'cash';
     const TAX_RATE = 0.15;
@@ -319,10 +323,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getTotal() {
         const subtotal = ticket.reduce((sum, item) => sum + lineSubtotal(item), 0);
-        const orderDiscount = subtotal * (orderDiscountPct / 100);
-        const taxable = subtotal - orderDiscount;
+        const percentageDiscount = subtotal * (orderDiscountPct / 100);
+        const totalDiscount = percentageDiscount + orderDiscountFixed;
+        const taxable = subtotal - totalDiscount;
         const tax = taxable * TAX_RATE;
-        return { subtotal, orderDiscount, tax, total: taxable + tax };
+        return { subtotal, orderDiscount: totalDiscount, tax, total: taxable + tax };
     }
 
     function updateTotals() {
@@ -338,7 +343,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (orderDiscount > 0) {
             discLabel.classList.remove('hidden');
             discDisplay.classList.remove('hidden');
-            discDisplay.textContent = '-' + formatMoney(orderDiscount) + ` (${orderDiscountPct}%)`;
+            let discountText = '-' + formatMoney(orderDiscount);
+            if (orderDiscountPct > 0 && orderDiscountFixed > 0) {
+                discountText += ` (${orderDiscountPct}% + C$ ${orderDiscountFixed.toFixed(2)})`;
+            } else if (orderDiscountPct > 0) {
+                discountText += ` (${orderDiscountPct}%)`;
+            } else if (orderDiscountFixed > 0) {
+                discountText += ` (C$ ${orderDiscountFixed.toFixed(2)})`;
+            }
+            discDisplay.textContent = discountText;
         } else {
             discLabel.classList.add('hidden');
             discDisplay.classList.add('hidden');
@@ -438,13 +451,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    window.applyOrderDiscount = function() {
-        const discount = prompt('Descuento global del ticket (%):', orderDiscountPct || '0');
-        if (discount !== null) {
-            const v = parseFloat(discount);
-            if (!isNaN(v) && v >= 0 && v <= 100) {
-                orderDiscountPct = v;
-                updateTotals();
+    window.applyOrderDiscount = function(type) {
+        if (type === 'percentage') {
+            const discount = prompt('Descuento global del ticket (%):', orderDiscountPct || '0');
+            if (discount !== null) {
+                const v = parseFloat(discount);
+                if (!isNaN(v) && v >= 0 && v <= 100) {
+                    orderDiscountPct = v;
+                    updateTotals();
+                }
+            }
+        } else if (type === 'fixed') {
+            const discount = prompt('Descuento fijo del ticket (C$):', orderDiscountFixed || '0');
+            if (discount !== null) {
+                const v = parseFloat(discount);
+                if (!isNaN(v) && v >= 0) {
+                    orderDiscountFixed = v;
+                    updateTotals();
+                }
             }
         }
     };
@@ -685,7 +709,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         let notes = document.getElementById('saleNotes').value;
-        if (orderDiscountPct > 0) notes += (notes ? ' | ' : '') + `Descuento global: ${orderDiscountPct}%`;
+        if (orderDiscountPct > 0 || orderDiscountFixed > 0) {
+            let discountNotes = [];
+            if (orderDiscountPct > 0) discountNotes.push(`Descuento %: ${orderDiscountPct}%`);
+            if (orderDiscountFixed > 0) discountNotes.push(`Descuento fijo: C$ ${orderDiscountFixed.toFixed(2)}`);
+            notes += (notes ? ' | ' : '') + discountNotes.join(' + ');
+        }
 
         document.getElementById('itemsInput').value = JSON.stringify(ticket.map(item => ({
             product_id: item.product_id,
@@ -694,6 +723,8 @@ document.addEventListener('DOMContentLoaded', function() {
             discount: item.discount || 0,
         })));
         document.getElementById('notesInput').value = notes;
+        document.getElementById('discountPercentageInput').value = orderDiscountPct;
+        document.getElementById('discountFixedInput').value = orderDiscountFixed;
         e.target.submit();
     });
 
@@ -701,6 +732,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (ticket.length > 0 && !confirm('¿Descartar ticket actual?')) return;
         ticket = [];
         orderDiscountPct = 0;
+        orderDiscountFixed = 0;
         selectedItemIndex = -1;
         padBuffer = '';
         searchInput.value = '';
@@ -726,11 +758,13 @@ document.addEventListener('DOMContentLoaded', function() {
             client: currentClient,
             clientName: document.getElementById('clientDisplay').textContent,
             orderDiscountPct,
+            orderDiscountFixed,
             savedAt: new Date().toLocaleString(),
         });
         localStorage.setItem(HELD_KEY, JSON.stringify(held));
         ticket = [];
         orderDiscountPct = 0;
+        orderDiscountFixed = 0;
         currentClient = null;
         document.getElementById('clientDisplay').textContent = 'Cliente General';
         renderTicket();
@@ -771,6 +805,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ticket = saved.items;
         currentClient = saved.client;
         orderDiscountPct = saved.orderDiscountPct || 0;
+        orderDiscountFixed = saved.orderDiscountFixed || 0;
         document.getElementById('clientDisplay').textContent = saved.clientName;
         held.splice(idx, 1);
         localStorage.setItem(HELD_KEY, JSON.stringify(held));

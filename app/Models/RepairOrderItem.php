@@ -11,10 +11,13 @@ class RepairOrderItem extends Model
     protected $fillable = [
         'repair_order_id',
         'product_id',
+        'service_id',
         'description',
         'quantity',
         'price',
         'subtotal',
+        'item_type',
+        'device_brand',
     ];
 
     public function repairOrder()
@@ -25,5 +28,10 @@ class RepairOrderItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function service()
+    {
+        return $this->belongsTo(RepairService::class);
     }
 }

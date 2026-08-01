@@ -6,19 +6,16 @@
 
     <!-- Header -->
     <div class="flex justify-between items-center">
-        <h1 class="text-2xl font-bold text-gray-800">
-            Gestión de Compras
-        </h1>
-
-        <a href="{{ route('compras.create') }}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">+ Nueva Compra</a>
+        <h1 class="page-title">Gestión de Compras</h1>
+        <a href="{{ route('compras.create') }}" class="btn-primary">+ Nueva Compra</a>
     </div>
 
     <!-- Filtros -->
-    <div class="bg-white p-4 rounded-xl shadow">
+    <div class="card p-4">
         <form method="GET" action="{{ route('compras.index') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700">Proveedor</label>
-                <select name="supplier_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                <label class="block text-sm font-medium text-slate-700">Proveedor</label>
+                <select name="supplier_id" class="select-field">
                     <option value="">Todos</option>
                     @foreach($suppliers as $supplier)
                         <option value="{{ $supplier->id }}" {{ request('supplier_id') == $supplier->id ? 'selected' : '' }}>{{ $supplier->name }}</option>
@@ -26,57 +23,51 @@
                 </select>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700">Fecha Desde</label>
-                <input type="date" name="date_from" value="{{ request('date_from') }}" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                <label class="block text-sm font-medium text-slate-700">Fecha Desde</label>
+                <input type="date" name="date_from" value="{{ request('date_from') }}" class="input-field">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700">Fecha Hasta</label>
-                <input type="date" name="date_to" value="{{ request('date_to') }}" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                <label class="block text-sm font-medium text-slate-700">Fecha Hasta</label>
+                <input type="date" name="date_to" value="{{ request('date_to') }}" class="input-field">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700">Estado</label>
-                <select name="status" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                <label class="block text-sm font-medium text-slate-700">Estado</label>
+                <select name="status" class="select-field">
                     <option value="">Todos</option>
                     <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Pagado</option>
                     <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pendiente</option>
                 </select>
             </div>
             <div class="md:col-span-4 flex justify-end space-x-2">
-                <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrar</button>
-                <a href="{{ route('compras.index') }}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Limpiar</a>
+                <button type="submit" class="btn-primary">Filtrar</button>
+                <a href="{{ route('compras.index') }}" class="btn-secondary">Limpiar</a>
             </div>
         </form>
     </div>
 
     <!-- Métricas -->
     <div class="grid grid-cols-4 gap-6">
-
-        <div class="bg-white p-5 rounded-xl shadow border-l-4 border-blue-600">
-            <p class="text-sm text-gray-500">Compras del Mes</p>
-            <p class="text-2xl font-bold text-blue-700">C$ 72,000</p>
+        <div class="card p-5 border-l-4 border-indigo-500">
+            <p class="text-xs text-slate-500">Compras del Mes</p>
+            <p class="text-2xl font-bold text-indigo-600">C$ 72,000</p>
         </div>
-
-        <div class="bg-white p-5 rounded-xl shadow border-l-4 border-green-600">
-            <p class="text-sm text-gray-500">Pagadas</p>
-            <p class="text-2xl font-bold text-green-700">5</p>
+        <div class="card p-5 border-l-4 border-emerald-500">
+            <p class="text-xs text-slate-500">Pagadas</p>
+            <p class="text-2xl font-bold text-emerald-600">5</p>
         </div>
-
-        <div class="bg-white p-5 rounded-xl shadow border-l-4 border-yellow-500">
-            <p class="text-sm text-gray-500">Pendientes</p>
-            <p class="text-2xl font-bold text-yellow-600">2</p>
+        <div class="card p-5 border-l-4 border-amber-500">
+            <p class="text-xs text-slate-500">Pendientes</p>
+            <p class="text-2xl font-bold text-amber-600">2</p>
         </div>
-
-        <div class="bg-white p-5 rounded-xl shadow border-l-4 border-purple-600">
-            <p class="text-sm text-gray-500">Total Invertido</p>
-            <p class="text-2xl font-bold text-purple-700">C$ 185,000</p>
+        <div class="card p-5 border-l-4 border-violet-500">
+            <p class="text-xs text-slate-500">Total Invertido</p>
+            <p class="text-2xl font-bold text-violet-600">C$ 185,000</p>
         </div>
-
     </div>
 
     <!-- Tabla -->
-    <div class="bg-white rounded-xl shadow overflow-hidden">
-
-        <table class="w-full text-sm text-left">
+    <div class="card overflow-hidden">
+        <table class="min-w-full table-agro">
 
             <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
                 <tr>

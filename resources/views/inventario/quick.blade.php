@@ -57,15 +57,26 @@
         </div>
 
         <div class="grid grid-cols-2 gap-4">
-            <div>
+            <div class="relative">
                 <label class="block text-xs text-slate-500 mb-1">Categoría</label>
-                <select name="category_id" class="select-field">
-                    @foreach($categories as $category)
-                    <option value="{{ $category->id }}" {{ ($defaultCategory?->id ?? null) == $category->id ? 'selected' : '' }}>
-                        {{ $category->name }}
-                    </option>
-                    @endforeach
-                </select>
+                <div class="flex items-center gap-2 w-full">
+                    <select id="categorySelectQuick" name="category_id" class="select-field flex-1 min-w-0">
+                        @foreach($categories as $category)
+                        <option value="{{ $category->id }}" {{ ($defaultCategory?->id ?? null) == $category->id ? 'selected' : '' }}>
+                            {{ $category->name }}
+                        </option>
+                        @endforeach
+                    </select>
+                    <button type="button" onclick="toggleNewCategoryForm('Quick')" class="btn-outline text-sm whitespace-nowrap">+ Nueva</button>
+                </div>
+                <div id="newCategoryFormQuick" class="hidden absolute left-0 right-0 mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-lg">
+                    <div class="grid grid-cols-1 gap-2">
+                        <input id="newCategoryNameQuick" type="text" placeholder="Nombre de categoría" class="input-field" />
+                        <button type="button" onclick="submitNewCategory('Quick')" class="btn-primary">Agregar</button>
+                    </div>
+                    <p id="newCategorySuccessQuick" class="text-xs text-emerald-600 hidden"></p>
+                    <p id="newCategoryErrorQuick" class="text-xs text-red-600 hidden"></p>
+                </div>
             </div>
             <div>
                 <label class="block text-xs text-slate-500 mb-1">Unidad</label>
@@ -164,6 +175,64 @@ document.addEventListener('DOMContentLoaded', function() {
 
   barcode.focus();
 });
+
+function toggleNewCategoryForm(mode) {
+    const form = document.getElementById(`newCategoryForm${mode}`);
+    if (!form) return;
+    form.classList.toggle('hidden');
+}
+
+function submitNewCategory(mode) {
+    const input = document.getElementById(`newCategoryName${mode}`);
+    const error = document.getElementById(`newCategoryError${mode}`);
+    const select = document.getElementById(`categorySelect${mode}`);
+    if (!input || !select || !error) return;
+
+    const name = input.value.trim();
+    if (!name) {
+        error.textContent = 'Ingresa un nombre de categoría';
+        error.classList.remove('hidden');
+        return;
+    }
+
+    error.classList.add('hidden');
+
+    fetch('{{ route('categorias.store') }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: JSON.stringify({ name })
+    })
+    .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.message || 'No se pudo crear la categoría');
+        }
+        return data;
+    })
+    .then((data) => {
+        const success = document.getElementById(`newCategorySuccess${mode}`);
+        const option = document.createElement('option');
+        option.value = data.id;
+        option.textContent = data.name;
+        option.selected = true;
+        select.appendChild(option);
+        input.value = '';
+        error.classList.add('hidden');
+        if (success) {
+            success.textContent = 'Categoría guardada correctamente';
+            success.classList.remove('hidden');
+            setTimeout(() => success.classList.add('hidden'), 3500);
+        }
+        document.getElementById(`newCategoryForm${mode}`).classList.add('hidden');
+    })
+    .catch((err) => {
+        error.textContent = err.message;
+        error.classList.remove('hidden');
+    });
+}
 </script>
 @endpush
 @endsection

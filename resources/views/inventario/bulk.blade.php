@@ -19,11 +19,23 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
                 <label class="block text-xs text-slate-500 mb-1">Categoría</label>
-                <select id="defaultCategory" class="select-field">
-                    @foreach($categories as $cat)
-                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
-                    @endforeach
-                </select>
+                <div class="space-y-2">
+                    <div class="flex flex-col gap-2 md:flex-row md:items-center">
+                        <select id="defaultCategory" class="select-field md:flex-1">
+                            @foreach($categories as $cat)
+                            <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                            @endforeach
+                        </select>
+                        <button type="button" onclick="toggleNewCategoryForm()" class="btn-outline text-sm whitespace-nowrap">+ Nueva</button>
+                    </div>
+                    <div id="newCategoryFormBulk" class="hidden rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <input id="newCategoryNameBulk" type="text" placeholder="Nombre de categoría" class="input-field" />
+                            <button type="button" onclick="submitNewCategory()" class="btn-primary">Agregar</button>
+                        </div>
+                        <p id="newCategoryErrorBulk" class="text-xs text-red-600 hidden"></p>
+                    </div>
+                </div>
             </div>
             <div>
                 <label class="block text-xs text-slate-500 mb-1">Unidad</label>
@@ -94,11 +106,70 @@ document.addEventListener('DOMContentLoaded', function() {
     const match = suggested.match(/(\d+)$/);
     if (match) nextCodeNum = parseInt(match[1]);
 
-    function categoryOptions(selected) {
-        return categories.map(c =>
-            `<option value="${c.id}" ${c.id == selected ? 'selected' : ''}>${c.name}</option>`
-        ).join('');
-    }
+        function categoryOptions(selected) {
+            return categories.map(c =>
+                `<option value="${c.id}" ${c.id == selected ? 'selected' : ''}>${c.name}</option>`
+            ).join('');
+        }
+
+        window.updateBulkCategoryList = function(newCategory) {
+            categories.push(newCategory);
+            document.querySelectorAll('.cat-input').forEach(select => {
+                const current = select.value;
+                select.innerHTML = categoryOptions(current);
+            });
+            const defaultCategory = document.getElementById('defaultCategory');
+            const currentDefault = defaultCategory.value;
+            defaultCategory.innerHTML = categoryOptions(currentDefault);
+            defaultCategory.value = newCategory.id;
+        };
+
+        window.toggleNewCategoryForm = function() {
+            const form = document.getElementById('newCategoryFormBulk');
+            if (!form) return;
+            form.classList.toggle('hidden');
+        };
+
+        window.submitNewCategory = function() {
+            const input = document.getElementById('newCategoryNameBulk');
+            const error = document.getElementById('newCategoryErrorBulk');
+            const select = document.getElementById('defaultCategory');
+            if (!input || !select || !error) return;
+
+            const name = input.value.trim();
+            if (!name) {
+                error.textContent = 'Ingresa un nombre de categoría';
+                error.classList.remove('hidden');
+                return;
+            }
+
+            error.classList.add('hidden');
+
+            fetch('{{ route('categorias.store') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify({ name })
+            })
+            .then(async response => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.message || 'No se pudo crear la categoría');
+                }
+                return data;
+            })
+            .then((data) => {
+                updateBulkCategoryList(data);
+                input.value = '';
+                document.getElementById('newCategoryFormBulk').classList.add('hidden');
+            })
+            .catch((err) => {
+                error.textContent = err.message;
+                error.classList.remove('hidden');
+            });
+        };
 
     window.addRow = function(data = {}) {
         const tbody = document.getElementById('bulkBody');

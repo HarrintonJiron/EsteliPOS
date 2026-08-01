@@ -48,13 +48,23 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Categoría *</label>
-                    <select name="category_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        @foreach($categories as $category)
-                            <option value="{{ $category->id }}" {{ old('category_id', $product->category_id) == $category->id ? 'selected' : '' }}>
-                                {{ $category->name }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <div class="flex items-center gap-2">
+                        <select id="categorySelectEdit" name="category_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                            @foreach($categories as $category)
+                                <option value="{{ $category->id }}" {{ old('category_id', $product->category_id) == $category->id ? 'selected' : '' }}>
+                                    {{ $category->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <button type="button" onclick="toggleNewCategoryForm('Edit')" class="btn-outline text-sm whitespace-nowrap">+ Nueva</button>
+                    </div>
+                    <div id="newCategoryFormEdit" class="hidden mt-3 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <input id="newCategoryNameEdit" type="text" placeholder="Nombre de categoría" class="input-field" />
+                            <button type="button" onclick="submitNewCategory('Edit')" class="btn-primary">Agregar</button>
+                        </div>
+                        <p id="newCategoryErrorEdit" class="text-xs text-red-600 hidden"></p>
+                    </div>
                 </div>
 
                 <div>
@@ -217,5 +227,60 @@
         </div>
     </form>
 </div>
+
+@push('scripts')
+<script>
+function toggleNewCategoryForm(mode) {
+    const form = document.getElementById(`newCategoryForm${mode}`);
+    if (!form) return;
+    form.classList.toggle('hidden');
+}
+
+function submitNewCategory(mode) {
+    const input = document.getElementById(`newCategoryName${mode}`);
+    const error = document.getElementById(`newCategoryError${mode}`);
+    const select = document.getElementById(`categorySelect${mode}`);
+    if (!input || !select || !error) return;
+
+    const name = input.value.trim();
+    if (!name) {
+        error.textContent = 'Ingresa un nombre de categoría';
+        error.classList.remove('hidden');
+        return;
+    }
+
+    error.classList.add('hidden');
+
+    fetch('{{ route('categorias.store') }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: JSON.stringify({ name })
+    })
+    .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.message || 'No se pudo crear la categoría');
+        }
+        return data;
+    })
+    .then((data) => {
+        const option = document.createElement('option');
+        option.value = data.id;
+        option.textContent = data.name;
+        option.selected = true;
+        select.appendChild(option);
+        input.value = '';
+        document.getElementById(`newCategoryForm${mode}`).classList.add('hidden');
+    })
+    .catch((err) => {
+        error.textContent = err.message;
+        error.classList.remove('hidden');
+    });
+}
+</script>
+@endpush
 
 @endsection

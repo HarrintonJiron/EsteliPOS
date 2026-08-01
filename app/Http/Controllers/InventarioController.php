@@ -79,7 +79,7 @@ class InventarioController extends Controller
 
         $stats = $this->buildStats();
         $movementStats = $this->inventory->movementStats($periodDays);
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::select('id', 'name')->orderBy('name')->get();
         $discrepancyCount = count($this->discrepantProductIds());
 
         return view('inventario.index', compact(
@@ -337,6 +337,20 @@ class InventarioController extends Controller
 
         return redirect()->route('inventario.index')
             ->with('success', "Producto «{$product->name}» registrado correctamente.");
+    }
+
+    public function storeCategory(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100|unique:categories,name',
+        ]);
+
+        $category = Category::create([
+            'name' => $validated['name'],
+            'description' => null,
+        ]);
+
+        return response()->json(['id' => $category->id, 'name' => $category->name], 201);
     }
 
     public function store(Request $request): RedirectResponse

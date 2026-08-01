@@ -3,21 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SaleRequest;
-use App\Models\Category;
 use App\Models\Client;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleDetail;
-use App\Services\CreditService;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class FacturacionController extends Controller
 {
-    public function __construct(private CreditService $credit) {}
-
     private const DEFAULT_TAX_RATE = 0.15;
 
     private function nextInvoiceNumber(): string
@@ -54,14 +49,32 @@ class FacturacionController extends Controller
         }
 
         $sales = $query->latest()->paginate($perPage);
-        $clients = Client::orderBy('name')->get();
+
+        // Only load clients for the filter dropdown if needed
+        $clients = [];
+        if ($request->hasAny(['search', 'date', 'status'])) {
+            $clients = Client::orderBy('name')->pluck('name', 'id')->toArray();
+        }
 
         return view('facturacion.index', compact('sales', 'clients'));
     }
 
     public function create()
     {
-        return redirect()->route('facturacion.pos');
+        // Only load products with necessary fields
+        $products = Product::select('id', 'name', 'code', 'sale_price', 'stock', 'category_id', 'image_url')
+            ->orderBy('name')
+            ->get();
+
+        Client::firstOrCreate(
+            ['code' => 'GEN'],
+            ['name' => 'Cliente genérico', 'phone' => 'N/A', 'email' => null, 'address' => null]
+        );
+
+        $clients = Client::select('id', 'name', 'code')->orderBy('name')->get();
+        $nextInvoiceNumber = $this->nextInvoiceNumber();
+
+        return view('facturacion.create', compact('products', 'clients', 'nextInvoiceNumber'));
     }
 
     public function store(SaleRequest $request)
@@ -106,6 +119,10 @@ class FacturacionController extends Controller
 
             $linesTotal = 0;
 
+            // Fetch all products at once to avoid N+1 queries
+            $productIds = collect($data['items'])->pluck('product_id')->filter();
+            $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
+
             foreach ($data['items'] as $item) {
                 $subtotal = $item['quantity'] * $item['price'];
                 SaleDetail::create([
@@ -117,7 +134,7 @@ class FacturacionController extends Controller
                 ]);
 
                 Product::where('id', $item['product_id'])->decrement('stock', $item['quantity']);
-                $product = Product::find($item['product_id']);
+                $product = $products->get($item['product_id']);
                 InventoryMovement::create([
                     'product_id' => $item['product_id'],
                     'type' => 'out',
@@ -237,6 +254,8 @@ class FacturacionController extends Controller
                 'tax_rate' => self::DEFAULT_TAX_RATE,
                 'status' => $status,
                 'notes' => $data['notes'] ?? null,
+                'discount_percentage' => $data['discount_percentage'] ?? 0,
+                'discount_amount' => $data['discount_amount'] ?? 0,
             ]);
 
             $linesTotal = 0;
@@ -267,14 +286,20 @@ class FacturacionController extends Controller
             }
 
             $rate = (float) $sale->tax_rate;
+            $discountPct = (float) ($data['discount_percentage'] ?? 0);
+            $discountFixed = (float) ($data['discount_amount'] ?? 0);
+
             if ($sale->tax_included) {
                 $subtotalExcl = $rate > 0 ? ($linesTotal / (1 + $rate)) : $linesTotal;
                 $taxTotal = $linesTotal - $subtotalExcl;
                 $grandTotal = $linesTotal;
             } else {
                 $subtotalExcl = $linesTotal;
-                $taxTotal = $linesTotal * $rate;
-                $grandTotal = $linesTotal + $taxTotal;
+                $percentageDiscount = $subtotalExcl * ($discountPct / 100);
+                $totalDiscount = $percentageDiscount + $discountFixed;
+                $taxable = $subtotalExcl - $percentageDiscount;
+                $taxTotal = $taxable * $rate;
+                $grandTotal = $taxable + $taxTotal - $discountFixed;
             }
 
             $sale->update([
@@ -319,63 +344,15 @@ class FacturacionController extends Controller
      */
     public function pos()
     {
-        $products = Product::with('category')
-            ->where('status', 'active')
-            ->orderBy('name')
-            ->get();
+        $products = Product::orderBy('name')->get();
         Client::firstOrCreate(
             ['code' => 'GEN'],
             ['name' => 'Cliente genérico', 'phone' => 'N/A', 'email' => null, 'address' => null]
         );
-        $clients = Client::orderBy('name')->get()->map(function (Client $client) {
-            $summary = $this->credit->clientCreditSummary($client);
-
-            return array_merge($client->toArray(), $summary);
-        });
-        $categories = Category::orderBy('name')->get();
+        $clients = Client::orderBy('name')->get();
+        $categories = \App\Models\Category::orderBy('name')->get();
 
         return view('facturacion.pos', compact('products', 'clients', 'categories'));
-    }
-
-    public function posDailyReport(): JsonResponse
-    {
-        $today = now()->toDateString();
-
-        $sales = Sale::query()
-            ->whereDate('date', $today)
-            ->where('status', 'completed');
-
-        $byPayment = Sale::query()
-            ->whereDate('date', $today)
-            ->where('status', 'completed')
-            ->selectRaw('payment_type, COUNT(*) as count, COALESCE(SUM(total), 0) as total')
-            ->groupBy('payment_type')
-            ->get()
-            ->keyBy('payment_type');
-
-        $paymentLabels = [
-            'cash' => 'Efectivo',
-            'card' => 'Tarjeta',
-            'transfer' => 'Transferencia',
-            'credit' => 'Crédito',
-        ];
-
-        return response()->json([
-            'date' => $today,
-            'total_sales' => (float) $sales->sum('total'),
-            'invoice_count' => $sales->count(),
-            'average_ticket' => $sales->count() > 0 ? round($sales->sum('total') / $sales->count(), 2) : 0,
-            'by_payment' => collect($paymentLabels)->map(function ($label, $type) use ($byPayment) {
-                $row = $byPayment->get($type);
-
-                return [
-                    'label' => $label,
-                    'count' => (int) ($row->count ?? 0),
-                    'total' => (float) ($row->total ?? 0),
-                ];
-            }),
-            'cashier' => auth()->user()?->name ?? 'Sistema',
-        ]);
     }
 
     /**
@@ -384,12 +361,13 @@ class FacturacionController extends Controller
     public function posStore(Request $request)
     {
         $validated = $request->validate([
-            'payment_type' => 'required|in:cash,card,transfer,credit',
+            'payment_type' => 'required|in:cash,transfer,credit',
             'client_id' => 'nullable|exists:clients,id',
             'items' => 'required|json',
             'notes' => 'nullable|string',
             'amount_received' => 'nullable|numeric|min:0',
-            'reference_number' => 'nullable|string|max:100',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'discount_fixed' => 'nullable|numeric|min:0',
         ]);
 
         $items = json_decode($validated['items'], true);
@@ -397,53 +375,8 @@ class FacturacionController extends Controller
             return back()->withErrors(['items' => 'El ticket está vacío']);
         }
 
-        foreach ($items as $item) {
-            $product = Product::find($item['product_id'] ?? null);
-            $quantity = (int) ($item['quantity'] ?? 1);
-
-            if (! $product) {
-                return back()->withErrors(['items' => 'Producto no encontrado en el ticket.']);
-            }
-
-            if ($product->stock < $quantity) {
-                return back()->withErrors([
-                    'items' => "Stock insuficiente para «{$product->name}». Disponible: {$product->stock}",
-                ]);
-            }
-        }
-
-        if ($validated['payment_type'] === 'credit' && empty($validated['client_id'])) {
-            return back()->withErrors(['client_id' => 'Selecciona un cliente para ventas a crédito.']);
-        }
-
-        if ($validated['payment_type'] === 'credit' && ! empty($validated['client_id'])) {
-            $creditClient = Client::find($validated['client_id']);
-            if ($creditClient && ! $creditClient->credit_enabled) {
-                return back()->withErrors(['client_id' => 'Este cliente no tiene crédito habilitado.']);
-            }
-        }
-
         $sale = null;
         $userId = $request->user()?->id ?? 1;
-
-        $estimatedTotal = collect($items)->sum(function ($item) {
-            $qty = (int) ($item['quantity'] ?? 1);
-            $price = (float) ($item['price'] ?? 0);
-            $discountPct = (float) ($item['discount'] ?? 0);
-
-            return $price * $qty * (1 - $discountPct / 100);
-        }) * (1 + self::DEFAULT_TAX_RATE);
-
-        if ($validated['payment_type'] === 'credit' && ! empty($validated['client_id'])) {
-            $creditClient = Client::find($validated['client_id']);
-            if ($creditClient && ! $this->credit->canGrantCredit($creditClient, $estimatedTotal)) {
-                $available = $this->credit->availableCredit($creditClient);
-
-                return back()->withErrors([
-                    'client_id' => 'Límite de crédito excedido. Disponible: C$ '.number_format(min($available, $creditClient->credit_limit), 2),
-                ]);
-            }
-        }
 
         DB::transaction(function () use ($validated, $items, &$sale, $userId) {
             $invoiceNumber = $this->nextInvoiceNumber();
@@ -471,14 +404,14 @@ class FacturacionController extends Controller
                 'billing_email' => $client->email ?? null,
                 'billing_address' => $client->address ?? null,
                 'date' => now(),
-                'due_date' => $validated['payment_type'] === 'credit'
-                    ? $this->credit->dueDateForClient($client)
-                    : null,
+                'due_date' => $validated['payment_type'] === 'credit' ? now()->addDays(7)->toDateString() : null,
                 'payment_type' => $validated['payment_type'],
                 'tax_included' => false,
                 'tax_rate' => self::DEFAULT_TAX_RATE,
                 'status' => $status,
-                'notes' => trim(($validated['notes'] ?? '').(! empty($validated['reference_number']) ? ' Ref: '.$validated['reference_number'] : '')) ?: null,
+                'notes' => $validated['notes'] ?? null,
+                'discount_percentage' => $validated['discount_percentage'] ?? 0,
+                'discount_amount' => $validated['discount_fixed'] ?? 0,
                 'subtotal' => 0,
                 'tax_total' => 0,
                 'total' => 0,
@@ -489,8 +422,8 @@ class FacturacionController extends Controller
             foreach ($items as $item) {
                 $quantity = (int) ($item['quantity'] ?? 1);
                 $price = (float) ($item['price'] ?? 0);
-                $discountPct = (float) ($item['discount'] ?? 0);
-                $subtotal = $price * $quantity * (1 - $discountPct / 100);
+                $discount = (float) ($item['discount'] ?? 0);
+                $subtotal = ($price * $quantity) - $discount;
 
                 SaleDetail::create([
                     'sale_id' => $sale->id,
@@ -517,13 +450,21 @@ class FacturacionController extends Controller
             }
 
             $rate = self::DEFAULT_TAX_RATE;
+            $discountPct = (float) ($validated['discount_percentage'] ?? 0);
+            $discountFixed = (float) ($validated['discount_fixed'] ?? 0);
+
             $subtotalExcl = $linesTotal;
-            $taxTotal = $linesTotal * $rate;
-            $grandTotal = $linesTotal + $taxTotal;
+            $percentageDiscount = $subtotalExcl * ($discountPct / 100);
+            $totalDiscount = $percentageDiscount + $discountFixed;
+            $taxable = $subtotalExcl - $percentageDiscount;
+            $taxTotal = $taxable * $rate;
+            $grandTotal = $taxable + $taxTotal - $discountFixed;
 
             $sale->update([
                 'subtotal' => round($subtotalExcl, 2),
                 'tax_total' => round($taxTotal, 2),
+                'discount_percentage' => $discountPct,
+                'discount_amount' => $discountFixed,
                 'total' => round($grandTotal, 2),
             ]);
         });

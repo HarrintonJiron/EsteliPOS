@@ -6,15 +6,19 @@ use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\CompraController;
 use App\Http\Controllers\CreditController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeviceBrandController;
 use App\Http\Controllers\FacturacionController;
 use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\MovimientosController;
 use App\Http\Controllers\NominaController;
 use App\Http\Controllers\PlanillaController;
-use App\Http\Controllers\ProveedorController;
-use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\ProformaController;
+use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\ReparacionController;
+use App\Http\Controllers\ReporteController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas públicas (sin autenticación)
@@ -70,6 +74,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/inventario/next-code', [InventarioController::class, 'nextCode'])->name('inventario.next-code');
     Route::post('/inventario/reconciliar', [InventarioController::class, 'reconcile'])->name('inventario.reconcile');
     Route::get('/inventario/export', [InventarioController::class, 'export'])->name('inventario.export');
+    Route::post('/categorias', [InventarioController::class, 'storeCategory'])->name('categorias.store');
     Route::get('/inventario/{id}', [InventarioController::class, 'show'])->name('inventario.show')->whereNumber('id');
     Route::get('/inventario/{id}/edit', [InventarioController::class, 'edit'])->name('inventario.edit')->whereNumber('id');
     Route::match(['put', 'patch'], '/inventario/{id}', [InventarioController::class, 'update'])->name('inventario.update')->whereNumber('id');
@@ -131,6 +136,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reparaciones/{id}/ticket', [ReparacionController::class, 'ticket'])->name('reparaciones.ticket');
     Route::get('/reparaciones/{id}/pdf', [ReparacionController::class, 'pdf'])->name('reparaciones.pdf');
 
+    // Device Brands (AJAX)
+    Route::get('/api/device-brands', [DeviceBrandController::class, 'index'])->name('device-brands.index');
+    Route::post('/api/device-brands', [DeviceBrandController::class, 'store'])->name('device-brands.store');
+
+    // Repair Services (AJAX) - Moved to ReparacionController
+    Route::get('/api/repair-services', [ReparacionController::class, 'getServices'])->name('repair-services.index');
+    Route::post('/api/repair-services', [ReparacionController::class, 'storeService'])->name('repair-services.store')->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
+
     // Reportes solo para admin
     Route::middleware(['role:admin'])->group(function () {
         Route::get('/reportes', [ReporteController::class, 'index'])->name('reportes.index');
@@ -150,5 +163,41 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/ajustes/{id}', [AjusteInventarioController::class, 'destroy'])->name('ajustes.destroy');
         Route::get('/api/products/{id}/info', [AjusteInventarioController::class, 'getProductInfo'])->name('api.products.info');
     });
+
+    // Configuración del sistema solo para admin
+    Route::middleware(['role:admin'])->prefix('settings')->name('settings.')->group(function () {
+        Route::get('/', [SettingsController::class, 'index'])->name('index');
+        Route::get('/users', [UserController::class, 'index'])->name('users');
+        Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
+        Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+        Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::post('/users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+        Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+        Route::get('/roles', [RoleController::class, 'index'])->name('roles');
+        Route::get('/roles/create', [RoleController::class, 'create'])->name('roles.create');
+        Route::post('/roles', [RoleController::class, 'store'])->name('roles.store');
+        Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
+        Route::get('/roles/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit');
+        Route::match(['put', 'patch'], '/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
+        Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
+        Route::get('/permissions', [SettingsController::class, 'permissions'])->name('permissions');
+        Route::match(['get', 'post'], '/general', [SettingsController::class, 'general'])->name('general');
+        Route::match(['get', 'post'], '/modules', [SettingsController::class, 'modules'])->name('modules');
+        Route::match(['get', 'post'], '/security', [SettingsController::class, 'security'])->name('security');
+        Route::match(['get', 'post'], '/appearance', [SettingsController::class, 'appearance'])->name('appearance');
+        Route::match(['get', 'post'], '/sequences', [SettingsController::class, 'sequences'])->name('sequences');
+    });
+
+    Route::get(
+        '/proveedores/{supplier}/productos',
+        [CompraController::class, 'productosPorProveedor']
+    )->name('proveedores.productos');
+
+    Route::get('/proveedores/{supplier}/productos/buscar',
+        [CompraController::class, 'buscarProductos']
+    )->name('proveedores.productos.buscar');
 
 }); // Cierre del grupo auth middleware

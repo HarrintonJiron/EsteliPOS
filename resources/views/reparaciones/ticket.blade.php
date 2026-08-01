@@ -72,10 +72,19 @@
 
     @if($order->items->count())
     <div class="divider"></div>
-    <div class="bold" style="font-size:10px; margin-bottom:3px;">REPUESTOS</div>
+    <div class="bold" style="font-size:10px; margin-bottom:3px;">REPUESTOS Y SERVICIOS</div>
     @foreach($order->items as $item)
     <div style="font-size:10px; margin-bottom:3px;">
-        <div class="bold">{{ $item->description }}</div>
+        <div class="bold">
+            @if(isset($item->item_type) && $item->item_type === 'service')
+                [SERVICIO] {{ $item->description }}
+            @else
+                {{ $item->description }}
+            @endif
+        </div>
+        @if(isset($item->item_type) && $item->item_type === 'service' && $item->device_brand)
+        <div style="font-size:9px; color:#666;">Marca: {{ $item->device_brand }}</div>
+        @endif
         <div style="display:flex; justify-content:space-between;">
             <span>{{ number_format($item->quantity,2) }} x C$ {{ number_format($item->price,2) }}</span>
             <span class="bold">C$ {{ number_format($item->subtotal,2) }}</span>

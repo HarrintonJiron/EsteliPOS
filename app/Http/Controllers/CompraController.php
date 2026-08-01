@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\PurchaseRequest;
+use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseDetail;
 use App\Models\Supplier;
-use App\Models\InventoryMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -38,6 +38,36 @@ class CompraController extends Controller
         $suppliers = Supplier::orderBy('name')->get();
 
         return view('compras.index', compact('purchases', 'suppliers'));
+    }
+
+    public function buscarProductos(Request $request, $supplierId)
+    {
+        $search = $request->get('search', '');
+
+        $products = Product::whereHas('suppliers', function ($query) use ($supplierId) {
+            $query->where('supplier_id', $supplierId);
+        })
+            ->where(function ($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('code', 'like', "%{$search}%");
+            })
+            ->limit(10)
+            ->get()
+            ->map(function ($product) use ($supplierId) {
+
+                $supplier = $product->suppliers()
+                    ->where('supplier_id', $supplierId)
+                    ->first();
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'code' => $product->code,
+                    'price' => $supplier?->pivot?->purchase_price ?? $product->purchase_price,
+                ];
+            });
+
+        return response()->json($products);
     }
 
     public function show($id)
@@ -88,8 +118,8 @@ class CompraController extends Controller
                     'type' => 'in',
                     'quantity' => $item['quantity'],
                     'stock_after' => $product?->stock,
-                    'reference' => 'purchase:' . $purchase->id,
-                    'note' => 'Entrada por compra #' . $purchase->id,
+                    'reference' => 'purchase:'.$purchase->id,
+                    'note' => 'Entrada por compra #'.$purchase->id,
                     'user_id' => $purchase->user_id,
                 ]);
 
@@ -111,6 +141,30 @@ class CompraController extends Controller
         return view('compras.edit', compact('purchase', 'products', 'suppliers'));
     }
 
+    public function productosPorProveedor($supplierId)
+    {
+        $supplier = Supplier::findOrFail($supplierId);
+
+        $products = $supplier->products()
+            ->select(
+                'products.id',
+                'products.name',
+                'products.code'
+            )
+            ->get()
+            ->map(function ($product) {
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'code' => $product->code,
+                    'price' => $product->pivot->purchase_price ?? 0,
+                ];
+            });
+
+        return response()->json($products);
+    }
+
     public function update(PurchaseRequest $request, $id)
     {
         $data = $request->validated();
@@ -126,8 +180,8 @@ class CompraController extends Controller
                     'type' => 'out',
                     'quantity' => $detail->quantity,
                     'stock_after' => $product?->stock,
-                    'reference' => 'purchase_update_revert:' . $purchase->id,
-                    'note' => 'Reverso por edición de compra #' . $purchase->id,
+                    'reference' => 'purchase_update_revert:'.$purchase->id,
+                    'note' => 'Reverso por edición de compra #'.$purchase->id,
                     'user_id' => $purchase->user_id,
                 ]);
             }
@@ -155,8 +209,8 @@ class CompraController extends Controller
                     'type' => 'in',
                     'quantity' => $item['quantity'],
                     'stock_after' => $product?->stock,
-                    'reference' => 'purchase:' . $purchase->id,
-                    'note' => 'Entrada por compra #' . $purchase->id . ' (editada)',
+                    'reference' => 'purchase:'.$purchase->id,
+                    'note' => 'Entrada por compra #'.$purchase->id.' (editada)',
                     'user_id' => $purchase->user_id,
                 ]);
 
@@ -187,8 +241,8 @@ class CompraController extends Controller
                     'type' => 'out',
                     'quantity' => $detail->quantity,
                     'stock_after' => $product?->stock,
-                    'reference' => 'purchase_delete:' . $purchase->id,
-                    'note' => 'Reverso por eliminación de compra #' . $purchase->id,
+                    'reference' => 'purchase_delete:'.$purchase->id,
+                    'note' => 'Reverso por eliminación de compra #'.$purchase->id,
                     'user_id' => $purchase->user_id,
                 ]);
             }

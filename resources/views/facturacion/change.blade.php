@@ -52,8 +52,6 @@
                 <span class="font-semibold">
                     @if($sale->payment_type == 'cash')
                         💰 Efectivo
-                    @elseif($sale->payment_type == 'card')
-                        💳 Tarjeta
                     @elseif($sale->payment_type == 'transfer')
                         🏦 Transferencia/Tarjeta
                     @elseif($sale->payment_type == 'credit')
@@ -82,7 +80,7 @@
             </a>
             
             <a 
-                href="{{ route('facturacion.pos') }}"
+                href="{{ route('facturacion.create') }}"
                 class="w-full bg-slate-600 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors block text-center">
                 ➕ Nueva Venta
             </a>

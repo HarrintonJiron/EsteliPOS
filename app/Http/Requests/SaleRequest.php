@@ -34,6 +34,8 @@ class SaleRequest extends FormRequest
             'billing_email' => 'nullable|email|max:255',
             'billing_address' => 'nullable|string|max:500',
             'notes' => 'nullable|string|max:2000',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'discount_amount' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',

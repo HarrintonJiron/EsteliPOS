@@ -17,6 +17,7 @@ class RepairOrder extends Model
         'device_color',
         'device_imei',
         'device_password',
+        'lock_type',
         'accessories',
         'problem_description',
         'diagnosis',
@@ -31,13 +32,15 @@ class RepairOrder extends Model
         'labor_cost',
         'parts_cost',
         'total',
+        'discount_amount',
+        'discount_percentage',
         'advance_payment',
         'payment_type',
         'payment_status',
     ];
 
     protected $casts = [
-        'received_date'  => 'date',
+        'received_date' => 'date',
         'estimated_date' => 'date',
         'delivered_date' => 'date',
     ];
@@ -65,55 +68,57 @@ class RepairOrder extends Model
     public function statusLabel(): string
     {
         return match ($this->status) {
-            'received'      => 'Recibido',
-            'diagnosing'    => 'Diagnóstico',
+            'received' => 'Recibido',
+            'diagnosing' => 'Diagnóstico',
             'waiting_parts' => 'Esp. Repuestos',
-            'in_repair'     => 'En Reparación',
-            'ready'         => 'Listo',
-            'delivered'     => 'Entregado',
-            'cancelled'     => 'Cancelado',
-            default         => ucfirst($this->status),
+            'in_repair' => 'En Reparación',
+            'ready' => 'Listo',
+            'delivered' => 'Entregado',
+            'cancelled' => 'Cancelado',
+            default => ucfirst($this->status),
         };
     }
 
     public function statusColor(): string
     {
         return match ($this->status) {
-            'received'      => 'bg-slate-100 text-slate-700',
-            'diagnosing'    => 'bg-blue-100 text-blue-700',
+            'received' => 'bg-slate-100 text-slate-700',
+            'diagnosing' => 'bg-blue-100 text-blue-700',
             'waiting_parts' => 'bg-amber-100 text-amber-700',
-            'in_repair'     => 'bg-indigo-100 text-indigo-700',
-            'ready'         => 'bg-green-100 text-green-700',
-            'delivered'     => 'bg-emerald-100 text-emerald-700',
-            'cancelled'     => 'bg-red-100 text-red-700',
-            default         => 'bg-slate-100 text-slate-700',
+            'in_repair' => 'bg-indigo-100 text-indigo-700',
+            'ready' => 'bg-green-100 text-green-700',
+            'delivered' => 'bg-emerald-100 text-emerald-700',
+            'cancelled' => 'bg-red-100 text-red-700',
+            default => 'bg-slate-100 text-slate-700',
         };
     }
 
     public function priorityLabel(): string
     {
         return match ($this->priority) {
-            'low'    => 'Baja',
+            'low' => 'Baja',
             'normal' => 'Normal',
-            'high'   => 'Alta',
+            'high' => 'Alta',
             'urgent' => 'Urgente',
-            default  => ucfirst($this->priority),
+            default => ucfirst($this->priority),
         };
     }
 
     public function priorityColor(): string
     {
         return match ($this->priority) {
-            'low'    => 'bg-slate-100 text-slate-600',
+            'low' => 'bg-slate-100 text-slate-600',
             'normal' => 'bg-blue-100 text-blue-700',
-            'high'   => 'bg-orange-100 text-orange-700',
+            'high' => 'bg-orange-100 text-orange-700',
             'urgent' => 'bg-red-100 text-red-700',
-            default  => 'bg-slate-100 text-slate-600',
+            default => 'bg-slate-100 text-slate-600',
         };
     }
 
     public function balance(): float
     {
-        return max(0, (float) $this->total - (float) $this->advance_payment);
+        $totalAfterDiscount = (float) $this->total - (float) ($this->discount_amount ?? 0);
+
+        return max(0, $totalAfterDiscount - (float) $this->advance_payment);
     }
 }

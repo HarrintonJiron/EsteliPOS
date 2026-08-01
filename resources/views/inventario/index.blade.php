@@ -17,7 +17,21 @@
             <a href="{{ route('movimientos.index') }}" class="btn-outline text-sm">Kardex Global</a>
             <a href="{{ route('inventario.export') }}" class="btn-outline text-sm">Exportar</a>
             <a href="{{ route('inventario.bulk') }}" class="btn-secondary text-sm">Carga Masiva</a>
+            <button type="button" onclick="toggleInventoryCategoryForm()" class="btn-outline text-sm">+ Nueva Categoría</button>
             <a href="{{ route('inventario.quick') }}" class="btn-primary">+ Producto Rápido</a>
+        </div>
+        <div id="newCategoryInventoryForm" class="hidden rounded-xl border border-slate-200 bg-slate-50 p-4 mt-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1">Nombre de categoría</label>
+                    <input id="newCategoryNameInventory" type="text" class="input-field" placeholder="Ej: Fertilizantes" />
+                </div>
+                <div class="md:col-span-2 flex gap-2">
+                    <button type="button" onclick="submitInventoryCategory()" class="btn-primary">Crear categoría</button>
+                    <button type="button" onclick="toggleInventoryCategoryForm()" class="btn-outline">Cancelar</button>
+                </div>
+            </div>
+            <p id="newCategoryErrorInventory" class="text-xs text-red-600 hidden mt-2"></p>
         </div>
     </div>
 
@@ -102,7 +116,7 @@
             </div>
             <div>
                 <label class="block text-xs font-medium text-slate-500 mb-1">Categoría</label>
-                <select name="category_id" class="select-field">
+                <select id="categoryFilterSelect" name="category_id" class="select-field">
                     <option value="">Todas</option>
                     @foreach($categories as $category)
                     <option value="{{ $category->id }}" {{ request('category_id') == $category->id ? 'selected' : '' }}>{{ $category->name }}</option>
@@ -203,4 +217,60 @@
     </div>
 
 </div>
+
+@push('scripts')
+<script>
+function toggleInventoryCategoryForm() {
+    const form = document.getElementById('newCategoryInventoryForm');
+    if (!form) return;
+    form.classList.toggle('hidden');
+}
+
+function submitInventoryCategory() {
+    const input = document.getElementById('newCategoryNameInventory');
+    const error = document.getElementById('newCategoryErrorInventory');
+    const select = document.getElementById('categoryFilterSelect');
+    if (!input || !select || !error) return;
+
+    const name = input.value.trim();
+    if (!name) {
+        error.textContent = 'Ingresa un nombre de categoría';
+        error.classList.remove('hidden');
+        return;
+    }
+
+    error.classList.add('hidden');
+
+    fetch('{{ route('categorias.store') }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: JSON.stringify({ name })
+    })
+    .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.message || 'No se pudo crear la categoría');
+        }
+        return data;
+    })
+    .then((data) => {
+        const option = document.createElement('option');
+        option.value = data.id;
+        option.textContent = data.name;
+        option.selected = true;
+        select.appendChild(option);
+        input.value = '';
+        document.getElementById('newCategoryInventoryForm').classList.add('hidden');
+    })
+    .catch((err) => {
+        error.textContent = err.message;
+        error.classList.remove('hidden');
+    });
+}
+</script>
+@endpush
+
 @endsection
