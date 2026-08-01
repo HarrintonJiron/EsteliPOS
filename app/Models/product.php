@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\Supplier;
+use Illuminate\Support\Facades\Storage;
 
 class Product extends Model
 {
@@ -32,6 +32,7 @@ class Product extends Model
         'image_url',
         'discount_pct',
         'discount_label',
+        'tax_id',
     ];
 
     public function effectivePrice(): float
@@ -39,7 +40,31 @@ class Product extends Model
         if ((float) $this->discount_pct > 0) {
             return round((float) $this->sale_price * (1 - (float) $this->discount_pct / 100), 2);
         }
+
         return (float) $this->sale_price;
+    }
+
+    public function getImageUrlAttribute(?string $value): ?string
+    {
+        if (! $value || str_starts_with($value, 'http://') || str_starts_with($value, 'https://') || str_starts_with($value, '/')) {
+            return $value;
+        }
+
+        return Storage::disk('public')->url($value);
+    }
+
+    public function effectiveTaxRate(): float
+    {
+        if ($this->tax_id && $this->tax?->is_active) {
+            return (float) $this->tax->rate;
+        }
+
+        return Tax::defaultRate();
+    }
+
+    public function tax()
+    {
+        return $this->belongsTo(Tax::class);
     }
 
     public function category()
@@ -147,16 +172,16 @@ class Product extends Model
 
     public function suppliers()
     {
-     return $this->belongsToMany(
-        Supplier::class,
-        'product_supplier'
-     )
-         ->withPivot(
-        'purchase_price',
-        'supplier_code',
-        'preferred'
-     )
-     ->withTimestamps();
+        return $this->belongsToMany(
+            Supplier::class,
+            'product_supplier'
+        )
+            ->withPivot(
+                'purchase_price',
+                'supplier_code',
+                'preferred'
+            )
+            ->withTimestamps();
     }
 
     public function getInventoryStatusLabelAttribute(): string
@@ -169,5 +194,4 @@ class Product extends Model
             default => 'Desconocido',
         };
     }
-    
 }

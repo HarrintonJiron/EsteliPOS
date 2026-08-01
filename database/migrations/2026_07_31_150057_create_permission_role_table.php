@@ -11,6 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Este archivo comparte timestamp con la creación de permissions y puede
+        // ejecutarse antes por orden alfabético. La migración posterior 154936
+        // crea el pivote cuando ambas tablas ya existen.
+        if (Schema::hasTable('permission_role') || ! Schema::hasTable('permissions')) {
+            return;
+        }
         Schema::create('permission_role', function (Blueprint $table) {
             $table->foreignId('permission_id')->constrained()->onDelete('cascade');
             $table->foreignId('role_id')->constrained()->onDelete('cascade');

@@ -23,7 +23,7 @@
         <a id="existsLink" href="#" class="text-indigo-600 text-sm font-medium mt-2 inline-block">Ver producto →</a>
     </div>
 
-    <form action="{{ route('inventario.quick-store') }}" method="POST" id="quickForm" class="card p-6 space-y-5">
+    <form action="{{ route('inventario.quick-store') }}" method="POST" enctype="multipart/form-data" id="quickForm" class="card p-6 space-y-5">
         @csrf
 
         <div>
@@ -41,6 +41,24 @@
             <input type="text" name="name" id="nameInput" value="{{ old('name') }}" required
                 placeholder="Ej: Arroz 1lb, Coca Cola 600ml..."
                 class="input-field text-lg py-3">
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div class="flex flex-col sm:flex-row items-center gap-4">
+                <div class="h-28 w-28 shrink-0 rounded-xl border-2 border-dashed border-slate-300 bg-white flex items-center justify-center overflow-hidden">
+                    <div id="quickImagePlaceholder" class="text-center text-slate-400">
+                        <div class="text-3xl">📷</div>
+                        <span class="text-xs">Vista previa</span>
+                    </div>
+                    <img id="quickImagePreview" class="hidden w-full h-full object-contain" alt="Vista previa del producto">
+                </div>
+                <div class="w-full min-w-0">
+                    <label for="quick_product_image" class="block text-sm font-semibold text-slate-700">Imagen del producto</label>
+                    <input id="quick_product_image" type="file" name="image" accept="image/jpeg,image/png,image/webp"
+                           class="mt-2 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-700">
+                    <p class="mt-2 text-xs text-slate-500">JPG, PNG o WebP · máximo 3 MB.</p>
+                </div>
+            </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
@@ -129,6 +147,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const nameInput = document.getElementById('nameInput');
     const priceInput = document.getElementById('quick_sale_price');
     const existsAlert = document.getElementById('existsAlert');
+    const imageInput = document.getElementById('quick_product_image');
+    const imagePreview = document.getElementById('quickImagePreview');
+    const imagePlaceholder = document.getElementById('quickImagePlaceholder');
     const lookupBase = document.getElementById('quickApp').dataset.lookupUrl;
 
     async function lookupCode(code) {
@@ -160,6 +181,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.addEventListener('keydown', function(e) {
         if (e.key === 'F2') { e.preventDefault(); barcode.focus(); barcode.select(); }
+    });
+
+    imageInput?.addEventListener('change', function() {
+        const file = this.files?.[0];
+        if (!file) {
+            imagePreview.classList.add('hidden');
+            imagePlaceholder.classList.remove('hidden');
+            return;
+        }
+
+        imagePreview.src = URL.createObjectURL(file);
+        imagePreview.classList.remove('hidden');
+        imagePlaceholder.classList.add('hidden');
     });
 
   barcode.focus();

@@ -27,8 +27,7 @@ class CheckPermission
             return redirect()->route('login')->with('error', 'Tu cuenta ha sido desactivada.');
         }
 
-        // Check permission
-        if (!$user->hasPermission($permission)) {
+        if (!$user->isAdmin() && !$user->hasPermission($permission)) {
             abort(403, 'No tienes permiso para realizar esta acción.');
         }
 

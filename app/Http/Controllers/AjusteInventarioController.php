@@ -5,11 +5,16 @@ namespace App\Http\Controllers;
 use App\Models\InventoryAdjustment;
 use App\Models\Product;
 use App\Models\InventoryMovement;
+use App\Services\AccountingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AjusteInventarioController extends Controller
 {
+    public function __construct(private AccountingService $accountingService)
+    {
+    }
+
     public function index(Request $request)
     {
         $perPage = (int) $request->query('per_page', 15);
@@ -66,7 +71,8 @@ class AjusteInventarioController extends Controller
             'reference' => 'nullable|string|max:100',
         ]);
 
-        DB::transaction(function () use ($validated, $request) {
+        try {
+            DB::transaction(function () use ($validated, $request) {
             $product = Product::findOrFail($validated['product_id']);
             $stockBefore = $product->stock;
 
@@ -111,7 +117,12 @@ class AjusteInventarioController extends Controller
                 'note' => 'Ajuste: ' . $validated['reason'],
                 'user_id' => $request->user()?->id ?? 1,
             ]);
+
+            $this->accountingService->recordInventoryAdjustment($adjustment);
         });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('ajustes.index')->with('success', 'Ajuste de inventario registrado correctamente.');
     }
@@ -126,7 +137,8 @@ class AjusteInventarioController extends Controller
     {
         $adjustment = InventoryAdjustment::findOrFail($id);
 
-        DB::transaction(function () use ($adjustment) {
+        try {
+            DB::transaction(function () use ($adjustment) {
             $product = Product::findOrFail($adjustment->product_id);
 
             $product->update(['stock' => $adjustment->stock_before]);
@@ -142,7 +154,12 @@ class AjusteInventarioController extends Controller
             ]);
 
             $adjustment->delete();
+
+            $this->accountingService->voidForSource(InventoryAdjustment::class, $adjustment->id, 'Ajuste eliminado');
         });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('ajustes.index')->with('success', 'Ajuste eliminado y stock restaurado.');
     }

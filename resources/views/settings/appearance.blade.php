@@ -50,8 +50,8 @@
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Color Principal *</label>
                     <div class="flex items-center gap-2">
-                        <input type="color" name="primary_color" value="{{ $settings['primary_color'] ?? '#6366f1' }}" class="w-12 h-10 rounded border border-slate-300">
-                        <input type="text" name="primary_color" value="{{ $settings['primary_color'] ?? '#6366f1' }}" required class="input-field flex-1">
+                        <input type="color" id="primary_color_picker" value="{{ $settings['primary_color'] ?? '#6366f1' }}" class="w-12 h-10 rounded border border-slate-300">
+                        <input type="text" id="primary_color" name="primary_color" value="{{ $settings['primary_color'] ?? '#6366f1' }}" required pattern="#[0-9a-fA-F]{6}" class="input-field flex-1">
                     </div>
                     <p class="text-xs text-slate-400 mt-1">Color principal de la interfaz</p>
                 </div>
@@ -73,5 +73,17 @@
         </div>
     </form>
 </div>
+
+@push('scripts')
+<script>
+    const colorPicker = document.getElementById('primary_color_picker');
+    const colorText = document.getElementById('primary_color');
+
+    colorPicker?.addEventListener('input', () => colorText.value = colorPicker.value);
+    colorText?.addEventListener('input', () => {
+        if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) colorPicker.value = colorText.value;
+    });
+</script>
+@endpush
 
 @endsection

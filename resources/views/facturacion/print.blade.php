@@ -27,15 +27,17 @@
     {{-- Encabezado Profesional --}}
     <div class="flex justify-between items-start mb-6 border-b-2 border-green-800 pb-4">
         <div class="flex items-center gap-4">
-            <div class="w-20 h-20 bg-green-800 rounded-lg flex items-center justify-center text-white text-3xl font-bold">
-                AS
-            </div>
+            @if($companyProfile['company_logo_url'])
+                <img src="{{ $companyProfile['company_logo_url'] }}" alt="Logo" class="h-20 w-20 object-contain">
+            @else
+                <div class="w-20 h-20 bg-green-800 rounded-lg flex items-center justify-center text-white text-3xl font-bold">{{ mb_strtoupper(mb_substr($companyProfile['company_name'], 0, 2)) }}</div>
+            @endif
             <div>
-                <h1 class="text-2xl font-bold text-green-900">AGROSERVICIO S.A.</h1>
-                <p class="text-xs text-gray-600">Suministros Agrícolas y Agroquímicos</p>
-                <p class="text-xs text-gray-600">RUC: J10240330417</p>
-                <p class="text-xs text-gray-600">Dirección: Carretera Norte Km. 4.5, Managua, Nicaragua</p>
-                <p class="text-xs text-gray-600">Tel: +505 2772-0000 | Email: info@agroservicio.com.ni</p>
+                <h1 class="text-2xl font-bold text-green-900">{{ $companyProfile['company_name'] }}</h1>
+                @if($companyProfile['company_legal_name'])<p class="text-xs text-gray-600">{{ $companyProfile['company_legal_name'] }}</p>@endif
+                @if($companyProfile['company_ruc'])<p class="text-xs text-gray-600">RUC: {{ $companyProfile['company_ruc'] }}</p>@endif
+                @if($companyProfile['company_address'])<p class="text-xs text-gray-600">Dirección: {{ $companyProfile['company_address'] }}, {{ $companyProfile['company_city'] }}, {{ $companyProfile['company_country'] }}</p>@endif
+                <p class="text-xs text-gray-600">@if($companyProfile['company_phone'])Tel: {{ $companyProfile['company_phone'] }}@endif @if($companyProfile['company_email']) · {{ $companyProfile['company_email'] }}@endif</p>
             </div>
         </div>
 
@@ -53,7 +55,7 @@
         <div class="text-right">
             <h2 class="text-xl font-bold">FACTURA</h2>
             <p>No: <span class="font-semibold">{{ $sale?->invoice_number ?? ($sale ? str_pad((string)$sale->id, 6, '0', STR_PAD_LEFT) : '') }}</span></p>
-            <p>Fecha: {{ $sale?->date ? $sale->date->format('d/m/Y') : '' }}</p>
+            <p>Fecha: {{ $sale?->date ? $sale->date->format($companyProfile['date_format']) : '' }}</p>
             <p>Condición: {{ $sale?->payment_type === 'credit' ? 'Crédito' : 'Contado' }}</p>
             @if($sale?->due_date)
                 <p>Vence: {{ $sale->due_date->format('d/m/Y') }}</p>
@@ -90,8 +92,8 @@
                 <tr>
                     <td class="border px-4 py-2">{{ $detail->product->name ?? 'N/A' }}</td>
                     <td class="border px-4 py-2">{{ $detail->quantity }}</td>
-                    <td class="border px-4 py-2">C$ {{ number_format($detail->price, 2) }}</td>
-                    <td class="border px-4 py-2">C$ {{ number_format($detail->subtotal, 2) }}</td>
+                    <td class="border px-4 py-2">{{ $companyProfile['currency_symbol'] }} {{ number_format($detail->price, 2) }}</td>
+                    <td class="border px-4 py-2">{{ $companyProfile['currency_symbol'] }} {{ number_format($detail->subtotal, 2) }}</td>
                 </tr>
             @endforeach
         </tbody>
@@ -103,17 +105,17 @@
         <div class="w-1/3 space-y-2">
             <div class="flex justify-between">
                 <span>Subtotal:</span>
-                <span>C$ {{ number_format($sale?->subtotal ?? 0, 2) }}</span>
+                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->subtotal ?? 0, 2) }}</span>
             </div>
 
             <div class="flex justify-between">
-                <span>IVA ({{ number_format(($sale?->tax_rate ?? 0.15) * 100, 0) }}%):</span>
-                <span>C$ {{ number_format($sale?->tax_total ?? 0, 2) }}</span>
+                <span>IVA ({{ number_format(($sale?->tax_rate ?? 0) * 100, 2) }}%):</span>
+                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->tax_total ?? 0, 2) }}</span>
             </div>
 
             <div class="flex justify-between font-bold border-t pt-2">
                 <span>Total:</span>
-                <span>C$ {{ number_format($sale?->total ?? 0, 2) }}</span>
+                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->total ?? 0, 2) }}</span>
             </div>
 
         </div>
@@ -122,7 +124,7 @@
     {{-- Observaciones --}}
     <div class="mt-8">
         <p><strong>Observaciones:</strong></p>
-        <p>{{ $sale?->notes ?: 'Gracias por su compra.' }}</p>
+        <p>{{ $sale?->notes ?: $companyProfile['receipt_message'] }}</p>
     </div>
 
     {{-- Firma --}}
@@ -137,6 +139,10 @@
             <p>Vendedor</p>
         </div>
     </div>
+
+    @if($companyProfile['invoice_footer'])
+        <p class="mt-8 border-t pt-3 text-center text-xs text-gray-500">{{ $companyProfile['invoice_footer'] }}</p>
+    @endif
 
 </div>
 

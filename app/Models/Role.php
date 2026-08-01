@@ -25,6 +25,11 @@ class Role extends Model
         return $this->belongsToMany(Permission::class, 'permission_role');
     }
 
+    public function modules()
+    {
+        return $this->belongsToMany(Module::class, 'module_role');
+    }
+
     public function hasPermission($permissionSlug)
     {
         return $this->permissions()->where('slug', $permissionSlug)->exists();
@@ -52,4 +57,3 @@ class Role extends Model
         $this->permissions()->sync($permissionIds);
     }
 }
-

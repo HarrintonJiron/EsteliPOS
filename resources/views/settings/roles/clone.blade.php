@@ -1,0 +1,5 @@
+@extends('layouts.app')
+@section('title','Clonar rol')
+@section('content')
+<div class="mx-auto max-w-2xl"><div class="mb-6"><h1 class="page-title">Clonar {{ $role->name }}</h1><p class="page-subtitle">Se copiarán sus {{ $role->permissions->count() }} permisos; asigna una identidad única al nuevo rol.</p></div><form class="card space-y-5 p-6" method="POST" action="{{ route('settings.roles.clone',$role) }}">@csrf<div><label class="mb-1 block text-sm font-medium">Nombre *</label><input class="input-field" name="name" value="{{ old('name',$role->name.' copia') }}" required></div><div><label class="mb-1 block text-sm font-medium">Slug *</label><input class="input-field" name="slug" value="{{ old('slug',$role->slug.'_copia') }}" pattern="[a-z0-9_-]+" required></div><div><label class="mb-1 block text-sm font-medium">Descripción</label><textarea class="input-field" name="description" rows="3">{{ old('description',$role->description) }}</textarea></div><div class="flex justify-end gap-2"><a class="btn-outline" href="{{ route('settings.roles.show',$role) }}">Cancelar</a><button class="btn-primary">Crear copia</button></div></form></div>
+@endsection

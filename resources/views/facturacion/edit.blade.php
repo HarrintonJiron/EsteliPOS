@@ -72,8 +72,8 @@
                 <div>
                     <label class="text-sm text-gray-600">IVA</label>
                     <select name="tax_included" id="taxIncluded" class="mt-1 w-full border rounded-lg px-4 py-2 bg-white">
-                        <option value="0" {{ !$sale->tax_included ? 'selected' : '' }}>Sin IVA (se suma 15%)</option>
-                        <option value="1" {{ $sale->tax_included ? 'selected' : '' }}>Con IVA (incluido en precios)</option>
+                        <option value="0" {{ !$sale->tax_included ? 'selected' : '' }}>Precios sin IVA (se suma la tasa de cada producto)</option>
+                        <option value="1" {{ $sale->tax_included ? 'selected' : '' }}>Precios con IVA incluido</option>
                     </select>
                 </div>
 
@@ -167,7 +167,7 @@
                 </div>
 
                 <div class="flex justify-between text-sm">
-                    <span>IVA (15%)</span>
+                    <span id="taxLabel">IVA ({{ number_format($sale->tax_rate * 100, 2) }}%)</span>
                     <span id="tax">C$ 0.00</span>
                 </div>
 
@@ -210,7 +210,8 @@
         const products = JSON.parse(document.getElementById('invoiceApp').dataset.products).map(p => ({
             id: p.id,
             name: p.name,
-            price: parseFloat(p.sale_price ?? 0)
+            price: parseFloat(p.sale_price ?? 0),
+            tax_rate: parseFloat(p.effective_tax_rate ?? 0)
         }));
         const clients = JSON.parse(document.getElementById('invoiceApp').dataset.clients).map(c => ({
             id: c.id,
@@ -227,32 +228,32 @@
         function formatMoney(v){ return 'C$ ' + parseFloat(v||0).toFixed(2); }
 
         function recalc(){
-            let subtotal = 0;
-            document.querySelectorAll('#itemsBody tr').forEach(tr=>{
-                const q = parseFloat(tr.querySelector('[name^="items"][name$="[quantity]"]').value)||0;
-                const p = parseFloat(tr.querySelector('[name^="items"][name$="[price]"]').value)||0;
-                const s = q*p; subtotal += s;
-                tr.querySelector('.row-subtotal').textContent = formatMoney(s);
-            });
-            const rate = 0.15;
-            const included = document.getElementById('taxIncluded')?.value === '1';
             let subtotalExcl = 0;
             let tax = 0;
             let total = 0;
-
-            if (included) {
-                subtotalExcl = subtotal / (1 + rate);
-                tax = subtotal - subtotalExcl;
-                total = subtotal;
-            } else {
-                subtotalExcl = subtotal;
-                tax = subtotal * rate;
-                total = subtotal + tax;
-            }
+            const included = document.getElementById('taxIncluded')?.value === '1';
+            const rates = [];
+            document.querySelectorAll('#itemsBody tr').forEach(tr=>{
+                const q = parseFloat(tr.querySelector('[name^="items"][name$="[quantity]"]').value)||0;
+                const p = parseFloat(tr.querySelector('[name^="items"][name$="[price]"]').value)||0;
+                const rate = parseFloat(tr.querySelector('.product-select')?.selectedOptions[0]?.dataset.taxRate || 0);
+                const gross = q * p;
+                const lineNet = included && rate > 0 ? gross / (1 + rate) : gross;
+                const lineTax = included ? gross - lineNet : lineNet * rate;
+                subtotalExcl += lineNet;
+                tax += lineTax;
+                total += lineNet + lineTax;
+                rates.push(rate.toFixed(4));
+                tr.querySelector('.row-subtotal').textContent = formatMoney(gross);
+            });
 
             document.getElementById('subtotal').textContent = formatMoney(subtotalExcl);
             document.getElementById('tax').textContent = formatMoney(tax);
             document.getElementById('total').textContent = formatMoney(total);
+            const uniqueRates = [...new Set(rates)];
+            document.getElementById('taxLabel').textContent = uniqueRates.length === 1
+                ? `IVA (${(parseFloat(uniqueRates[0]) * 100).toFixed(2)}%)`
+                : (uniqueRates.length > 1 ? 'IVA (mixto)' : 'IVA (0.00%)');
         }
 
         function addRow(item){
@@ -262,7 +263,7 @@
             tr.innerHTML = `
                 <td class="px-4 py-2">
                     <select name="items[${i}][product_id]" class="product-select">
-                        ${products.map(p=>`<option value="${p.id}" ${item.product_id==p.id?'selected':''} data-price="${p.price}">${p.name}</option>`).join('')}
+                        ${products.map(p=>`<option value="${p.id}" ${item.product_id==p.id?'selected':''} data-price="${p.price}" data-tax-rate="${p.tax_rate}">${p.name}</option>`).join('')}
                     </select>
                 </td>
                 <td class="px-4 py-2"><input type="number" name="items[${i}][quantity]" value="${item.quantity||1}" min="1" class="w-20"/></td>

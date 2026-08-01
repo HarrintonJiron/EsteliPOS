@@ -2,7 +2,8 @@
     $appearanceSettings = \App\Models\Setting::getByGroup('appearance');
     $theme = $appearanceSettings['theme'] ?? 'light';
     $primaryColor = $appearanceSettings['primary_color'] ?? '#6366f1';
-    $systemName = $appearanceSettings['system_name'] ?? 'Agroservicio POS';
+    $systemName = $companyProfile['system_name'] ?? $appearanceSettings['system_name'] ?? 'Agroservicio POS';
+    $companyLogoUrl = $companyProfile['company_logo_url'] ?? null;
     
     // Determinar si usar tema oscuro
     $isDark = false;
@@ -140,6 +141,14 @@
         .tab-link-active { color: #4f46e5; border-bottom-color: #4f46e5; }
         .tab-link-inactive { color: #64748b; }
         .tab-link-inactive:hover { color: #334155; border-bottom-color: #cbd5e1; }
+
+        @media print {
+            aside, header, form, .no-print { display: none !important; }
+            body, main { background: #fff !important; overflow: visible !important; }
+            .flex.h-screen { display: block !important; height: auto !important; overflow: visible !important; }
+            main { padding: 0 !important; }
+            .card { box-shadow: none !important; break-inside: avoid; }
+        }
     </style>
 </head>
 
@@ -147,12 +156,22 @@
 
     <div class="flex h-screen overflow-hidden">
 
-        {{-- SIDEBAR --}}
-        <aside class="w-64 {{ $sidebarBg }} text-white flex flex-col relative z-10 shrink-0">
+        <div id="sidebar-overlay" class="fixed inset-0 z-40 hidden bg-slate-950/50 backdrop-blur-sm lg:hidden" aria-hidden="true"></div>
 
-            <div class="p-6 border-b {{ $sidebarBorder }}">
-                <h2 class="text-xl font-bold tracking-tight">{{ $systemName }}</h2>
-                <p class="text-xs text-slate-400 mt-1">Sistema Administrativo</p>
+        {{-- SIDEBAR --}}
+        <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col {{ $sidebarBg }} text-white shadow-xl transition-transform duration-200 lg:static lg:z-10 lg:translate-x-0 lg:shadow-none" aria-label="Navegación principal">
+
+            <div class="flex items-start justify-between gap-3 p-6 border-b {{ $sidebarBorder }}">
+                <div class="min-w-0">
+                    @if($companyLogoUrl)
+                        <img src="{{ $companyLogoUrl }}" alt="Logo de {{ $systemName }}" class="mb-3 h-20 w-full max-w-48 object-contain object-left" data-company-logo>
+                    @endif
+                    <h2 class="truncate text-xl font-bold tracking-tight">{{ $systemName }}</h2>
+                    <p class="text-xs text-slate-400 mt-1">Sistema Administrativo</p>
+                </div>
+                <button id="sidebar-close" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400 lg:hidden" aria-label="Cerrar menú">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12"/></svg>
+                </button>
             </div>
 
             <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -171,9 +190,17 @@
                         ['route' => 'creditos.index', 'label' => 'Créditos', 'icon' => 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z', 'match' => 'creditos.*'],
                         ['route' => 'planilla.index', 'label' => 'Planilla', 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', 'match' => 'planilla.*'],
                     ];
+                    $moduleByRoute = [
+                        'facturacion.pos' => 'ventas', 'facturacion.index' => 'ventas',
+                        'proformas.index' => 'proformas', 'reparaciones.index' => 'reparaciones',
+                        'inventario.index' => 'inventario', 'proveedores.index' => 'proveedores',
+                        'compras.index' => 'compras', 'clientes.index' => 'clientes',
+                        'creditos.index' => 'creditos', 'planilla.index' => 'planilla',
+                    ];
                 @endphp
 
                 @foreach($navItems as $item)
+                    @continue(isset($moduleByRoute[$item['route']]) && !$accessibleModuleSlugs->contains($moduleByRoute[$item['route']]))
                     @php
                         $isActive = isset($item['match'])
                             ? request()->routeIs($item['match']) && !request()->routeIs('facturacion.pos')
@@ -191,12 +218,22 @@
                     </a>
                 @endforeach
 
-                @if(auth()->user()?->isAdmin())
+                @if($accessibleModuleSlugs->contains('contabilidad') && (auth()->user()?->isAdmin() || auth()->user()?->hasPermission('contabilidad.view')))
+                <a href="{{ route('contabilidad.dashboard') }}"
+                   class="nav-link {{ request()->routeIs('contabilidad.*') ? 'nav-link-active' : 'nav-link-inactive' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"></path></svg>
+                    <span>Contabilidad</span>
+                </a>
+                @endif
+
+                @if($accessibleModuleSlugs->contains('reportes') && (auth()->user()?->isAdmin() || auth()->user()?->hasPermission('reportes.view')))
                 <a href="{{ route('reportes.index') }}"
                    class="nav-link {{ request()->routeIs('reportes.*') ? 'nav-link-active' : 'nav-link-inactive' }}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     <span>Reportes</span>
                 </a>
+                @endif
+                @if($accessibleModuleSlugs->contains('configuracion') && (auth()->user()?->isAdmin() || auth()->user()?->hasPermission('configuracion.view')))
                 <a href="{{ route('settings.index') }}"
                    class="nav-link {{ request()->routeIs('settings.*') ? 'nav-link-active' : 'nav-link-inactive' }}">
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -215,6 +252,11 @@
                 @else
                     <span class="inline-block mt-2 px-2 py-0.5 bg-slate-600 text-white rounded text-xs">Usuario</span>
                 @endif
+
+                <div class="mt-4 border-t {{ $sidebarBorder }} pt-3" data-developer-credit>
+                    <p class="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-500">Desarrollado por</p>
+                    <p class="mt-1 text-xs font-semibold tracking-wide text-slate-300">Northlink Microsystem</p>
+                </div>
             </div>
 
         </aside>
@@ -223,37 +265,44 @@
         <div class="flex-1 flex flex-col min-w-0">
 
             @unless(View::hasSection('hide-header'))
-            <header class="sticky top-0 bg-white border-b border-slate-200 z-30 px-6 py-3 flex justify-between items-center shrink-0">
+            <header class="sticky top-0 z-30 flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
 
-                <h1 class="text-lg font-semibold text-slate-800">@yield('title')</h1>
+                <div class="flex min-w-0 items-center gap-3">
+                    <button id="sidebar-open" type="button" class="rounded-lg p-2 text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 lg:hidden" aria-label="Abrir menú" aria-controls="app-sidebar" aria-expanded="false">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    </button>
+                    <h1 class="truncate text-lg font-semibold text-slate-800">@yield('title')</h1>
+                </div>
 
                 <div class="flex items-center space-x-3">
+                    @if($accessibleModuleSlugs->contains('ventas'))
                     <div class="hidden md:flex items-center space-x-2 border-r border-slate-200 pr-4">
                         <a href="{{ route('facturacion.pos') }}" class="btn-primary text-sm py-1.5 px-3">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                             Nueva Venta
                         </a>
                     </div>
+                    @endif
 
                     <div class="hidden lg:flex items-center space-x-2">
-                        <a href="/settings" class="btn-outline text-sm py-1 px-3" title="Configuraciones">
+                        @if($accessibleModuleSlugs->contains('configuracion') && (auth()->user()?->isAdmin() || auth()->user()?->hasPermission('configuracion.view')))
+                        <a href="{{ route('settings.index') }}" class="btn-outline text-sm py-1 px-3" title="Configuraciones">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"></path></svg>
                             Configuración
                         </a>
 
-                        <a href="/users" class="btn-outline text-sm py-1 px-3" title="Usuarios">
+                        @if(auth()->user()?->isAdmin() || auth()->user()?->hasPermission('configuracion.manage_users'))
+                        <a href="{{ route('settings.users') }}" class="btn-outline text-sm py-1 px-3" title="Usuarios">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11c1.657 0 3-1.567 3-3.5S17.657 4 16 4s-3 1.567-3 3.5S14.343 11 16 11zM6 21v-2a4 4 0 014-4h4"></path></svg>
                             Usuarios
                         </a>
+                        @endif
+                        @endif
 
-                        <a href="/calendar" class="btn-outline text-sm py-1 px-3" title="Calendario">
+                        <span class="btn-outline cursor-default text-sm py-1 px-3" title="Fecha actual">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                             {{ date('d/m/Y') }}
-                        </a>
-
-                        <a href="/notifications" class="btn-outline text-sm py-1 px-3" title="Notificaciones">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
-                        </a>
+                        </span>
                     </div>
 
                     <form action="{{ route('logout') }}" method="POST" class="inline">
@@ -269,7 +318,7 @@
             @endunless
 
             @if(session('success') || session('error') || $errors->any())
-            <div class="px-6 pt-4 shrink-0">
+            <div class="shrink-0 px-4 pt-4 sm:px-6">
                 @if(session('success'))
                     <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
@@ -287,13 +336,37 @@
             </div>
             @endif
 
-            <main class="flex-1 overflow-y-auto bg-slate-50 @yield('main-class', 'p-6')">
+            <main class="flex-1 overflow-y-auto bg-slate-50 @yield('main-class', 'p-4 sm:p-6')">
                 @yield('content')
             </main>
 
         </div>
 
     </div>
+
+    <script>
+        (() => {
+            const sidebar = document.getElementById('app-sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            const openButton = document.getElementById('sidebar-open');
+            const closeButton = document.getElementById('sidebar-close');
+
+            const setSidebar = (open) => {
+                sidebar.classList.toggle('-translate-x-full', !open);
+                overlay.classList.toggle('hidden', !open);
+                openButton?.setAttribute('aria-expanded', open ? 'true' : 'false');
+                document.body.classList.toggle('overflow-hidden', open && window.innerWidth < 1024);
+                if (open) closeButton?.focus();
+            };
+
+            openButton?.addEventListener('click', () => setSidebar(true));
+            closeButton?.addEventListener('click', () => setSidebar(false));
+            overlay?.addEventListener('click', () => setSidebar(false));
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape' && openButton?.getAttribute('aria-expanded') === 'true') setSidebar(false);
+            });
+        })();
+    </script>
 
     @stack('scripts')
 

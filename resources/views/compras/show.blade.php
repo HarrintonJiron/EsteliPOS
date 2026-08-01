@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-6 gap-4">
         <div>
             <p class="text-sm text-gray-500">Proveedor</p>
             <p class="font-semibold">{{ $purchase->supplier->name ?? 'N/A' }}</p>
@@ -31,6 +31,14 @@
                 $statusClass = $status === 'completed' ? 'bg-green-100 text-green-700' : ($status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700');
             @endphp
             <span class="inline-block px-3 py-1 rounded-full text-xs {{ $statusClass }}">{{ $statusLabel }}</span>
+        </div>
+        <div>
+            <p class="text-sm text-gray-500">Subtotal</p>
+            <p class="font-semibold">C$ {{ number_format($purchase->subtotal ?? 0, 2) }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-500">IVA</p>
+            <p class="font-semibold">C$ {{ number_format($purchase->tax_total ?? 0, 2) }}</p>
         </div>
         <div>
             <p class="text-sm text-gray-500">Total</p>
@@ -51,6 +59,7 @@
                     <th class="px-4 py-2">Cantidad</th>
                     <th class="px-4 py-2">Costo</th>
                     <th class="px-4 py-2">Subtotal</th>
+                    <th class="px-4 py-2">IVA</th>
                 </tr>
             </thead>
             <tbody class="divide-y">
@@ -60,13 +69,16 @@
                         <td class="px-4 py-2">{{ $detail->quantity }}</td>
                         <td class="px-4 py-2">C$ {{ number_format($detail->price, 2) }}</td>
                         <td class="px-4 py-2">C$ {{ number_format($detail->subtotal, 2) }}</td>
+                        <td class="px-4 py-2">C$ {{ number_format($detail->tax_amount ?? 0, 2) }} ({{ number_format(($detail->tax_rate ?? 0) * 100, 2) }}%)</td>
                     </tr>
                 @endforeach
             </tbody>
             <tfoot>
                 <tr class="bg-gray-50">
-                    <td colspan="3" class="px-4 py-3 text-right font-semibold">Total</td>
-                    <td class="px-4 py-3 font-semibold">C$ {{ number_format($purchase->total ?? 0, 2) }}</td>
+                    <td colspan="3" class="px-4 py-3 text-right font-semibold">Subtotal / IVA / Total</td>
+                    <td class="px-4 py-3 font-semibold" colspan="2">
+                        C$ {{ number_format($purchase->subtotal ?? 0, 2) }} + C$ {{ number_format($purchase->tax_total ?? 0, 2) }} = C$ {{ number_format($purchase->total ?? 0, 2) }}
+                    </td>
                 </tr>
             </tfoot>
         </table>

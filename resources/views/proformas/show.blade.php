@@ -94,7 +94,7 @@
                             <td class="px-5 py-2 text-right font-medium text-slate-800">C$ {{ number_format($proforma->subtotal, 2) }}</td>
                         </tr>
                         <tr>
-                            <td colspan="4" class="px-5 py-2 text-right text-slate-600 text-sm">IVA (15%)</td>
+                            <td colspan="4" class="px-5 py-2 text-right text-slate-600 text-sm">IVA ({{ number_format($proforma->tax_rate * 100, 2) }}%)</td>
                             <td class="px-5 py-2 text-right font-medium text-slate-800">C$ {{ number_format($proforma->tax_total, 2) }}</td>
                         </tr>
                         <tr>
@@ -162,7 +162,7 @@
                         <span>C$ {{ number_format($proforma->subtotal, 2) }}</span>
                     </div>
                     <div class="flex justify-between text-slate-600">
-                        <span>IVA (15%)</span>
+                        <span>IVA ({{ number_format($proforma->tax_rate * 100, 2) }}%)</span>
                         <span>C$ {{ number_format($proforma->tax_total, 2) }}</span>
                     </div>
                     <div class="flex justify-between font-bold text-slate-900 border-t border-indigo-200 pt-2 mt-1">

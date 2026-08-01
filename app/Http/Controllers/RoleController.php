@@ -2,101 +2,123 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Models\Role;
+use App\Http\Requests\CloneRoleRequest;
+use App\Http\Requests\DeleteRoleRequest;
+use App\Http\Requests\StoreRoleRequest;
+use App\Http\Requests\UpdateRoleRequest;
 use App\Models\Permission;
+use App\Models\Role;
+use App\Services\RoleManagementService;
+use DomainException;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 class RoleController extends Controller
 {
-    public function index()
+    public function __construct(private readonly RoleManagementService $roles) {}
+
+    public function index(Request $request): View
     {
-        $roles = Role::with('permissions')->withCount('users')->orderBy('name')->paginate(20);
-        return view('settings.roles.index', compact('roles'));
-    }
-
-    public function create()
-    {
-        $permissions = Permission::orderBy('module')->orderBy('action')->get()->groupBy('module');
-        return view('settings.roles.create', compact('permissions'));
-    }
-
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:roles',
-            'slug' => 'required|string|max:255|unique:roles|regex:/^[a-z0-9_-]+$/',
-            'description' => 'nullable|string',
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,id',
-        ]);
-
-        $role = Role::create([
-            'name' => $validated['name'],
-            'slug' => $validated['slug'],
-            'description' => $validated['description'] ?? null,
-        ]);
-
-        if (isset($validated['permissions'])) {
-            $role->permissions()->sync($validated['permissions']);
+        $this->authorize('viewAny', Role::class);
+        $query = Role::query()->with('permissions')->withCount('users');
+        if ($search = trim((string) $request->query('search'))) {
+            $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('slug', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%"));
+        }
+        if ($request->filled('type')) {
+            $query->where('is_system', $request->query('type') === 'system');
         }
 
-        return redirect()->route('settings.roles')->with('success', 'Rol creado exitosamente.');
+        return view('settings.roles.index', [
+            'roles' => $query->orderByDesc('is_system')->orderBy('name')->paginate(15)->withQueryString(),
+            'counts' => ['total' => Role::count(), 'system' => Role::where('is_system', true)->count(), 'custom' => Role::where('is_system', false)->count()],
+        ]);
     }
 
-    public function show(Role $role)
+    public function create(): View
     {
-        $role->load('permissions', 'users');
+        $this->authorize('create', Role::class);
+        return view('settings.roles.create', $this->formData());
+    }
+
+    public function store(StoreRoleRequest $request): RedirectResponse
+    {
+        $role = $this->roles->create($request->validated());
+        return redirect()->route('settings.roles.show', $role)->with('success', 'Rol creado exitosamente.');
+    }
+
+    public function show(Role $role): View
+    {
+        $this->authorize('view', $role);
+        $role->load('permissions', 'users')->loadCount('users');
         return view('settings.roles.show', compact('role'));
     }
 
-    public function edit(Role $role)
+    public function edit(Role $role): View
     {
+        $this->authorize('update', $role);
         $role->load('permissions');
-        $permissions = Permission::orderBy('module')->orderBy('action')->get()->groupBy('module');
-        return view('settings.roles.edit', compact('role', 'permissions'));
+        return view('settings.roles.edit', ['role' => $role, ...$this->formData()]);
     }
 
-    public function update(Request $request, Role $role)
+    public function update(UpdateRoleRequest $request, Role $role): RedirectResponse
     {
-        if ($role->is_system) {
-            return back()->with('error', 'No se pueden modificar roles del sistema.');
-        }
-
-        $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
-            'slug' => 'required|string|max:255|unique:roles,slug,' . $role->id . '|regex:/^[a-z0-9_-]+$/',
-            'description' => 'nullable|string',
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,id',
-        ]);
-
-        $role->update([
-            'name' => $validated['name'],
-            'slug' => $validated['slug'],
-            'description' => $validated['description'] ?? null,
-        ]);
-
-        if (isset($validated['permissions'])) {
-            $role->permissions()->sync($validated['permissions']);
-        } else {
-            $role->permissions()->detach();
-        }
-
-        return redirect()->route('settings.roles')->with('success', 'Rol actualizado exitosamente.');
+        $this->authorize('update', $role);
+        $this->roles->update($role, $request->validated());
+        return redirect()->route('settings.roles.show', $role)->with('success', 'Rol y matriz de permisos actualizados.');
     }
 
-    public function destroy(Role $role)
+    public function cloneForm(Role $role): View
     {
-        if ($role->is_system) {
-            return back()->with('error', 'No se pueden eliminar roles del sistema.');
+        $this->authorize('create', Role::class);
+        $role->load('permissions');
+        return view('settings.roles.clone', compact('role'));
+    }
+
+    public function clone(CloneRoleRequest $request, Role $role): RedirectResponse
+    {
+        $this->authorize('create', Role::class);
+        $clone = $this->roles->clone($role, $request->validated());
+        return redirect()->route('settings.roles.edit', $clone)->with('success', 'Rol clonado. Revisa su matriz antes de usarlo.');
+    }
+
+    public function compare(Request $request): View
+    {
+        $this->authorize('viewAny', Role::class);
+        $selected = collect($request->query('roles', []))->map(fn ($id) => (int) $id)->unique()->take(4);
+        $roles = Role::query()->with('permissions')->whereIn('id', $selected)->orderBy('name')->get();
+
+        return view('settings.roles.compare', [
+            'roles' => $roles,
+            'availableRoles' => Role::orderBy('name')->get(),
+            'permissionsByModule' => Permission::orderBy('module')->orderBy('action')->get()->groupBy('module'),
+        ]);
+    }
+
+    public function destroy(DeleteRoleRequest $request, Role $role): RedirectResponse
+    {
+        $this->authorize('delete', $role);
+        try {
+            $this->roles->delete($role, $request->integer('replacement_role_id') ?: null);
+        } catch (DomainException $exception) {
+            return back()->with('error', $exception->getMessage());
         }
+        return redirect()->route('settings.roles')->with('success', 'Rol eliminado y usuarios reasignados correctamente.');
+    }
 
-        if ($role->users()->count() > 0) {
-            return back()->with('error', 'No se puede eliminar el rol porque tiene usuarios asignados.');
-        }
+    public function deleteForm(Role $role): View
+    {
+        $this->authorize('delete', $role);
+        $role->load('users');
 
-        $role->delete();
+        return view('settings.roles.delete', [
+            'role' => $role,
+            'replacementRoles' => Role::whereKeyNot($role->id)->orderBy('name')->get(),
+        ]);
+    }
 
-        return redirect()->route('settings.roles')->with('success', 'Rol eliminado exitosamente.');
+    private function formData(): array
+    {
+        return ['permissionsByModule' => Permission::orderBy('module')->orderBy('action')->get()->groupBy('module')];
     }
 }

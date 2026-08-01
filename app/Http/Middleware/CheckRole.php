@@ -22,8 +22,13 @@ class CheckRole
 
         $user = Auth::user();
         
-        // Check if user has the required role (using role column)
-        if ($user->role !== $role) {
+        if (! $user->isActive()) {
+            Auth::logout();
+
+            return redirect()->route('login')->with('error', 'Tu cuenta ha sido desactivada.');
+        }
+
+        if (! $user->hasRole($role)) {
             abort(403, 'No tienes permisos para acceder a esta sección.');
         }
 

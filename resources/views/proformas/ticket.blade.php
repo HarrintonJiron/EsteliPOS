@@ -93,7 +93,7 @@
         <span>C$ {{ number_format($proforma->subtotal, 2) }}</span>
     </div>
     <div class="row">
-        <span>IVA (15%)</span>
+        <span>IVA ({{ number_format($proforma->tax_rate * 100, 2) }}%)</span>
         <span>C$ {{ number_format($proforma->tax_total, 2) }}</span>
     </div>
     <div class="divider"></div>

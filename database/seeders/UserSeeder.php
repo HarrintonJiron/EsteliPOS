@@ -5,13 +5,14 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Models\Role;
 
 class UserSeeder extends Seeder
 {
     public function run(): void
     {
         // Usuario admin - updateOrCreate evita duplicados
-        User::updateOrCreate(
+        $admin = User::updateOrCreate(
             ['email' => 'admin@agroservicio.com'],
             [
                 'name' => 'Administrador',
@@ -19,9 +20,12 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password')
             ]
         );
+        if ($adminRole = Role::where('slug', 'admin')->first()) {
+            $admin->roles()->syncWithoutDetaching([$adminRole->id]);
+        }
 
         // Usuario común
-        User::updateOrCreate(
+        $user = User::updateOrCreate(
             ['email' => 'usuario@agroservicio.com'],
             [
                 'name' => 'Usuario Ventas',
@@ -29,5 +33,8 @@ class UserSeeder extends Seeder
                 'password' => Hash::make('password')
             ]
         );
+        if ($userRole = Role::where('slug', 'user')->first()) {
+            $user->roles()->syncWithoutDetaching([$userRole->id]);
+        }
     }
 }

@@ -26,6 +26,8 @@ class DatabaseSeeder extends Seeder
         DemoDataSeeder::class,
         CreditHeavySeeder::class,
         AgroProductSeeder::class,
+        AccountingSeeder::class,
+        ConfigurationSeeder::class,
     ]);
 }
 }

@@ -9,12 +9,16 @@ use App\Models\SaleDetail;
 use App\Models\Product;
 use App\Models\Client;
 use App\Models\InventoryMovement;
+use App\Models\Tax;
 use App\Http\Requests\SaleRequest;
+use App\Services\AccountingService;
 
 
 class FacturacionController extends Controller
 {
-    private const DEFAULT_TAX_RATE = 0.15;
+    public function __construct(private AccountingService $accountingService)
+    {
+    }
 
     private function nextInvoiceNumber(): string
     {
@@ -53,16 +57,7 @@ class FacturacionController extends Controller
 
     public function create()
     {
-        $products = Product::orderBy('name')->get();
-        Client::firstOrCreate(
-            ['code' => 'GEN'],
-            ['name' => 'Cliente genérico', 'phone' => 'N/A', 'email' => null, 'address' => null]
-        );
-
-        $clients = Client::orderBy('name')->get();
-        $nextInvoiceNumber = $this->nextInvoiceNumber();
-
-        return view('facturacion.create', compact('products', 'clients', 'nextInvoiceNumber'));
+        return redirect()->route('facturacion.pos');
     }
 
     public function store(SaleRequest $request)
@@ -75,7 +70,8 @@ class FacturacionController extends Controller
         $sale = null;
         $amountReceived = $request->input('amount_received', 0);
 
-        DB::transaction(function () use ($data, &$sale) {
+        try {
+            DB::transaction(function () use ($data, &$sale) {
             $invoiceNumber = $data['invoice_number'] ?? null;
             if (!$invoiceNumber) {
                 $invoiceNumber = $this->nextInvoiceNumber();
@@ -97,7 +93,7 @@ class FacturacionController extends Controller
                 'due_date' => $data['due_date'] ?? null,
                 'payment_type' => $data['payment_type'],
                 'tax_included' => (bool) $data['tax_included'],
-                'tax_rate' => self::DEFAULT_TAX_RATE,
+                'tax_rate' => Tax::defaultRate(),
                 'status' => $status,
                 'notes' => $data['notes'] ?? null,
                 'subtotal' => 0,
@@ -106,15 +102,31 @@ class FacturacionController extends Controller
             ]);
 
             $linesTotal = 0;
+            $subtotalExcl = 0;
+            $taxTotal = 0;
+            $taxIncluded = (bool) $sale->tax_included;
 
             foreach ($data['items'] as $item) {
-                $subtotal = $item['quantity'] * $item['price'];
+                $product = Product::find($item['product_id']);
+                $rate = $product?->effectiveTaxRate() ?? Tax::defaultRate();
+                $lineGross = $item['quantity'] * $item['price'];
+
+                if ($taxIncluded) {
+                    $lineNet = $rate > 0 ? ($lineGross / (1 + $rate)) : $lineGross;
+                    $lineTax = $lineGross - $lineNet;
+                } else {
+                    $lineNet = $lineGross;
+                    $lineTax = $lineGross * $rate;
+                }
+
                 SaleDetail::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
-                    'subtotal' => $subtotal,
+                    'subtotal' => $lineGross,
+                    'tax_rate' => $rate,
+                    'tax_amount' => round($lineTax, 2),
                 ]);
 
                 Product::where('id', $item['product_id'])->decrement('stock', $item['quantity']);
@@ -129,26 +141,23 @@ class FacturacionController extends Controller
                     'user_id' => $sale->user_id,
                 ]);
 
-                $linesTotal += $subtotal;
-            }
-
-            $rate = (float) $sale->tax_rate;
-            if ($sale->tax_included) {
-                $subtotalExcl = $rate > 0 ? ($linesTotal / (1 + $rate)) : $linesTotal;
-                $taxTotal = $linesTotal - $subtotalExcl;
-                $grandTotal = $linesTotal;
-            } else {
-                $subtotalExcl = $linesTotal;
-                $taxTotal = $linesTotal * $rate;
-                $grandTotal = $linesTotal + $taxTotal;
+                $linesTotal += $lineGross;
+                $subtotalExcl += $lineNet;
+                $taxTotal += $lineTax;
             }
 
             $sale->update([
+                'tax_rate' => $subtotalExcl > 0 ? round($taxTotal / $subtotalExcl, 4) : 0,
                 'subtotal' => round($subtotalExcl, 2),
                 'tax_total' => round($taxTotal, 2),
-                'total' => round($grandTotal, 2),
+                'total' => round($subtotalExcl + $taxTotal, 2),
             ]);
+
+            $this->accountingService->recordSale($sale->fresh());
         });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         // Si es pago en efectivo, redirigir a la vista de cambio
         if ($data['payment_type'] === 'cash' && $sale) {
@@ -157,7 +166,7 @@ class FacturacionController extends Controller
                 ->with('changeAmount', $changeAmount);
         }
 
-        return redirect()->route('facturacion.create')
+        return redirect()->route('facturacion.pos')
             ->with('success', 'Factura creada correctamente')
             ->with('sale_id', $sale?->id);
     }
@@ -187,7 +196,7 @@ class FacturacionController extends Controller
     public function edit($id)
     {
         $sale = Sale::with('details.product')->findOrFail($id);
-        $products = Product::orderBy('name')->get();
+        $products = $this->productsWithEffectiveTax();
         $clients = Client::orderBy('name')->get();
 
         return view('facturacion.edit', compact('sale', 'products', 'clients'));
@@ -198,7 +207,8 @@ class FacturacionController extends Controller
         $data = $request->validated();
         $sale = Sale::findOrFail($id);
 
-        DB::transaction(function () use ($data, $sale) {
+        try {
+            DB::transaction(function () use ($data, $sale) {
             $status = $data['payment_type'] === 'credit' ? 'pending' : 'completed';
 
             // Revert previous stock changes
@@ -233,21 +243,37 @@ class FacturacionController extends Controller
                 'due_date' => $data['due_date'] ?? null,
                 'payment_type' => $data['payment_type'],
                 'tax_included' => (bool) $data['tax_included'],
-                'tax_rate' => self::DEFAULT_TAX_RATE,
+                'tax_rate' => Tax::defaultRate(),
                 'status' => $status,
                 'notes' => $data['notes'] ?? null,
             ]);
 
             $linesTotal = 0;
+            $subtotalExcl = 0;
+            $taxTotal = 0;
+            $taxIncluded = (bool) $sale->tax_included;
 
             foreach ($data['items'] as $item) {
-                $subtotal = $item['quantity'] * $item['price'];
+                $product = Product::find($item['product_id']);
+                $rate = $product?->effectiveTaxRate() ?? Tax::defaultRate();
+                $lineGross = $item['quantity'] * $item['price'];
+
+                if ($taxIncluded) {
+                    $lineNet = $rate > 0 ? ($lineGross / (1 + $rate)) : $lineGross;
+                    $lineTax = $lineGross - $lineNet;
+                } else {
+                    $lineNet = $lineGross;
+                    $lineTax = $lineGross * $rate;
+                }
+
                 SaleDetail::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
-                    'subtotal' => $subtotal,
+                    'subtotal' => $lineGross,
+                    'tax_rate' => $rate,
+                    'tax_amount' => round($lineTax, 2),
                 ]);
 
                 Product::where('id', $item['product_id'])->decrement('stock', $item['quantity']);
@@ -262,26 +288,24 @@ class FacturacionController extends Controller
                     'user_id' => $sale->user_id,
                 ]);
 
-                $linesTotal += $subtotal;
-            }
-
-            $rate = (float) $sale->tax_rate;
-            if ($sale->tax_included) {
-                $subtotalExcl = $rate > 0 ? ($linesTotal / (1 + $rate)) : $linesTotal;
-                $taxTotal = $linesTotal - $subtotalExcl;
-                $grandTotal = $linesTotal;
-            } else {
-                $subtotalExcl = $linesTotal;
-                $taxTotal = $linesTotal * $rate;
-                $grandTotal = $linesTotal + $taxTotal;
+                $linesTotal += $lineGross;
+                $subtotalExcl += $lineNet;
+                $taxTotal += $lineTax;
             }
 
             $sale->update([
+                'tax_rate' => $subtotalExcl > 0 ? round($taxTotal / $subtotalExcl, 4) : 0,
                 'subtotal' => round($subtotalExcl, 2),
                 'tax_total' => round($taxTotal, 2),
-                'total' => round($grandTotal, 2),
+                'total' => round($subtotalExcl + $taxTotal, 2),
             ]);
+
+            $this->accountingService->voidForSource(Sale::class, $sale->id, 'Factura editada');
+            $this->accountingService->recordSale($sale->fresh());
         });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('facturacion.show', $sale->id);
     }
@@ -290,7 +314,8 @@ class FacturacionController extends Controller
     {
         $sale = Sale::findOrFail($id);
 
-        DB::transaction(function () use ($sale) {
+        try {
+            DB::transaction(function () use ($sale) {
             // Revert stock changes
             foreach ($sale->details as $detail) {
                 Product::where('id', $detail->product_id)->increment('stock', $detail->quantity);
@@ -308,7 +333,12 @@ class FacturacionController extends Controller
 
             $sale->details()->delete();
             $sale->delete();
+
+            $this->accountingService->voidForSource(Sale::class, $sale->id, 'Factura eliminada');
         });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('facturacion.index');
     }
@@ -318,15 +348,22 @@ class FacturacionController extends Controller
      */
     public function pos()
     {
-        $products = Product::orderBy('name')->get();
+        $products = $this->productsWithEffectiveTax();
         Client::firstOrCreate(
             ['code' => 'GEN'],
             ['name' => 'Cliente genérico', 'phone' => 'N/A', 'email' => null, 'address' => null]
         );
         $clients = Client::orderBy('name')->get();
         $categories = \App\Models\Category::orderBy('name')->get();
+        $defaultTaxRate = Tax::defaultRate();
 
-        return view('facturacion.pos', compact('products', 'clients', 'categories'));
+        return view('facturacion.pos', compact('products', 'clients', 'categories', 'defaultTaxRate'));
+    }
+
+    private function productsWithEffectiveTax()
+    {
+        return Product::with(['category', 'tax'])->orderBy('name')->get()
+            ->each(fn (Product $product) => $product->setAttribute('effective_tax_rate', $product->effectiveTaxRate()));
     }
 
     /**
@@ -335,11 +372,13 @@ class FacturacionController extends Controller
     public function posStore(Request $request)
     {
         $validated = $request->validate([
-            'payment_type' => 'required|in:cash,transfer,credit',
+            'payment_type' => 'required|in:cash,card,transfer,credit',
             'client_id' => 'nullable|exists:clients,id',
             'items' => 'required|json',
             'notes' => 'nullable|string',
+            'reference_number' => 'nullable|string|max:100',
             'amount_received' => 'nullable|numeric|min:0',
+            'order_discount_pct' => 'nullable|numeric|min:0|max:100',
         ]);
 
         $items = json_decode($validated['items'], true);
@@ -350,12 +389,23 @@ class FacturacionController extends Controller
         $sale = null;
         $userId = $request->user()?->id ?? 1;
 
-        DB::transaction(function () use ($validated, $items, &$sale, $userId) {
+        try {
+            DB::transaction(function () use ($validated, $items, &$sale, $userId) {
             $invoiceNumber = $this->nextInvoiceNumber();
-            $status = $validated['payment_type'] === 'credit' ? 'pending' : 'completed';
+            $requestedPaymentType = $validated['payment_type'];
+            $storedPaymentType = $requestedPaymentType === 'card' ? 'transfer' : $requestedPaymentType;
+            $status = $storedPaymentType === 'credit' ? 'pending' : 'completed';
+            $notes = trim((string) ($validated['notes'] ?? ''));
+            if ($requestedPaymentType === 'card') {
+                $notes .= ($notes !== '' ? ' | ' : '').'Pago con tarjeta';
+            }
+            if (filled($validated['reference_number'] ?? null)) {
+                $notes .= ($notes !== '' ? ' | ' : '').'Referencia: '.$validated['reference_number'];
+            }
 
-            $client = $validated['client_id'] 
-                ? Client::find($validated['client_id']) 
+            $clientId = $validated['client_id'] ?? null;
+            $client = $clientId
+                ? Client::find($clientId)
                 : Client::where('code', 'GEN')->first();
 
             if (!$client) {
@@ -376,31 +426,42 @@ class FacturacionController extends Controller
                 'billing_email' => $client->email ?? null,
                 'billing_address' => $client->address ?? null,
                 'date' => now(),
-                'due_date' => $validated['payment_type'] === 'credit' ? now()->addDays(7)->toDateString() : null,
-                'payment_type' => $validated['payment_type'],
+                'due_date' => $storedPaymentType === 'credit' ? now()->addDays(7)->toDateString() : null,
+                'payment_type' => $storedPaymentType,
                 'tax_included' => false,
-                'tax_rate' => self::DEFAULT_TAX_RATE,
+                'tax_rate' => Tax::defaultRate(),
                 'status' => $status,
-                'notes' => $validated['notes'] ?? null,
+                'notes' => $notes !== '' ? $notes : null,
                 'subtotal' => 0,
                 'tax_total' => 0,
                 'total' => 0,
             ]);
 
             $linesTotal = 0;
+            $subtotalExcl = 0;
+            $taxTotal = 0;
 
             foreach ($items as $item) {
                 $quantity = (int) ($item['quantity'] ?? 1);
                 $price = (float) ($item['price'] ?? 0);
-                $discount = (float) ($item['discount'] ?? 0);
-                $subtotal = ($price * $quantity) - $discount;
+                $discountPct = min(100, max(0, (float) ($item['discount'] ?? 0)));
+                $orderDiscountPct = (float) ($validated['order_discount_pct'] ?? 0);
+                $lineNet = ($price * $quantity)
+                    * (1 - $discountPct / 100)
+                    * (1 - $orderDiscountPct / 100);
+
+                $product = Product::find($item['product_id']);
+                $rate = $product?->effectiveTaxRate() ?? Tax::defaultRate();
+                $lineTax = $lineNet * $rate;
 
                 SaleDetail::create([
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
                     'quantity' => $quantity,
                     'price' => $price,
-                    'subtotal' => $subtotal,
+                    'subtotal' => $lineNet,
+                    'tax_rate' => $rate,
+                    'tax_amount' => round($lineTax, 2),
                 ]);
 
                 Product::where('id', $item['product_id'])->decrement('stock', $quantity);
@@ -416,20 +477,23 @@ class FacturacionController extends Controller
                     'user_id' => $userId,
                 ]);
 
-                $linesTotal += $subtotal;
+                $linesTotal += $lineNet;
+                $subtotalExcl += $lineNet;
+                $taxTotal += $lineTax;
             }
 
-            $rate = self::DEFAULT_TAX_RATE;
-            $subtotalExcl = $linesTotal;
-            $taxTotal = $linesTotal * $rate;
-            $grandTotal = $linesTotal + $taxTotal;
-
             $sale->update([
+                'tax_rate' => $subtotalExcl > 0 ? round($taxTotal / $subtotalExcl, 4) : 0,
                 'subtotal' => round($subtotalExcl, 2),
                 'tax_total' => round($taxTotal, 2),
-                'total' => round($grandTotal, 2),
+                'total' => round($subtotalExcl + $taxTotal, 2),
             ]);
+
+            $this->accountingService->recordSale($sale->fresh());
         });
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['items' => $e->getMessage()]);
+        }
 
         if ($sale) {
             $amountReceived = $validated['amount_received'] ?? $sale->total;

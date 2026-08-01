@@ -11,7 +11,7 @@ class PurchaseDetail extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['purchase_id', 'product_id', 'quantity', 'price', 'subtotal'];
+    protected $fillable = ['purchase_id', 'product_id', 'quantity', 'price', 'subtotal', 'tax_rate', 'tax_amount'];
 
     public function purchase()
     {

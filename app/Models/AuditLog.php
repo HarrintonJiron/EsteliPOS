@@ -45,7 +45,7 @@ class AuditLog extends Model
         return $query;
     }
 
-    public static function log($action, $description = null, $model = null, array $oldValues = null, array $newValues = null)
+    public static function log($action, $description = null, $model = null, ?array $oldValues = null, ?array $newValues = null)
     {
         return static::create([
             'user_id' => auth()->id(),

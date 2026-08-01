@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Nueva Proforma')
-@section('hide-header')
+@section('hide-header', 'true')
 @section('main-class', 'p-0 overflow-hidden')
 
 @section('content')
@@ -9,7 +9,8 @@
 <div id="proformaApp" class="h-full overflow-hidden bg-slate-50 flex"
      data-products='@json($products)'
      data-clients='@json($clients)'
-     data-categories='@json($categories)'>
+     data-categories='@json($categories)'
+     data-default-tax-rate="{{ $defaultTaxRate }}">
 
     {{-- COLUMNA IZQUIERDA: ITEMS --}}
     <div class="w-2/5 bg-white flex flex-col border-r border-slate-200">
@@ -44,7 +45,7 @@
                     <span id="discountDisplay" class="font-medium text-red-600">-C$ 0.00</span>
                 </div>
                 <div class="flex justify-between text-sm text-slate-600">
-                    <span>IVA (15%)</span>
+                    <span id="taxLabel">IVA ({{ number_format($defaultTaxRate * 100, 2) }}%)</span>
                     <span id="taxDisplay" class="font-medium">C$ 0.00</span>
                 </div>
                 <div class="border-t border-slate-300 pt-2 flex justify-between">
@@ -165,6 +166,7 @@
 
                 <input type="hidden" name="client_id" id="saveClientId">
                 <input type="hidden" name="items" id="saveItems" value="[]">
+                <input type="hidden" name="order_discount_pct" id="orderDiscountPctInput" value="0">
 
                 <div class="p-4 border-t border-slate-200 space-y-2">
                     <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl">
@@ -192,6 +194,7 @@ document.addEventListener('DOMContentLoaded', function () {
         stock: parseInt(p.stock ?? 0),
         category_id: p.category_id,
         image_url: p.image_url ?? null,
+        tax_rate: parseFloat(p.effective_tax_rate ?? app.dataset.defaultTaxRate ?? 0),
     }));
     const clientsData = JSON.parse(app.dataset.clients).map(c => ({
         id: c.id,
@@ -207,7 +210,6 @@ document.addEventListener('DOMContentLoaded', function () {
     let padBuffer = '';
     let currentCategory = 'all';
     let orderDiscountPct = 0;
-    const TAX = 0.15;
 
     function fmt(v) { return 'C$ ' + parseFloat(v || 0).toFixed(2); }
 
@@ -218,8 +220,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function getTotal() {
         const sub = items.reduce((s, i) => s + lineSubtotal(i), 0);
         const ordDisc = sub * (orderDiscountPct / 100);
-        const taxable = sub - ordDisc;
-        const tax = taxable * TAX;
+        const discountedLines = items.map(item => lineSubtotal(item) * (1 - orderDiscountPct / 100));
+        const taxable = discountedLines.reduce((sum, value) => sum + value, 0);
+        const tax = items.reduce((sum, item, index) => sum + discountedLines[index] * parseFloat(item.tax_rate || 0), 0);
         return { sub, ordDisc, tax, total: taxable + tax };
     }
 
@@ -229,6 +232,10 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('taxDisplay').textContent = fmt(tax);
         document.getElementById('totalDisplay').textContent = fmt(total);
         document.getElementById('saveTotalDisplay').textContent = fmt(total);
+        const rates = [...new Set(items.map(item => parseFloat(item.tax_rate || 0).toFixed(4)))];
+        document.getElementById('taxLabel').textContent = rates.length === 1
+            ? `IVA (${(parseFloat(rates[0]) * 100).toFixed(2)}%)`
+            : (rates.length > 1 ? 'IVA (mixto)' : `IVA (${(parseFloat(app.dataset.defaultTaxRate || 0) * 100).toFixed(2)}%)`);
         const discRow = document.getElementById('discountRow');
         if (ordDisc > 0) {
             discRow.classList.remove('hidden');
@@ -295,7 +302,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (existing) {
             existing.quantity += 1;
         } else {
-            items.push({ product_id: productId, name: p.name, price: p.price, quantity: 1, discount: 0 });
+            items.push({ product_id: productId, name: p.name, price: p.price, quantity: 1, discount: 0, tax_rate: p.tax_rate });
         }
         renderItems();
     };
@@ -359,6 +366,7 @@ document.addEventListener('DOMContentLoaded', function () {
             price: i.price,
             discount: i.discount || 0,
         })));
+        document.getElementById('orderDiscountPctInput').value = orderDiscountPct;
         updateTotals();
         document.getElementById('saveModal').classList.remove('hidden');
     };

@@ -27,7 +27,7 @@
         </div>
     @endif
 
-    <form action="{{ route('inventario.store') }}" method="POST" class="space-y-4">
+    <form action="{{ route('inventario.store') }}" method="POST" enctype="multipart/form-data" class="space-y-4">
         @csrf
 
         {{-- Información Básica --}}
@@ -82,6 +82,28 @@
             </div>
         </div>
 
+        {{-- Imagen del producto --}}
+        <div class="bg-white p-4 rounded-xl shadow">
+            <h2 class="text-lg font-semibold text-gray-700 mb-1">Imagen del Producto</h2>
+            <p class="text-sm text-gray-500 mb-4">Se mostrará en el catálogo y en el punto de venta para identificar el producto rápidamente.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-5 items-center">
+                <div class="h-40 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden">
+                    <div id="createImagePlaceholder" class="text-center text-gray-400 px-4">
+                        <div class="text-4xl mb-1">📷</div>
+                        <span class="text-xs">Vista previa</span>
+                    </div>
+                    <img id="createImagePreview" class="hidden w-full h-full object-contain" alt="Vista previa del producto">
+                </div>
+                <div>
+                    <label for="product_image" class="block text-sm font-medium text-gray-700">Seleccionar imagen</label>
+                    <input id="product_image" type="file" name="image" accept="image/jpeg,image/png,image/webp"
+                           class="mt-2 block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-700">
+                    <p class="mt-2 text-xs text-gray-500">Formatos JPG, PNG o WebP. Máximo 3 MB y 3000 × 3000 px.</p>
+                </div>
+            </div>
+        </div>
+
         {{-- Precios y Stock --}}
         <div class="bg-white p-4 rounded-xl shadow">
             <h2 class="text-lg font-semibold text-gray-700 mb-4">Precios y Stock</h2>
@@ -119,6 +141,18 @@
                         <option value="active" {{ old('status', 'active') == 'active' ? 'selected' : '' }}>Activo</option>
                         <option value="inactive" {{ old('status') == 'inactive' ? 'selected' : '' }}>Inactivo</option>
                         <option value="discontinued" {{ old('status') == 'discontinued' ? 'selected' : '' }}>Descontinuado</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Impuesto (IVA)</label>
+                    <select name="tax_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <option value="">Usar impuesto predeterminado</option>
+                        @foreach($taxes as $tax)
+                            <option value="{{ $tax->id }}" {{ old('tax_id') == $tax->id ? 'selected' : '' }}>
+                                {{ $tax->name }} ({{ number_format($tax->rate * 100, 2) }}%)
+                            </option>
+                        @endforeach
                     </select>
                 </div>
             </div>
@@ -227,5 +261,23 @@
         </div>
     </form>
 </div>
+
+<script>
+    document.getElementById('product_image')?.addEventListener('change', function () {
+        const file = this.files?.[0];
+        const preview = document.getElementById('createImagePreview');
+        const placeholder = document.getElementById('createImagePlaceholder');
+
+        if (!file) {
+            preview.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+            return;
+        }
+
+        preview.src = URL.createObjectURL(file);
+        preview.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+    });
+</script>
 
 @endsection

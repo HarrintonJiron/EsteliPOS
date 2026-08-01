@@ -10,13 +10,12 @@ use App\Models\ProformaDetail;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\InventoryMovement;
+use App\Models\Tax;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ProformaController extends Controller
 {
-    private const DEFAULT_TAX_RATE = 0.15;
-
     private function nextProformaNumber(): string
     {
         $max = (int) Proforma::query()
@@ -56,15 +55,18 @@ class ProformaController extends Controller
 
     public function pos()
     {
-        $products = Product::with('category')
+        $products = Product::with(['category', 'tax'])
             ->where('status', 'active')
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->each(fn (Product $product) => $product->setAttribute('effective_tax_rate', $product->effectiveTaxRate()));
 
         $clients = Client::orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
 
-        return view('proformas.pos', compact('products', 'clients', 'categories'));
+        $defaultTaxRate = Tax::defaultRate();
+
+        return view('proformas.pos', compact('products', 'clients', 'categories', 'defaultTaxRate'));
     }
 
     public function store(Request $request)
@@ -74,6 +76,7 @@ class ProformaController extends Controller
             'items'       => 'required|json',
             'notes'       => 'nullable|string|max:500',
             'expiry_days' => 'nullable|integer|min:1|max:365',
+            'order_discount_pct' => 'nullable|numeric|min:0|max:100',
         ]);
 
         $items = json_decode($validated['items'], true);
@@ -101,7 +104,7 @@ class ProformaController extends Controller
                 'client_address'  => $client?->address,
                 'date'            => now()->toDateString(),
                 'expiry_date'     => now()->addDays($expiryDays)->toDateString(),
-                'tax_rate'        => self::DEFAULT_TAX_RATE,
+                'tax_rate'        => Tax::defaultRate(),
                 'tax_included'    => false,
                 'status'          => 'draft',
                 'notes'           => $validated['notes'] ?? null,
@@ -111,14 +114,19 @@ class ProformaController extends Controller
             ]);
 
             $linesTotal = 0;
+            $taxTotal = 0;
+            $orderDiscountPct = (float) ($validated['order_discount_pct'] ?? 0);
 
             foreach ($items as $item) {
                 $quantity    = (float) ($item['quantity'] ?? 1);
                 $price       = (float) ($item['price'] ?? 0);
-                $discountPct = (float) ($item['discount'] ?? 0);
-                $subtotal    = $price * $quantity * (1 - $discountPct / 100);
+                $discountPct = min(100, max(0, (float) ($item['discount'] ?? 0)));
+                $subtotal    = $price * $quantity
+                    * (1 - $discountPct / 100)
+                    * (1 - $orderDiscountPct / 100);
 
                 $product = Product::find($item['product_id'] ?? null);
+                $rate = $product?->effectiveTaxRate() ?? Tax::defaultRate();
 
                 ProformaDetail::create([
                     'proforma_id'  => $proforma->id,
@@ -131,13 +139,13 @@ class ProformaController extends Controller
                 ]);
 
                 $linesTotal += $subtotal;
+                $taxTotal += $subtotal * $rate;
             }
 
-            $rate        = self::DEFAULT_TAX_RATE;
-            $taxTotal    = $linesTotal * $rate;
             $grandTotal  = $linesTotal + $taxTotal;
 
             $proforma->update([
+                'tax_rate' => $linesTotal > 0 ? round($taxTotal / $linesTotal, 4) : 0,
                 'subtotal'  => round($linesTotal, 2),
                 'tax_total' => round($taxTotal, 2),
                 'total'     => round($grandTotal, 2),

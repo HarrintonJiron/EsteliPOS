@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Tax;
 use App\Services\InventoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Throwable;
 
 class InventarioController extends Controller
 {
@@ -253,8 +256,9 @@ class InventarioController extends Controller
     public function create(): View
     {
         $categories = Category::orderBy('name')->get();
+        $taxes = Tax::where('is_active', true)->orderBy('rate')->get();
 
-        return view('inventario.create', compact('categories'));
+        return view('inventario.create', compact('categories', 'taxes'));
     }
 
     public function quick(): View
@@ -298,6 +302,7 @@ class InventarioController extends Controller
             'category_id' => 'nullable|exists:categories,id',
             'unit' => 'nullable|string|max:50',
             'low_stock_threshold' => 'nullable|integer|min:1',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
         ]);
 
         $categoryId = $validated['category_id'] ?? Category::query()->value('id');
@@ -307,27 +312,35 @@ class InventarioController extends Controller
 
         $purchasePrice = $validated['purchase_price'] ?? round($validated['sale_price'] * 0.85, 2);
         $stock = (int) ($validated['stock'] ?? 0);
+        $imagePath = $request->file('image')?->store('products', 'public');
 
-        $product = Product::create([
-            'category_id' => $categoryId,
-            'name' => $validated['name'],
-            'code' => $validated['code'],
-            'purchase_price' => $purchasePrice,
-            'sale_price' => $validated['sale_price'],
-            'stock' => 0,
-            'unit' => $validated['unit'] ?? 'unidad',
-            'low_stock_threshold' => $validated['low_stock_threshold'] ?? 5,
-            'status' => 'active',
-        ]);
+        try {
+            $product = Product::create([
+                'category_id' => $categoryId,
+                'name' => $validated['name'],
+                'code' => $validated['code'],
+                'purchase_price' => $purchasePrice,
+                'sale_price' => $validated['sale_price'],
+                'stock' => 0,
+                'unit' => $validated['unit'] ?? 'unidad',
+                'low_stock_threshold' => $validated['low_stock_threshold'] ?? 5,
+                'status' => 'active',
+                'image_url' => $imagePath,
+            ]);
 
-        if ($stock > 0) {
-            $this->inventory->stockIn(
-                $product,
-                $stock,
-                'quick_entry',
-                'Stock inicial — registro rápido',
-                $request->user()?->id
-            );
+            if ($stock > 0) {
+                $this->inventory->stockIn(
+                    $product,
+                    $stock,
+                    'quick_entry',
+                    'Stock inicial — registro rápido',
+                    $request->user()?->id
+                );
+            }
+        } catch (Throwable $exception) {
+            $this->deleteProductImage($imagePath);
+
+            throw $exception;
         }
 
         if ($request->boolean('add_another')) {
@@ -348,6 +361,7 @@ class InventarioController extends Controller
             'description' => 'nullable|string|max:1000',
             'purchase_price' => 'required|numeric|min:0',
             'sale_price' => 'required|numeric|min:0',
+            'tax_id' => 'nullable|exists:taxes,id',
             'stock' => 'required|integer|min:0',
             'unit' => 'required|string|max:50',
             'lot' => 'nullable|string|max:100',
@@ -359,21 +373,36 @@ class InventarioController extends Controller
             'concentration' => 'nullable|string|max:100',
             'status' => 'required|in:active,inactive,discontinued',
             'observations' => 'nullable|string|max:2000',
+            'discount_pct' => 'nullable|numeric|min:0|max:100',
+            'discount_label' => 'nullable|string|max:100',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
         ]);
 
         $stock = (int) $validated['stock'];
         $validated['stock'] = 0;
+        unset($validated['image']);
 
-        $product = Product::create($validated);
+        $imagePath = $request->file('image')?->store('products', 'public');
+        if ($imagePath) {
+            $validated['image_url'] = $imagePath;
+        }
 
-        if ($stock > 0) {
-            $this->inventory->stockIn(
-                $product,
-                $stock,
-                'initial_stock',
-                'Stock inicial al crear producto',
-                $request->user()?->id
-            );
+        try {
+            $product = Product::create($validated);
+
+            if ($stock > 0) {
+                $this->inventory->stockIn(
+                    $product,
+                    $stock,
+                    'initial_stock',
+                    'Stock inicial al crear producto',
+                    $request->user()?->id
+                );
+            }
+        } catch (Throwable $exception) {
+            $this->deleteProductImage($imagePath);
+
+            throw $exception;
         }
 
         return redirect()->route('inventario.index')->with('success', 'Producto creado correctamente.');
@@ -421,8 +450,9 @@ class InventarioController extends Controller
     {
         $product = Product::findOrFail($id);
         $categories = Category::orderBy('name')->get();
+        $taxes = Tax::where('is_active', true)->orderBy('rate')->get();
 
-        return view('inventario.edit', compact('product', 'categories'));
+        return view('inventario.edit', compact('product', 'categories', 'taxes'));
     }
 
     public function update(Request $request, int $id): RedirectResponse
@@ -436,6 +466,7 @@ class InventarioController extends Controller
             'description' => 'nullable|string|max:1000',
             'purchase_price' => 'required|numeric|min:0',
             'sale_price' => 'required|numeric|min:0',
+            'tax_id' => 'nullable|exists:taxes,id',
             'unit' => 'required|string|max:50',
             'lot' => 'nullable|string|max:100',
             'expiry_date' => 'nullable|date',
@@ -446,9 +477,35 @@ class InventarioController extends Controller
             'concentration' => 'nullable|string|max:100',
             'status' => 'required|in:active,inactive,discontinued',
             'observations' => 'nullable|string|max:2000',
+            'discount_pct' => 'nullable|numeric|min:0|max:100',
+            'discount_label' => 'nullable|string|max:100',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
+            'remove_image' => 'nullable|boolean',
         ]);
 
-        $product->update($validated);
+        $oldImagePath = $product->getRawOriginal('image_url');
+        $newImagePath = $request->file('image')?->store('products', 'public');
+        $removeImage = $request->boolean('remove_image');
+
+        unset($validated['image'], $validated['remove_image']);
+
+        if ($newImagePath) {
+            $validated['image_url'] = $newImagePath;
+        } elseif ($removeImage) {
+            $validated['image_url'] = null;
+        }
+
+        try {
+            $product->update($validated);
+        } catch (Throwable $exception) {
+            $this->deleteProductImage($newImagePath);
+
+            throw $exception;
+        }
+
+        if (($newImagePath || $removeImage) && $oldImagePath !== $newImagePath) {
+            $this->deleteProductImage($oldImagePath);
+        }
 
         return redirect()->route('inventario.index')->with('success', 'Producto actualizado correctamente.');
     }
@@ -496,6 +553,13 @@ class InventarioController extends Controller
             'Content-Type' => 'text/csv',
             'Content-Disposition' => 'attachment; filename="inventario_'.now()->format('Ymd_His').'.csv"',
         ]);
+    }
+
+    private function deleteProductImage(?string $path): void
+    {
+        if ($path && str_starts_with($path, 'products/')) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     /** @return list<int> */

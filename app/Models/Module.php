@@ -10,15 +10,41 @@ class Module extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'slug', 'description', 'icon', 'route', 'is_active', 'sort_order'];
+    protected $fillable = ['name', 'slug', 'description', 'icon', 'route', 'dependencies', 'required_permission', 'is_core', 'is_active', 'activated_at', 'deactivated_at', 'sort_order'];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_core' => 'boolean',
+        'dependencies' => 'array',
+        'activated_at' => 'datetime',
+        'deactivated_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::saved(function (Module $module): void {
+            Cache::forget("modules.{$module->slug}.active");
+            Cache::forget('modules.active');
+
+            if ($module->wasChanged('slug')) {
+                Cache::forget('modules.'.$module->getOriginal('slug').'.active');
+            }
+        });
+
+        static::deleted(function (Module $module): void {
+            Cache::forget("modules.{$module->slug}.active");
+            Cache::forget('modules.active');
+        });
+    }
 
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'module_role');
     }
 
     public function scopeInactive($query)
@@ -43,7 +69,6 @@ class Module extends Model
         $module = static::where('slug', $slug)->first();
         if ($module) {
             $module->update(['is_active' => true]);
-            Cache::forget("modules.{$slug}.active");
         }
         return $module;
     }
@@ -53,7 +78,6 @@ class Module extends Model
         $module = static::where('slug', $slug)->first();
         if ($module) {
             $module->update(['is_active' => false]);
-            Cache::forget("modules.{$slug}.active");
         }
         return $module;
     }
@@ -61,7 +85,13 @@ class Module extends Model
     public static function getActiveModules()
     {
         return Cache::rememberForever('modules.active', function () {
-            return static::active()->ordered()->get();
+            return static::with('roles')->active()->ordered()->get();
         });
+    }
+
+    public static function flushModuleCache(): void
+    {
+        static::pluck('slug')->each(fn (string $slug) => Cache::forget("modules.{$slug}.active"));
+        Cache::forget('modules.active');
     }
 }

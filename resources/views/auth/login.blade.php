@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iniciar Sesión - AgroCampo</title>
+    <title>Iniciar Sesión - {{ $companyProfile['system_name'] ?? 'Agroservicio POS' }}</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -18,14 +18,17 @@
 
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
-            <div class="w-20 h-20 bg-white rounded-2xl mx-auto flex items-center justify-center shadow-xl mb-4">
+            <div class="h-28 w-28 bg-white rounded-3xl mx-auto flex items-center justify-center shadow-xl mb-5">
                 <div class="text-center">
-                    <div class="text-2xl font-black text-indigo-700">AC</div>
-                    <div class="text-xs font-bold text-indigo-500">AGRO</div>
+                    @if($companyProfile['company_logo_url'] ?? null)
+                        <img src="{{ $companyProfile['company_logo_url'] }}" class="h-24 w-24 object-contain" alt="Logo de {{ $companyProfile['system_name'] ?? 'la empresa' }}" data-company-logo>
+                    @else
+                        <div class="text-2xl font-black text-indigo-700">{{ mb_strtoupper(mb_substr($companyProfile['system_name'] ?? 'AS', 0, 2)) }}</div>
+                    @endif
                 </div>
             </div>
-            <h1 class="text-2xl font-bold text-white">AgroCampo</h1>
-            <p class="text-slate-300 text-sm">Sistema de Gestión Integral</p>
+            <h1 class="text-2xl font-bold text-white">{{ $companyProfile['system_name'] ?? 'Agroservicio POS' }}</h1>
+            <p class="text-slate-300 text-sm">{{ $companyProfile['company_name'] ?? 'Sistema de Gestión Integral' }}</p>
         </div>
 
         <div class="bg-white rounded-2xl shadow-2xl overflow-hidden">
@@ -44,16 +47,16 @@
                 <form method="POST" action="{{ route('login') }}" class="space-y-4">
                     @csrf
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Correo Electrónico</label>
-                        <input type="email" name="email" value="{{ old('email') }}"
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Correo o nombre de usuario</label>
+                        <input type="text" name="login" value="{{ old('login') }}"
                                class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                               placeholder="admin@agroservicio.com" required autofocus>
+                               placeholder="correo@empresa.com o usuario" required autofocus autocomplete="username">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
                         <input type="password" name="password"
                                class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                               placeholder="••••••••" required>
+                               placeholder="••••••••" required autocomplete="current-password">
                     </div>
                     <div class="flex items-center justify-between">
                         <label class="flex items-center">
@@ -67,14 +70,14 @@
                     </button>
                 </form>
 
-                <div class="p-3 bg-slate-50 rounded-xl text-xs text-slate-500">
-                    <p class="font-medium text-slate-700 mb-1">Credenciales de prueba:</p>
-                    <p><span class="font-medium">Admin:</span> admin@agroservicio.com / password</p>
-                </div>
             </div>
         </div>
 
-        <p class="text-center text-slate-400 text-sm mt-6">© {{ date('Y') }} AgroCampo - Todos los derechos reservados</p>
+        <div class="mt-6 text-center" data-developer-credit>
+            <p class="text-sm text-slate-400">© {{ date('Y') }} {{ $companyProfile['company_name'] ?? $companyProfile['system_name'] ?? 'Agroservicio' }}</p>
+            <p class="mt-2 text-xs font-medium uppercase tracking-[0.14em] text-slate-500">Desarrollado por</p>
+            <p class="mt-1 text-sm font-semibold tracking-wide text-slate-300">Northlink Microsystem</p>
+        </div>
     </div>
 
 </body>

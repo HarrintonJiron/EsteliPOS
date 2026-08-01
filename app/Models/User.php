@@ -19,12 +19,16 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'username',
         'email',
+        'phone',
         'role',
         'password',
         'is_active',
         'profile_photo',
         'last_login_at',
+        'force_password_change',
+        'password_changed_at',
     ];
 
     /**
@@ -49,6 +53,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
+            'force_password_change' => 'boolean',
+            'password_changed_at' => 'datetime',
         ];
     }
 
@@ -62,7 +68,18 @@ class User extends Authenticatable
         return $this->roles()->with('permissions')->get()
             ->pluck('permissions')
             ->flatten()
+            ->merge($this->directPermissions()->get())
             ->unique('id');
+    }
+
+    public function directPermissions()
+    {
+        return $this->belongsToMany(Permission::class, 'permission_user');
+    }
+
+    public function auditLogs()
+    {
+        return $this->hasMany(AuditLog::class);
     }
 
     public function hasRole(string $roleSlug): bool
@@ -72,14 +89,16 @@ class User extends Authenticatable
 
     public function hasPermission(string $permissionSlug): bool
     {
-        return $this->roles()->whereHas('permissions', function ($query) use ($permissionSlug) {
+        return $this->directPermissions()->where('slug', $permissionSlug)->exists()
+            || $this->roles()->whereHas('permissions', function ($query) use ($permissionSlug) {
             $query->where('slug', $permissionSlug);
         })->exists();
     }
 
     public function hasAnyPermission(array $permissionSlugs): bool
     {
-        return $this->roles()->whereHas('permissions', function ($query) use ($permissionSlugs) {
+        return $this->directPermissions()->whereIn('slug', $permissionSlugs)->exists()
+            || $this->roles()->whereHas('permissions', function ($query) use ($permissionSlugs) {
             $query->whereIn('slug', $permissionSlugs);
         })->exists();
     }
@@ -116,15 +135,14 @@ class User extends Authenticatable
         $this->roles()->sync($roleIds);
     }
 
-    // Legacy methods for backward compatibility
     public function isAdmin(): bool
     {
-        return $this->hasRole('admin') || $this->role === 'admin';
+        return $this->hasRole('admin');
     }
 
     public function isUser(): bool
     {
-        return $this->hasRole('user') || $this->role === 'user';
+        return $this->hasRole('user');
     }
 
     public function isActive(): bool

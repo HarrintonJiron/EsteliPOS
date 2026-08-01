@@ -1,115 +1,20 @@
 @extends('layouts.app')
-
-@section('title', 'Ver Usuario')
-
+@section('title', 'Detalle de usuario')
 @section('content')
-
+@php($effectivePermissions = $user->permissions())
 <div class="space-y-6">
-    <div class="flex justify-between items-center">
-        <div>
-            <h1 class="page-title">{{ $user->name }}</h1>
-            <p class="page-subtitle">{{ $user->email }}</p>
-        </div>
-        <div class="flex gap-2">
-            <a href="{{ route('settings.users') }}" class="btn-outline text-sm">Volver</a>
-            @if($user->id !== auth()->id())
-            <a href="{{ route('settings.users.edit', $user) }}" class="btn-primary text-sm">Editar</a>
-            @endif
-        </div>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div class="flex items-center gap-4">@if($user->profile_photo)<img src="{{ Storage::disk('public')->url($user->profile_photo) }}" class="h-16 w-16 rounded-2xl object-cover" alt="Foto de {{ $user->name }}">@else<div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-100 text-2xl font-bold text-indigo-700">{{ mb_strtoupper(mb_substr($user->name,0,1)) }}</div>@endif<div><h1 class="page-title">{{ $user->name }}</h1><p class="page-subtitle">{{ $user->username ? '@'.$user->username.' · ' : '' }}{{ $user->email }}</p></div></div><div class="flex gap-2"><a class="btn-outline" href="{{ route('settings.users') }}">Volver</a><a class="btn-primary" href="{{ route('settings.users.edit',$user) }}">Editar</a></div></div>
+
+    <div class="grid gap-6 lg:grid-cols-3">
+        <section class="card p-5"><h2 class="font-semibold">Información</h2><dl class="mt-4 space-y-3 text-sm"><div><dt class="text-xs text-slate-500">Estado</dt><dd class="mt-1"><span class="{{ $user->is_active ? 'badge-success':'badge-danger' }}">{{ $user->is_active?'Activo':'Inactivo' }}</span>@if($user->force_password_change)<span class="badge-warning ml-1">Cambio de clave pendiente</span>@endif</dd></div><div><dt class="text-xs text-slate-500">Teléfono</dt><dd>{{ $user->phone ?: 'No registrado' }}</dd></div><div><dt class="text-xs text-slate-500">Creado</dt><dd>{{ $user->created_at->format('d/m/Y H:i') }}</dd></div><div><dt class="text-xs text-slate-500">Último acceso</dt><dd>{{ $user->last_login_at?->format('d/m/Y H:i') ?? 'Nunca' }}</dd></div></dl></section>
+        <section class="card p-5"><h2 class="font-semibold">Roles</h2><div class="mt-4 flex flex-wrap gap-2">@forelse($user->roles as $role)<span class="badge-info">{{ $role->name }}</span>@empty<p class="text-sm text-slate-500">Sin roles asignados.</p>@endforelse</div><h3 class="mt-6 text-sm font-semibold">Permisos especiales</h3><div class="mt-2 flex flex-wrap gap-2">@forelse($user->directPermissions as $permission)<span class="badge-warning">{{ $permission->name }}</span>@empty<p class="text-sm text-slate-500">Ninguno.</p>@endforelse</div></section>
+        <section class="card p-5"><h2 class="font-semibold">Acceso efectivo</h2><p class="mt-2 text-3xl font-bold text-indigo-700">{{ $effectivePermissions->count() }}</p><p class="text-sm text-slate-500">permisos totales entre roles y excepciones</p><div class="mt-4 space-y-2">@foreach($effectivePermissions->groupBy('module') as $module=>$items)<div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"><span>{{ ucfirst(str_replace('_',' ',$module)) }}</span><strong>{{ $items->count() }}</strong></div>@endforeach</div></section>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {{-- Información del usuario --}}
-        <div class="card p-6">
-            <h3 class="font-semibold text-slate-900 mb-4">Información</h3>
-            <div class="space-y-3">
-                <div>
-                    <p class="text-xs text-slate-500">Nombre</p>
-                    <p class="font-medium text-slate-900">{{ $user->name }}</p>
-                </div>
-                <div>
-                    <p class="text-xs text-slate-500">Email</p>
-                    <p class="font-medium text-slate-900">{{ $user->email }}</p>
-                </div>
-                <div>
-                    <p class="text-xs text-slate-500">Estado</p>
-                    @if($user->is_active)
-                        <span class="badge-success">Activo</span>
-                    @else
-                        <span class="badge-danger">Inactivo</span>
-                    @endif
-                </div>
-                <div>
-                    <p class="text-xs text-slate-500">Último Acceso</p>
-                    <p class="text-sm text-slate-600">{{ $user->last_login_at ? $user->last_login_at->diffForHumans() : 'Nunca' }}</p>
-                </div>
-            </div>
-        </div>
-
-        {{-- Roles --}}
-        <div class="card p-6">
-            <h3 class="font-semibold text-slate-900 mb-4">Roles</h3>
-            @if($user->roles->count() > 0)
-            <div class="space-y-2">
-                @foreach($user->roles as $role)
-                <div class="flex items-center gap-2 p-2 border border-slate-200 rounded-lg">
-                    <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <span class="text-sm font-medium text-slate-900">{{ $role->name }}</span>
-                </div>
-                @endforeach
-            </div>
-            @else
-            <p class="text-sm text-slate-500">Sin roles asignados</p>
-            @endif
-        </div>
-
-        {{-- Permisos --}}
-        <div class="card p-6">
-            <h3 class="font-semibold text-slate-900 mb-4">Permisos Totales</h3>
-            @if($user->roles->count() > 0)
-            <div class="space-y-2">
-                @foreach($user->roles as $role)
-                    @foreach($role->permissions->groupBy('module') as $module => $modulePermissions)
-                        @if($loop->first)
-                        <div class="text-xs text-slate-500 font-medium">{{ ucfirst($module) }}</div>
-                        @endif
-                    @endforeach
-                @endforeach
-                <p class="text-sm text-slate-600">{{ $user->roles->flatMap->permissions->unique('id')->count() }} permisos asignados</p>
-            </div>
-            @else
-            <p class="text-sm text-slate-500">Sin permisos</p>
-            @endif
-        </div>
-    </div>
-
-    {{-- Acciones --}}
     @if($user->id !== auth()->id())
-    <div class="card">
-        <div class="p-4 border-b border-slate-200">
-            <h3 class="font-semibold text-slate-900">Acciones</h3>
-        </div>
-        <div class="p-4 flex gap-2">
-            <form action="{{ route('settings.users.toggle-active', $user) }}" method="POST">
-                @csrf
-                <button type="submit" class="btn-{{ $user->is_active ? 'secondary' : 'primary' }}">
-                    {{ $user->is_active ? 'Desactivar Usuario' : 'Activar Usuario' }}
-                </button>
-            </form>
-            <form action="{{ route('settings.users.reset-password', $user) }}" method="POST" onsubmit="return confirm('¿Restablecer contraseña? Se generará una nueva aleatoria.')">
-                @csrf
-                <button type="submit" class="btn-outline">Restablecer Contraseña</button>
-            </form>
-            <form action="{{ route('settings.users.destroy', $user) }}" method="POST" onsubmit="return confirm('¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.')">
-                @csrf
-                @method('DELETE')
-                <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Eliminar Usuario</button>
-            </form>
-        </div>
-    </div>
+    <section class="card p-5"><h2 class="font-semibold">Acciones de seguridad</h2><div class="mt-4 flex flex-wrap items-center gap-4"><a class="btn-outline" href="{{ route('settings.users.reset-password.form',$user) }}">Restablecer contraseña</a><x-settings.confirm-action :action="route('settings.users.toggle-active',$user)" :label="$user->is_active?'Desactivar usuario':'Activar usuario'" title="Confirmar cambio de estado" :message="$user->is_active?'El usuario perderá acceso inmediatamente.':'El usuario podrá volver a iniciar sesión.'" /><x-settings.confirm-action :action="route('settings.users.destroy',$user)" method="DELETE" label="Eliminar usuario" title="Confirmar eliminación" message="Solo se eliminará si no posee historial operativo. Esta acción no se puede deshacer." variant="danger" /></div></section>
     @endif
-</div>
 
+    <section class="card overflow-hidden"><div class="border-b border-slate-200 p-5"><h2 class="font-semibold">Actividad reciente</h2><p class="text-xs text-slate-500">Acciones realizadas por o sobre esta cuenta.</p></div><div class="divide-y divide-slate-100">@forelse($activity as $log)<div class="p-4 sm:flex sm:items-center sm:justify-between"><div><p class="text-sm font-medium">{{ $log->description ?: $log->action }}</p><p class="text-xs text-slate-500">Por {{ $log->user?->name ?? 'Sistema' }} · {{ $log->ip_address ?: 'IP no registrada' }}</p></div><time class="mt-1 block text-xs text-slate-500 sm:mt-0">{{ $log->created_at->format('d/m/Y H:i') }}</time></div>@empty<div class="p-8 text-center text-sm text-slate-500">Sin actividad registrada.</div>@endforelse</div></section>
+</div>
 @endsection

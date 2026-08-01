@@ -9,10 +9,14 @@ class RoleSeeder extends Seeder
 {
     public function run(): void
     {
-        Role::insert([
-            ['name' => 'Admin', 'description' => 'Administrador del sistema'],
-            ['name' => 'Vendedor', 'description' => 'Encargado de ventas'],
-            ['name' => 'Contable', 'description' => 'Encargado de finanzas'],
-        ]);
+        $roles = [
+            ['name' => 'Administrador', 'slug' => 'admin', 'description' => 'Administrador del sistema', 'is_system' => true],
+            ['name' => 'Vendedor', 'slug' => 'vendedor', 'description' => 'Encargado de ventas', 'is_system' => true],
+            ['name' => 'Contable', 'slug' => 'contable', 'description' => 'Encargado de finanzas', 'is_system' => true],
+        ];
+
+        foreach ($roles as $role) {
+            Role::firstOrCreate(['slug' => $role['slug']], $role);
+        }
     }
 }

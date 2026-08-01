@@ -16,6 +16,11 @@ class Permission extends Model
         return $this->belongsToMany(Role::class, 'permission_role');
     }
 
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'permission_user');
+    }
+
     public function scopeByModule($query, $module)
     {
         return $query->where('module', $module);

@@ -23,11 +23,16 @@ class ConfigurationSeeder extends Seeder
             ['name' => 'Proveedores', 'slug' => 'proveedores', 'description' => 'Gestión de proveedores', 'icon' => '🏭', 'route' => 'proveedores.index', 'is_active' => true, 'sort_order' => 5],
             ['name' => 'Caja', 'slug' => 'caja', 'description' => 'Arqueo de caja', 'icon' => '💵', 'route' => 'arqueo.index', 'is_active' => true, 'sort_order' => 6],
             ['name' => 'Reportes', 'slug' => 'reportes', 'description' => 'Reportes y estadísticas', 'icon' => '📊', 'route' => 'reportes.index', 'is_active' => true, 'sort_order' => 7],
-            ['name' => 'Configuración', 'slug' => 'configuracion', 'description' => 'Configuración del sistema', 'icon' => '⚙️', 'route' => 'settings.index', 'is_active' => true, 'sort_order' => 8],
+            ['name' => 'Contabilidad', 'slug' => 'contabilidad', 'description' => 'Contabilidad, cuentas y asientos', 'icon' => '📒', 'route' => 'contabilidad.cuentas.index', 'is_active' => true, 'sort_order' => 8],
+            ['name' => 'Configuración', 'slug' => 'configuracion', 'description' => 'Configuración del sistema', 'icon' => '⚙️', 'route' => 'settings.index', 'is_active' => true, 'sort_order' => 9],
+            ['name' => 'Créditos', 'slug' => 'creditos', 'description' => 'Créditos y abonos', 'icon' => '💳', 'route' => 'creditos.index', 'is_active' => true, 'sort_order' => 10],
+            ['name' => 'Proformas', 'slug' => 'proformas', 'description' => 'Cotizaciones', 'icon' => '📄', 'route' => 'proformas.index', 'is_active' => true, 'sort_order' => 11],
+            ['name' => 'Reparaciones', 'slug' => 'reparaciones', 'description' => 'Órdenes de reparación', 'icon' => '🛠️', 'route' => 'reparaciones.index', 'is_active' => true, 'sort_order' => 12],
+            ['name' => 'Planilla', 'slug' => 'planilla', 'description' => 'Planilla y nómina', 'icon' => '🧑‍💼', 'route' => 'planilla.index', 'is_active' => true, 'sort_order' => 13],
         ];
 
         foreach ($modules as $module) {
-            Module::updateOrCreate(['slug' => $module['slug']], $module);
+            Module::firstOrCreate(['slug' => $module['slug']], $module);
         }
 
         // Crear permisos por módulo
@@ -38,8 +43,13 @@ class ConfigurationSeeder extends Seeder
             'clientes' => ['view', 'create', 'edit', 'delete', 'export'],
             'proveedores' => ['view', 'create', 'edit', 'delete', 'export'],
             'caja' => ['view', 'open', 'close', 'export'],
+            'creditos' => ['view', 'create', 'export'],
+            'proformas' => ['view', 'create', 'edit', 'delete', 'export', 'convert'],
+            'reparaciones' => ['view', 'create', 'edit', 'delete', 'export'],
+            'planilla' => ['view', 'create', 'edit', 'export'],
             'reportes' => ['view', 'export'],
-            'configuracion' => ['view', 'edit'],
+            'contabilidad' => ['view', 'create', 'edit', 'delete', 'export', 'close_period'],
+            'configuracion' => ['view', 'edit', 'manage_users', 'manage_roles', 'manage_permissions', 'manage_modules'],
         ];
 
         foreach ($modulePermissions as $module => $actions) {
@@ -67,6 +77,7 @@ class ConfigurationSeeder extends Seeder
             ['name' => 'Compras', 'slug' => 'compras', 'description' => 'Gestión de compras', 'is_system' => true],
             ['name' => 'Contabilidad', 'slug' => 'contabilidad', 'description' => 'Reportes y finanzas', 'is_system' => true],
             ['name' => 'Supervisor', 'slug' => 'supervisor', 'description' => 'Supervisión general', 'is_system' => true],
+            ['name' => 'Usuario básico', 'slug' => 'user', 'description' => 'Acceso básico sin privilegios administrativos', 'is_system' => true],
         ];
 
         foreach ($roles as $roleData) {
@@ -80,6 +91,13 @@ class ConfigurationSeeder extends Seeder
             $adminRole->permissions()->sync($allPermissions);
         }
 
+        // Asignar los permisos de contabilidad al rol contabilidad
+        $contabilidadRole = Role::where('slug', 'contabilidad')->first();
+        if ($contabilidadRole) {
+            $contabilidadPermissions = Permission::where('module', 'contabilidad')->pluck('id');
+            $contabilidadRole->permissions()->sync($contabilidadPermissions);
+        }
+
         // Crear numeraciones iniciales
         $sequences = [
             ['type' => 'factura', 'prefix' => 'FAC-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
@@ -87,10 +105,11 @@ class ConfigurationSeeder extends Seeder
             ['type' => 'cotizacion', 'prefix' => 'COT-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
             ['type' => 'recibo', 'prefix' => 'REC-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
             ['type' => 'ajuste', 'prefix' => 'AJU-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
+            ['type' => 'asiento', 'prefix' => 'POL-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
         ];
 
         foreach ($sequences as $sequence) {
-            NumberSequence::updateOrCreate(['type' => $sequence['type']], $sequence);
+            NumberSequence::firstOrCreate(['type' => $sequence['type']], $sequence);
         }
 
         // Crear configuraciones generales por defecto
@@ -100,13 +119,23 @@ class ConfigurationSeeder extends Seeder
             ['key' => 'company_phone', 'value' => '', 'type' => 'string', 'group' => 'general', 'description' => 'Teléfono de la empresa'],
             ['key' => 'company_email', 'value' => '', 'type' => 'string', 'group' => 'general', 'description' => 'Email de la empresa'],
             ['key' => 'company_ruc', 'value' => '', 'type' => 'string', 'group' => 'general', 'description' => 'RUC de la empresa'],
-            ['key' => 'currency', 'value' => 'C$', 'type' => 'string', 'group' => 'general', 'description' => 'Moneda predeterminada'],
+            ['key' => 'company_legal_name', 'value' => '', 'type' => 'string', 'group' => 'general', 'description' => 'Razón social'],
+            ['key' => 'company_city', 'value' => 'Estelí', 'type' => 'string', 'group' => 'general', 'description' => 'Ciudad'],
+            ['key' => 'company_country', 'value' => 'Nicaragua', 'type' => 'string', 'group' => 'general', 'description' => 'País'],
+            ['key' => 'currency', 'value' => 'NIO', 'type' => 'string', 'group' => 'general', 'description' => 'Moneda predeterminada'],
+            ['key' => 'currency_symbol', 'value' => 'C$', 'type' => 'string', 'group' => 'general', 'description' => 'Símbolo monetario'],
             ['key' => 'tax_rate', 'value' => '15', 'type' => 'float', 'group' => 'general', 'description' => 'Porcentaje de IVA'],
             ['key' => 'timezone', 'value' => 'America/Managua', 'type' => 'string', 'group' => 'general', 'description' => 'Zona horaria'],
+            ['key' => 'date_format', 'value' => 'd/m/Y', 'type' => 'string', 'group' => 'general', 'description' => 'Formato de fecha'],
+            ['key' => 'language', 'value' => 'es', 'type' => 'string', 'group' => 'general', 'description' => 'Idioma'],
+            ['key' => 'company_logo', 'value' => '', 'type' => 'string', 'group' => 'general', 'description' => 'Logo principal'],
+            ['key' => 'ticket_logo', 'value' => '', 'type' => 'string', 'group' => 'general', 'description' => 'Logo para tickets'],
+            ['key' => 'invoice_footer', 'value' => '', 'type' => 'string', 'group' => 'general', 'description' => 'Pie de factura'],
+            ['key' => 'receipt_message', 'value' => '¡Gracias por su compra!', 'type' => 'string', 'group' => 'general', 'description' => 'Mensaje para recibos'],
         ];
 
         foreach ($generalSettings as $setting) {
-            Setting::updateOrCreate(['key' => $setting['key']], $setting);
+            Setting::firstOrCreate(['key' => $setting['key']], $setting);
         }
 
         // Crear configuraciones de seguridad por defecto
@@ -122,7 +151,7 @@ class ConfigurationSeeder extends Seeder
         ];
 
         foreach ($securitySettings as $setting) {
-            Setting::updateOrCreate(['key' => $setting['key']], $setting);
+            Setting::firstOrCreate(['key' => $setting['key']], $setting);
         }
 
         // Crear configuraciones de apariencia por defecto
@@ -133,7 +162,10 @@ class ConfigurationSeeder extends Seeder
         ];
 
         foreach ($appearanceSettings as $setting) {
-            Setting::updateOrCreate(['key' => $setting['key']], $setting);
+            Setting::firstOrCreate(['key' => $setting['key']], $setting);
         }
+
+        // Catálogo de cuentas contables por defecto
+        $this->call(ChartOfAccountsSeeder::class);
     }
 }

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'POS - Punto de Venta')
-@section('hide-header')
+@section('hide-header', 'true')
 @section('main-class', 'p-0 overflow-hidden')
 
 @section('content')
@@ -10,6 +10,7 @@
      data-products='@json($products)'
      data-clients='@json($clients)'
      data-categories='@json($categories)'
+     data-default-tax-rate="{{ $defaultTaxRate }}"
      data-daily-report-url="{{ route('facturacion.pos-daily-report') }}">
 
     {{-- COLUMNA IZQUIERDA: TICKET --}}
@@ -19,8 +20,8 @@
         <div class="px-4 py-2 bg-slate-800 text-white flex items-center justify-between text-xs shrink-0">
             <span class="font-semibold">Ticket #<span id="ticketNumber">1</span></span>
             <div class="flex gap-2">
-                <button type="button" onclick="holdTicket()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg" title="F4 - Apartar">Apartar</button>
-                <button type="button" onclick="showHeldTickets()" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg">
+                <button type="button" onclick="holdTicket()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg" title="F4 - Apartar">Apartar · F4</button>
+                <button type="button" onclick="showHeldTickets()" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg" title="F6 - Recuperar ticket">
                     Recuperar <span id="heldCount" class="bg-white/20 px-1 rounded">0</span>
                 </button>
             </div>
@@ -48,7 +49,7 @@
                     <span id="discountDisplay" class="font-medium text-red-600 hidden">-C$ 0.00</span>
                 </div>
                 <div class="flex justify-between text-sm text-slate-600">
-                    <span>IVA (15%)</span>
+                    <span id="taxLabel">IVA ({{ number_format($defaultTaxRate * 100, 2) }}%)</span>
                     <span id="taxDisplay" class="font-medium">C$ 0.00</span>
                 </div>
                 <div class="border-t border-slate-300 pt-2 flex justify-between">
@@ -59,7 +60,7 @@
         </div>
 
         <div class="p-4 space-y-3 overflow-y-auto shrink-0 max-h-[45%]">
-            <button type="button" id="clientBtn" onclick="document.getElementById('clientModal').classList.remove('hidden')"
+            <button type="button" id="clientBtn" onclick="openClientModal()"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl px-4 transition-all shadow-md text-sm flex items-center justify-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                 <span id="clientDisplay">Cliente General</span>
@@ -88,6 +89,15 @@
     <div class="flex-1 bg-white flex flex-col min-w-0">
 
         <div class="p-3 border-b border-slate-200 bg-white shrink-0 space-y-2">
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 text-[11px] text-slate-500" aria-label="Atajos de teclado del punto de venta">
+                <button type="button" onclick="showShortcutHelp()" class="shrink-0 rounded-md bg-slate-800 px-2 py-1 font-semibold text-white" title="Ver todos los atajos">F1 Atajos</button>
+                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F2</b> Buscar</span>
+                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F3</b> Cliente</span>
+                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F4</b> Apartar</span>
+                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F6</b> Recuperar</span>
+                <span class="shrink-0 rounded-md bg-indigo-50 px-2 py-1 font-semibold text-indigo-700"><b>F9</b> Cobrar</span>
+                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F10</b> Corte</span>
+            </div>
             <div class="flex gap-2">
                 <input type="text" id="productSearch" placeholder="Buscar por nombre o código de barras..."
                     class="flex-1 px-4 py-2 text-sm border border-slate-300 rounded-xl focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600" autocomplete="off">
@@ -132,7 +142,7 @@
             <div class="grid grid-cols-2 gap-2">
                 <button type="button" onclick="clearTicket()" class="bg-slate-400 hover:bg-slate-500 text-white font-semibold py-2 rounded-xl text-sm">Descartar</button>
                 <div class="flex gap-2">
-                    <button type="button" id="dailyReportBtn" class="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 rounded-xl text-sm">Corte del Día</button>
+                    <button type="button" id="dailyReportBtn" class="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 rounded-xl text-sm" title="F10 - Corte del día">Corte del Día</button>
                     <button type="button" id="closeCashBtn" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 rounded-xl text-sm" title="Cierre de Caja (Arqueo)">Cierre Caja</button>
                 </div>
             </div>
@@ -162,6 +172,33 @@
             <div class="p-4 border-t border-slate-200">
                 <button type="button" onclick="document.getElementById('clientModal').classList.add('hidden')"
                     class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    {{-- MODAL: Atajos de teclado --}}
+    <div id="shortcutModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="shortcutModalTitle">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+            <div class="p-5 border-b border-slate-200 flex justify-between items-center">
+                <div>
+                    <h2 id="shortcutModalTitle" class="text-lg font-bold text-slate-900">Atajos del Punto de Venta</h2>
+                    <p class="text-xs text-slate-500 mt-1">En Mac puede ser necesario usar fn + la tecla F.</p>
+                </div>
+                <button type="button" onclick="closeModal('shortcutModal')" class="text-slate-400 hover:text-slate-600" aria-label="Cerrar atajos">✕</button>
+            </div>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 p-5 text-sm">
+                <dt class="font-bold text-indigo-700">F2</dt><dd>Buscar producto o código de barras</dd>
+                <dt class="font-bold text-indigo-700">F3</dt><dd>Seleccionar cliente</dd>
+                <dt class="font-bold text-indigo-700">F4</dt><dd>Apartar el ticket actual</dd>
+                <dt class="font-bold text-indigo-700">F6</dt><dd>Recuperar un ticket apartado</dd>
+                <dt class="font-bold text-indigo-700">F8</dt><dd>Colocar monto exacto durante el cobro</dd>
+                <dt class="font-bold text-indigo-700">F9</dt><dd>Abrir el cobro; pulsar nuevamente para confirmar</dd>
+                <dt class="font-bold text-indigo-700">F10</dt><dd>Abrir el corte del día</dd>
+                <dt class="font-bold text-indigo-700">Supr</dt><dd>Quitar el producto seleccionado</dd>
+                <dt class="font-bold text-indigo-700">Esc</dt><dd>Cerrar la ventana activa</dd>
+            </dl>
+            <div class="p-4 border-t border-slate-200">
+                <button type="button" onclick="closeModal('shortcutModal')" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 rounded-xl">Entendido</button>
             </div>
         </div>
     </div>
@@ -215,6 +252,7 @@
                 <input type="hidden" name="notes" id="notesInput">
                 <input type="hidden" name="amount_received" id="amountReceivedInput">
                 <input type="hidden" name="reference_number" id="referenceNumberInput">
+                <input type="hidden" name="order_discount_pct" id="orderDiscountPctInput" value="0">
 
                 <div class="p-4 border-t border-slate-200 space-y-2 sticky bottom-0 bg-white">
                     <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl">Confirmar Pago</button>
@@ -269,6 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
         category_id: p.category_id,
         category_name: p.category?.name ?? 'Sin categoría',
         image_url: p.image_url ?? null,
+        tax_rate: parseFloat(p.effective_tax_rate ?? app.dataset.defaultTaxRate ?? 0),
     }));
     const clientsData = JSON.parse(app.dataset.clients)
         .filter(c => c.code !== 'GEN')
@@ -295,10 +334,29 @@ document.addEventListener('DOMContentLoaded', function() {
     let orderDiscountPct = 0;
     let ticketCounter = parseInt(localStorage.getItem('pos_ticket_counter') || '1');
     let currentPaymentMethod = 'cash';
-    const TAX_RATE = 0.15;
     const HELD_KEY = 'pos_held_tickets';
+    const modalIds = ['shortcutModal', 'clientModal', 'paymentModal', 'heldModal', 'dailyReportModal'];
 
     document.getElementById('ticketNumber').textContent = ticketCounter;
+
+    function visibleModal() {
+        return modalIds
+            .map(id => document.getElementById(id))
+            .find(modal => modal && !modal.classList.contains('hidden')) || null;
+    }
+
+    window.closeModal = function(id) {
+        document.getElementById(id)?.classList.add('hidden');
+    };
+
+    window.showShortcutHelp = function() {
+        document.getElementById('shortcutModal').classList.remove('hidden');
+    };
+
+    window.openClientModal = function() {
+        document.getElementById('clientModal').classList.remove('hidden');
+        window.setTimeout(() => document.getElementById('clientSearch')?.focus(), 0);
+    };
 
     // Cierre de caja button - abre la pantalla de arqueo
     const closeBtn = document.getElementById('closeCashBtn');
@@ -317,11 +375,18 @@ document.addEventListener('DOMContentLoaded', function() {
         return item.price * item.quantity * (1 - item.discount / 100);
     }
 
+    function itemTaxRate(item) {
+        if (Number.isFinite(parseFloat(item.tax_rate))) return parseFloat(item.tax_rate);
+        const product = products.find(p => p.id == item.product_id);
+        return parseFloat(product?.tax_rate ?? app.dataset.defaultTaxRate ?? 0);
+    }
+
     function getTotal() {
         const subtotal = ticket.reduce((sum, item) => sum + lineSubtotal(item), 0);
         const orderDiscount = subtotal * (orderDiscountPct / 100);
-        const taxable = subtotal - orderDiscount;
-        const tax = taxable * TAX_RATE;
+        const discountedLines = ticket.map(item => lineSubtotal(item) * (1 - orderDiscountPct / 100));
+        const taxable = discountedLines.reduce((sum, value) => sum + value, 0);
+        const tax = ticket.reduce((sum, item, index) => sum + discountedLines[index] * itemTaxRate(item), 0);
         return { subtotal, orderDiscount, tax, total: taxable + tax };
     }
 
@@ -332,6 +397,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('totalDisplay').textContent = formatMoney(total);
         document.getElementById('paymentTotalDisplay').textContent = formatMoney(total);
         document.getElementById('payBtnAmount').textContent = formatMoney(total);
+
+        const rates = [...new Set(ticket.map(item => itemTaxRate(item).toFixed(4)))];
+        const labelRate = rates.length === 1 ? `${(parseFloat(rates[0]) * 100).toFixed(2)}%` : (rates.length > 1 ? 'mixto' : `${(parseFloat(app.dataset.defaultTaxRate || 0) * 100).toFixed(2)}%`);
+        document.getElementById('taxLabel').textContent = `IVA (${labelRate})`;
 
         const discLabel = document.getElementById('discountLabel');
         const discDisplay = document.getElementById('discountDisplay');
@@ -421,6 +490,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 price: product.price,
                 quantity: qty,
                 discount: product.discount_pct || 0,
+                tax_rate: product.tax_rate,
                 max_stock: product.stock,
             });
         }
@@ -694,6 +764,7 @@ document.addEventListener('DOMContentLoaded', function() {
             discount: item.discount || 0,
         })));
         document.getElementById('notesInput').value = notes;
+        document.getElementById('orderDiscountPctInput').value = orderDiscountPct;
         e.target.submit();
     });
 
@@ -819,14 +890,74 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-            if (e.key === 'Escape') e.target.blur();
+        const supportedFunctionKeys = ['F1', 'F2', 'F3', 'F4', 'F6', 'F8', 'F9', 'F10'];
+        const editingText = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable;
+        const openModal = visibleModal();
+
+        if (supportedFunctionKeys.includes(e.key)) {
+            e.preventDefault();
+            if (e.repeat) return;
+        }
+
+        if (e.key === 'F1') {
+            if (openModal?.id === 'shortcutModal') closeModal('shortcutModal');
+            else if (!openModal) showShortcutHelp();
             return;
         }
-        if (e.key === 'F2') { e.preventDefault(); searchInput.focus(); }
-        if (e.key === 'F9') { e.preventDefault(); initiatePayment(); }
-        if (e.key === 'F4') { e.preventDefault(); holdTicket(); }
-        if (e.key === 'Escape') clearTicket();
+
+        if (e.key === 'F2') {
+            if (!openModal) {
+                searchInput.focus();
+                searchInput.select();
+            }
+            return;
+        }
+
+        if (e.key === 'F3') {
+            if (!openModal) openClientModal();
+            return;
+        }
+
+        if (e.key === 'F4') {
+            if (!openModal) holdTicket();
+            return;
+        }
+
+        if (e.key === 'F6') {
+            if (!openModal) showHeldTickets();
+            return;
+        }
+
+        if (e.key === 'F8') {
+            if (openModal?.id === 'paymentModal' && currentPaymentMethod === 'cash') setExactAmount();
+            return;
+        }
+
+        if (e.key === 'F9') {
+            if (openModal?.id === 'paymentModal') {
+                document.getElementById('paymentForm').requestSubmit();
+            } else if (!openModal) {
+                initiatePayment();
+            }
+            return;
+        }
+
+        if (e.key === 'F10') {
+            if (!openModal) document.getElementById('dailyReportBtn').click();
+            return;
+        }
+
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            if (openModal) openModal.classList.add('hidden');
+            else if (editingText) e.target.blur();
+            return;
+        }
+
+        if (e.key === 'Delete' && !editingText && !openModal && selectedItemIndex >= 0) {
+            e.preventDefault();
+            removeTicketItem(selectedItemIndex);
+        }
     });
 
     renderCategoryTabs();

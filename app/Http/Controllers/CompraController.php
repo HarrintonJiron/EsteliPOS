@@ -8,11 +8,16 @@ use App\Models\Purchase;
 use App\Models\PurchaseDetail;
 use App\Models\Supplier;
 use App\Models\InventoryMovement;
+use App\Services\AccountingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CompraController extends Controller
 {
+    public function __construct(private AccountingService $accountingService)
+    {
+    }
+
     public function index(Request $request)
     {
         $perPage = (int) $request->query('per_page', 15);
@@ -89,26 +94,35 @@ class CompraController extends Controller
     {
         $data = $request->validated();
 
-        DB::transaction(function () use ($data, $request) {
+        try {
+            DB::transaction(function () use ($data, $request) {
             $purchase = Purchase::create([
                 'supplier_id' => $data['supplier_id'],
                 'user_id' => $request->user()?->id ?? ($data['user_id'] ?? 1),
                 'date' => $data['date'],
+                'subtotal' => 0,
+                'tax_total' => 0,
                 'total' => 0,
                 'status' => $data['status'] ?? 'completed',
             ]);
 
-            $total = 0;
+            $subtotal = 0;
+            $taxTotal = 0;
 
             foreach ($data['items'] as $item) {
-                $subtotal = $item['quantity'] * $item['price'];
+                $lineNet = $item['quantity'] * $item['price'];
+                $product = Product::find($item['product_id']);
+                $rate = $product?->effectiveTaxRate() ?? \App\Models\Tax::defaultRate();
+                $lineTax = $lineNet * $rate;
 
                 PurchaseDetail::create([
                     'purchase_id' => $purchase->id,
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
-                    'subtotal' => $subtotal,
+                    'subtotal' => $lineNet,
+                    'tax_rate' => $rate,
+                    'tax_amount' => round($lineTax, 2),
                 ]);
 
                 Product::where('id', $item['product_id'])->increment('stock', $item['quantity']);
@@ -123,11 +137,21 @@ class CompraController extends Controller
                     'user_id' => $purchase->user_id,
                 ]);
 
-                $total += $subtotal;
+                $subtotal += $lineNet;
+                $taxTotal += $lineTax;
             }
 
-            $purchase->update(['total' => $total]);
+            $purchase->update([
+                'subtotal' => round($subtotal, 2),
+                'tax_total' => round($taxTotal, 2),
+                'total' => round($subtotal + $taxTotal, 2),
+            ]);
+
+            $this->accountingService->recordPurchase($purchase->fresh());
         });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('compras.index')->with('success', 'Compra creada correctamente.');
     }
@@ -172,7 +196,8 @@ class CompraController extends Controller
         $data = $request->validated();
         $purchase = Purchase::with('details')->findOrFail($id);
 
-        DB::transaction(function () use ($purchase, $data) {
+        try {
+            DB::transaction(function () use ($purchase, $data) {
             // revert stock for existing details
             foreach ($purchase->details as $detail) {
                 Product::where('id', $detail->product_id)->decrement('stock', $detail->quantity);
@@ -192,16 +217,22 @@ class CompraController extends Controller
             PurchaseDetail::where('purchase_id', $purchase->id)->delete();
 
             // create new details and update stock
-            $total = 0;
+            $subtotal = 0;
+            $taxTotal = 0;
             foreach ($data['items'] as $item) {
-                $subtotal = $item['quantity'] * $item['price'];
+                $lineNet = $item['quantity'] * $item['price'];
+                $product = Product::find($item['product_id']);
+                $rate = $product?->effectiveTaxRate() ?? \App\Models\Tax::defaultRate();
+                $lineTax = $lineNet * $rate;
 
                 PurchaseDetail::create([
                     'purchase_id' => $purchase->id,
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
-                    'subtotal' => $subtotal,
+                    'subtotal' => $lineNet,
+                    'tax_rate' => $rate,
+                    'tax_amount' => round($lineTax, 2),
                 ]);
 
                 Product::where('id', $item['product_id'])->increment('stock', $item['quantity']);
@@ -216,16 +247,25 @@ class CompraController extends Controller
                     'user_id' => $purchase->user_id,
                 ]);
 
-                $total += $subtotal;
+                $subtotal += $lineNet;
+                $taxTotal += $lineTax;
             }
 
             $purchase->update([
                 'supplier_id' => $data['supplier_id'],
                 'date' => $data['date'],
-                'total' => $total,
+                'subtotal' => round($subtotal, 2),
+                'tax_total' => round($taxTotal, 2),
+                'total' => round($subtotal + $taxTotal, 2),
                 'status' => $data['status'] ?? $purchase->status,
             ]);
+
+            $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra editada');
+            $this->accountingService->recordPurchase($purchase->fresh());
         });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('compras.index')->with('success', 'Compra actualizada correctamente.');
     }
@@ -234,7 +274,8 @@ class CompraController extends Controller
     {
         $purchase = Purchase::with('details')->findOrFail($id);
 
-        DB::transaction(function () use ($purchase) {
+        try {
+            DB::transaction(function () use ($purchase) {
             foreach ($purchase->details as $detail) {
                 Product::where('id', $detail->product_id)->decrement('stock', $detail->quantity);
                 $product = Product::find($detail->product_id);
@@ -251,7 +292,12 @@ class CompraController extends Controller
 
             PurchaseDetail::where('purchase_id', $purchase->id)->delete();
             $purchase->delete();
+
+            $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra eliminada');
         });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('compras.index')->with('success', 'Compra eliminada correctamente.');
     }
