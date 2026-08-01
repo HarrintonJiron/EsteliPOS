@@ -188,8 +188,11 @@
         </footer>
     </main>
 
-    <script>
-        window.addEventListener('load', () => window.print());
-    </script>
+    @if(request()->boolean('autoprint'))
+        <script>
+            window.addEventListener('afterprint', () => window.close());
+            window.addEventListener('load', () => window.print());
+        </script>
+    @endif
 </body>
 </html>

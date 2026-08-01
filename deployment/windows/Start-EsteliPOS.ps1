@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([int]$Port = 8080)
+param(
+    [int]$Port = 8080,
+    [string]$HostAddress = "127.0.0.1"
+)
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
@@ -23,7 +26,7 @@ if (Test-Path $PidFile) {
 }
 
 $Process = Start-Process -FilePath $PhpPath `
-    -ArgumentList @("artisan", "serve", "--host=127.0.0.1", "--port=$Port", "--no-reload") `
+    -ArgumentList @("artisan", "serve", "--host=$HostAddress", "--port=$Port", "--no-reload") `
     -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
 $Process.Id | Set-Content -Path $PidFile -Encoding ASCII

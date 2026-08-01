@@ -9,7 +9,7 @@ El código integrado de ambos desarrolladores queda aprobado como candidato téc
 
 ## Validaciones ejecutadas
 
-- 61 pruebas automatizadas, 345 aserciones: aprobadas después de la integración.
+- 64 pruebas automatizadas, 362 aserciones: aprobadas después de la integración.
 - Catálogo simulado de 5,000 productos: el POS mantuvo una carga inicial limitada y encontró productos adicionales mediante búsqueda bajo demanda.
 - Compilación de Vite para producción: aprobada.
 - Sintaxis PHP de `app`, `database`, `routes` y `tests`: aprobada.
@@ -19,6 +19,8 @@ El código integrado de ambos desarrolladores queda aprobado como candidato téc
 - Migración de índices y unicidad contra MySQL: aprobada.
 - Auditoría Composer: 0 vulnerabilidades conocidas.
 - Auditoría npm: 0 vulnerabilidades conocidas.
+- Prueba visual del inicio de sesión con los recursos compilados localmente: aprobada.
+- Revisión de dependencias web externas: no quedan CDN de estilos, fuentes ni gráficos en las vistas de producción.
 
 ## Riesgos corregidos
 
@@ -37,6 +39,9 @@ El código integrado de ambos desarrolladores queda aprobado como candidato téc
 - Se preservó el nombre histórico de la migración de roles para evitar que una instalación existente intente crear de nuevo la tabla `roles`.
 - Las migraciones y catálogos de reparaciones se ejecutan durante la instalación; ya no se modifica el esquema de la base de datos desde solicitudes web.
 - Se agregó un paquete de despliegue local para Windows con SQLite, verificación previa, arranque automático, diagnóstico y respaldo diario con segunda copia opcional.
+- El perfil SQLite usa WAL, espera de bloqueo de 5 segundos y transacciones inmediatas para una PC de caja y una tablet con carga ligera.
+- El instalador habilita acceso únicamente desde la red privada local y crea un acceso directo de Edge/Chrome con impresión silenciosa.
+- El botón del ticket envía la impresión a la impresora predeterminada; la gaveta se abre mediante la configuración del controlador de la impresora térmica.
 
 ## Condiciones obligatorias antes de instalar
 
@@ -51,9 +56,10 @@ El código integrado de ambos desarrolladores queda aprobado como candidato téc
      --force
    ```
 
-4. Configurar una copia diaria externa de la base MySQL y probar una restauración antes de cargar datos reales. El módulo de respaldos interno sigue marcado como “Próximamente”; no debe considerarse una copia de seguridad.
-5. Probar en el equipo del cliente: inicio de sesión, venta de contado, venta a crédito, compra, impresión 80 mm, cierre de caja, inventario, reparaciones y reportes contables.
+4. Configurar la segunda copia externa del archivo SQLite y probar una restauración antes de cargar datos reales. El módulo de respaldos interno sigue marcado como “Próximamente”; no debe considerarse una copia de seguridad.
+5. Probar en el equipo del cliente: inicio de sesión desde PC y tablet, venta de contado, venta a crédito, compra, impresión silenciosa en 80 mm, apertura de gaveta, cierre de caja, inventario, reparaciones y reportes contables.
 6. No usar `compose.yaml` tal como está para exponer el sistema a Internet: es el entorno Laravel Sail de desarrollo. El despliegue debe usar una configuración de producción con servidor web, volúmenes persistentes y política de reinicio.
+7. Reservar la dirección IP de la PC en el router y mantener la red de Windows como privada; este perfil no debe exponerse directamente a Internet.
 
 ## Criterio de liberación
 

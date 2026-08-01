@@ -3,7 +3,8 @@ param(
     [int]$Port = 8080,
     [string]$AdminName = "Administrador",
     [string]$AdminEmail = "",
-    [string]$ExternalBackupPath = ""
+    [string]$ExternalBackupPath = "",
+    [string]$LanAddress = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -68,6 +69,26 @@ try {
     if ($Port -lt 1024 -or $Port -gt 65535) {
         Stop-WithError "El puerto debe estar entre 1024 y 65535."
     }
+    if ([string]::IsNullOrWhiteSpace($LanAddress)) {
+        $LanAddress = Get-NetIPConfiguration |
+            Where-Object { $_.IPv4DefaultGateway -and $_.IPv4Address } |
+            ForEach-Object { $_.IPv4Address.IPAddress } |
+            Where-Object { $_ -notlike "169.254.*" } |
+            Select-Object -First 1
+    }
+    if ([string]::IsNullOrWhiteSpace($LanAddress)) {
+        Stop-WithError "No se encontro una direccion IPv4 de red local. Conecta la PC al Wi-Fi y vuelve a intentar."
+    }
+
+    $ActiveNetwork = Get-NetConnectionProfile |
+        Where-Object { $_.IPv4Connectivity -ne "Disconnected" } |
+        Select-Object -First 1
+    if ($ActiveNetwork -and $ActiveNetwork.NetworkCategory -eq "Public") {
+        Set-NetConnectionProfile -InterfaceIndex $ActiveNetwork.InterfaceIndex -NetworkCategory Private
+        Write-Host "La red activa se configuro como privada para permitir el acceso de la tablet."
+    }
+
+    $AppUrl = "http://${LanAddress}:$Port"
 
     Set-Location $ProjectRoot
     $EnvPath = Join-Path $ProjectRoot ".env"
@@ -86,9 +107,13 @@ try {
 
     Set-EnvValue $EnvPath "APP_ENV" "production"
     Set-EnvValue $EnvPath "APP_DEBUG" "false"
-    Set-EnvValue $EnvPath "APP_URL" "http://127.0.0.1:$Port"
+    Set-EnvValue $EnvPath "APP_URL" $AppUrl
     Set-EnvValue $EnvPath "DB_CONNECTION" "sqlite"
     Set-EnvValue $EnvPath "DB_DATABASE" "`"$DatabaseEnvPath`""
+    Set-EnvValue $EnvPath "DB_BUSY_TIMEOUT" "5000"
+    Set-EnvValue $EnvPath "DB_JOURNAL_MODE" "WAL"
+    Set-EnvValue $EnvPath "DB_SYNCHRONOUS" "NORMAL"
+    Set-EnvValue $EnvPath "DB_TRANSACTION_MODE" "IMMEDIATE"
     Set-EnvValue $EnvPath "SESSION_DRIVER" "database"
     Set-EnvValue $EnvPath "CACHE_STORE" "database"
     Set-EnvValue $EnvPath "QUEUE_CONNECTION" "database"
@@ -118,14 +143,14 @@ try {
     Write-Step "Configurando arranque automatico"
     $StartScript = Join-Path $PSScriptRoot "Start-EsteliPOS.ps1"
     $BackupScript = Join-Path $PSScriptRoot "Backup-EsteliPOS.ps1"
-    $RunCommand = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$StartScript`" -Port $Port"
+    $RunCommand = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$StartScript`" -Port $Port -HostAddress 0.0.0.0"
     New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Force | Out-Null
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "EsteliPOS" -Value $RunCommand
 
     if ([string]::IsNullOrWhiteSpace($ExternalBackupPath)) {
         $ExternalBackupPath = Read-Host "Ruta opcional para una segunda copia (USB, red o nube; Enter para omitir)"
     }
-    $BackupArguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$BackupScript`" -Port $Port"
+    $BackupArguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$BackupScript`" -Port $Port -HostAddress 0.0.0.0"
     if (-not [string]::IsNullOrWhiteSpace($ExternalBackupPath)) {
         New-Item -ItemType Directory -Force -Path $ExternalBackupPath | Out-Null
         $BackupArguments += " -ExternalBackupPath `"$ExternalBackupPath`""
@@ -139,17 +164,41 @@ try {
     $Principal = New-ScheduledTaskPrincipal -UserId $CurrentUser -LogonType Interactive -RunLevel Limited
     Register-ScheduledTask -TaskName "EsteliPOS - Respaldo diario" -Action $Action -Trigger $Trigger -Principal $Principal -Description "Respaldo diario local de EsteliPOS" -Force | Out-Null
 
+    $FirewallName = "EsteliPOS LAN - Puerto $Port"
+    if (-not (Get-NetFirewallRule -DisplayName $FirewallName -ErrorAction SilentlyContinue)) {
+        New-NetFirewallRule -DisplayName $FirewallName -Direction Inbound -Action Allow -Protocol TCP `
+            -LocalPort $Port -Profile Private -RemoteAddress LocalSubnet | Out-Null
+    }
+
+    $BrowserCandidates = @(
+        "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+        "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+        "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+        "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+    )
+    $BrowserPath = $BrowserCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    if (-not $BrowserPath) {
+        Stop-WithError "No se encontro Microsoft Edge ni Google Chrome. Se requiere uno para la impresion silenciosa."
+    }
+
     $Desktop = [Environment]::GetFolderPath("Desktop")
-    $ShortcutPath = Join-Path $Desktop "EsteliPOS.url"
-    @("[InternetShortcut]", "URL=http://127.0.0.1:$Port", "IconFile=$env:SystemRoot\System32\SHELL32.dll", "IconIndex=220") |
-        Set-Content -Path $ShortcutPath -Encoding ASCII
+    $ShortcutPath = Join-Path $Desktop "EsteliPOS.lnk"
+    $BrowserProfile = Join-Path $ProjectRoot "storage\app\browser-profile"
+    $Shell = New-Object -ComObject WScript.Shell
+    $Shortcut = $Shell.CreateShortcut($ShortcutPath)
+    $Shortcut.TargetPath = $BrowserPath
+    $Shortcut.Arguments = "--app=`"$AppUrl`" --kiosk-printing --user-data-dir=`"$BrowserProfile`""
+    $Shortcut.WorkingDirectory = $ProjectRoot
+    $Shortcut.IconLocation = "$BrowserPath,0"
+    $Shortcut.Save()
 
     Write-Step "Iniciando y comprobando EsteliPOS"
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $StartScript -Port $Port
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $StartScript -Port $Port -HostAddress "0.0.0.0"
     if ($LASTEXITCODE -ne 0) { Stop-WithError "El servicio local no pudo iniciar." }
 
     Write-Host "`nDESPLIEGUE COMPLETADO" -ForegroundColor Green
-    Write-Host "Direccion: http://127.0.0.1:$Port"
+    Write-Host "Direccion PC y tablet: $AppUrl"
+    Write-Host "Reserva esta IP en el router para que la direccion de la tablet no cambie."
     Write-Host "Usuario administrador: $AdminEmail"
     Write-Host "Base de datos: $DatabasePath"
     Write-Host "Respaldos: storage\app\backups (diariamente a las 7:00 PM)"
@@ -157,7 +206,7 @@ try {
         Write-Host "Segunda copia: $ExternalBackupPath"
     }
     Write-Host "Se creo el acceso directo EsteliPOS en el escritorio."
-    Start-Process "http://127.0.0.1:$Port"
+    Start-Process $ShortcutPath
     Read-Host "Presiona Enter para finalizar"
 } catch {
     Stop-WithError $_.Exception.Message

@@ -2,7 +2,8 @@
 param(
     [int]$Port = 8080,
     [int]$RetentionDays = 30,
-    [string]$ExternalBackupPath = ""
+    [string]$ExternalBackupPath = "",
+    [string]$HostAddress = "127.0.0.1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,5 +39,5 @@ try {
     Add-Content $LogPath "$(Get-Date -Format s) ERROR $($_.Exception.Message)"
     throw
 } finally {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Start-EsteliPOS.ps1") -Port $Port
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Start-EsteliPOS.ps1") -Port $Port -HostAddress $HostAddress
 }

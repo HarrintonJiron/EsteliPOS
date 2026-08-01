@@ -379,11 +379,10 @@ function imprimirRecibo() {
 
 
 </script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
+document.addEventListener('DOMContentLoaded', () => {
 const ctx = document.getElementById('graficoNomina');
-
+if (!ctx) return;
 new Chart(ctx, {
     type: 'line',
     data: {
@@ -396,6 +395,7 @@ new Chart(ctx, {
             tension: 0.3
         }]
     }
+});
 });
 </script>
 
