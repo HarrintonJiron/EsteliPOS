@@ -26,16 +26,6 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
-        $this->call([
-            UserSeeder::class,
-            CategorySeeder::class,
-            SupplierSeeder::class,
-            ClientSeeder::class,
-            EmployeeSeeder::class,
-            ProductSeeder::class,
-            DemoDataSeeder::class,
-            CreditHeavySeeder::class,
-            AgroProductSeeder::class,
-        ]);
+        $this->call(ComprehensiveDemoSeeder::class);
     }
 }
