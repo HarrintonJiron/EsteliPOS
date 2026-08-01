@@ -3,7 +3,7 @@ Northlink Microsystem
 
 REQUISITOS
 - Windows 10 u 11 de 64 bits.
-- PHP 8.2 o superior agregado al PATH.
+- PHP 8.4.1 o superior agregado al PATH.
 - Extensiones PHP: ctype, dom, fileinfo, gd, mbstring, openssl, pdo_sqlite,
   sqlite3, tokenizer, xml y zip.
 - El paquete ZIP oficial generado desde la rama validada.

@@ -8,6 +8,7 @@ test('the windows deployment package is self contained and production safe', fun
         ->toContain('APP_ENV" "production"')
         ->toContain('APP_DEBUG" "false"')
         ->toContain('DB_CONNECTION" "sqlite"')
+        ->toContain('[version]"8.4.1"')
         ->toContain('app:install-production')
         ->toContain('Register-ScheduledTask')
         ->toContain('ExternalBackupPath')

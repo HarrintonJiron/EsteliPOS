@@ -43,13 +43,13 @@ try {
 
     Write-Step "Comprobando el paquete"
     if (-not $PhpCommand) {
-        Stop-WithError "PHP 8.2 o superior no esta instalado o no esta agregado al PATH."
+        Stop-WithError "PHP 8.4.1 o superior no esta instalado o no esta agregado al PATH."
     }
 
     $PhpPath = $PhpCommand.Source
     $PhpVersion = & $PhpPath -r "echo PHP_VERSION;"
-    if ([version]$PhpVersion -lt [version]"8.2.0") {
-        Stop-WithError "Se requiere PHP 8.2 o superior. Version encontrada: $PhpVersion"
+    if ([version]$PhpVersion -lt [version]"8.4.1") {
+        Stop-WithError "Se requiere PHP 8.4.1 o superior. Version encontrada: $PhpVersion"
     }
 
     $RequiredExtensions = @("ctype", "dom", "fileinfo", "gd", "mbstring", "openssl", "pdo_sqlite", "sqlite3", "tokenizer", "xml", "zip")
