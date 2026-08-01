@@ -70,3 +70,16 @@ The Laravel framework is open-sourced software licensed under the [MIT license](
 ```
 
 This project defaults DB host to `mysql` to match Sail configuration.
+
+## Despliegue local para Windows
+
+El paquete de una sola computadora se genera desde un commit validado con:
+
+```bash
+./deployment/build-release.sh
+```
+
+La instalación y operación están documentadas en `deployment/windows/README.txt`.
+Este perfil utiliza SQLite, inicia EsteliPOS automáticamente al entrar en Windows
+y programa respaldos locales diarios. Para múltiples cajas se requiere el perfil
+de servidor con MySQL.
