@@ -13,6 +13,7 @@ use App\Http\Controllers\CompraController;
 use App\Http\Controllers\CostCenterController;
 use App\Http\Controllers\CreditController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeviceBrandController;
 use App\Http\Controllers\DiarioController;
 use App\Http\Controllers\FacturacionController;
 use App\Http\Controllers\FiscalPeriodController;
@@ -28,6 +29,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PlanillaController;
 use App\Http\Controllers\ProformaController;
 use App\Http\Controllers\ProveedorController;
+use App\Http\Controllers\RepairServiceController;
 use App\Http\Controllers\ReparacionController;
 use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\RoleController;
@@ -170,6 +172,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Reparaciones
     Route::middleware('module:reparaciones')->group(function () {
+        Route::get('/device-brands', [DeviceBrandController::class, 'index'])->name('device-brands.index');
+        Route::post('/device-brands', [DeviceBrandController::class, 'store'])->name('device-brands.store');
+        Route::get('/repair-services', [RepairServiceController::class, 'index'])->name('repair-services.index');
+        Route::post('/repair-services', [RepairServiceController::class, 'store'])->name('repair-services.store');
         Route::get('/reparaciones', [ReparacionController::class, 'index'])->name('reparaciones.index');
         Route::get('/reparaciones/nueva', [ReparacionController::class, 'create'])->name('reparaciones.create');
         Route::post('/reparaciones', [ReparacionController::class, 'store'])->name('reparaciones.store');

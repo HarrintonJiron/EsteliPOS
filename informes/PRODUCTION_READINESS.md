@@ -9,7 +9,7 @@ El código integrado de ambos desarrolladores queda aprobado como candidato téc
 
 ## Validaciones ejecutadas
 
-- 59 pruebas automatizadas, 322 aserciones: aprobadas después de la integración.
+- 60 pruebas automatizadas, 328 aserciones: aprobadas después de la integración.
 - Catálogo simulado de 5,000 productos: el POS mantuvo una carga inicial limitada y encontró productos adicionales mediante búsqueda bajo demanda.
 - Compilación de Vite para producción: aprobada.
 - Sintaxis PHP de `app`, `database`, `routes` y `tests`: aprobada.
