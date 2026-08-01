@@ -5,11 +5,11 @@ Rama revisada: `codex/integracion-contabilidad-configuracion-pos`
 
 ## Resultado
 
-El código de esta rama queda aprobado como candidato técnico para despliegue después de completar las condiciones previas indicadas al final. La aprobación debe repetirse sobre el commit final después de integrar el trabajo del segundo desarrollador.
+El código integrado de ambos desarrolladores queda aprobado como candidato técnico para despliegue después de completar las condiciones previas indicadas al final. La revisión se repitió sobre la integración final y se corrigieron los problemas de compatibilidad detectados.
 
 ## Validaciones ejecutadas
 
-- 55 pruebas automatizadas, 315 aserciones: aprobadas.
+- 59 pruebas automatizadas, 322 aserciones: aprobadas después de la integración.
 - Catálogo simulado de 5,000 productos: el POS mantuvo una carga inicial limitada y encontró productos adicionales mediante búsqueda bajo demanda.
 - Compilación de Vite para producción: aprobada.
 - Sintaxis PHP de `app`, `database`, `routes` y `tests`: aprobada.
@@ -33,13 +33,15 @@ El código de esta rama queda aprobado como candidato técnico para despliegue d
 - Convertir una proforma genera inventario y asiento contable, y no puede ejecutarse dos veces.
 - Se agregaron índices para ventas, cartera, compras, inventario y diario contable.
 - Los roles operativos reciben permisos iniciales coherentes y las operaciones de venta están protegidas por acción.
+- La integración de reparaciones, marcas, servicios y descuentos fue validada junto con contabilidad, configuración y POS.
+- Se preservó el nombre histórico de la migración de roles para evitar que una instalación existente intente crear de nuevo la tabla `roles`.
+- Las migraciones y catálogos de reparaciones se ejecutan durante la instalación; ya no se modifica el esquema de la base de datos desde solicitudes web.
 
 ## Condiciones obligatorias antes de instalar
 
-1. Integrar la rama del segundo desarrollador y repetir toda la suite sobre el commit resultante.
-2. Usar `.env.production.example`, generar un `APP_KEY` nuevo y cambiar todas las contraseñas.
-3. Mantener `APP_ENV=production`, `APP_DEBUG=false` y `SEED_DEMO_DATA=false`.
-4. Ejecutar el instalador contra una base vacía y conservar su salida:
+1. Usar `.env.production.example`, generar un `APP_KEY` nuevo y cambiar todas las contraseñas.
+2. Mantener `APP_ENV=production`, `APP_DEBUG=false` y `SEED_DEMO_DATA=false`.
+3. Ejecutar el instalador contra una base vacía y conservar su salida:
 
    ```bash
    php artisan app:install-production \
@@ -48,9 +50,9 @@ El código de esta rama queda aprobado como candidato técnico para despliegue d
      --force
    ```
 
-5. Configurar una copia diaria externa de la base MySQL y probar una restauración antes de cargar datos reales. El módulo de respaldos interno sigue marcado como “Próximamente”; no debe considerarse una copia de seguridad.
-6. Probar en el equipo del cliente: inicio de sesión, venta de contado, venta a crédito, compra, impresión 80 mm, cierre de caja, inventario y reportes contables.
-7. No usar `compose.yaml` tal como está para exponer el sistema a Internet: es el entorno Laravel Sail de desarrollo. El despliegue debe usar una configuración de producción con servidor web, volúmenes persistentes y política de reinicio.
+4. Configurar una copia diaria externa de la base MySQL y probar una restauración antes de cargar datos reales. El módulo de respaldos interno sigue marcado como “Próximamente”; no debe considerarse una copia de seguridad.
+5. Probar en el equipo del cliente: inicio de sesión, venta de contado, venta a crédito, compra, impresión 80 mm, cierre de caja, inventario, reparaciones y reportes contables.
+6. No usar `compose.yaml` tal como está para exponer el sistema a Internet: es el entorno Laravel Sail de desarrollo. El despliegue debe usar una configuración de producción con servidor web, volúmenes persistentes y política de reinicio.
 
 ## Criterio de liberación
 

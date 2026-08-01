@@ -14,6 +14,8 @@ class ProductionSeeder extends Seeder
         $this->call([
             ConfigurationSeeder::class,
             AccountingSeeder::class,
+            DeviceBrandSeeder::class,
+            RepairServiceSeeder::class,
         ]);
     }
 }

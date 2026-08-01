@@ -4,54 +4,26 @@ namespace App\Http\Controllers;
 
 use App\Models\RepairService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class RepairServiceController extends Controller
 {
-    private function ensureTableExists()
-    {
-        if (! Schema::hasTable('repair_services')) {
-            try {
-                Artisan::call('migrate', [
-                    '--path' => 'database/migrations/2026_08_01_100154_create_repair_services_table.php',
-                    '--force' => true,
-                ]);
-
-                Artisan::call('db:seed', [
-                    '--class' => 'RepairServiceSeeder',
-                    '--force' => true,
-                ]);
-            } catch (\Exception $e) {
-                \Log::error('Failed to create repair_services table: '.$e->getMessage());
-            }
-        }
-    }
-
     public function index()
     {
-        $this->ensureTableExists();
+        $services = RepairService::active()->orderBy('name')->get(['id', 'name', 'description', 'price']);
 
-        try {
-            $services = RepairService::active()->orderBy('name')->get(['id', 'name', 'description', 'price']);
-
-            return response()->json($services);
-        } catch (\Exception $e) {
-            return response()->json([]);
-        }
+        return response()->json($services);
     }
 
     public function store(Request $request)
     {
-        $this->ensureTableExists();
-
         try {
             $validated = $request->validate([
                 'name' => 'required|string|max:200|unique:repair_services,name',
                 'description' => 'nullable|string',
                 'price' => 'required|numeric|min:0',
             ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json([
                 'error' => 'Validación fallida',
                 'errors' => $e->errors(),
@@ -72,7 +44,6 @@ class RepairServiceController extends Controller
 
             return response()->json([
                 'error' => 'Error al crear el servicio en la base de datos',
-                'message' => $e->getMessage(),
             ], 500);
         }
     }
