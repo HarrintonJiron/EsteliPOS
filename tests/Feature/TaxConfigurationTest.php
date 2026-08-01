@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\Module;
 use App\Models\Product;
+use App\Models\Proforma;
 use App\Models\Role;
 use App\Models\Sale;
 use App\Models\Setting;
@@ -90,6 +91,40 @@ test('pos preview receives the effective product tax instead of a fixed fifteen 
         ->assertSee('requestSubmit()', false)
         ->assertDontSee('const TAX_RATE = 0.15', false);
     expect((float) $response->viewData('products')->first()->effective_tax_rate)->toBe(0.0);
+});
+
+test('proforma pos receives configured taxes and saves the same exempt total shown in its preview', function () {
+    $admin = taxAdminUser();
+    Tax::query()->update(['is_default' => false]);
+    Tax::create(['code' => 'IVA-PROFORMA', 'name' => 'IVA', 'rate' => .15, 'is_default' => true, 'is_active' => true]);
+    $exemptTax = Tax::create(['code' => 'EXENTO-PROFORMA', 'name' => 'Exento', 'rate' => 0, 'is_default' => false, 'is_active' => true]);
+    $product = taxableProduct($exemptTax);
+
+    $response = $this->actingAs($admin)->get(route('proformas.pos'));
+
+    $response->assertOk()
+        ->assertViewHas('defaultTaxRate', fn ($rate) => (float) $rate === .15)
+        ->assertSee('data-default-tax-rate="0.15"', false);
+    expect((float) $response->viewData('products')->first()->effective_tax_rate)->toBe(0.0);
+
+    $this->actingAs($admin)->post(route('proformas.store'), [
+        'items' => json_encode([[
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'price' => 9999,
+            'discount' => 0,
+        ]]),
+        'order_discount_pct' => 10,
+        'expiry_days' => 15,
+        'notes' => 'Proforma exenta de prueba',
+    ])->assertRedirect();
+
+    $proforma = Proforma::latest('id')->firstOrFail();
+
+    expect((float) $proforma->subtotal)->toBe(90.0)
+        ->and((float) $proforma->tax_total)->toBe(0.0)
+        ->and((float) $proforma->total)->toBe(90.0)
+        ->and((float) $proforma->details()->firstOrFail()->price)->toBe(100.0);
 });
 
 test('the legacy new sale url redirects to the point of sale', function () {

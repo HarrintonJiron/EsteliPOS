@@ -9,7 +9,7 @@ El código integrado de ambos desarrolladores queda aprobado como candidato téc
 
 ## Validaciones ejecutadas
 
-- 66 pruebas automatizadas, 387 aserciones: aprobadas después de la integración.
+- 67 pruebas automatizadas, 396 aserciones: aprobadas después de la integración.
 - Catálogo simulado de 5,000 productos: el POS mantuvo una carga inicial limitada y encontró productos adicionales mediante búsqueda bajo demanda.
 - Compilación de Vite para producción: aprobada.
 - Sintaxis PHP de `app`, `database`, `routes` y `tests`: aprobada.
@@ -44,6 +44,7 @@ El código integrado de ambos desarrolladores queda aprobado como candidato téc
 - El botón del ticket envía la impresión a la impresora predeterminada; la gaveta se abre mediante la configuración del controlador de la impresora térmica.
 - Se restauró y cubrió con una prueba de regresión la ruta compartida para crear categorías desde Inventario, Carga rápida y Carga masiva.
 - Se agregó un conjunto integral de demostración, exclusivo para local/testing, con datos relacionados de productos, clientes, proveedores, ventas, compras, cartera, proformas, reparaciones, nómina, caja, inventario y contabilidad; una marca interna impide cargarlo dos veces.
+- El POS de proformas recibe la tasa configurada, calcula impuestos por producto y vuelve a validar precios, cantidades y descuentos en el servidor; se eliminó la dependencia de un IVA fijo.
 
 ## Condiciones obligatorias antes de instalar
 
