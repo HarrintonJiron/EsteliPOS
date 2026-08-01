@@ -9,7 +9,7 @@ El código integrado de ambos desarrolladores queda aprobado como candidato téc
 
 ## Validaciones ejecutadas
 
-- 64 pruebas automatizadas, 362 aserciones: aprobadas después de la integración.
+- 65 pruebas automatizadas, 368 aserciones: aprobadas después de la integración.
 - Catálogo simulado de 5,000 productos: el POS mantuvo una carga inicial limitada y encontró productos adicionales mediante búsqueda bajo demanda.
 - Compilación de Vite para producción: aprobada.
 - Sintaxis PHP de `app`, `database`, `routes` y `tests`: aprobada.
@@ -42,6 +42,7 @@ El código integrado de ambos desarrolladores queda aprobado como candidato téc
 - El perfil SQLite usa WAL, espera de bloqueo de 5 segundos y transacciones inmediatas para una PC de caja y una tablet con carga ligera.
 - El instalador habilita acceso únicamente desde la red privada local y crea un acceso directo de Edge/Chrome con impresión silenciosa.
 - El botón del ticket envía la impresión a la impresora predeterminada; la gaveta se abre mediante la configuración del controlador de la impresora térmica.
+- Se restauró y cubrió con una prueba de regresión la ruta compartida para crear categorías desde Inventario, Carga rápida y Carga masiva.
 
 ## Condiciones obligatorias antes de instalar
 

@@ -104,6 +104,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/inventario/create', [InventarioController::class, 'create'])->name('inventario.create');
         Route::get('/inventario/rapido', [InventarioController::class, 'quick'])->name('inventario.quick');
         Route::post('/inventario/rapido', [InventarioController::class, 'quickStore'])->name('inventario.quick-store');
+        Route::post('/categorias', [InventarioController::class, 'storeCategory'])->name('categorias.store');
         Route::get('/inventario/buscar/{code}', [InventarioController::class, 'lookupCode'])->name('inventario.lookup');
         Route::post('/inventario', [InventarioController::class, 'store'])->name('inventario.store');
         Route::get('/inventario/dashboard', [InventarioController::class, 'dashboard'])->name('inventario.dashboard');

@@ -33,6 +33,22 @@ function productImagePayload(Category $category, string $code): array
     ];
 }
 
+test('inventory screens can create categories through their shared route', function () {
+    $admin = productImageAdmin();
+
+    $this->actingAs($admin)
+        ->get(route('inventario.index'))
+        ->assertOk();
+
+    $this->actingAs($admin)
+        ->postJson(route('categorias.store'), ['name' => 'Nueva categoría'])
+        ->assertCreated()
+        ->assertJsonStructure(['id', 'name'])
+        ->assertJsonPath('name', 'Nueva categoría');
+
+    $this->assertDatabaseHas('categories', ['name' => 'Nueva categoría']);
+});
+
 test('an image can be uploaded while creating a product', function () {
     Storage::fake('public');
     $admin = productImageAdmin();
