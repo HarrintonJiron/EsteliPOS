@@ -43,6 +43,7 @@ Route::middleware(['auth'])->group(function () {
     Route::match(['put', 'patch'], '/facturacion/{id}', [FacturacionController::class, 'update'])->name('facturacion.update');
     Route::delete('/facturacion/{id}', [FacturacionController::class, 'destroy'])->name('facturacion.destroy');
     Route::get('/facturacion/print', [FacturacionController::class, 'print'])->name('facturacion.print');
+    
 
     // Rutas de Crédito y Abonos
     Route::get('/creditos', [CreditController::class, 'index'])->name('creditos.index');

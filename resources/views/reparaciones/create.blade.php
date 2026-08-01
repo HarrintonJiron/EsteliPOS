@@ -254,7 +254,7 @@ function fillClient(sel) {
     document.getElementById('client_id_input').value = opt.value || '';
 }
 
-function fmt(v) { return 'C$ ' + parseFloat(v || 0).toFixed(2); }
+function fmt(v) { return 'C$ ' + parseFloat(v || 0).toFixed(2); };
 
 function addItem(desc = '', qty = 1, price = 0, productId = '') {
     document.getElementById('noItemsMsg').classList.add('hidden');

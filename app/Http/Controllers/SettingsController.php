@@ -81,10 +81,22 @@ class SettingsController extends Controller
                 'modules.*.sort_order' => 'integer',
             ]);
 
-            foreach ($validated['modules'] as $moduleId => $data) {
-                $module = Module::find($moduleId);
-                if ($module) {
-                    $module->update($data);
+            // Obtener todos los módulos
+            $allModules = Module::all();
+            
+            foreach ($allModules as $module) {
+                $moduleId = $module->id;
+                
+                // Si el módulo está en el request, actualizar con los datos enviados
+                if (isset($validated['modules'][$moduleId])) {
+                    $data = $validated['modules'][$moduleId];
+                    $module->update([
+                        'is_active' => isset($data['is_active']) ? (bool) $data['is_active'] : false,
+                        'sort_order' => $data['sort_order'] ?? $module->sort_order,
+                    ]);
+                } else {
+                    // Si el módulo no está en el request, desactivarlo
+                    $module->update(['is_active' => false]);
                 }
             }
 

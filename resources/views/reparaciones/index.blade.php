@@ -60,7 +60,7 @@
             </select>
             <select name="priority" class="select-field w-36">
                 <option value="">Prioridad</option>
-                <option value="urgent" {{ request('priority') === 'urgent' ? 'selected' : '' }}>Urgente</option>
+                <option value="urgent" {{ request('priority') === 'urgent' ? 'selected' : '' }}>super urgente </option>
                 <option value="high" {{ request('priority') === 'high' ? 'selected' : '' }}>Alta</option>
                 <option value="normal" {{ request('priority') === 'normal' ? 'selected' : '' }}>Normal</option>
                 <option value="low" {{ request('priority') === 'low' ? 'selected' : '' }}>Baja</option>

@@ -11,6 +11,7 @@ return new class extends Migration {
             $table->string('code', 50)->nullable()->after('id');
             $table->string('business_name')->nullable()->after('name');
             $table->string('ruc', 30)->nullable()->after('business_name');
+            
         });
     }
 
