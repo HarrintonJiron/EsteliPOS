@@ -1,5 +1,11 @@
 <?php
 
+use App\Console\Commands\InstallProductionCommand;
+use App\Http\Middleware\ApplySystemSettings;
+use App\Http\Middleware\CheckModule;
+use App\Http\Middleware\CheckPermission;
+use App\Http\Middleware\CheckRole;
+use App\Http\Middleware\EnsurePasswordIsChanged;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -10,16 +16,19 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withCommands([
+        InstallProductionCommand::class,
+    ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
-            \App\Http\Middleware\ApplySystemSettings::class,
-            \App\Http\Middleware\EnsurePasswordIsChanged::class,
+            ApplySystemSettings::class,
+            EnsurePasswordIsChanged::class,
         ]);
 
         $middleware->alias([
-            'role' => \App\Http\Middleware\CheckRole::class,
-            'permission' => \App\Http\Middleware\CheckPermission::class,
-            'module' => \App\Http\Middleware\CheckModule::class,
+            'role' => CheckRole::class,
+            'permission' => CheckPermission::class,
+            'module' => CheckModule::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

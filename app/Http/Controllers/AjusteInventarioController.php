@@ -3,17 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventoryAdjustment;
-use App\Models\Product;
 use App\Models\InventoryMovement;
+use App\Models\Product;
 use App\Services\AccountingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AjusteInventarioController extends Controller
 {
-    public function __construct(private AccountingService $accountingService)
-    {
-    }
+    public function __construct(private AccountingService $accountingService) {}
 
     public function index(Request $request)
     {
@@ -73,53 +71,53 @@ class AjusteInventarioController extends Controller
 
         try {
             DB::transaction(function () use ($validated, $request) {
-            $product = Product::findOrFail($validated['product_id']);
-            $stockBefore = $product->stock;
+                $product = Product::query()->lockForUpdate()->findOrFail($validated['product_id']);
+                $stockBefore = $product->stock;
 
-            $quantity = $validated['quantity'];
-            $adjustmentQuantity = 0;
-            $stockAfter = $stockBefore;
+                $quantity = $validated['quantity'];
+                $adjustmentQuantity = 0;
+                $stockAfter = $stockBefore;
 
-            switch ($validated['type']) {
-                case 'increase':
-                    $adjustmentQuantity = $quantity;
-                    $stockAfter = $stockBefore + $quantity;
-                    break;
-                case 'decrease':
-                    $adjustmentQuantity = -$quantity;
-                    $stockAfter = max(0, $stockBefore - $quantity);
-                    break;
-                case 'count':
-                    $adjustmentQuantity = $quantity - $stockBefore;
-                    $stockAfter = $quantity;
-                    break;
-            }
+                switch ($validated['type']) {
+                    case 'increase':
+                        $adjustmentQuantity = $quantity;
+                        $stockAfter = $stockBefore + $quantity;
+                        break;
+                    case 'decrease':
+                        $adjustmentQuantity = -$quantity;
+                        $stockAfter = max(0, $stockBefore - $quantity);
+                        break;
+                    case 'count':
+                        $adjustmentQuantity = $quantity - $stockBefore;
+                        $stockAfter = $quantity;
+                        break;
+                }
 
-            $product->update(['stock' => $stockAfter]);
+                $product->update(['stock' => $stockAfter]);
 
-            $adjustment = InventoryAdjustment::create([
-                'product_id' => $validated['product_id'],
-                'user_id' => $request->user()?->id ?? 1,
-                'type' => $validated['type'],
-                'quantity' => $adjustmentQuantity,
-                'stock_before' => $stockBefore,
-                'stock_after' => $stockAfter,
-                'reason' => $validated['reason'],
-                'reference' => $validated['reference'] ?? null,
-            ]);
+                $adjustment = InventoryAdjustment::create([
+                    'product_id' => $validated['product_id'],
+                    'user_id' => $request->user()?->id ?? 1,
+                    'type' => $validated['type'],
+                    'quantity' => $adjustmentQuantity,
+                    'stock_before' => $stockBefore,
+                    'stock_after' => $stockAfter,
+                    'reason' => $validated['reason'],
+                    'reference' => $validated['reference'] ?? null,
+                ]);
 
-            InventoryMovement::create([
-                'product_id' => $validated['product_id'],
-                'type' => $adjustmentQuantity >= 0 ? 'in' : 'out',
-                'quantity' => abs($adjustmentQuantity),
-                'stock_after' => $stockAfter,
-                'reference' => 'adjustment:' . $adjustment->id,
-                'note' => 'Ajuste: ' . $validated['reason'],
-                'user_id' => $request->user()?->id ?? 1,
-            ]);
+                InventoryMovement::create([
+                    'product_id' => $validated['product_id'],
+                    'type' => $adjustmentQuantity >= 0 ? 'in' : 'out',
+                    'quantity' => abs($adjustmentQuantity),
+                    'stock_after' => $stockAfter,
+                    'reference' => 'adjustment:'.$adjustment->id,
+                    'note' => 'Ajuste: '.$validated['reason'],
+                    'user_id' => $request->user()?->id ?? 1,
+                ]);
 
-            $this->accountingService->recordInventoryAdjustment($adjustment);
-        });
+                $this->accountingService->recordInventoryAdjustment($adjustment);
+            });
         } catch (\RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
@@ -130,6 +128,7 @@ class AjusteInventarioController extends Controller
     public function show($id)
     {
         $adjustment = InventoryAdjustment::with(['product', 'user'])->findOrFail($id);
+
         return view('ajustes.show', compact('adjustment'));
     }
 
@@ -139,24 +138,30 @@ class AjusteInventarioController extends Controller
 
         try {
             DB::transaction(function () use ($adjustment) {
-            $product = Product::findOrFail($adjustment->product_id);
+                $product = Product::query()->lockForUpdate()->findOrFail($adjustment->product_id);
 
-            $product->update(['stock' => $adjustment->stock_before]);
+                if ((int) $product->stock !== (int) $adjustment->stock_after) {
+                    throw new \RuntimeException(
+                        'No se puede eliminar este ajuste porque el producto ya tuvo movimientos posteriores.'
+                    );
+                }
 
-            InventoryMovement::create([
-                'product_id' => $adjustment->product_id,
-                'type' => $adjustment->quantity >= 0 ? 'out' : 'in',
-                'quantity' => abs($adjustment->quantity),
-                'stock_after' => $adjustment->stock_before,
-                'reference' => 'adjustment_revert:' . $adjustment->id,
-                'note' => 'Reverso de ajuste #' . $adjustment->id,
-                'user_id' => auth()->id() ?? 1,
-            ]);
+                $product->update(['stock' => $adjustment->stock_before]);
 
-            $adjustment->delete();
+                InventoryMovement::create([
+                    'product_id' => $adjustment->product_id,
+                    'type' => $adjustment->quantity >= 0 ? 'out' : 'in',
+                    'quantity' => abs($adjustment->quantity),
+                    'stock_after' => $adjustment->stock_before,
+                    'reference' => 'adjustment_revert:'.$adjustment->id,
+                    'note' => 'Reverso de ajuste #'.$adjustment->id,
+                    'user_id' => auth()->id() ?? 1,
+                ]);
 
-            $this->accountingService->voidForSource(InventoryAdjustment::class, $adjustment->id, 'Ajuste eliminado');
-        });
+                $adjustment->delete();
+
+                $this->accountingService->voidForSource(InventoryAdjustment::class, $adjustment->id, 'Ajuste eliminado');
+            });
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }

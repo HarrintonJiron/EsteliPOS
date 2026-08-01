@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -13,21 +12,30 @@ class DatabaseSeeder extends Seeder
     /**
      * Seed the application's database.
      */
-  public function run(): void
-{
-    $this->call([
-        RoleSeeder::class,
-        UserSeeder::class,
-        CategorySeeder::class,
-        SupplierSeeder::class,
-        ClientSeeder::class,
-        EmployeeSeeder::class,
-        ProductSeeder::class,
-        DemoDataSeeder::class,
-        CreditHeavySeeder::class,
-        AgroProductSeeder::class,
-        AccountingSeeder::class,
-        ConfigurationSeeder::class,
-    ]);
-}
+    public function run(): void
+    {
+        $this->call(ProductionSeeder::class);
+
+        if (! filter_var(env('SEED_DEMO_DATA', false), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
+        if (! app()->environment(['local', 'testing'])) {
+            $this->command?->warn('Los datos de demostración solo pueden cargarse en local o testing.');
+
+            return;
+        }
+
+        $this->call([
+            UserSeeder::class,
+            CategorySeeder::class,
+            SupplierSeeder::class,
+            ClientSeeder::class,
+            EmployeeSeeder::class,
+            ProductSeeder::class,
+            DemoDataSeeder::class,
+            CreditHeavySeeder::class,
+            AgroProductSeeder::class,
+        ]);
+    }
 }

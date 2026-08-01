@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 class InventoryService
@@ -16,6 +17,11 @@ class InventoryService
         ?int $userId = null,
     ): InventoryMovement {
         return DB::transaction(function () use ($product, $quantity, $reference, $note, $userId) {
+            if ($quantity <= 0) {
+                throw new \InvalidArgumentException('La cantidad de inventario debe ser mayor que cero.');
+            }
+
+            $product = Product::query()->lockForUpdate()->findOrFail($product->id);
             $product->increment('stock', $quantity);
             $product->refresh();
 
@@ -40,7 +46,11 @@ class InventoryService
         bool $allowNegative = false,
     ): InventoryMovement {
         return DB::transaction(function () use ($product, $quantity, $reference, $note, $userId, $allowNegative) {
-            $product->refresh();
+            if ($quantity <= 0) {
+                throw new \InvalidArgumentException('La cantidad de inventario debe ser mayor que cero.');
+            }
+
+            $product = Product::query()->lockForUpdate()->findOrFail($product->id);
 
             if (! $allowNegative && $product->stock < $quantity) {
                 throw new \RuntimeException(
@@ -101,7 +111,7 @@ class InventoryService
         return ['fixed' => $fixed, 'discrepancies' => $discrepancies];
     }
 
-    public function salesStatsSubquery(int $days = 30): \Illuminate\Database\Query\Builder
+    public function salesStatsSubquery(int $days = 30): Builder
     {
         return DB::table('sale_details')
             ->join('sales', 'sales.id', '=', 'sale_details.sale_id')

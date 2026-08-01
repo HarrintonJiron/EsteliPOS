@@ -11,6 +11,7 @@
      data-clients='@json($clients)'
      data-categories='@json($categories)'
      data-default-tax-rate="{{ $defaultTaxRate }}"
+     data-product-search-url="{{ route('facturacion.pos-products') }}"
      data-daily-report-url="{{ route('facturacion.pos-daily-report') }}">
 
     {{-- COLUMNA IZQUIERDA: TICKET --}}
@@ -296,7 +297,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const app = document.getElementById('posApp');
-    const products = JSON.parse(app.dataset.products).map(p => ({
+    const normalizeProduct = p => ({
         id: p.id,
         code: p.code ?? '',
         name: p.name,
@@ -308,7 +309,8 @@ document.addEventListener('DOMContentLoaded', function() {
         category_name: p.category?.name ?? 'Sin categoría',
         image_url: p.image_url ?? null,
         tax_rate: parseFloat(p.effective_tax_rate ?? app.dataset.defaultTaxRate ?? 0),
-    }));
+    });
+    let products = JSON.parse(app.dataset.products).map(normalizeProduct);
     const clientsData = JSON.parse(app.dataset.clients)
         .filter(c => c.code !== 'GEN')
         .map(c => ({
@@ -618,7 +620,34 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     const searchInput = document.getElementById('productSearch');
-    searchInput.addEventListener('input', (e) => renderProducts(e.target.value));
+    let productSearchTimer = null;
+    let productSearchRequest = 0;
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        renderProducts(query);
+        window.clearTimeout(productSearchTimer);
+        if (query.length < 2) return;
+
+        productSearchTimer = window.setTimeout(async () => {
+            const requestId = ++productSearchRequest;
+            const params = new URLSearchParams({ search: query });
+            if (currentCategory !== 'all') params.set('category_id', currentCategory);
+            try {
+                const response = await fetch(`${app.dataset.productSearchUrl}?${params}`, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (!response.ok) return;
+                const remoteProducts = (await response.json()).map(normalizeProduct);
+                if (requestId !== productSearchRequest) return;
+                const known = new Map(products.map(product => [product.id, product]));
+                remoteProducts.forEach(product => known.set(product.id, product));
+                products = [...known.values()];
+                renderProducts(query);
+            } catch (error) {
+                console.error('No se pudo consultar el catálogo', error);
+            }
+        }, 250);
+    });
     searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             const q = e.target.value.trim();

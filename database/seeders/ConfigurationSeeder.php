@@ -2,13 +2,13 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use App\Models\Role;
-use App\Models\Permission;
 use App\Models\Module;
-use App\Models\Setting;
 use App\Models\NumberSequence;
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\Setting;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 
 class ConfigurationSeeder extends Seeder
 {
@@ -58,7 +58,7 @@ class ConfigurationSeeder extends Seeder
                 Permission::updateOrCreate(
                     ['slug' => $slug],
                     [
-                        'name' => ucfirst($module) . ' ' . ucfirst($action),
+                        'name' => ucfirst($module).' '.ucfirst($action),
                         'slug' => $slug,
                         'module' => $module,
                         'action' => $action,
@@ -96,6 +96,35 @@ class ConfigurationSeeder extends Seeder
         if ($contabilidadRole) {
             $contabilidadPermissions = Permission::where('module', 'contabilidad')->pluck('id');
             $contabilidadRole->permissions()->sync($contabilidadPermissions);
+        }
+
+        $rolePermissions = [
+            'cajero' => ['ventas.view', 'ventas.create', 'caja.view', 'caja.open', 'caja.close', 'clientes.view'],
+            'vendedor' => ['ventas.view', 'ventas.create', 'clientes.view', 'clientes.create', 'inventario.view', 'proformas.view', 'proformas.create', 'proformas.edit', 'proformas.convert'],
+            'bodega' => ['inventario.view', 'inventario.create', 'inventario.edit', 'inventario.adjust'],
+            'compras' => ['compras.view', 'compras.create', 'compras.edit', 'proveedores.view', 'proveedores.create', 'inventario.view'],
+            'contabilidad' => ['reportes.view', 'reportes.export', 'ventas.view', 'compras.view', 'creditos.view', 'creditos.export'],
+            'supervisor' => Permission::whereNotIn('module', ['configuracion'])->pluck('slug')->all(),
+        ];
+
+        foreach ($rolePermissions as $roleSlug => $permissionSlugs) {
+            $role = Role::where('slug', $roleSlug)->first();
+            if ($role) {
+                $role->permissions()->syncWithoutDetaching(
+                    Permission::whereIn('slug', $permissionSlugs)->pluck('id')
+                );
+            }
+        }
+
+        // Mantener el acceso al módulo alineado con el permiso *.view de cada rol.
+        if (Schema::hasTable('module_role') && Schema::hasColumn('modules', 'required_permission')) {
+            foreach (Module::with('roles')->get() as $module) {
+                $roleIds = Role::query()
+                    ->where('slug', 'admin')
+                    ->orWhereHas('permissions', fn ($query) => $query->where('slug', $module->required_permission))
+                    ->pluck('id');
+                $module->roles()->sync($roleIds);
+            }
         }
 
         // Crear numeraciones iniciales

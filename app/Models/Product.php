@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -123,7 +124,7 @@ class Product extends Model
             return false;
         }
 
-        return \Carbon\Carbon::parse($this->expiry_date)->isPast();
+        return Carbon::parse($this->expiry_date)->isPast();
     }
 
     public function expiresSoon(int $days = 30): bool
@@ -132,7 +133,7 @@ class Product extends Model
             return false;
         }
 
-        return \Carbon\Carbon::parse($this->expiry_date)->diffInDays(now()) <= $days;
+        return Carbon::parse($this->expiry_date)->diffInDays(now()) <= $days;
     }
 
     public function getStatusLabelAttribute(): string

@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\Product;
 
 class Supplier extends Model
 {
@@ -68,6 +67,7 @@ class Supplier extends Model
     public function getCreditAvailable(): float
     {
         $limit = $this->credit_limit ?? 0;
+
         return max(0, $limit - $this->getCreditUsed());
     }
 
@@ -78,7 +78,7 @@ class Supplier extends Model
 
     public function getStatusLabelAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'active' => 'Activo',
             'inactive' => 'Inactivo',
             default => $this->status ?? 'Activo',
@@ -87,7 +87,7 @@ class Supplier extends Model
 
     public function getPaymentConditionLabelAttribute(): string
     {
-        return match($this->payment_condition) {
+        return match ($this->payment_condition) {
             'contado' => 'Contado',
             'credito_15' => 'Crédito 15 días',
             'credito_30' => 'Crédito 30 días',
