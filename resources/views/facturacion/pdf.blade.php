@@ -108,7 +108,7 @@
                 @if(($sale?->billing_business_name) || ($sale?->client?->business_name))
                     <p class="text-gray-600">{{ $sale?->billing_business_name ?? $sale?->client?->business_name }}</p>
                 @endif
-                <p><span class="text-gray-600">RUC:</span> {{ $sale?->billing_ruc ?? $sale?->client?->ruc ?? 'N/A' }}</p>
+                <p><span class="text-gray-600">{{ $sale?->billing_document_label ?? 'Documento' }}:</span> {{ $sale?->billing_document_number ?? 'N/A' }}</p>
                 <p><span class="text-gray-600">Tel:</span> {{ $sale?->billing_phone ?? $sale?->client?->phone ?? 'N/A' }}</p>
                 <p class="text-gray-600 text-xs">{{ $sale?->billing_address ?? $sale?->client?->address ?? '' }}</p>
             </div>

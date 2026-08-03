@@ -15,6 +15,7 @@ class ClientRequest extends FormRequest
     public function rules(): array
     {
         $clientId = $this->route('id');
+        $clientType = $this->input('client_type', 'natural');
 
         return [
             'code' => [
@@ -24,16 +25,31 @@ class ClientRequest extends FormRequest
                 Rule::unique('clients', 'code')->ignore($clientId),
             ],
             'name' => 'required|string|max:255',
-            'business_name' => 'nullable|string|max:255',
-            'ruc' => [
+            'client_type' => ['required', Rule::in(['natural', 'company'])],
+            'business_name' => [Rule::requiredIf($clientType === 'company'), 'nullable', 'string', 'max:255'],
+            'cedula' => [
+                Rule::requiredIf($clientType === 'natural'),
                 'nullable',
                 'string',
                 'max:30',
-                'regex:/^[0-9]{3}-[0-9]{6}-[0-9]{4}[A-Za-z0-9]$/',
+                'regex:/^(?:\d{3}-\d{6}-\d{4}[A-Za-z0-9]|\d{14}[A-Za-z0-9])$/',
+                Rule::unique('clients', 'cedula')->ignore($clientId),
+            ],
+            'ruc' => [
+                Rule::requiredIf($clientType === 'company'),
+                'nullable',
+                'string',
+                'max:30',
+                'regex:/^(?:[A-Za-z]\d{13}|\d{3}-\d{6}-\d{4}[A-Za-z0-9]|\d{14}[A-Za-z0-9])$/',
+                Rule::unique('clients', 'ruc')->ignore($clientId),
             ],
             'phone' => 'nullable|string|max:50',
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string|max:500',
+            'taxpayer_type' => 'nullable|string|max:50',
+            'department' => 'nullable|string|max:100',
+            'municipality' => 'nullable|string|max:100',
+            'status' => ['nullable', Rule::in(['active', 'inactive'])],
             'credit_enabled' => 'nullable|boolean',
             'credit_limit' => 'nullable|numeric|min:0',
             'credit_days' => 'nullable|integer|min:1|max:365',
@@ -46,10 +62,24 @@ class ClientRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $clientType = $this->input('client_type', 'natural');
+
         $this->merge([
+            'client_type' => $clientType,
+            'cedula' => $this->normalizeDocument($clientType === 'natural' ? $this->input('cedula') : null),
+            'ruc' => $this->normalizeDocument($clientType === 'company' ? $this->input('ruc') : null),
+            'business_name' => $clientType === 'company' ? ($this->input('business_name') ?: $this->input('name')) : null,
+            'status' => $this->input('status', 'active'),
             'credit_enabled' => $this->boolean('credit_enabled'),
             'credit_limit' => $this->input('credit_limit', 0),
             'credit_days' => $this->input('credit_days', 30),
         ]);
+    }
+
+    private function normalizeDocument(?string $value): ?string
+    {
+        $value = strtoupper(trim((string) $value));
+
+        return $value === '' ? null : $value;
     }
 }

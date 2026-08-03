@@ -6,16 +6,24 @@
 <div class="space-y-6">
 
     {{-- Header --}}
-    <div class="flex justify-between items-center">
+    <div class="flex justify-between items-center gap-3 flex-wrap">
         <div>
             <h1 class="page-title">Taller de Reparaciones</h1>
             <p class="page-subtitle">Gestión de órdenes de reparación de celulares y dispositivos</p>
         </div>
-        <a href="{{ route('reparaciones.create') }}"
-           class="btn-primary">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            Nueva Orden
-        </a>
+        <div class="flex gap-2">
+            @if(auth()->user()?->isAdmin() || auth()->user()?->hasPermission('reparaciones.view_expenses'))
+                <a href="{{ route('reparaciones.gastos.index') }}" class="btn-secondary">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .672-3 1.5S10.343 11 12 11s3 .672 3 1.5S13.657 14 12 14m0-6V6m0 8v2m8-4a8 8 0 11-16 0 8 8 0 0116 0z"/></svg>
+                    Gastos Operativos
+                </a>
+            @endif
+            <a href="{{ route('reparaciones.create') }}"
+               class="btn-primary">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Nueva Orden
+            </a>
+        </div>
     </div>
 
     @if(session('success'))
@@ -23,7 +31,7 @@
     @endif
 
     {{-- KPIs --}}
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
         <div class="card p-4 border-l-4 border-slate-400">
             <p class="text-xs text-slate-500">Total</p>
             <p class="text-2xl font-bold text-slate-700">{{ $stats['total'] }}</p>
@@ -43,6 +51,11 @@
         <div class="card p-4 border-l-4 border-emerald-500">
             <p class="text-xs text-slate-500">Entregados</p>
             <p class="text-2xl font-bold text-emerald-600">{{ $stats['delivered'] }}</p>
+        </div>
+        <div class="card p-4 border-l-4 border-rose-500">
+            <p class="text-xs text-slate-500">Gastos del mes</p>
+            <p class="text-lg font-bold text-rose-600">C$ {{ number_format($expenseStats['month_total'] ?? 0, 2) }}</p>
+            <p class="text-xs text-slate-400">{{ $expenseStats['month_count'] ?? 0 }} registros</p>
         </div>
     </div>
 

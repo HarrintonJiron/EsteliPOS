@@ -7,10 +7,20 @@
     <div class="flex justify-between items-center">
         <div>
             <h1 class="page-title">Registro Completo (Pro)</h1>
-            <p class="page-subtitle">Datos de facturación, RUC y configuración de crédito</p>
+            <p class="page-subtitle">Datos fiscales, cédula/RUC y configuración de crédito</p>
         </div>
         <a href="{{ route('clientes.index') }}" class="btn-outline text-sm">← Volver</a>
     </div>
+
+    @if($errors->any())
+        <div class="card p-4 bg-red-50 border border-red-200 text-red-800 text-sm">
+            <ul class="list-disc pl-4 space-y-0.5">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
 
     <form action="{{ route('clientes.store') }}" method="POST" class="space-y-4">
         @csrf
@@ -21,6 +31,13 @@
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Nombre *</label>
                     <input name="name" value="{{ old('name') }}" required class="input-field">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">Tipo de cliente *</label>
+                    <select name="client_type" id="clientType" class="select-field" required onchange="toggleClientTaxFields()">
+                        <option value="natural" {{ old('client_type', 'natural') === 'natural' ? 'selected' : '' }}>Persona Natural</option>
+                        <option value="company" {{ old('client_type') === 'company' ? 'selected' : '' }}>Empresa</option>
+                    </select>
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Teléfono</label>
@@ -34,13 +51,36 @@
                     <label class="block text-sm text-slate-600 mb-1">Email</label>
                     <input name="email" type="email" value="{{ old('email') }}" class="input-field">
                 </div>
-                <div class="md:col-span-2">
+                <div class="md:col-span-2" id="businessNameField">
                     <label class="block text-sm text-slate-600 mb-1">Razón social</label>
-                    <input name="business_name" value="{{ old('business_name') }}" class="input-field">
+                    <input name="business_name" value="{{ old('business_name') }}" class="input-field" placeholder="Razón social o nombre fiscal de la empresa">
+                </div>
+                <div id="cedulaField">
+                    <label class="block text-sm text-slate-600 mb-1">Cédula</label>
+                    <input name="cedula" value="{{ old('cedula') }}" class="input-field" placeholder="001-123456-0000A">
+                </div>
+                <div id="rucField">
+                    <label class="block text-sm text-slate-600 mb-1">RUC</label>
+                    <input name="ruc" value="{{ old('ruc') }}" class="input-field" placeholder="J0310000000012 o 001-123456-0000A">
                 </div>
                 <div>
-                    <label class="block text-sm text-slate-600 mb-1">RUC</label>
-                    <input name="ruc" value="{{ old('ruc') }}" class="input-field" placeholder="001-123456-0000A">
+                    <label class="block text-sm text-slate-600 mb-1">Tipo de contribuyente</label>
+                    <input name="taxpayer_type" value="{{ old('taxpayer_type') }}" class="input-field" placeholder="General, cuota fija, exento...">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">Departamento</label>
+                    <input name="department" value="{{ old('department') }}" class="input-field">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">Municipio</label>
+                    <input name="municipality" value="{{ old('municipality') }}" class="input-field">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-600 mb-1">Estado del cliente</label>
+                    <select name="status" class="select-field">
+                        <option value="active" {{ old('status', 'active') === 'active' ? 'selected' : '' }}>Activo</option>
+                        <option value="inactive" {{ old('status') === 'inactive' ? 'selected' : '' }}>Inactivo</option>
+                    </select>
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm text-slate-600 mb-1">Dirección</label>
@@ -112,3 +152,22 @@
     </form>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+function toggleClientTaxFields() {
+    const type = document.getElementById('clientType')?.value;
+    const business = document.getElementById('businessNameField');
+    const ruc = document.getElementById('rucField');
+    const cedula = document.getElementById('cedulaField');
+    if (!business || !ruc || !cedula) return;
+
+    const isCompany = type === 'company';
+    business.classList.toggle('hidden', !isCompany);
+    ruc.classList.toggle('hidden', !isCompany);
+    cedula.classList.toggle('hidden', isCompany);
+}
+
+document.addEventListener('DOMContentLoaded', toggleClientTaxFields);
+</script>
+@endpush

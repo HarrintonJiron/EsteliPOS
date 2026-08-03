@@ -113,15 +113,24 @@ class CreditController extends Controller
         $q = $request->query('q');
 
         $clients = Client::query()
-            ->when($q, fn($qb) => $qb->where('name', 'like', "%{$q}%")
-                ->orWhere('phone', 'like', "%{$q}%")
-                ->orWhere('email', 'like', "%{$q}%"))
+            ->when($q, fn($qb) => $qb->where(function ($searchQ) use ($q) {
+                $searchQ->where('name', 'like', "%{$q}%")
+                    ->orWhere('business_name', 'like', "%{$q}%")
+                    ->orWhere('cedula', 'like', "%{$q}%")
+                    ->orWhere('ruc', 'like', "%{$q}%")
+                    ->orWhere('phone', 'like', "%{$q}%")
+                    ->orWhere('email', 'like', "%{$q}%");
+            }))
             ->limit(12)
             ->get();
 
         $results = $clients->map(fn (Client $c) => [
             'id' => $c->id,
             'name' => $c->name,
+            'legal_name' => $c->legal_name,
+            'client_type' => $c->client_type,
+            'document_label' => $c->document_label,
+            'document_number' => $c->document_number,
             'phone' => $c->phone,
             'email' => $c->email,
             'credit_summary' => $this->credit->clientCreditSummary($c),
@@ -260,7 +269,7 @@ class CreditController extends Controller
 
         $clients = Client::where('credit_enabled', true)->orderBy('name')->get();
 
-        $csv = "Cliente,Telefono,Limite Credito,Dias Plazo,Saldo Pendiente,Disponible,Vencido,Limite Excedido\n";
+        $csv = "Cliente,Tipo Cliente,Documento,Telefono,Limite Credito,Dias Plazo,Saldo Pendiente,Disponible,Vencido,Limite Excedido\n";
 
         foreach ($clients as $client) {
             $summary = $this->credit->clientCreditSummary($client);
@@ -271,8 +280,10 @@ class CreditController extends Controller
                 ->sum('total');
 
             $csv .= sprintf(
-                "\"%s\",%s,%.2f,%d,%.2f,%s,%.2f,%s\n",
-                str_replace('"', '""', $client->name),
+                "\"%s\",%s,%s,%s,%.2f,%d,%.2f,%s,%.2f,%s\n",
+                str_replace('"', '""', $client->legal_name),
+                $client->isCompany() ? 'Empresa' : 'Persona Natural',
+                $client->document_number ?? '',
                 $client->phone ?? '',
                 $summary['credit_limit'],
                 $summary['credit_days'],

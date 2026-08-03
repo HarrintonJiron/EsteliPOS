@@ -70,7 +70,7 @@
         @if(($sale?->billing_business_name) || ($sale?->client?->business_name))
             <p><strong>Razón social:</strong> {{ $sale?->billing_business_name ?? $sale?->client?->business_name }}</p>
         @endif
-        <p><strong>RUC:</strong> {{ $sale?->billing_ruc ?? $sale?->client?->ruc ?? 'N/A' }}</p>
+        <p><strong>{{ $sale?->billing_document_label ?? 'Documento' }}:</strong> {{ $sale?->billing_document_number ?? 'N/A' }}</p>
         <p><strong>Dirección:</strong> {{ $sale?->billing_address ?? $sale?->client?->address ?? 'N/A' }}</p>
         <p><strong>Teléfono:</strong> {{ $sale?->billing_phone ?? $sale?->client?->phone ?? 'N/A' }}</p>
     </div>

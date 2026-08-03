@@ -16,6 +16,7 @@ class ProductionSeeder extends Seeder
             AccountingSeeder::class,
             DeviceBrandSeeder::class,
             RepairServiceSeeder::class,
+            EnsureAdminFullAccessSeeder::class,
         ]);
     }
 }

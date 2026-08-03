@@ -19,7 +19,9 @@ class ClienteController extends Controller
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('business_name', 'like', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('cedula', 'like', "%{$search}%")
                     ->orWhere('ruc', 'like', "%{$search}%");
             });
         }
@@ -27,7 +29,12 @@ class ClienteController extends Controller
         $clients = $query->paginate($perPage)->through(function (Client $client) {
             $summary = $this->credit->clientCreditSummary($client);
 
-            return (object) array_merge($client->toArray(), $summary);
+            return (object) array_merge($client->toArray(), $summary, [
+                'legal_name' => $client->legal_name,
+                'document_label' => $client->document_label,
+                'document_number' => $client->document_number,
+                'is_company' => $client->isCompany(),
+            ]);
         });
 
         $stats = [

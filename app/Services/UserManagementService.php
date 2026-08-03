@@ -143,7 +143,7 @@ class UserManagementService
 
     private function hasOperationalHistory(User $user): bool
     {
-        foreach (['sales', 'purchases', 'inventory_movements', 'inventory_adjustments', 'credit_payments', 'journal_entries', 'arqueos', 'proformas', 'repair_orders'] as $table) {
+        foreach (['sales', 'purchases', 'inventory_movements', 'inventory_adjustments', 'credit_payments', 'journal_entries', 'arqueos', 'proformas', 'repair_orders', 'operational_expenses'] as $table) {
             if (Schema::hasTable($table) && Schema::hasColumn($table, 'user_id') && DB::table($table)->where('user_id', $user->id)->exists()) {
                 return true;
             }

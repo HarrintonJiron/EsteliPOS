@@ -245,6 +245,7 @@ function submitInventoryCategory() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
         },
         body: JSON.stringify({ name })
@@ -252,7 +253,7 @@ function submitInventoryCategory() {
     .then(async response => {
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-            throw new Error(data.message || 'No se pudo crear la categoría');
+            throw new Error(data?.errors?.name?.[0] || data.message || 'No se pudo crear la categoría');
         }
         return data;
     })

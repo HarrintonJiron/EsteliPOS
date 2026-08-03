@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Registrar Abono - ' . $client->name)
+@section('title', 'Registrar Abono - ' . $client->legal_name)
 
 @section('content')
 
@@ -12,7 +12,8 @@
             ← Volver
         </a>
         <h1 class="text-3xl font-bold text-gray-900">Registrar Abono</h1>
-        <p class="text-gray-600">{{ $client->name }}</p>
+        <p class="text-gray-600">{{ $client->legal_name }}</p>
+        <p class="text-sm text-slate-500 mt-1">{{ $client->isCompany() ? 'Empresa' : 'Persona Natural' }} · {{ $client->document_label }}: {{ $client->document_number ?? '—' }}</p>
     </div>
 
     {{-- Resumen de Deuda --}}

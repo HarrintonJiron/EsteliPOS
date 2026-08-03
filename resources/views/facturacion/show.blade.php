@@ -81,8 +81,8 @@
                 <p class="mt-1 text-gray-900">{{ $sale->invoice_number ?: ('#' . $sale->id) }}</p>
             </div>
             <div>
-                <label class="text-sm text-gray-600">RUC</label>
-                <p class="mt-1 text-gray-900">{{ $sale->billing_ruc ?? $sale->client->ruc ?? 'N/A' }}</p>
+                <label class="text-sm text-gray-600">{{ $sale->billing_document_label }}</label>
+                <p class="mt-1 text-gray-900">{{ $sale->billing_document_number ?? 'N/A' }}</p>
             </div>
             <div>
                 <label class="text-sm text-gray-600">Vence</label>

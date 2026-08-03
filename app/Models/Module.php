@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 
 class Module extends Model
 {
@@ -85,7 +86,16 @@ class Module extends Model
     public static function getActiveModules()
     {
         return Cache::rememberForever('modules.active', function () {
-            return static::with('roles')->active()->ordered()->get();
+            $query = static::active()->ordered();
+
+            // Existing installations can be upgraded before the module_role
+            // migration has run. Avoid breaking the dashboard during that
+            // transition; access restrictions take effect once it exists.
+            if (Schema::hasTable('module_role')) {
+                $query->with('roles');
+            }
+
+            return $query->get();
         });
     }
 

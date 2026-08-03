@@ -177,6 +177,8 @@ class CreditService
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('business_name', 'like', "%{$search}%")
+                    ->orWhere('cedula', 'like', "%{$search}%")
                     ->orWhere('ruc', 'like', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%");
             });

@@ -10,7 +10,7 @@ class Arqueo extends Model
     use HasFactory;
 
     protected $fillable = [
-        'date', 'user_id', 'total_sales_count', 'total_sales_amount', 'cash_total', 'credit_payments_total', 'physical_total', 'difference', 'details'
+        'caja_session_id', 'date', 'user_id', 'total_sales_count', 'total_sales_amount', 'cash_total', 'credit_payments_total', 'physical_total', 'difference', 'details'
     ];
 
     protected $casts = [
@@ -22,4 +22,14 @@ class Arqueo extends Model
         'physical_total' => 'decimal:2',
         'difference' => 'decimal:2',
     ];
+
+    public function cajaSession()
+    {
+        return $this->belongsTo(CajaSession::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }

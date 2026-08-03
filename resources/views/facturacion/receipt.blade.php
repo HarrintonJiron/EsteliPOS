@@ -129,7 +129,7 @@
 
         <section class="info" aria-label="Datos del cliente">
             <div class="info-row"><strong>CLIENTE</strong><span>{{ $sale->billing_name }}</span></div>
-            @if($sale->billing_ruc)<div class="info-row"><strong>RUC</strong><span>{{ $sale->billing_ruc }}</span></div>@endif
+            @if($sale->billing_document_number)<div class="info-row"><strong>{{ strtoupper($sale->billing_document_label) }}</strong><span>{{ $sale->billing_document_number }}</span></div>@endif
             @if($sale->billing_phone)<div class="info-row"><strong>TEL.</strong><span>{{ $sale->billing_phone }}</span></div>@endif
         </section>
 

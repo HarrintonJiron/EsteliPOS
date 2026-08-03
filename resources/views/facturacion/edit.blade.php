@@ -87,8 +87,8 @@
                 </div>
 
                 <div>
-                    <label class="text-sm text-gray-600">RUC</label>
-                    <input type="text" name="billing_ruc" id="billingRuc" value="{{ old('billing_ruc', $sale->billing_ruc ?? $sale->client->ruc ?? '') }}"
+                    <label class="text-sm text-gray-600">Documento fiscal</label>
+                          <input type="text" name="billing_ruc" id="billingRuc" value="{{ old('billing_ruc', $sale->billing_ruc ?? $sale->client->document_number ?? '') }}"
                            class="mt-1 w-full border rounded-lg px-4 py-2 bg-white">
                 </div>
 
@@ -217,7 +217,10 @@
             id: c.id,
             name: c.name ?? '',
             business_name: c.business_name ?? '',
+            client_type: c.client_type ?? 'natural',
+            cedula: c.cedula ?? '',
             ruc: c.ruc ?? '',
+            document_number: (c.client_type ?? 'natural') === 'company' ? (c.ruc ?? '') : (c.cedula ?? ''),
             phone: c.phone ?? '',
             email: c.email ?? '',
             address: c.address ?? '',
@@ -305,7 +308,7 @@
             if (!c) return;
             billingName.value = c.name || billingName.value;
             billingBusinessName.value = c.business_name || billingBusinessName.value;
-            billingRuc.value = c.ruc || billingRuc.value;
+            billingRuc.value = c.document_number || billingRuc.value;
             billingPhone.value = c.phone || billingPhone.value;
             billingEmail.value = c.email || billingEmail.value;
             billingAddress.value = c.address || billingAddress.value;

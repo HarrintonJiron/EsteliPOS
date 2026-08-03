@@ -11,8 +11,8 @@
         <a href="{{ route('creditos.index') }}" class="text-indigo-600 hover:text-indigo-800 font-semibold mb-4 inline-block">
             ← Volver
         </a>
-        <h1 class="text-3xl font-bold text-gray-900">{{ $client->name }}</h1>
-        <p class="text-gray-600">{{ $client->business_name ?? 'N/A' }}</p>
+        <h1 class="text-3xl font-bold text-gray-900">{{ $client->legal_name }}</h1>
+        <p class="text-gray-600">{{ $client->isCompany() ? 'Empresa' : 'Persona Natural' }} · {{ $client->document_label }}: {{ $client->document_number ?? '—' }}</p>
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">

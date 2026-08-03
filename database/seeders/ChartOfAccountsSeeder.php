@@ -64,6 +64,7 @@ class ChartOfAccountsSeeder extends Seeder
                     '6.1.03' => ['Energía Eléctrica', 'expense', 'debit', true, []],
                     '6.1.04' => ['Agua Potable', 'expense', 'debit', true, []],
                     '6.1.05' => ['Combustible', 'expense', 'debit', true, []],
+                    '6.1.99' => ['Gastos Operativos Taller', 'expense', 'debit', true, []],
                 ]],
                 '6.2' => ['Gastos Administrativos', 'expense', 'debit', false, [
                     '6.2.01' => ['Papelería y Útiles', 'expense', 'debit', true, []],

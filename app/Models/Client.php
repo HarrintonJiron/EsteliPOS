@@ -11,14 +11,23 @@ class Client extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public const TYPE_NATURAL = 'natural';
+    public const TYPE_COMPANY = 'company';
+
     protected $fillable = [
         'code',
         'name',
+        'client_type',
         'business_name',
         'ruc',
+        'cedula',
         'phone',
         'email',
         'address',
+        'taxpayer_type',
+        'department',
+        'municipality',
+        'status',
         'credit_enabled',
         'credit_limit',
         'credit_days',
@@ -31,6 +40,8 @@ class Client extends Model
     protected function casts(): array
     {
         return [
+            'client_type' => 'string',
+            'status' => 'string',
             'credit_enabled' => 'boolean',
             'credit_limit' => 'decimal:2',
             'credit_days' => 'integer',
@@ -49,6 +60,36 @@ class Client extends Model
     public function creditPayments()
     {
         return $this->hasMany(CreditPayment::class);
+    }
+
+    public function getLegalNameAttribute(): string
+    {
+        return $this->isCompany() ? ($this->business_name ?: $this->name) : $this->name;
+    }
+
+    public function getDocumentLabelAttribute(): string
+    {
+        return $this->isCompany() ? 'RUC' : 'Cédula';
+    }
+
+    public function getDocumentNumberAttribute(): ?string
+    {
+        return $this->isCompany() ? $this->ruc : $this->cedula;
+    }
+
+    public function getFormattedLocationAttribute(): string
+    {
+        return collect([$this->municipality, $this->department])->filter()->implode(', ');
+    }
+
+    public function isCompany(): bool
+    {
+        return $this->client_type === self::TYPE_COMPANY;
+    }
+
+    public function isNatural(): bool
+    {
+        return ! $this->isCompany();
     }
 
     public function creditBalance(): float

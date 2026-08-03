@@ -79,6 +79,11 @@ class FacturacionController extends Controller
                 }
 
                 $status = $data['payment_type'] === 'credit' ? 'pending' : 'completed';
+                $client = Client::find($data['client_id']);
+                $billingDocumentType = $data['billing_document_type']
+                    ?? ($client?->isCompany() ? 'ruc' : ($client?->cedula ? 'cedula' : null));
+                $billingDocumentNumber = $data['billing_ruc']
+                    ?? ($billingDocumentType === 'cedula' ? $client?->cedula : $client?->ruc);
 
                 $sale = Sale::create([
                     'invoice_number' => $invoiceNumber,
@@ -86,7 +91,8 @@ class FacturacionController extends Controller
                     'user_id' => $data['user_id'],
                     'billing_name' => $data['billing_name'],
                     'billing_business_name' => $data['billing_business_name'] ?? null,
-                    'billing_ruc' => $data['billing_ruc'] ?? null,
+                    'billing_document_type' => $billingDocumentType,
+                    'billing_ruc' => $billingDocumentNumber,
                     'billing_phone' => $data['billing_phone'] ?? null,
                     'billing_email' => $data['billing_email'] ?? null,
                     'billing_address' => $data['billing_address'] ?? null,
@@ -217,6 +223,11 @@ class FacturacionController extends Controller
         try {
             DB::transaction(function () use ($data, $sale) {
                 $status = $data['payment_type'] === 'credit' ? 'pending' : 'completed';
+                $client = Client::find($data['client_id']);
+                $billingDocumentType = $data['billing_document_type']
+                    ?? ($client?->isCompany() ? 'ruc' : ($client?->cedula ? 'cedula' : null));
+                $billingDocumentNumber = $data['billing_ruc']
+                    ?? ($billingDocumentType === 'cedula' ? $client?->cedula : $client?->ruc);
 
                 // Revert previous stock changes
                 foreach ($sale->details as $detail) {
@@ -234,7 +245,8 @@ class FacturacionController extends Controller
                     'client_id' => $data['client_id'],
                     'billing_name' => $data['billing_name'],
                     'billing_business_name' => $data['billing_business_name'] ?? null,
-                    'billing_ruc' => $data['billing_ruc'] ?? null,
+                    'billing_document_type' => $billingDocumentType,
+                    'billing_ruc' => $billingDocumentNumber,
                     'billing_phone' => $data['billing_phone'] ?? null,
                     'billing_email' => $data['billing_email'] ?? null,
                     'billing_address' => $data['billing_address'] ?? null,
@@ -374,6 +386,43 @@ class FacturacionController extends Controller
         ));
     }
 
+    public function posDailyReport(Request $request)
+    {
+        $today = now()->toDateString();
+        $sales = Sale::query()
+            ->whereDate('date', $today)
+            ->where('status', '!=', 'cancelled')
+            ->get(['total', 'payment_type']);
+
+        $labels = [
+            'cash' => 'Efectivo',
+            'transfer' => 'Transferencia/Tarjeta',
+            'credit' => 'Crédito',
+        ];
+
+        $byPayment = [];
+        foreach ($labels as $type => $label) {
+            $typeSales = $sales->where('payment_type', $type);
+            $byPayment[$type] = [
+                'label' => $label,
+                'count' => $typeSales->count(),
+                'total' => round((float) $typeSales->sum('total'), 2),
+            ];
+        }
+
+        $invoiceCount = $sales->count();
+        $totalSales = round((float) $sales->sum('total'), 2);
+
+        return response()->json([
+            'date' => now()->format('Y-m-d'),
+            'cashier' => $request->user()?->name ?? 'N/A',
+            'invoice_count' => $invoiceCount,
+            'total_sales' => $totalSales,
+            'average_ticket' => $invoiceCount > 0 ? round($totalSales / $invoiceCount, 2) : 0,
+            'by_payment' => $byPayment,
+        ]);
+    }
+
     private function productsWithEffectiveTax(?int $limit = null)
     {
         return Product::with(['category', 'tax'])
@@ -450,7 +499,8 @@ class FacturacionController extends Controller
                     'user_id' => $userId,
                     'billing_name' => $client->name,
                     'billing_business_name' => $client->business_name ?? null,
-                    'billing_ruc' => $client->ruc ?? null,
+                    'billing_document_type' => $client->isCompany() ? 'ruc' : ($client->cedula ? 'cedula' : null),
+                    'billing_ruc' => $client->document_number,
                     'billing_phone' => $client->phone ?? null,
                     'billing_email' => $client->email ?? null,
                     'billing_address' => $client->address ?? null,

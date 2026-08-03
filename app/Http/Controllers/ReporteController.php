@@ -262,7 +262,7 @@ class ReporteController extends Controller
         fputcsv($output, ['Periodo:', $startDate . ' al ' . $endDate]);
         fputcsv($output, ['Generado:', Carbon::now()->format('d/m/Y H:i:s')]);
         fputcsv($output, []);
-        fputcsv($output, ['FACTURA', 'FECHA', 'CLIENTE', 'RUC', 'CONDICION', 'SUBTOTAL', 'IVA', 'TOTAL', 'ESTADO']);
+        fputcsv($output, ['FACTURA', 'FECHA', 'CLIENTE', 'TIPO CLIENTE', 'DOCUMENTO', 'CONDICION', 'SUBTOTAL', 'IVA', 'TOTAL', 'ESTADO']);
 
         $query = Sale::with('client')->whereBetween('date', [$startDate, $endDate]);
         if ($request->filled('client_id')) $query->where('client_id', $request->client_id);
@@ -273,7 +273,8 @@ class ReporteController extends Controller
                 $sale->invoice_number ?? '#' . $sale->id,
                 $sale->date->format('d/m/Y'),
                 $sale->billing_name ?? $sale->client?->name,
-                $sale->billing_ruc ?? $sale->client?->ruc ?? 'N/A',
+                $sale->client?->isCompany() ? 'Empresa' : 'Persona Natural',
+                $sale->billing_document_number ?? $sale->client?->document_number ?? 'N/A',
                 $sale->payment_type === 'credit' ? 'Crédito' : 'Contado',
                 number_format($sale->subtotal, 2),
                 number_format($sale->tax_total, 2),

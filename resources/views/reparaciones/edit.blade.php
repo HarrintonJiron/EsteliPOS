@@ -346,7 +346,7 @@
             </div>
             <div class="p-4 border-t border-slate-200 flex gap-2">
                 <button type="button" onclick="closeAddBrandModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl">Cancelar</button>
-                <button type="button" onclick="addNewBrand()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl">Agregar</button>
+                <button type="button" onclick="addNewBrand(this)" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl">Agregar</button>
             </div>
         </div>
     </div>
@@ -376,7 +376,7 @@
             </div>
             <div class="p-4 border-t border-slate-200 flex gap-2">
                 <button type="button" onclick="closeAddServiceModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl">Cancelar</button>
-                <button type="button" onclick="addNewService()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl">Agregar</button>
+                <button type="button" onclick="addNewService(this)" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl">Agregar</button>
             </div>
         </div>
     </div>
@@ -728,7 +728,7 @@ function closeAddBrandModal() {
     document.getElementById('addBrandModal').classList.add('hidden');
 }
 
-async function addNewBrand() {
+async function addNewBrand(buttonEl = null) {
     const newBrand = document.getElementById('newBrandInput').value.trim();
     if (!newBrand) {
         alert('Por favor ingrese un nombre para la marca');
@@ -744,17 +744,24 @@ async function addNewBrand() {
     }
     
     try {
+        const button = buttonEl ?? document.querySelector('#addBrandModal button[onclick^="addNewBrand"]');
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Agregando...';
+        }
+
         const response = await fetch('{{ route('device-brands.store') }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
             },
             body: JSON.stringify({ name: newBrand })
         });
         
         if (!response.ok) {
-            const error = await response.json();
+            const error = await response.json().catch(() => ({}));
             if (error.errors && error.errors.name) {
                 alert(error.errors.name[0]);
             } else if (error.error) {
@@ -791,6 +798,12 @@ async function addNewBrand() {
     } catch (error) {
         console.error('Error:', error);
         alert('Error al agregar la marca. Por favor intenta nuevamente.');
+    } finally {
+        const button = buttonEl ?? document.querySelector('#addBrandModal button[onclick^="addNewBrand"]');
+        if (button) {
+            button.disabled = false;
+            button.textContent = 'Agregar';
+        }
     }
 }
 
@@ -900,7 +913,7 @@ function closeAddServiceModal() {
     document.getElementById('addServiceModal').classList.add('hidden');
 }
 
-async function addNewService() {
+async function addNewService(buttonEl = null) {
     const name = document.getElementById('newServiceName').value.trim();
     const description = document.getElementById('newServiceDescription').value.trim();
     const price = document.getElementById('newServicePrice').value;
@@ -915,7 +928,11 @@ async function addNewService() {
         return;
     }
     
-    const button = event.target;
+    const button = buttonEl ?? document.querySelector('#addServiceModal button[onclick^="addNewService"]');
+    if (!button) {
+        alert('No se pudo inicializar el formulario de servicio. Recarga la página.');
+        return;
+    }
     button.disabled = true;
     button.textContent = 'Agregando...';
     
@@ -942,7 +959,7 @@ async function addNewService() {
         console.log('Response status:', response.status);
         console.log('Response headers:', response.headers);
         
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         console.log('Response data:', data);
         
         if (!response.ok) {

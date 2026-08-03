@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\CreditPayment;
 use App\Models\InventoryAdjustment;
 use App\Models\JournalEntryLine;
+use App\Models\OperationalExpense;
 use App\Models\Purchase;
 use App\Models\Sale;
 use Carbon\Carbon;
@@ -147,6 +148,7 @@ class ReportService
                 Sale::class, CreditPayment::class => 'Operación · Cobros',
                 Purchase::class => 'Operación · Pagos a proveedores',
                 InventoryAdjustment::class => 'Operación · Ajustes de inventario',
+                OperationalExpense::class => 'Operación · Gastos operativos',
                 default => 'Operación · Otros movimientos',
             };
 
