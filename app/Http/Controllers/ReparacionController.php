@@ -4,17 +4,27 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\DeviceBrand;
+use App\Models\NumberSequence;
 use App\Models\Product;
 use App\Models\RepairOrder;
 use App\Models\RepairOrderItem;
 use App\Models\RepairService;
+use App\Models\Sale;
+use App\Models\SaleDetail;
 use App\Models\User;
+use App\Services\AccountingService;
+use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ReparacionController extends Controller
 {
+    public function __construct(
+        private AccountingService $accountingService,
+        private InventoryService $inventoryService,
+    ) {}
+
     public function getServices()
     {
         try {
@@ -321,7 +331,7 @@ class ReparacionController extends Controller
 
     public function show($id)
     {
-        $order = RepairOrder::with('items.product', 'client', 'technician', 'user')->findOrFail($id);
+        $order = RepairOrder::with('items.product', 'client', 'technician', 'user', 'sale')->findOrFail($id);
 
         return view('reparaciones.show', compact('order'));
     }
@@ -371,6 +381,11 @@ class ReparacionController extends Controller
     public function update(Request $request, $id)
     {
         $order = RepairOrder::findOrFail($id);
+
+        if ($order->sale_id) {
+            return redirect()->route('reparaciones.show', $order)
+                ->with('error', 'La orden ya fue facturada y sus importes no pueden modificarse.');
+        }
 
         $validated = $request->validate([
             'client_id' => 'nullable|exists:clients,id',
@@ -508,6 +523,9 @@ class ReparacionController extends Controller
     public function destroy($id)
     {
         $order = RepairOrder::findOrFail($id);
+        if ($order->sale_id) {
+            return back()->with('error', 'No se puede eliminar una orden que ya tiene factura.');
+        }
         $order->items()->delete();
         $order->delete();
 
@@ -545,6 +563,182 @@ class ReparacionController extends Controller
         $order = RepairOrder::with('items.product', 'client', 'technician', 'user')->findOrFail($id);
 
         return view('reparaciones.pdf', compact('order'));
+    }
+
+    public function bill(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'payment_type' => 'required|in:cash,card,transfer',
+            'amount_received' => 'nullable|numeric|min:0',
+            'reference_number' => 'nullable|string|max:100',
+        ]);
+
+        $sale = null;
+        $changeAmount = 0.0;
+
+        try {
+            DB::transaction(function () use ($validated, $request, $id, &$sale, &$changeAmount) {
+                $order = RepairOrder::query()->lockForUpdate()->findOrFail($id);
+                $order->load(['items.product', 'client']);
+
+                if ($order->sale_id) {
+                    throw new \RuntimeException('Esta orden ya fue facturada.');
+                }
+
+                if (! in_array($order->status, ['ready', 'delivered'], true)) {
+                    throw new \RuntimeException('La reparación debe estar lista o entregada antes de facturarla.');
+                }
+
+                $netTotal = $order->netTotal();
+                if ($netTotal <= 0) {
+                    throw new \RuntimeException('El total final de la reparación debe ser mayor que cero.');
+                }
+
+                $balance = max(0, $netTotal - (float) $order->advance_payment);
+                $amountReceived = (float) ($validated['amount_received'] ?? 0);
+                if ($validated['payment_type'] === 'cash' && $amountReceived < $balance) {
+                    throw new \RuntimeException('El monto recibido es menor que el saldo pendiente.');
+                }
+
+                $storedPaymentType = $validated['payment_type'] === 'card' ? 'transfer' : $validated['payment_type'];
+                $client = $order->client ?: Client::firstOrCreate(
+                    ['code' => 'GEN'],
+                    ['name' => 'Cliente genérico', 'phone' => 'N/A', 'email' => null, 'address' => null]
+                );
+                $notes = "Factura generada desde reparación {$order->order_number}.";
+                if ((float) $order->advance_payment > 0) {
+                    $notes .= ' Anticipo registrado: C$ '.number_format((float) $order->advance_payment, 2, '.', '').'.';
+                }
+                if (filled($validated['reference_number'] ?? null)) {
+                    $notes .= ' Referencia de pago: '.$validated['reference_number'].'.';
+                }
+
+                $sale = Sale::create([
+                    'invoice_number' => NumberSequence::getNext('factura'),
+                    'client_id' => $client->id,
+                    'user_id' => $request->user()?->id ?? 1,
+                    'billing_name' => $order->client_name,
+                    'billing_business_name' => $client->business_name ?? null,
+                    'billing_ruc' => $client->ruc ?? null,
+                    'billing_phone' => $order->client_phone,
+                    'billing_email' => $order->client_email,
+                    'billing_address' => $client->address ?? null,
+                    'date' => now(),
+                    'payment_type' => $storedPaymentType,
+                    'tax_included' => false,
+                    'tax_rate' => 0,
+                    'subtotal' => $netTotal,
+                    'tax_total' => 0,
+                    'discount_percentage' => (float) ($order->discount_percentage ?? 0),
+                    'discount_amount' => (float) ($order->discount_amount ?? 0),
+                    'total' => $netTotal,
+                    'status' => 'completed',
+                    'notes' => $notes,
+                ]);
+
+                $lines = $order->items->map(fn (RepairOrderItem $item) => [
+                    'product' => $item->product,
+                    'description' => $item->description,
+                    'quantity' => (float) $item->quantity,
+                    'gross' => (float) $item->subtotal,
+                ])->values()->all();
+
+                if ((float) $order->labor_cost > 0) {
+                    $lines[] = [
+                        'product' => null,
+                        'description' => 'Mano de obra - '.$order->device_brand.' '.$order->device_model,
+                        'quantity' => 1.0,
+                        'gross' => (float) $order->labor_cost,
+                    ];
+                }
+
+                $linesGross = array_sum(array_column($lines, 'gross'));
+                if ($linesGross <= 0) {
+                    $lines[] = [
+                        'product' => null,
+                        'description' => 'Servicio de reparación - '.$order->device_brand.' '.$order->device_model,
+                        'quantity' => 1.0,
+                        'gross' => (float) $order->total,
+                    ];
+                    $linesGross = (float) $order->total;
+                }
+
+                $allocated = 0.0;
+                $lastIndex = array_key_last($lines);
+                foreach ($lines as $index => $line) {
+                    $quantity = (float) $line['quantity'];
+                    if ($line['product'] && floor($quantity) !== $quantity) {
+                        throw new \RuntimeException('La cantidad de cada repuesto debe ser un número entero antes de facturar.');
+                    }
+
+                    $lineTotal = $index === $lastIndex
+                        ? round($netTotal - $allocated, 2)
+                        : round($netTotal * ((float) $line['gross'] / $linesGross), 2);
+                    $allocated += $lineTotal;
+
+                    SaleDetail::create([
+                        'sale_id' => $sale->id,
+                        'product_id' => $line['product']?->id,
+                        'description' => $line['description'],
+                        'quantity' => $quantity,
+                        'price' => $quantity > 0 ? round($lineTotal / $quantity, 2) : $lineTotal,
+                        'subtotal' => $lineTotal,
+                        'tax_rate' => 0,
+                        'tax_amount' => 0,
+                    ]);
+
+                    if ($line['product']) {
+                        $this->inventoryService->stockOut(
+                            $line['product'],
+                            (int) $quantity,
+                            'repair_sale:'.$sale->id,
+                            'Repuesto facturado en '.$order->order_number,
+                            $sale->user_id,
+                        );
+                    }
+                }
+
+                $this->accountingService->recordSale($sale->fresh());
+
+                $order->update([
+                    'sale_id' => $sale->id,
+                    'invoiced_at' => now(),
+                    'payment_type' => $validated['payment_type'],
+                    'payment_status' => 'paid',
+                ]);
+
+                $changeAmount = $validated['payment_type'] === 'cash'
+                    ? max(0, $amountReceived - $balance)
+                    : 0;
+            });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('reparaciones.show', $id)
+            ->with('success', 'Reparación cobrada y factura '.$sale->invoice_number.' generada correctamente.')
+            ->with('change_amount', $changeAmount);
+    }
+
+    public function invoiceReceipt($id)
+    {
+        $order = RepairOrder::with('sale.details.product', 'sale.user', 'sale.client')->findOrFail($id);
+        abort_unless($order->sale, 404);
+        $order->sale->setRelation('repairOrder', $order);
+
+        return view('facturacion.receipt', [
+            'sale' => $order->sale,
+            'changeAmount' => (float) request()->query('change', 0),
+        ]);
+    }
+
+    public function invoicePdf($id)
+    {
+        $order = RepairOrder::with('sale.details.product', 'sale.client')->findOrFail($id);
+        abort_unless($order->sale, 404);
+        $order->sale->setRelation('repairOrder', $order);
+
+        return view('facturacion.pdf', ['sale' => $order->sale]);
     }
 
     private function calcPaymentStatus(float $total, float $advance): string

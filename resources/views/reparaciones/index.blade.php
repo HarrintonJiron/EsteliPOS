@@ -74,8 +74,8 @@
     </div>
 
     {{-- Table --}}
-    <div class="card overflow-hidden">
-        <table class="w-full table-agro">
+    <div class="card overflow-x-auto">
+        <table class="w-full min-w-[1180px] table-agro">
             <thead>
                 <tr>
                     <th>Orden</th>
@@ -83,6 +83,7 @@
                     <th>Equipo</th>
                     <th>Falla reportada</th>
                     <th class="text-center">Prioridad</th>
+                    <th class="text-center">Entrega estimada</th>
                     <th class="text-center">Estado</th>
                     <th class="text-right">Total</th>
                     <th class="text-center">Acciones</th>
@@ -112,6 +113,15 @@
                         </span>
                     </td>
                     <td class="text-center">
+                        @if($order->estimated_date)
+                            <p class="text-sm font-semibold text-slate-700">{{ $order->estimated_date->format('d/m/Y') }}</p>
+                            <p class="text-xs text-slate-500">Hora: {{ $order->estimated_time ? substr($order->estimated_time, 0, 5) : 'pendiente' }}</p>
+                        @else
+                            <p class="text-xs text-slate-400">Sin fecha ni hora</p>
+                        @endif
+                        <span class="mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-semibold {{ $order->scheduleColor() }}">{{ $order->scheduleLabel() }}</span>
+                    </td>
+                    <td class="text-center">
                         <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold {{ $order->statusColor() }}">
                             {{ $order->statusLabel() }}
                         </span>
@@ -136,7 +146,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="text-center py-12 text-slate-400">
+                    <td colspan="9" class="text-center py-12 text-slate-400">
                         <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                         <p>No hay órdenes de reparación</p>
                     </td>

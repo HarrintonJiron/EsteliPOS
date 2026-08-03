@@ -18,19 +18,35 @@
                     <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold {{ $order->priorityColor() }}">{{ $order->priorityLabel() }}</span>
                 </div>
                 <p class="text-sm text-slate-500 mt-0.5">Recibido: {{ $order->received_date->format('d/m/Y') }}{{ $order->received_time ? ' a las '.substr($order->received_time, 0, 5) : '' }}
-                    @if($order->estimated_date) · Entrega est.: <span class="{{ $order->estimated_date->isPast() && $order->status !== 'delivered' ? 'text-red-600 font-semibold' : '' }}">{{ $order->estimated_date->format('d/m/Y') }}{{ $order->estimated_time ? ' a las '.substr($order->estimated_time, 0, 5) : '' }}</span>@endif
+                    @if($order->estimated_date) · Entrega est.: <span class="{{ $order->scheduleLabel() === 'Atrasada' ? 'text-red-600 font-semibold' : '' }}">{{ $order->estimated_date->format('d/m/Y') }}{{ $order->estimated_time ? ' a las '.substr($order->estimated_time, 0, 5) : '' }}</span>@endif
                 </p>
             </div>
         </div>
         <div class="flex gap-2">
             <a href="{{ route('reparaciones.ticket', $order->id) }}" target="_blank" class="btn-outline text-sm">Ticket</a>
             <a href="{{ route('reparaciones.pdf', $order->id) }}" target="_blank" class="btn-outline text-sm">PDF</a>
-            <a href="{{ route('reparaciones.edit', $order->id) }}" class="btn-secondary text-sm">Editar</a>
+            @unless($order->sale_id)
+                <a href="{{ route('reparaciones.edit', $order->id) }}" class="btn-secondary text-sm">Editar</a>
+            @endunless
         </div>
     </div>
 
     @if(session('success'))
         <div class="card p-3 bg-green-50 border border-green-200 text-green-800 text-sm">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="card p-3 bg-red-50 border border-red-200 text-red-800 text-sm">{{ session('error') }}</div>
+    @endif
+    @if($errors->any())
+        <div class="card p-3 bg-red-50 border border-red-200 text-red-800 text-sm">
+            <ul class="list-disc pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+        </div>
+    @endif
+    @if(session()->has('change_amount'))
+        <div class="card p-4 bg-emerald-50 border border-emerald-200 text-center">
+            <p class="text-sm text-emerald-700">Cambio a entregar</p>
+            <p class="text-3xl font-black text-emerald-700">C$ {{ number_format(session('change_amount'), 2) }}</p>
+        </div>
     @endif
 
     <div class="grid grid-cols-3 gap-5">
@@ -159,9 +175,19 @@
                 <h2 class="font-semibold text-indigo-800 mb-3">Pagos</h2>
                 <div class="space-y-2 text-sm">
                     <div class="flex justify-between text-slate-700">
-                        <span>Total</span>
+                        <span>Subtotal</span>
                         <span class="font-bold">C$ {{ number_format($order->total, 2) }}</span>
                     </div>
+                    @if((float) $order->discount_percentage > 0 || (float) $order->discount_amount > 0)
+                    <div class="flex justify-between text-red-600">
+                        <span>Descuentos</span>
+                        <span>-C$ {{ number_format((float) $order->total - $order->netTotal(), 2) }}</span>
+                    </div>
+                    <div class="flex justify-between font-semibold text-slate-800">
+                        <span>Total final</span>
+                        <span>C$ {{ number_format($order->netTotal(), 2) }}</span>
+                    </div>
+                    @endif
                     <div class="flex justify-between text-slate-700">
                         <span>Anticipo</span>
                         <span class="text-emerald-700 font-medium">-C$ {{ number_format($order->advance_payment, 2) }}</span>
@@ -178,6 +204,47 @@
                         <span class="{{ $payColors[$order->payment_status] ?? 'badge-info' }}">{{ $payLabels[$order->payment_status] ?? $order->payment_status }}</span>
                     </div>
                 </div>
+            </div>
+
+            {{-- Final billing --}}
+            <div class="card p-5 {{ $order->sale_id ? 'bg-emerald-50 border border-emerald-200' : '' }}">
+                <h2 class="font-semibold {{ $order->sale_id ? 'text-emerald-800' : 'text-slate-700' }} mb-3">Facturación final</h2>
+                @if($order->sale)
+                    <p class="text-sm text-emerald-800 mb-1">Factura generada y pagada</p>
+                    <p class="font-mono font-bold text-emerald-900 mb-3">{{ $order->sale->invoice_number }}</p>
+                    <div class="space-y-2">
+                        <a href="{{ route('reparaciones.invoice-receipt', ['id' => $order->id, 'change' => session('change_amount', 0)]) }}" target="_blank" class="w-full btn-secondary text-sm py-2 block text-center">Imprimir ticket de factura</a>
+                        <a href="{{ route('reparaciones.invoice-pdf', $order) }}" target="_blank" class="w-full btn-outline text-sm py-2 block text-center">Factura PDF</a>
+                    </div>
+                @elseif(in_array($order->status, ['ready', 'delivered'], true))
+                    <form action="{{ route('reparaciones.bill', $order) }}" method="POST" class="space-y-3" onsubmit="return confirm('¿Confirmar el cobro y generar la factura final? Esta acción descontará los repuestos del inventario.');">
+                        @csrf
+                        <div class="rounded-xl bg-slate-50 p-3 text-sm space-y-1">
+                            <div class="flex justify-between"><span>Total factura</span><strong>C$ {{ number_format($order->netTotal(), 2) }}</strong></div>
+                            <div class="flex justify-between"><span>Anticipo</span><span>-C$ {{ number_format($order->advance_payment, 2) }}</span></div>
+                            <div class="flex justify-between border-t pt-1 text-base"><strong>Saldo a cobrar</strong><strong class="text-red-600">C$ {{ number_format($order->balance(), 2) }}</strong></div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-600 mb-1">Método de pago</label>
+                            <select name="payment_type" class="select-field text-sm" required>
+                                <option value="cash">Efectivo</option>
+                                <option value="card">Tarjeta</option>
+                                <option value="transfer">Transferencia</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-600 mb-1">Monto recibido</label>
+                            <input type="number" name="amount_received" min="0" step="0.01" value="{{ old('amount_received', $order->balance()) }}" class="input-field text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-600 mb-1">Referencia (opcional)</label>
+                            <input type="text" name="reference_number" maxlength="100" value="{{ old('reference_number') }}" class="input-field text-sm">
+                        </div>
+                        <button type="submit" class="w-full btn-primary text-sm py-2.5">Cobrar y generar factura</button>
+                    </form>
+                @else
+                    <p class="text-sm text-slate-500">Marca la reparación como <strong>Lista</strong> para habilitar el cobro final.</p>
+                @endif
             </div>
 
             {{-- Info --}}
@@ -210,6 +277,7 @@
             </div>
 
             {{-- Delete --}}
+            @unless($order->sale_id)
             <form action="{{ route('reparaciones.destroy', $order->id) }}" method="POST"
                   onsubmit="return confirm('¿Eliminar esta orden de reparación?')">
                 @csrf @method('DELETE')
@@ -217,6 +285,7 @@
                     Eliminar Orden
                 </button>
             </form>
+            @endunless
         </div>
     </div>
 </div>

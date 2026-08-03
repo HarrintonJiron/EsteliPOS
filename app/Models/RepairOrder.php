@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class RepairOrder extends Model
 {
@@ -43,6 +44,8 @@ class RepairOrder extends Model
         'advance_payment',
         'payment_type',
         'payment_status',
+        'sale_id',
+        'invoiced_at',
     ];
 
     protected $casts = [
@@ -50,6 +53,7 @@ class RepairOrder extends Model
         'received_date' => 'date',
         'estimated_date' => 'date',
         'delivered_date' => 'date',
+        'invoiced_at' => 'datetime',
     ];
 
     public function client()
@@ -70,6 +74,61 @@ class RepairOrder extends Model
     public function items()
     {
         return $this->hasMany(RepairOrderItem::class);
+    }
+
+    public function sale()
+    {
+        return $this->belongsTo(Sale::class);
+    }
+
+    public function estimatedDeliveryAt(): ?Carbon
+    {
+        if (! $this->estimated_date) {
+            return null;
+        }
+
+        return $this->estimated_date->copy()->setTimeFromTimeString(
+            $this->estimated_time ?: '23:59:59'
+        );
+    }
+
+    public function scheduleLabel(): string
+    {
+        if ($this->status === 'delivered') {
+            if (! $this->estimatedDeliveryAt() || ! $this->delivered_date) {
+                return 'Entregada';
+            }
+
+            $deliveredAt = $this->delivered_date->copy()->setTimeFromTimeString(
+                $this->delivered_time ?: '23:59:59'
+            );
+
+            return $deliveredAt->lessThanOrEqualTo($this->estimatedDeliveryAt())
+                ? 'Entregada a tiempo'
+                : 'Entregada tarde';
+        }
+
+        if ($this->status === 'cancelled') {
+            return 'Cancelada';
+        }
+
+        if (! $this->estimatedDeliveryAt()) {
+            return 'Sin estimar';
+        }
+
+        return $this->estimatedDeliveryAt()->isPast() ? 'Atrasada' : 'A tiempo';
+    }
+
+    public function scheduleColor(): string
+    {
+        return match ($this->scheduleLabel()) {
+            'A tiempo' => 'bg-emerald-100 text-emerald-700',
+            'Atrasada' => 'bg-red-100 text-red-700',
+            'Entregada', 'Entregada a tiempo' => 'bg-blue-100 text-blue-700',
+            'Entregada tarde' => 'bg-orange-100 text-orange-700',
+            'Cancelada' => 'bg-slate-200 text-slate-600',
+            default => 'bg-amber-100 text-amber-700',
+        };
     }
 
     public function statusLabel(): string
@@ -124,8 +183,18 @@ class RepairOrder extends Model
 
     public function balance(): float
     {
-        $totalAfterDiscount = (float) $this->total - (float) ($this->discount_amount ?? 0);
+        if ($this->payment_status === 'paid') {
+            return 0;
+        }
 
-        return max(0, $totalAfterDiscount - (float) $this->advance_payment);
+        return max(0, $this->netTotal() - (float) $this->advance_payment);
+    }
+
+    public function netTotal(): float
+    {
+        $gross = (float) $this->total;
+        $percentageDiscount = $gross * ((float) ($this->discount_percentage ?? 0) / 100);
+
+        return max(0, round($gross - $percentageDiscount - (float) ($this->discount_amount ?? 0), 2));
     }
 }

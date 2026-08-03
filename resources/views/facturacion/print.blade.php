@@ -90,7 +90,7 @@
         <tbody>
             @foreach(($sale?->details ?? []) as $detail)
                 <tr>
-                    <td class="border px-4 py-2">{{ $detail->product->name ?? 'N/A' }}</td>
+                    <td class="border px-4 py-2">{{ $detail->description ?? $detail->product?->name ?? 'Servicio' }}</td>
                     <td class="border px-4 py-2">{{ $detail->quantity }}</td>
                     <td class="border px-4 py-2">{{ $companyProfile['currency_symbol'] }} {{ number_format($detail->price, 2) }}</td>
                     <td class="border px-4 py-2">{{ $companyProfile['currency_symbol'] }} {{ number_format($detail->subtotal, 2) }}</td>
@@ -117,6 +117,16 @@
                 <span>Total:</span>
                 <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->total ?? 0, 2) }}</span>
             </div>
+            @if($sale?->repairOrder && (float) $sale->repairOrder->advance_payment > 0)
+            <div class="flex justify-between text-emerald-700">
+                <span>Anticipo:</span>
+                <span>-{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->repairOrder->advance_payment, 2) }}</span>
+            </div>
+            <div class="flex justify-between font-bold">
+                <span>Pago final:</span>
+                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format(max(0, $sale->total - $sale->repairOrder->advance_payment), 2) }}</span>
+            </div>
+            @endif
 
         </div>
     </div>

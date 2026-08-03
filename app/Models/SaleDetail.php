@@ -11,7 +11,7 @@ class SaleDetail extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['sale_id', 'product_id', 'quantity', 'price', 'subtotal', 'tax_rate', 'tax_amount'];
+    protected $fillable = ['sale_id', 'product_id', 'description', 'quantity', 'price', 'subtotal', 'tax_rate', 'tax_amount'];
 
     public function sale()
     {

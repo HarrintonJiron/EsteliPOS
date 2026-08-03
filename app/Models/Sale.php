@@ -54,4 +54,9 @@ class Sale extends Model
     {
         return $this->hasMany(SaleDetail::class);
     }
+
+    public function repairOrder()
+    {
+        return $this->hasOne(RepairOrder::class);
+    }
 }

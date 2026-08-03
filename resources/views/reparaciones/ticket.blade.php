@@ -36,7 +36,8 @@
     <div class="row"><span>Orden:</span><span class="bold">{{ $order->order_number }}</span></div>
     <div class="row"><span>Recepción:</span><span>{{ $order->received_date->format('d/m/Y') }}{{ $order->received_time ? ' '.substr($order->received_time, 0, 5) : '' }}</span></div>
     @if($order->estimated_date)
-    <div class="row"><span>Entrega est.:</span><span class="bold">{{ $order->estimated_date->format('d/m/Y') }}{{ $order->estimated_time ? ' '.substr($order->estimated_time, 0, 5) : '' }}</span></div>
+    <div class="row"><span>Fecha estimada:</span><span class="bold">{{ $order->estimated_date->format('d/m/Y') }}</span></div>
+    <div class="row"><span>Hora estimada:</span><span class="bold">{{ $order->estimated_time ? substr($order->estimated_time, 0, 5) : 'Pendiente' }}</span></div>
     @endif
     @if($order->delivered_date)
     <div class="row"><span>Entregado:</span><span>{{ $order->delivered_date->format('d/m/Y') }}{{ $order->delivered_time ? ' '.substr($order->delivered_time, 0, 5) : '' }}</span></div>

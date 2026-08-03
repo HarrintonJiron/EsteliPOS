@@ -32,7 +32,8 @@
             <div class="text-xs mt-1 space-y-0.5 opacity-90">
                 <p>Recibido: {{ $order->received_date->format('d/m/Y') }}{{ $order->received_time ? ' · '.substr($order->received_time, 0, 5) : '' }}</p>
                 @if($order->estimated_date)
-                <p>Entrega est.: {{ $order->estimated_date->format('d/m/Y') }}{{ $order->estimated_time ? ' · '.substr($order->estimated_time, 0, 5) : '' }}</p>
+                <p>Fecha estimada: {{ $order->estimated_date->format('d/m/Y') }}</p>
+                <p>Hora estimada: {{ $order->estimated_time ? substr($order->estimated_time, 0, 5) : 'Pendiente' }}</p>
                 @endif
                 @if($order->delivered_date)
                 <p>Entregado: {{ $order->delivered_date->format('d/m/Y') }}{{ $order->delivered_time ? ' · '.substr($order->delivered_time, 0, 5) : '' }}</p>

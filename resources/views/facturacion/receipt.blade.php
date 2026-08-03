@@ -144,12 +144,12 @@
             @foreach($sale->details as $detail)
                 <article class="item">
                     <div class="item-main">
-                        <span class="item-name">{{ $detail->product?->name ?? 'Producto' }}</span>
-                        <span class="item-qty">{{ number_format($detail->quantity, 0) }}</span>
+                        <span class="item-name">{{ $detail->description ?? $detail->product?->name ?? 'Servicio' }}</span>
+                        <span class="item-qty">{{ rtrim(rtrim(number_format($detail->quantity, 2), '0'), '.') }}</span>
                         <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($detail->subtotal, 2) }}</span>
                     </div>
                     <div class="item-meta">
-                        {{ number_format($detail->quantity, 0) }} × {{ $companyProfile['currency_symbol'] }}{{ number_format($detail->price, 2) }}
+                        {{ rtrim(rtrim(number_format($detail->quantity, 2), '0'), '.') }} × {{ $companyProfile['currency_symbol'] }}{{ number_format($detail->price, 2) }}
                         @if((float) $detail->tax_rate > 0) · IVA {{ number_format($detail->tax_rate * 100, 2) }}%@endif
                     </div>
                 </article>
@@ -162,6 +162,10 @@
             <div class="total-row"><span>SUBTOTAL</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->subtotal, 2) }}</span></div>
             <div class="total-row"><span>IVA ({{ number_format($sale->tax_rate * 100, 2) }}%)</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->tax_total, 2) }}</span></div>
             <div class="total-row grand-total"><span>TOTAL</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->total, 2) }}</span></div>
+            @if($sale->repairOrder && (float) $sale->repairOrder->advance_payment > 0)
+                <div class="total-row"><span>ANTICIPO</span><span>-{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->repairOrder->advance_payment, 2) }}</span></div>
+                <div class="total-row strong"><span>PAGO FINAL</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format(max(0, $sale->total - $sale->repairOrder->advance_payment), 2) }}</span></div>
+            @endif
         </section>
 
         <div class="separator"></div>

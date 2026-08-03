@@ -14,10 +14,12 @@
         </div>
 
         <div class="flex flex-wrap gap-2">
+            @unless($sale->repairOrder)
             <a href="{{ route('facturacion.edit', $sale->id) }}" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                 Editar
             </a>
+            @endunless
             <a href="{{ route('facturacion.pdf', ['sale_id' => $sale->id]) }}" target="_blank" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                 PDF
@@ -26,7 +28,7 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                 Imprimir
             </a>
-            @if(auth()->user()?->isAdmin())
+            @if(auth()->user()?->isAdmin() && ! $sale->repairOrder)
             <form action="{{ route('facturacion.destroy', $sale->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Estás seguro de eliminar esta factura?')">
                 @csrf
                 @method('DELETE')
@@ -121,7 +123,7 @@
                 <tbody class="divide-y">
                     @foreach($sale->details as $detail)
                         <tr>
-                            <td class="px-6 py-4">{{ $detail->product->name ?? 'N/A' }}</td>
+                            <td class="px-6 py-4">{{ $detail->description ?? $detail->product?->name ?? 'Servicio' }}</td>
                             <td class="px-6 py-4">{{ $detail->quantity }}</td>
                             <td class="px-6 py-4">C$ {{ number_format($detail->price, 2) }}</td>
                             <td class="px-6 py-4">C$ {{ number_format($detail->subtotal, 2) }}</td>

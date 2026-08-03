@@ -134,7 +134,7 @@
                     <tr class="border-b border-gray-100 {{ $index % 2 === 0 ? 'bg-white' : 'bg-gray-50' }}">
                         <td class="px-3 py-2.5 text-gray-600">{{ $index + 1 }}</td>
                         <td class="px-3 py-2.5">
-                            <p class="font-medium text-gray-800">{{ $detail->product?->name ?? 'N/A' }}</p>
+                            <p class="font-medium text-gray-800">{{ $detail->description ?? $detail->product?->name ?? 'Servicio' }}</p>
                             @if($detail->product?->code)
                                 <p class="text-xs text-gray-500">Código: {{ $detail->product->code }}</p>
                             @endif
@@ -184,6 +184,16 @@
                 <span>TOTAL A PAGAR:</span>
                 <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->total ?? 0, 2) }}</span>
             </div>
+            @if($sale?->repairOrder && (float) $sale->repairOrder->advance_payment > 0)
+            <div class="flex justify-between text-xs py-1 text-emerald-700">
+                <span>Anticipo:</span>
+                <span>- {{ $companyProfile['currency_symbol'] }} {{ number_format($sale->repairOrder->advance_payment, 2) }}</span>
+            </div>
+            <div class="flex justify-between text-sm py-1 font-bold">
+                <span>Pago final:</span>
+                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format(max(0, $sale->total - $sale->repairOrder->advance_payment), 2) }}</span>
+            </div>
+            @endif
             <div class="text-xs text-gray-500 text-center italic mt-1">
                 {{ $sale?->total ? ucfirst(\App\Helpers\NumberToWords::convert($sale->total)) . ' CÓRDOBAS EXACTOS' : '' }}
             </div>

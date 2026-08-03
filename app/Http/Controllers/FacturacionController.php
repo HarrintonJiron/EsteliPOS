@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Client;
 use App\Models\NumberSequence;
 use App\Models\Product;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
@@ -171,7 +172,7 @@ class FacturacionController extends Controller
     public function print(Request $request)
     {
         $saleId = $request->query('sale_id');
-        $sale = $saleId ? Sale::with('details.product', 'client')->find($saleId) : null;
+        $sale = $saleId ? Sale::with('details.product', 'client', 'repairOrder')->find($saleId) : null;
 
         return view('facturacion.print', compact('sale'));
     }
@@ -179,14 +180,14 @@ class FacturacionController extends Controller
     public function pdf(Request $request)
     {
         $saleId = $request->query('sale_id');
-        $sale = $saleId ? Sale::with('details.product', 'client')->find($saleId) : null;
+        $sale = $saleId ? Sale::with('details.product', 'client', 'repairOrder')->find($saleId) : null;
 
         return view('facturacion.pdf', compact('sale'));
     }
 
     public function show($id)
     {
-        $sale = Sale::with('details.product', 'client')->findOrFail($id);
+        $sale = Sale::with('details.product', 'client', 'repairOrder')->findOrFail($id);
 
         return view('facturacion.show', compact('sale'));
     }
@@ -194,6 +195,10 @@ class FacturacionController extends Controller
     public function edit($id)
     {
         $sale = Sale::with('details.product')->findOrFail($id);
+        if (RepairOrder::where('sale_id', $sale->id)->exists()) {
+            return redirect()->route('facturacion.show', $sale)
+                ->with('error', 'Las facturas generadas desde reparaciones no pueden editarse.');
+        }
         $products = $this->productsWithEffectiveTax();
         $clients = Client::orderBy('name')->get();
 
@@ -204,6 +209,10 @@ class FacturacionController extends Controller
     {
         $data = $request->validated();
         $sale = Sale::findOrFail($id);
+        if (RepairOrder::where('sale_id', $sale->id)->exists()) {
+            return redirect()->route('facturacion.show', $sale)
+                ->with('error', 'Las facturas generadas desde reparaciones no pueden editarse.');
+        }
 
         try {
             DB::transaction(function () use ($data, $sale) {
@@ -294,6 +303,9 @@ class FacturacionController extends Controller
     public function destroy($id)
     {
         $sale = Sale::findOrFail($id);
+        if (RepairOrder::where('sale_id', $sale->id)->exists()) {
+            return back()->with('error', 'No se puede eliminar una factura vinculada a una reparación.');
+        }
 
         try {
             DB::transaction(function () use ($sale) {
@@ -534,7 +546,7 @@ class FacturacionController extends Controller
      */
     public function change($saleId)
     {
-        $sale = Sale::with('details.product', 'user')->findOrFail($saleId);
+        $sale = Sale::with('details.product', 'user', 'repairOrder')->findOrFail($saleId);
         $changeAmount = session('changeAmount', 0);
 
         return view('facturacion.change', compact('sale', 'changeAmount'));
@@ -545,7 +557,7 @@ class FacturacionController extends Controller
      */
     public function receipt($saleId)
     {
-        $sale = Sale::with('details.product', 'user')->findOrFail($saleId);
+        $sale = Sale::with('details.product', 'user', 'repairOrder')->findOrFail($saleId);
         $changeAmount = request()->query('change', 0);
 
         return view('facturacion.receipt', compact('sale', 'changeAmount'));

@@ -184,9 +184,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/reparaciones/{id}/edit', [ReparacionController::class, 'edit'])->name('reparaciones.edit');
         Route::put('/reparaciones/{id}', [ReparacionController::class, 'update'])->name('reparaciones.update');
         Route::patch('/reparaciones/{id}/status', [ReparacionController::class, 'updateStatus'])->name('reparaciones.status');
+        Route::post('/reparaciones/{id}/facturar', [ReparacionController::class, 'bill'])->name('reparaciones.bill');
         Route::delete('/reparaciones/{id}', [ReparacionController::class, 'destroy'])->name('reparaciones.destroy');
         Route::get('/reparaciones/{id}/ticket', [ReparacionController::class, 'ticket'])->name('reparaciones.ticket');
         Route::get('/reparaciones/{id}/pdf', [ReparacionController::class, 'pdf'])->name('reparaciones.pdf');
+        Route::get('/reparaciones/{id}/factura/ticket', [ReparacionController::class, 'invoiceReceipt'])->name('reparaciones.invoice-receipt');
+        Route::get('/reparaciones/{id}/factura/pdf', [ReparacionController::class, 'invoicePdf'])->name('reparaciones.invoice-pdf');
     });
 
     // Reportes solo para admin

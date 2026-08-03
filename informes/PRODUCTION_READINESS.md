@@ -9,7 +9,7 @@ El código integrado de ambos desarrolladores queda aprobado como candidato téc
 
 ## Validaciones ejecutadas
 
-- 69 pruebas automatizadas, 410 aserciones: aprobadas después de la integración.
+- 70 pruebas automatizadas, 440 aserciones: aprobadas después de la integración.
 - Catálogo simulado de 5,000 productos: el POS mantuvo una carga inicial limitada y encontró productos adicionales mediante búsqueda bajo demanda.
 - Compilación de Vite para producción: aprobada.
 - Sintaxis PHP de `app`, `database`, `routes` y `tests`: aprobada.
@@ -36,6 +36,7 @@ El código integrado de ambos desarrolladores queda aprobado como candidato téc
 - Se agregaron índices para ventas, cartera, compras, inventario y diario contable.
 - Los roles operativos reciben permisos iniciales coherentes y las operaciones de venta están protegidas por acción.
 - La integración de reparaciones, marcas, servicios y descuentos fue validada junto con contabilidad, configuración y POS.
+- El cierre de reparaciones genera una factura única, cobra el saldo después del anticipo, descuenta repuestos y publica el asiento contable dentro de una sola transacción.
 - Se preservó el nombre histórico de la migración de roles para evitar que una instalación existente intente crear de nuevo la tabla `roles`.
 - Las migraciones y catálogos de reparaciones se ejecutan durante la instalación; ya no se modifica el esquema de la base de datos desde solicitudes web.
 - Se agregó un paquete de despliegue local para Windows con SQLite, verificación previa, arranque automático, diagnóstico y respaldo diario con segunda copia opcional.
