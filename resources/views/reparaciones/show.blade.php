@@ -17,7 +17,7 @@
                     <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold {{ $order->statusColor() }}">{{ $order->statusLabel() }}</span>
                     <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold {{ $order->priorityColor() }}">{{ $order->priorityLabel() }}</span>
                 </div>
-                <p class="text-sm text-slate-500 mt-0.5">Recibido: {{ $order->received_date->format('d/m/Y') }}
+                <p class="text-sm text-slate-500 mt-0.5">Recibido: {{ $order->received_date->format('d/m/Y') }}{{ $order->received_time ? ' a las '.substr($order->received_time, 0, 5) : '' }}
                     @if($order->estimated_date) · Entrega est.: <span class="{{ $order->estimated_date->isPast() && $order->status !== 'delivered' ? 'text-red-600 font-semibold' : '' }}">{{ $order->estimated_date->format('d/m/Y') }}</span>@endif
                 </p>
             </div>
@@ -183,12 +183,12 @@
                 @if($order->user)
                 <div class="flex justify-between"><span class="text-slate-500">Atendido por</span><span class="font-medium">{{ $order->user->name }}</span></div>
                 @endif
-                <div class="flex justify-between"><span class="text-slate-500">Recepción</span><span>{{ $order->received_date->format('d/m/Y') }}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Recepción</span><span>{{ $order->received_date->format('d/m/Y') }}{{ $order->received_time ? ' · '.substr($order->received_time, 0, 5) : '' }}</span></div>
                 @if($order->estimated_date)
                 <div class="flex justify-between"><span class="text-slate-500">Est. entrega</span><span>{{ $order->estimated_date->format('d/m/Y') }}</span></div>
                 @endif
                 @if($order->delivered_date)
-                <div class="flex justify-between"><span class="text-slate-500">Entregado</span><span>{{ $order->delivered_date->format('d/m/Y') }}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Entregado</span><span>{{ $order->delivered_date->format('d/m/Y') }}{{ $order->delivered_time ? ' · '.substr($order->delivered_time, 0, 5) : '' }}</span></div>
                 @endif
                 @php
                     $lockType = $order->lock_type ?? ($order->device_password ? (preg_match('/^[1-9](?:-[1-9])*$/', $order->device_password) ? 'pattern' : 'password') : 'none');

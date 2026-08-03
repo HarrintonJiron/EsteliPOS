@@ -219,18 +219,30 @@
                 </div>
 
                 <div class="card p-5 space-y-4">
-                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Fechas</h2>
-                    <div>
-                        <label class="block text-sm text-slate-600 mb-1">Fecha de recepción *</label>
-                        <input type="date" name="received_date" value="{{ old('received_date', $order->received_date->format('Y-m-d')) }}" required class="input-field">
+                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Fechas y horas</h2>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Fecha de recepción *</label>
+                            <input type="date" name="received_date" value="{{ old('received_date', $order->received_date->format('Y-m-d')) }}" required class="input-field">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Hora de llegada *</label>
+                            <input type="time" name="received_time" value="{{ old('received_time', $order->received_time ? substr($order->received_time, 0, 5) : $order->created_at->format('H:i')) }}" required class="input-field">
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Entrega estimada</label>
                         <input type="date" name="estimated_date" value="{{ old('estimated_date', $order->estimated_date?->format('Y-m-d')) }}" class="input-field">
                     </div>
-                    <div>
-                        <label class="block text-sm text-slate-600 mb-1">Fecha real de entrega</label>
-                        <input type="date" name="delivered_date" value="{{ old('delivered_date', $order->delivered_date?->format('Y-m-d')) }}" class="input-field">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Fecha real de entrega</label>
+                            <input type="date" name="delivered_date" value="{{ old('delivered_date', $order->delivered_date?->format('Y-m-d')) }}" class="input-field">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Hora de entrega</label>
+                            <input type="time" name="delivered_time" value="{{ old('delivered_time', $order->delivered_time ? substr($order->delivered_time, 0, 5) : '') }}" class="input-field">
+                        </div>
                     </div>
                 </div>
 

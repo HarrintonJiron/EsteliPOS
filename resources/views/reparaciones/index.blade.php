@@ -93,7 +93,7 @@
                 <tr class="{{ $order->status === 'ready' ? 'bg-green-50' : ($order->priority === 'urgent' ? 'bg-red-50' : '') }}">
                     <td>
                         <p class="font-mono font-bold text-indigo-700">{{ $order->order_number }}</p>
-                        <p class="text-xs text-slate-400">{{ $order->received_date->format('d/m/Y') }}</p>
+                        <p class="text-xs text-slate-400">{{ $order->received_date->format('d/m/Y') }}{{ $order->received_time ? ' · '.substr($order->received_time, 0, 5) : '' }}</p>
                     </td>
                     <td>
                         <p class="font-semibold text-slate-800">{{ $order->client_name }}</p>

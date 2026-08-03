@@ -5,6 +5,7 @@ use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\ConfigurationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 
 uses(RefreshDatabase::class);
 
@@ -46,6 +47,7 @@ describe('repair order lock handling', function () {
             'status' => 'received',
             'priority' => 'normal',
             'received_date' => now()->toDateString(),
+            'received_time' => '08:35',
             'payment_type' => 'cash',
             'lock_type' => 'pattern',
             'device_password' => '1-2-5-8-9',
@@ -56,5 +58,32 @@ describe('repair order lock handling', function () {
             'lock_type' => 'pattern',
             'device_password' => '1-2-5-8-9',
         ]);
+        expect(substr((string) RepairOrder::latest('id')->value('received_time'), 0, 5))->toBe('08:35');
+    });
+
+    it('records the delivery date and time when the status changes to delivered', function () {
+        $this->seed(ConfigurationSeeder::class);
+        $user = User::factory()->create();
+        $user->roles()->attach(Role::where('slug', 'admin')->value('id'));
+        $order = RepairOrder::create([
+            'client_name' => 'Cliente de prueba',
+            'device_brand' => 'Apple',
+            'device_model' => 'iPhone 13',
+            'problem_description' => 'Pantalla quebrada',
+            'received_date' => now()->toDateString(),
+            'received_time' => '09:10',
+        ]);
+
+        $this->travelTo(Carbon::parse('2026-08-02 16:45:00', 'America/Managua'));
+
+        $this->actingAs($user)
+            ->patch(route('reparaciones.status', $order), ['status' => 'delivered'])
+            ->assertRedirect();
+
+        $deliveredOrder = $order->fresh();
+
+        expect($deliveredOrder->status)->toBe('delivered')
+            ->and($deliveredOrder->delivered_date->format('Y-m-d'))->toBe('2026-08-02')
+            ->and(substr((string) $deliveredOrder->delivered_time, 0, 5))->toBe('16:45');
     });
 });

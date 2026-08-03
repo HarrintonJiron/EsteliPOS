@@ -217,6 +217,7 @@ class ReparacionController extends Controller
             'priority' => 'required|in:low,normal,high,urgent',
             'technician_id' => 'nullable|exists:users,id',
             'received_date' => 'required|date',
+            'received_time' => 'required|date_format:H:i',
             'estimated_date' => 'nullable|date',
             'labor_cost' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
@@ -275,7 +276,10 @@ class ReparacionController extends Controller
                 'technician_id' => $validated['technician_id'] ?? null,
                 'user_id' => $request->user()?->id ?? 1,
                 'received_date' => $validated['received_date'],
+                'received_time' => $validated['received_time'],
                 'estimated_date' => $validated['estimated_date'] ?? null,
+                'delivered_date' => $validated['status'] === 'delivered' ? now()->toDateString() : null,
+                'delivered_time' => $validated['status'] === 'delivered' ? now()->format('H:i:s') : null,
                 'labor_cost' => $laborCost,
                 'parts_cost' => $partsCost,
                 'total' => $subtotal,
@@ -378,8 +382,10 @@ class ReparacionController extends Controller
             'priority' => 'required|in:low,normal,high,urgent',
             'technician_id' => 'nullable|exists:users,id',
             'received_date' => 'required|date',
+            'received_time' => 'required|date_format:H:i',
             'estimated_date' => 'nullable|date',
             'delivered_date' => 'nullable|date',
+            'delivered_time' => 'nullable|date_format:H:i',
             'labor_cost' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
@@ -415,10 +421,12 @@ class ReparacionController extends Controller
             $totalDiscount = $percentageDiscount + $discountFixed;
             $total = $subtotal - $totalDiscount;
 
-            // Mark delivered_date automatically
+            // Record the exact delivery date and time automatically when needed.
             $deliveredDate = $validated['delivered_date'] ?? null;
-            if ($validated['status'] === 'delivered' && ! $deliveredDate && ! $order->delivered_date) {
-                $deliveredDate = now()->toDateString();
+            $deliveredTime = $validated['delivered_time'] ?? null;
+            if ($validated['status'] === 'delivered') {
+                $deliveredDate = $deliveredDate ?: ($order->delivered_date?->toDateString() ?? now()->toDateString());
+                $deliveredTime = $deliveredTime ?: ($order->delivered_time ?: now()->format('H:i:s'));
             }
 
             $order->update([
@@ -440,8 +448,10 @@ class ReparacionController extends Controller
                 'priority' => $validated['priority'],
                 'technician_id' => $validated['technician_id'] ?? null,
                 'received_date' => $validated['received_date'],
+                'received_time' => $validated['received_time'],
                 'estimated_date' => $validated['estimated_date'] ?? null,
                 'delivered_date' => $deliveredDate,
+                'delivered_time' => $deliveredTime,
                 'labor_cost' => $laborCost,
                 'parts_cost' => $partsCost,
                 'total' => $subtotal,
@@ -495,6 +505,9 @@ class ReparacionController extends Controller
         $update = ['status' => $status];
         if ($status === 'delivered' && ! $order->delivered_date) {
             $update['delivered_date'] = now()->toDateString();
+        }
+        if ($status === 'delivered' && ! $order->delivered_time) {
+            $update['delivered_time'] = now()->format('H:i:s');
         }
 
         $order->update($update);

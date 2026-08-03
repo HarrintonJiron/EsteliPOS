@@ -30,9 +30,12 @@
             <p class="text-xs font-medium uppercase tracking-widest opacity-70 mb-1">ORDEN DE REPARACIÓN</p>
             <p class="text-2xl font-black">{{ $order->order_number }}</p>
             <div class="text-xs mt-1 space-y-0.5 opacity-90">
-                <p>Recibido: {{ $order->received_date->format('d/m/Y') }}</p>
+                <p>Recibido: {{ $order->received_date->format('d/m/Y') }}{{ $order->received_time ? ' · '.substr($order->received_time, 0, 5) : '' }}</p>
                 @if($order->estimated_date)
                 <p>Entrega est.: {{ $order->estimated_date->format('d/m/Y') }}</p>
+                @endif
+                @if($order->delivered_date)
+                <p>Entregado: {{ $order->delivered_date->format('d/m/Y') }}{{ $order->delivered_time ? ' · '.substr($order->delivered_time, 0, 5) : '' }}</p>
                 @endif
             </div>
         </div>

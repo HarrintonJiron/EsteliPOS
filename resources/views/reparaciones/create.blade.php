@@ -214,10 +214,16 @@
 
                 {{-- DATES --}}
                 <div class="card p-5 space-y-4">
-                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Fechas</h2>
-                    <div>
-                        <label class="block text-sm text-slate-600 mb-1">Fecha de recepción *</label>
-                        <input type="date" name="received_date" value="{{ old('received_date', date('Y-m-d')) }}" required class="input-field">
+                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Fechas y horas</h2>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Fecha de recepción *</label>
+                            <input type="date" name="received_date" value="{{ old('received_date', now()->toDateString()) }}" required class="input-field">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Hora de llegada *</label>
+                            <input type="time" name="received_time" value="{{ old('received_time', now()->format('H:i')) }}" required class="input-field">
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Entrega estimada</label>
