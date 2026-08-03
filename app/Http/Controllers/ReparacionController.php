@@ -220,9 +220,9 @@ class ReparacionController extends Controller
             'priority' => 'required|in:low,normal,high,urgent',
             'technician_id' => 'nullable|exists:users,id',
             'received_date' => 'required|date',
-            'received_time' => 'required|date_format:H:i',
+            'received_time' => 'required|date_format:H:i,H:i:s',
             'estimated_date' => 'nullable|date|required_with:estimated_time',
-            'estimated_time' => 'nullable|date_format:H:i',
+            'estimated_time' => 'nullable|date_format:H:i,H:i:s',
             'labor_cost' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
@@ -284,9 +284,9 @@ class ReparacionController extends Controller
                 'technician_id' => $validated['technician_id'] ?? null,
                 'user_id' => $request->user()?->id ?? 1,
                 'received_date' => $validated['received_date'],
-                'received_time' => $validated['received_time'],
+                'received_time' => $this->normalizeTime($validated['received_time']),
                 'estimated_date' => $validated['estimated_date'] ?? null,
-                'estimated_time' => $validated['estimated_time'] ?? null,
+                'estimated_time' => $this->normalizeTime($validated['estimated_time'] ?? null),
                 'delivered_date' => $validated['status'] === 'delivered' ? now()->toDateString() : null,
                 'delivered_time' => $validated['status'] === 'delivered' ? now()->format('H:i:s') : null,
                 'labor_cost' => $laborCost,
@@ -394,11 +394,11 @@ class ReparacionController extends Controller
             'priority' => 'required|in:low,normal,high,urgent',
             'technician_id' => 'nullable|exists:users,id',
             'received_date' => 'required|date',
-            'received_time' => 'required|date_format:H:i',
+            'received_time' => 'required|date_format:H:i,H:i:s',
             'estimated_date' => 'nullable|date|required_with:estimated_time',
-            'estimated_time' => 'nullable|date_format:H:i',
+            'estimated_time' => 'nullable|date_format:H:i,H:i:s',
             'delivered_date' => 'nullable|date',
-            'delivered_time' => 'nullable|date_format:H:i',
+            'delivered_time' => 'nullable|date_format:H:i,H:i:s',
             'labor_cost' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
@@ -437,7 +437,7 @@ class ReparacionController extends Controller
 
             // Record the exact delivery date and time automatically when needed.
             $deliveredDate = $validated['delivered_date'] ?? null;
-            $deliveredTime = $validated['delivered_time'] ?? null;
+            $deliveredTime = $this->normalizeTime($validated['delivered_time'] ?? null);
             if ($validated['status'] === 'delivered') {
                 $deliveredDate = $deliveredDate ?: ($order->delivered_date?->toDateString() ?? now()->toDateString());
                 $deliveredTime = $deliveredTime ?: ($order->delivered_time ?: now()->format('H:i:s'));
@@ -465,9 +465,9 @@ class ReparacionController extends Controller
                 'priority' => $validated['priority'],
                 'technician_id' => $validated['technician_id'] ?? null,
                 'received_date' => $validated['received_date'],
-                'received_time' => $validated['received_time'],
+                'received_time' => $this->normalizeTime($validated['received_time']),
                 'estimated_date' => $validated['estimated_date'] ?? null,
-                'estimated_time' => $validated['estimated_time'] ?? null,
+                'estimated_time' => $this->normalizeTime($validated['estimated_time'] ?? null),
                 'delivered_date' => $deliveredDate,
                 'delivered_time' => $deliveredTime,
                 'labor_cost' => $laborCost,
@@ -557,5 +557,14 @@ class ReparacionController extends Controller
         }
 
         return 'pending';
+    }
+
+    private function normalizeTime(?string $time): ?string
+    {
+        if ($time === null || $time === '') {
+            return null;
+        }
+
+        return strlen($time) === 5 ? $time.':00' : $time;
     }
 }

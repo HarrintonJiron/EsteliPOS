@@ -100,4 +100,41 @@ describe('repair order lock handling', function () {
             ->and($deliveredOrder->delivered_date->format('Y-m-d'))->toBe('2026-08-02')
             ->and(substr((string) $deliveredOrder->delivered_time, 0, 5))->toBe('16:45');
     });
+
+    it('accepts browser time values with seconds while editing a repair order', function () {
+        $this->seed(ConfigurationSeeder::class);
+        $user = User::factory()->create();
+        $user->roles()->attach(Role::where('slug', 'admin')->value('id'));
+        $order = RepairOrder::create([
+            'client_name' => 'Cliente de prueba',
+            'device_brand' => 'Xiaomi',
+            'device_model' => 'Redmi Note 13',
+            'problem_description' => 'No carga',
+            'received_date' => '2026-08-01',
+            'received_time' => '09:10:00',
+        ]);
+
+        $this->actingAs($user)->put(route('reparaciones.update', $order), [
+            'client_name' => 'Cliente de prueba',
+            'device_brand' => 'Xiaomi',
+            'device_model' => 'Redmi Note 13',
+            'problem_description' => 'No carga',
+            'status' => 'delivered',
+            'priority' => 'normal',
+            'received_date' => '2026-08-01',
+            'received_time' => '09:10:00',
+            'estimated_date' => '2026-08-02',
+            'estimated_time' => '15:30:00',
+            'delivered_date' => '2026-08-02',
+            'delivered_time' => '16:45:00',
+            'include_warranty_policy' => '0',
+            'payment_type' => 'cash',
+        ])->assertRedirect(route('reparaciones.show', $order));
+
+        $updatedOrder = $order->fresh();
+
+        expect(substr((string) $updatedOrder->received_time, 0, 8))->toBe('09:10:00')
+            ->and(substr((string) $updatedOrder->estimated_time, 0, 8))->toBe('15:30:00')
+            ->and(substr((string) $updatedOrder->delivered_time, 0, 8))->toBe('16:45:00');
+    });
 });
