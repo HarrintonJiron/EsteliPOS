@@ -353,6 +353,7 @@ docker-compose exec app php artisan migrate
 # Ejecutar seeders
 docker-compose exec app php artisan db:seed --class=ConfigurationSeeder
 
+
 # Ver logs
 docker-compose logs -f
 ```
