@@ -41,7 +41,7 @@
 
     <form method="get" class="card p-4">
         <div class="flex gap-2">
-            <input type="text" name="search" placeholder="Buscar cliente..." value="{{ request('search') }}" class="input-field flex-1">
+            <input type="text" name="search" placeholder="Buscar cliente, cédula o RUC..." value="{{ request('search') }}" class="input-field flex-1">
             <button type="submit" class="btn-primary">Buscar</button>
         </div>
     </form>
@@ -64,8 +64,8 @@
                 @forelse($clientsWithDebt as $item)
                 <tr>
                     <td>
-                        <p class="font-semibold text-slate-900">{{ $item['name'] }}</p>
-                        <p class="text-xs text-slate-500">{{ $item['phone'] ?? '' }}</p>
+                        <p class="font-semibold text-slate-900">{{ $item['legal_name'] ?? $item['name'] }}</p>
+                        <p class="text-xs text-slate-500">{{ ($item['client_type'] ?? 'natural') === 'company' ? 'Empresa' : 'Persona Natural' }} · {{ $item['document_label'] ?? 'Documento' }}: {{ $item['document_number'] ?? '—' }}</p>
                     </td>
                     <td class="text-right text-sm">
                         {{ (float)($item['credit_limit'] ?? 0) > 0 ? 'C$ '.number_format($item['credit_limit'], 2) : 'Ilimitado' }}

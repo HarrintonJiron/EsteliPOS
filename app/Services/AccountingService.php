@@ -8,9 +8,11 @@ use App\Models\FiscalPeriod;
 use App\Models\InventoryAdjustment;
 use App\Models\JournalEntry;
 use App\Models\NumberSequence;
+use App\Models\OperationalExpense;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
+use Database\Seeders\AccountingSeeder;
 use Illuminate\Support\Facades\DB;
 
 class AccountingService
@@ -25,6 +27,7 @@ class AccountingService
     private const ACC_IVA_CREDITO_FISCAL = '1.1.06';
     private const ACC_VENTAS = '4.1';
     private const ACC_AJUSTE_FALTANTE = '5.2';
+    private const ACC_GASTOS_OPERATIVOS = '6.1.99';
     private const ACC_OTROS_INGRESOS = '7.2';
 
     /**
@@ -276,9 +279,59 @@ class AccountingService
         ], post: true);
     }
 
+    /**
+     * Asiento automático de un gasto operativo: Debe Gasto Operativo, Haber Caja/Banco.
+     */
+    public function recordOperationalExpense(OperationalExpense $expense): ?JournalEntry
+    {
+        if ($expense->status !== OperationalExpense::STATUS_REGISTERED || (float) $expense->amount <= 0) {
+            return null;
+        }
+
+        $creditAccount = match ($expense->payment_method) {
+            'transfer', 'card' => $this->account(self::ACC_BANCO),
+            default => $this->account(self::ACC_CAJA),
+        };
+
+        $expenseAccount = $expense->account_id
+            ? Account::query()->findOrFail($expense->account_id)
+            : $this->account(self::ACC_GASTOS_OPERATIVOS);
+
+        $reference = 'GASTO-' . $expense->id;
+
+        return $this->createEntry([
+            'date' => $expense->expense_date instanceof \Carbon\CarbonInterface ? $expense->expense_date->toDateString() : $expense->expense_date,
+            'concept' => 'Gasto operativo: ' . $expense->description,
+            'reference' => $reference,
+            'source_type' => OperationalExpense::class,
+            'source_id' => $expense->id,
+            'user_id' => $expense->user_id,
+            'notes' => $expense->notes,
+            'lines' => [
+                [
+                    'account_id' => $expenseAccount->id,
+                    'detail' => $expense->description,
+                    'debit' => $expense->amount,
+                    'credit' => 0,
+                ],
+                [
+                    'account_id' => $creditAccount->id,
+                    'detail' => $expense->description,
+                    'debit' => 0,
+                    'credit' => $expense->amount,
+                ],
+            ],
+        ], post: true);
+    }
+
     private function account(string $code): Account
     {
         $account = Account::where('code', $code)->first();
+
+        if (! $account) {
+            app(AccountingSeeder::class)->run();
+            $account = Account::where('code', $code)->first();
+        }
 
         if (! $account) {
             throw new \RuntimeException("Cuenta contable '{$code}' no existe. Ejecute el seeder del catálogo de cuentas (ChartOfAccountsSeeder).");

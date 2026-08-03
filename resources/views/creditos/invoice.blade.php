@@ -20,7 +20,8 @@
 
         <div class="mb-4">
             <h3 class="font-semibold">Cliente</h3>
-            <p>{{ $client->name }} @if($client->phone) - {{ $client->phone }} @endif</p>
+            <p>{{ $client->legal_name }} @if($client->phone) - {{ $client->phone }} @endif</p>
+            <p class="text-sm text-gray-600">{{ $client->isCompany() ? 'Empresa' : 'Persona Natural' }} · {{ $client->document_label }}: {{ $client->document_number ?? '—' }}</p>
             <p class="text-sm text-gray-600">{{ $client->address ?? '' }}</p>
         </div>
 

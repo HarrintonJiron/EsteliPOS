@@ -24,8 +24,9 @@
         <p class="small" style="margin:4px 0">Estado de Cuenta</p>
     </div>
 
-    <p class="xs"><strong>Cliente:</strong> {{ $client->name }}</p>
-    <p class="xs"><strong>Tel:</strong> {{ $client->phone ?? '—' }} &nbsp; <strong>RUC:</strong> {{ $client->ruc ?? '—' }}</p>
+    <p class="xs"><strong>Cliente:</strong> {{ $client->legal_name }}</p>
+    <p class="xs"><strong>Tipo:</strong> {{ $client->isCompany() ? 'Empresa' : 'Persona Natural' }}</p>
+    <p class="xs"><strong>Tel:</strong> {{ $client->phone ?? '—' }} &nbsp; <strong>{{ $client->document_label }}:</strong> {{ $client->document_number ?? '—' }}</p>
 
     <div class="line"></div>
 

@@ -29,12 +29,12 @@ class SaleRequest extends FormRequest
             'tax_included' => 'required|boolean',
             'billing_name' => 'required|string|max:255',
             'billing_business_name' => 'nullable|string|max:255',
+            'billing_document_type' => 'nullable|in:cedula,ruc',
             'billing_ruc' => [
                 'nullable',
                 'string',
                 'max:30',
-                // Permite RUCs comunes en NI (si no cumple, se puede dejar en blanco)
-                'regex:/^[0-9]{3}-[0-9]{6}-[0-9]{4}[A-Za-z0-9]$/',
+                'regex:/^(?:[A-Za-z]\d{13}|\d{3}-\d{6}-\d{4}[A-Za-z0-9]|\d{14}[A-Za-z0-9])$/',
             ],
             'billing_phone' => 'nullable|string|max:50',
             'billing_email' => 'nullable|email|max:255',

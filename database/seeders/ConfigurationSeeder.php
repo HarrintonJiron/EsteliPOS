@@ -45,7 +45,7 @@ class ConfigurationSeeder extends Seeder
             'caja' => ['view', 'open', 'close', 'export'],
             'creditos' => ['view', 'create', 'export'],
             'proformas' => ['view', 'create', 'edit', 'delete', 'export', 'convert'],
-            'reparaciones' => ['view', 'create', 'edit', 'delete', 'export'],
+            'reparaciones' => ['view', 'create', 'edit', 'delete', 'export', 'view_expenses', 'create_expenses', 'edit_expenses', 'delete_expenses'],
             'planilla' => ['view', 'create', 'edit', 'export'],
             'reportes' => ['view', 'export'],
             'contabilidad' => ['view', 'create', 'edit', 'delete', 'export', 'close_period'],

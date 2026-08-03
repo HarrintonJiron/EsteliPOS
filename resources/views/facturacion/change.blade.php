@@ -65,8 +65,8 @@
         <div class="mb-8 text-left bg-slate-100 rounded-xl p-4">
             <p class="text-sm text-slate-600">Cliente:</p>
             <p class="text-lg font-semibold text-slate-900">{{ $sale->billing_name }}</p>
-            @if($sale->billing_ruc)
-                <p class="text-sm text-slate-600">RUC: {{ $sale->billing_ruc }}</p>
+            @if($sale->billing_document_number)
+                <p class="text-sm text-slate-600">{{ $sale->billing_document_label }}: {{ $sale->billing_document_number }}</p>
             @endif
         </div>
 

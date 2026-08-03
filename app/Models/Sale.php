@@ -15,6 +15,7 @@ class Sale extends Model
         'user_id',
         'billing_name',
         'billing_business_name',
+        'billing_document_type',
         'billing_ruc',
         'billing_phone',
         'billing_email',
@@ -53,5 +54,19 @@ class Sale extends Model
     public function details()
     {
         return $this->hasMany(SaleDetail::class);
+    }
+
+    public function getBillingDocumentLabelAttribute(): string
+    {
+        return match ($this->billing_document_type) {
+            'cedula' => 'Cédula',
+            'ruc' => 'RUC',
+            default => $this->client?->document_label ?? 'Documento',
+        };
+    }
+
+    public function getBillingDocumentNumberAttribute(): ?string
+    {
+        return $this->billing_ruc ?: $this->client?->document_number;
     }
 }

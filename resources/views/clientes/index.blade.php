@@ -9,7 +9,7 @@
     <div class="flex flex-wrap justify-between items-start gap-4">
         <div>
             <h1 class="page-title">Clientes</h1>
-            <p class="page-subtitle">Registro rápido con control de crédito y plazos de pago</p>
+            <p class="page-subtitle">Registro tributario y control de crédito de clientes</p>
         </div>
         <div class="flex gap-2">
             <a href="{{ route('creditos.index') }}" class="btn-outline text-sm">Ver Créditos</a>
@@ -38,7 +38,7 @@
 
     <form method="GET" class="card p-4">
         <div class="flex gap-2">
-            <input type="text" name="search" value="{{ request('search') }}" placeholder="Buscar por nombre, teléfono o RUC..." class="input-field flex-1">
+            <input type="text" name="search" value="{{ request('search') }}" placeholder="Buscar por nombre, razón social, cédula o RUC..." class="input-field flex-1">
             <button type="submit" class="btn-primary">Buscar</button>
         </div>
     </form>
@@ -60,8 +60,8 @@
                 @forelse($clients as $client)
                 <tr>
                     <td>
-                        <p class="font-semibold text-slate-800">{{ $client->name }}</p>
-                        @if($client->business_name)<p class="text-xs text-slate-500">{{ $client->business_name }}</p>@endif
+                        <p class="font-semibold text-slate-800">{{ $client->legal_name ?? $client->name }}</p>
+                        <p class="text-xs text-slate-500">{{ ($client->is_company ?? false) ? 'Empresa' : 'Persona Natural' }} · {{ $client->document_label }}: {{ $client->document_number ?? '—' }}</p>
                     </td>
                     <td>{{ $client->phone ?? '—' }}</td>
                     <td class="text-right">
@@ -119,9 +119,25 @@
                 <input type="text" name="name" required class="input-field" placeholder="Nombre del cliente" autofocus>
             </div>
             <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
+                <select name="client_type" id="quickClientType" class="select-field" onchange="toggleQuickClientTaxFields()">
+                    <option value="natural">Persona Natural</option>
+                    <option value="company">Empresa</option>
+                </select>
+            </div>
+            <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
                 <input type="text" name="phone" class="input-field" placeholder="8888-8888">
             </div>
+            <div id="quickCedulaField">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Cédula</label>
+                <input type="text" name="cedula" class="input-field" placeholder="001-123456-0000A">
+            </div>
+            <div id="quickRucField" class="hidden">
+                <label class="block text-sm font-medium text-slate-700 mb-1">RUC</label>
+                <input type="text" name="ruc" class="input-field" placeholder="J0310000000012">
+            </div>
+            <input type="hidden" name="status" value="active">
             <label class="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" name="credit_enabled" value="1" id="creditToggle" class="rounded border-slate-300 text-indigo-600" onchange="document.getElementById('creditFields').classList.toggle('hidden', !this.checked)">
                 <span class="text-sm font-medium text-slate-700">Habilitar crédito</span>
@@ -149,3 +165,18 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+function toggleQuickClientTaxFields() {
+    const type = document.getElementById('quickClientType')?.value;
+    const cedula = document.getElementById('quickCedulaField');
+    const ruc = document.getElementById('quickRucField');
+    if (!cedula || !ruc) return;
+    const isCompany = type === 'company';
+    cedula.classList.toggle('hidden', isCompany);
+    ruc.classList.toggle('hidden', !isCompany);
+}
+document.addEventListener('DOMContentLoaded', toggleQuickClientTaxFields);
+</script>
+@endpush

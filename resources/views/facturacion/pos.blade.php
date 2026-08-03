@@ -317,7 +317,11 @@ document.addEventListener('DOMContentLoaded', function() {
             id: c.id,
             name: c.name ?? '',
             business_name: c.business_name ?? '',
+            client_type: c.client_type ?? 'natural',
+            cedula: c.cedula ?? '',
             ruc: c.ruc ?? '',
+            document_label: (c.client_type ?? 'natural') === 'company' ? 'RUC' : 'Cédula',
+            document_number: (c.client_type ?? 'natural') === 'company' ? (c.ruc ?? '') : (c.cedula ?? ''),
             credit_enabled: !!c.credit_enabled,
             credit_limit: parseFloat(c.credit_limit ?? 0),
             credit_days: parseInt(c.credit_days ?? 30),
@@ -689,7 +693,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const container = document.getElementById('clientsList');
         const q = filter.toLowerCase();
         const filtered = clientsData.filter(c =>
-            !q || c.name.toLowerCase().includes(q) || (c.ruc && c.ruc.includes(q))
+            !q || c.name.toLowerCase().includes(q) || (c.business_name && c.business_name.toLowerCase().includes(q)) || (c.document_number && c.document_number.toLowerCase().includes(q))
         );
         container.innerHTML = filtered.map(c => `
             <button type="button" onclick="selectClient(${c.id}, '${c.name.replace(/'/g, "\\'")}')"
@@ -698,6 +702,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <p class="font-semibold text-slate-800">${c.name}</p>
                     ${c.credit_enabled ? '<span class="badge-info text-xs">Crédito</span>' : ''}
                 </div>
+                <p class="text-xs text-slate-500 mt-1">${c.document_label}: ${c.document_number || '—'}</p>
                 ${c.credit_enabled ? `<p class="text-xs text-slate-500 mt-1">Límite: C$ ${parseFloat(c.credit_limit || 0).toFixed(0)} · Saldo: C$ ${parseFloat(c.balance || 0).toFixed(2)} · ${c.credit_days}d</p>` : '<p class="text-xs text-slate-400">Solo contado</p>'}
             </button>
         `).join('');

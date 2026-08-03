@@ -13,6 +13,7 @@ use App\Http\Controllers\CompraController;
 use App\Http\Controllers\CostCenterController;
 use App\Http\Controllers\CreditController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeviceBrandController;
 use App\Http\Controllers\DiarioController;
 use App\Http\Controllers\FacturacionController;
 use App\Http\Controllers\FiscalPeriodController;
@@ -23,11 +24,13 @@ use App\Http\Controllers\LedgerController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\MovimientosController;
 use App\Http\Controllers\NominaController;
+use App\Http\Controllers\OperationalExpenseController;
 use App\Http\Controllers\PasswordChangeController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PlanillaController;
 use App\Http\Controllers\ProformaController;
 use App\Http\Controllers\ProveedorController;
+use App\Http\Controllers\RepairServiceController;
 use App\Http\Controllers\ReparacionController;
 use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\RoleController;
@@ -109,6 +112,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/inventario/carga-masiva', [InventarioController::class, 'bulkStore'])->name('inventario.bulk-store');
         Route::get('/inventario/next-code', [InventarioController::class, 'nextCode'])->name('inventario.next-code');
         Route::post('/inventario/reconciliar', [InventarioController::class, 'reconcile'])->name('inventario.reconcile');
+        Route::post('/categorias', [InventarioController::class, 'storeCategory'])->name('categorias.store');
         Route::get('/inventario/export', [InventarioController::class, 'export'])->name('inventario.export');
         Route::get('/inventario/{id}', [InventarioController::class, 'show'])->name('inventario.show')->whereNumber('id');
         Route::get('/inventario/{id}/edit', [InventarioController::class, 'edit'])->name('inventario.edit')->whereNumber('id');
@@ -170,6 +174,23 @@ Route::middleware(['auth'])->group(function () {
 
     // Reparaciones
     Route::middleware('module:reparaciones')->group(function () {
+        Route::get('/device-brands', [DeviceBrandController::class, 'index'])->name('device-brands.index');
+        Route::post('/device-brands', [DeviceBrandController::class, 'store'])->name('device-brands.store');
+        Route::post('/repair-services', [RepairServiceController::class, 'store'])->name('repair-services.store');
+        Route::middleware('permission:reparaciones.create_expenses')->group(function () {
+            Route::get('/reparaciones/gastos-operativos/nuevo', [OperationalExpenseController::class, 'create'])->name('reparaciones.gastos.create');
+            Route::post('/reparaciones/gastos-operativos', [OperationalExpenseController::class, 'store'])->name('reparaciones.gastos.store');
+        });
+        Route::middleware('permission:reparaciones.edit_expenses')->group(function () {
+            Route::get('/reparaciones/gastos-operativos/{operationalExpense}/edit', [OperationalExpenseController::class, 'edit'])->name('reparaciones.gastos.edit');
+            Route::match(['put', 'patch'], '/reparaciones/gastos-operativos/{operationalExpense}', [OperationalExpenseController::class, 'update'])->name('reparaciones.gastos.update');
+        });
+        Route::middleware('permission:reparaciones.view_expenses')->group(function () {
+            Route::get('/reparaciones/gastos-operativos', [OperationalExpenseController::class, 'index'])->name('reparaciones.gastos.index');
+            Route::get('/reparaciones/gastos-operativos/{operationalExpense}', [OperationalExpenseController::class, 'show'])->name('reparaciones.gastos.show');
+        });
+        Route::delete('/reparaciones/gastos-operativos/{operationalExpense}', [OperationalExpenseController::class, 'destroy'])
+            ->middleware('permission:reparaciones.delete_expenses')->name('reparaciones.gastos.destroy');
         Route::get('/reparaciones', [ReparacionController::class, 'index'])->name('reparaciones.index');
         Route::get('/reparaciones/nueva', [ReparacionController::class, 'create'])->name('reparaciones.create');
         Route::post('/reparaciones', [ReparacionController::class, 'store'])->name('reparaciones.store');

@@ -20,4 +20,19 @@ class CajaSession extends Model
         'opened_at' => 'datetime',
         'closed_at' => 'datetime',
     ];
+
+    public function openedBy()
+    {
+        return $this->belongsTo(User::class, 'opened_by');
+    }
+
+    public function closedBy()
+    {
+        return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    public function operationalExpenses()
+    {
+        return $this->hasMany(OperationalExpense::class);
+    }
 }

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Sale;
 use App\Models\CreditPayment;
 use App\Models\Arqueo;
+use App\Models\OperationalExpense;
 use Carbon\Carbon;
 
 class ArqueoController extends Controller
@@ -59,6 +60,14 @@ class ArqueoController extends Controller
         $creditPayments = CreditPayment::whereDate('payment_date', $date->toDateString())->with('client')->get();
         $creditPaymentsTotal = $creditPayments->sum('amount');
 
+        $operationalExpenses = OperationalExpense::query()
+            ->with(['user', 'cajaSession'])
+            ->registered()
+            ->cash()
+            ->whereDate('expense_date', $date->toDateString())
+            ->get();
+        $operationalExpensesCashTotal = (float) $operationalExpenses->sum('amount');
+
         // Procesar conteo físico enviado desde el formulario
         $physicalCounts = $request->input('physical_counts', []);
         $physicalTotal = 0;
@@ -71,7 +80,7 @@ class ArqueoController extends Controller
         }
 
         // Guardar el arqueo en la base de datos para historial
-        $cashTotal = floatval($byType['cash']['total'] ?? 0);
+        $cashTotal = floatval($byType['cash']['total'] ?? 0) - $operationalExpensesCashTotal;
         $difference = floatval($physicalTotal) - $cashTotal;
 
         $arqueo = Arqueo::create([
@@ -87,6 +96,7 @@ class ArqueoController extends Controller
             'details' => [
                 'sales' => $sales->pluck('id')->toArray(),
                 'credit_payments' => $creditPayments->pluck('id')->toArray(),
+                'operational_expenses' => $operationalExpenses->pluck('id')->toArray(),
                 'physical_counts' => $physicalCounts,
             ],
         ]);
@@ -110,6 +120,8 @@ class ArqueoController extends Controller
             'byType' => $byType,
             'creditPayments' => $creditPayments,
             'creditPaymentsTotal' => $creditPaymentsTotal,
+            'operationalExpenses' => $operationalExpenses,
+            'operationalExpensesCashTotal' => $operationalExpensesCashTotal,
             'physicalTotal' => $physicalTotal,
             'physicalCounts' => $physicalCounts,
             'arqueo' => $arqueo,

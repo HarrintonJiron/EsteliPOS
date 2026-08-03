@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Schema;
 
 class User extends Authenticatable
 {
@@ -65,11 +66,16 @@ class User extends Authenticatable
 
     public function permissions()
     {
-        return $this->roles()->with('permissions')->get()
-            ->pluck('permissions')
-            ->flatten()
-            ->merge($this->directPermissions()->get())
-            ->unique('id');
+        $rolePermissions = collect();
+        if (Schema::hasTable('role_user') && Schema::hasTable('permission_role') && Schema::hasTable('roles')) {
+            $rolePermissions = $this->roles()->with('permissions')->get()->pluck('permissions')->flatten();
+        }
+
+        $directPermissions = Schema::hasTable('permission_user')
+            ? $this->directPermissions()->get()
+            : collect();
+
+        return $rolePermissions->merge($directPermissions)->unique('id')->values();
     }
 
     public function directPermissions()
@@ -82,25 +88,56 @@ class User extends Authenticatable
         return $this->hasMany(AuditLog::class);
     }
 
+    public function operationalExpenses()
+    {
+        return $this->hasMany(OperationalExpense::class);
+    }
+
     public function hasRole(string $roleSlug): bool
     {
-        return $this->roles()->where('slug', $roleSlug)->exists();
+        if (Schema::hasTable('roles') && Schema::hasColumn('roles', 'slug') && Schema::hasTable('role_user')) {
+            return $this->roles()->where('slug', $roleSlug)->exists();
+        }
+
+        return Schema::hasColumn($this->getTable(), 'role')
+            ? (string) $this->role === $roleSlug
+            : false;
     }
 
     public function hasPermission(string $permissionSlug): bool
     {
-        return $this->directPermissions()->where('slug', $permissionSlug)->exists()
-            || $this->roles()->whereHas('permissions', function ($query) use ($permissionSlug) {
-            $query->where('slug', $permissionSlug);
-        })->exists();
+        $hasDirect = Schema::hasTable('permission_user') && Schema::hasTable('permissions')
+            ? $this->directPermissions()->where('slug', $permissionSlug)->exists()
+            : false;
+
+        $hasThroughRole = Schema::hasTable('role_user')
+            && Schema::hasTable('permission_role')
+            && Schema::hasTable('roles')
+            && Schema::hasTable('permissions')
+            ? $this->roles()->whereHas('permissions', function ($query) use ($permissionSlug) {
+                $query->where('slug', $permissionSlug);
+            })->exists()
+            : false;
+
+        return $hasDirect || $hasThroughRole;
     }
 
     public function hasAnyPermission(array $permissionSlugs): bool
     {
-        return $this->directPermissions()->whereIn('slug', $permissionSlugs)->exists()
-            || $this->roles()->whereHas('permissions', function ($query) use ($permissionSlugs) {
-            $query->whereIn('slug', $permissionSlugs);
-        })->exists();
+        $hasDirect = Schema::hasTable('permission_user') && Schema::hasTable('permissions')
+            ? $this->directPermissions()->whereIn('slug', $permissionSlugs)->exists()
+            : false;
+
+        $hasThroughRole = Schema::hasTable('role_user')
+            && Schema::hasTable('permission_role')
+            && Schema::hasTable('roles')
+            && Schema::hasTable('permissions')
+            ? $this->roles()->whereHas('permissions', function ($query) use ($permissionSlugs) {
+                $query->whereIn('slug', $permissionSlugs);
+            })->exists()
+            : false;
+
+        return $hasDirect || $hasThroughRole;
     }
 
     public function hasAllPermissions(array $permissionSlugs): bool

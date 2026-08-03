@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\RepairOrder;
 use App\Models\RepairOrderItem;
 use App\Models\RepairService;
+use App\Models\OperationalExpense;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
@@ -269,7 +270,12 @@ class ReparacionController extends Controller
             'delivered' => RepairOrder::where('status', 'delivered')->count(),
         ];
 
-        return view('reparaciones.index', compact('orders', 'stats'));
+        $expenseStats = [
+            'month_count' => OperationalExpense::registered()->whereDate('expense_date', '>=', now()->startOfMonth())->count(),
+            'month_total' => (float) OperationalExpense::registered()->whereDate('expense_date', '>=', now()->startOfMonth())->sum('amount'),
+        ];
+
+        return view('reparaciones.index', compact('orders', 'stats', 'expenseStats'));
     }
 
     public function create()

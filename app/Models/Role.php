@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class Role extends Model
 {
@@ -32,19 +33,31 @@ class Role extends Model
 
     public function hasPermission($permissionSlug)
     {
+        if (! Schema::hasTable('permission_role') || ! Schema::hasTable('permissions')) {
+            return false;
+        }
+
         return $this->permissions()->where('slug', $permissionSlug)->exists();
     }
 
     public function givePermission($permissionSlug)
     {
+        if (! Schema::hasTable('permission_role') || ! Schema::hasTable('permissions')) {
+            return;
+        }
+
         $permission = Permission::where('slug', $permissionSlug)->first();
         if ($permission && !$this->hasPermission($permissionSlug)) {
-            $this->permissions()->attach($permission->id);
+            $this->permissions()->syncWithoutDetaching([$permission->id]);
         }
     }
 
     public function revokePermission($permissionSlug)
     {
+        if (! Schema::hasTable('permission_role') || ! Schema::hasTable('permissions')) {
+            return;
+        }
+
         $permission = Permission::where('slug', $permissionSlug)->first();
         if ($permission) {
             $this->permissions()->detach($permission->id);
@@ -53,6 +66,10 @@ class Role extends Model
 
     public function syncPermissions(array $permissionSlugs)
     {
+        if (! Schema::hasTable('permission_role') || ! Schema::hasTable('permissions')) {
+            return;
+        }
+
         $permissionIds = Permission::whereIn('slug', $permissionSlugs)->pluck('id');
         $this->permissions()->sync($permissionIds);
     }

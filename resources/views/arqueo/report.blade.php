@@ -25,9 +25,24 @@
             <div class="text-xs text-slate-400">{{ $creditPayments->count() }} registros</div>
         </div>
         <div class="p-3 bg-white rounded shadow">
-            <div class="text-xs text-slate-500">Efectivo (sistema)</div>
-            <div class="text-lg font-semibold">{{ number_format(($byType['cash']['total'] ?? 0), 2) }}</div>
-            <div class="text-xs text-slate-400">Ventas en efectivo</div>
+            <div class="text-xs text-slate-500">Efectivo neto (sistema)</div>
+            <div class="text-lg font-semibold">{{ number_format(($byType['cash']['total'] ?? 0) - ($operationalExpensesCashTotal ?? 0), 2) }}</div>
+            <div class="text-xs text-slate-400">Ventas en efectivo menos gastos operativos</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 text-sm">
+        <div class="p-3 bg-white rounded shadow">
+            <div class="text-xs text-slate-500">Gastos operativos en efectivo</div>
+            <div class="text-lg font-semibold text-red-600">{{ number_format($operationalExpensesCashTotal ?? 0, 2) }}</div>
+            <div class="text-xs text-slate-400">{{ $operationalExpenses->count() }} egresos</div>
+        </div>
+        <div class="p-3 bg-white rounded shadow">
+            <div class="text-xs text-slate-500">Diferencia vs sistema</div>
+            <div class="text-lg font-semibold {{ (($physicalTotal ?? 0) - (($byType['cash']['total'] ?? 0) - ($operationalExpensesCashTotal ?? 0))) < 0 ? 'text-red-600' : 'text-emerald-600' }}">
+                {{ number_format(($physicalTotal ?? 0) - (($byType['cash']['total'] ?? 0) - ($operationalExpensesCashTotal ?? 0)), 2) }}
+            </div>
+            <div class="text-xs text-slate-400">Incluye egresos operativos del día</div>
         </div>
     </div>
 
@@ -40,7 +55,7 @@
                 </div>
                 <div class="text-right">
                     <div class="text-xs text-slate-500">Diferencia</div>
-                    <div class="text-lg font-semibold {{ (($physicalTotal ?? 0) - ($byType['cash']['total'] ?? 0)) < 0 ? 'text-red-600' : 'text-emerald-600' }}">{{ number_format(($physicalTotal ?? 0) - ($byType['cash']['total'] ?? 0), 2) }}</div>
+                    <div class="text-lg font-semibold {{ (($physicalTotal ?? 0) - (($byType['cash']['total'] ?? 0) - ($operationalExpensesCashTotal ?? 0))) < 0 ? 'text-red-600' : 'text-emerald-600' }}">{{ number_format(($physicalTotal ?? 0) - (($byType['cash']['total'] ?? 0) - ($operationalExpensesCashTotal ?? 0)), 2) }}</div>
                 </div>
             </div>
         </div>
@@ -90,6 +105,34 @@
                     <td class="py-2">{{ $s->payment_type }}</td>
                 </tr>
                 @endforeach
+            </tbody>
+        </table>
+    </div>
+
+    <div class="bg-white rounded shadow p-4 mb-6">
+        <h3 class="font-semibold mb-2">Gastos operativos del día</h3>
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-slate-600">
+                    <th>Descripción</th>
+                    <th>Caja</th>
+                    <th>Usuario</th>
+                    <th>Método</th>
+                    <th class="text-right">Monto</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($operationalExpenses as $expense)
+                    <tr class="border-t">
+                        <td class="py-2">{{ $expense->description }}</td>
+                        <td class="py-2">{{ $expense->cajaSession ? 'Caja #' . $expense->cajaSession->id : '—' }}</td>
+                        <td class="py-2">{{ $expense->user?->name ?? '—' }}</td>
+                        <td class="py-2">{{ $expense->payment_method_label }}</td>
+                        <td class="py-2 text-right text-red-600">{{ number_format($expense->amount, 2) }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="5" class="py-4 text-center text-slate-400">No se registraron gastos operativos en efectivo.</td></tr>
+                @endforelse
             </tbody>
         </table>
     </div>

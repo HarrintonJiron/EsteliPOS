@@ -88,7 +88,8 @@
                 @forelse($topDebtors as $row)
                 <div class="px-4 py-3 flex justify-between items-center">
                     <div>
-                        <p class="font-medium text-slate-800">{{ $row['client']->name }}</p>
+                        <p class="font-medium text-slate-800">{{ $row['client']->legal_name }}</p>
+                        <p class="text-xs text-slate-500">{{ $row['client']->document_label }}: {{ $row['client']->document_number ?? '—' }}</p>
                         <p class="text-xs text-slate-500">Límite: C$ {{ number_format($row['client']->credit_limit, 0) }}</p>
                     </div>
                     <p class="font-bold text-red-600">C$ {{ number_format($row['balance'], 2) }}</p>
@@ -106,7 +107,8 @@
                 @forelse($clientsOverLimit as $row)
                 <div class="px-4 py-3 flex justify-between items-center">
                     <div>
-                        <p class="font-medium text-slate-800">{{ $row['client']->name }}</p>
+                        <p class="font-medium text-slate-800">{{ $row['client']->legal_name }}</p>
+                        <p class="text-xs text-slate-500">{{ $row['client']->document_label }}: {{ $row['client']->document_number ?? '—' }}</p>
                         <p class="text-xs text-slate-500">Límite: C$ {{ number_format($row['credit_limit'], 2) }}</p>
                     </div>
                     <div class="text-right">
@@ -126,11 +128,12 @@
         <div class="card-header"><h3 class="font-semibold text-slate-800">Créditos Otorgados (período)</h3></div>
         @if($creditsSold->count())
         <table class="table-agro">
-            <thead><tr><th>Cliente</th><th>Factura</th><th>Fecha</th><th>Vence</th><th class="text-right">Monto</th></tr></thead>
+            <thead><tr><th>Cliente</th><th>Documento</th><th>Factura</th><th>Fecha</th><th>Vence</th><th class="text-right">Monto</th></tr></thead>
             <tbody>
                 @foreach($creditsSold as $sale)
                 <tr>
-                    <td>{{ $sale->client->name ?? 'N/A' }}</td>
+                    <td>{{ $sale->client->legal_name ?? 'N/A' }}</td>
+                    <td>{{ $sale->client?->document_number ?? 'N/A' }}</td>
                     <td class="font-mono text-indigo-600">#{{ $sale->invoice_number }}</td>
                     <td>{{ $sale->date->format('d/m/Y') }}</td>
                     <td>{{ $sale->due_date?->format('d/m/Y') ?? '—' }}</td>
@@ -148,11 +151,12 @@
         <div class="card-header"><h3 class="font-semibold text-slate-800">Abonos Recibidos (período)</h3></div>
         @if($paymentsReceived->count())
         <table class="table-agro">
-            <thead><tr><th>Cliente</th><th>Fecha</th><th>Tipo</th><th class="text-right">Monto</th><th>Referencia</th></tr></thead>
+            <thead><tr><th>Cliente</th><th>Documento</th><th>Fecha</th><th>Tipo</th><th class="text-right">Monto</th><th>Referencia</th></tr></thead>
             <tbody>
                 @foreach($paymentsReceived as $payment)
                 <tr>
-                    <td>{{ $payment->client->name ?? 'N/A' }}</td>
+                    <td>{{ $payment->client->legal_name ?? 'N/A' }}</td>
+                    <td>{{ $payment->client?->document_number ?? 'N/A' }}</td>
                     <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
                     <td><span class="badge-info">{{ $payment->payment_type }}</span></td>
                     <td class="text-right font-semibold text-emerald-600">C$ {{ number_format($payment->amount, 2) }}</td>

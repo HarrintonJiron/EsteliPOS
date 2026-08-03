@@ -41,8 +41,8 @@
                         @foreach($overdueCredits as $sale)
                             <tr class="hover:bg-gray-50 transition-colors">
                                 <td class="px-6 py-4">
-                                    <p class="font-semibold text-gray-900">{{ $sale->client->name }}</p>
-                                    <p class="text-xs text-gray-600">{{ $sale->client->ruc ?? 'N/A' }}</p>
+                                    <p class="font-semibold text-gray-900">{{ $sale->client->legal_name }}</p>
+                                    <p class="text-xs text-gray-600">{{ $sale->client->document_label }}: {{ $sale->client->document_number ?? 'N/A' }}</p>
                                 </td>
                                 <td class="px-6 py-4">
                                     <p class="font-semibold text-blue-900">#{{ str_pad($sale->invoice_number, 6, '0', STR_PAD_LEFT) }}</p>
