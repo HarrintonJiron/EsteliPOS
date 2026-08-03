@@ -225,9 +225,15 @@
                             <input type="time" name="received_time" value="{{ old('received_time', now()->format('H:i')) }}" required class="input-field">
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-sm text-slate-600 mb-1">Entrega estimada</label>
-                        <input type="date" name="estimated_date" value="{{ old('estimated_date') }}" class="input-field">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Fecha estimada</label>
+                            <input type="date" name="estimated_date" value="{{ old('estimated_date') }}" class="input-field">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Hora estimada</label>
+                            <input type="time" name="estimated_time" value="{{ old('estimated_time') }}" class="input-field">
+                        </div>
                     </div>
                 </div>
 

@@ -48,6 +48,8 @@ describe('repair order lock handling', function () {
             'priority' => 'normal',
             'received_date' => now()->toDateString(),
             'received_time' => '08:35',
+            'estimated_date' => now()->addDays(2)->toDateString(),
+            'estimated_time' => '15:30',
             'payment_type' => 'cash',
             'lock_type' => 'pattern',
             'device_password' => '1-2-5-8-9',
@@ -59,6 +61,7 @@ describe('repair order lock handling', function () {
             'device_password' => '1-2-5-8-9',
         ]);
         expect(substr((string) RepairOrder::latest('id')->value('received_time'), 0, 5))->toBe('08:35');
+        expect(substr((string) RepairOrder::latest('id')->value('estimated_time'), 0, 5))->toBe('15:30');
     });
 
     it('records the delivery date and time when the status changes to delivered', function () {

@@ -29,6 +29,7 @@ class RepairOrder extends Model
         'received_date',
         'received_time',
         'estimated_date',
+        'estimated_time',
         'delivered_date',
         'delivered_time',
         'labor_cost',

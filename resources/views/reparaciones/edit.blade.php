@@ -230,9 +230,15 @@
                             <input type="time" name="received_time" value="{{ old('received_time', $order->received_time ? substr($order->received_time, 0, 5) : $order->created_at->format('H:i')) }}" required class="input-field">
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-sm text-slate-600 mb-1">Entrega estimada</label>
-                        <input type="date" name="estimated_date" value="{{ old('estimated_date', $order->estimated_date?->format('Y-m-d')) }}" class="input-field">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Fecha estimada</label>
+                            <input type="date" name="estimated_date" value="{{ old('estimated_date', $order->estimated_date?->format('Y-m-d')) }}" class="input-field">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Hora estimada</label>
+                            <input type="time" name="estimated_time" value="{{ old('estimated_time', $order->estimated_time ? substr($order->estimated_time, 0, 5) : '') }}" class="input-field">
+                        </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>

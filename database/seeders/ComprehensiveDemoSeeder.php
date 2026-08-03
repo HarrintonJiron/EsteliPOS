@@ -548,6 +548,7 @@ class ComprehensiveDemoSeeder extends Seeder
                 'received_date' => $received,
                 'received_time' => sprintf('%02d:%02d', 8 + (($i - 1) % 9), ($i * 7) % 60),
                 'estimated_date' => $received->copy()->addDays(3),
+                'estimated_time' => sprintf('%02d:%02d', 14 + ($i % 3), ($i * 5) % 60),
                 'delivered_date' => $status === 'delivered' ? $received->copy()->addDays(2) : null,
                 'delivered_time' => $status === 'delivered' ? sprintf('%02d:%02d', 14 + ($i % 3), ($i * 11) % 60) : null,
                 'labor_cost' => $labor,
