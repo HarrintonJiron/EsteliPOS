@@ -16,6 +16,7 @@
         .status-box { border: 1px solid #000; padding: 4px 8px; display: inline-block; font-size: 11px; font-weight: bold; margin: 4px auto; }
         .total-row { display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; margin-top: 4px; }
         .footer { font-size: 9px; text-align: center; margin-top: 0.3cm; line-height: 1.5; }
+        .warranty { font-size: 8px; line-height: 1.35; text-align: left; }
         @media print {
             .no-print { display: none !important; }
             @page { size: 80mm auto; margin: 0; }
@@ -117,6 +118,14 @@
 
     @if($order->technician)
     <div class="row" style="margin-top:4px;"><span>Técnico:</span><span>{{ $order->technician->name }}</span></div>
+    @endif
+
+    @if($order->include_warranty_policy && $order->warranty_policy)
+    <div class="divider"></div>
+    <div class="warranty">
+        <div class="bold center" style="font-size:9px; margin-bottom:3px;">GARANTÍA: {{ $order->warranty_days }} DÍAS</div>
+        <div>{{ $order->warranty_policy }}</div>
+    </div>
     @endif
 
     <div class="footer">

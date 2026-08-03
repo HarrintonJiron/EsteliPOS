@@ -50,6 +50,9 @@ describe('repair order lock handling', function () {
             'received_time' => '08:35',
             'estimated_date' => now()->addDays(2)->toDateString(),
             'estimated_time' => '15:30',
+            'include_warranty_policy' => '1',
+            'warranty_days' => 45,
+            'warranty_policy' => 'Garantía válida únicamente para el servicio realizado.',
             'payment_type' => 'cash',
             'lock_type' => 'pattern',
             'device_password' => '1-2-5-8-9',
@@ -59,9 +62,17 @@ describe('repair order lock handling', function () {
         $this->assertDatabaseHas('repair_orders', [
             'lock_type' => 'pattern',
             'device_password' => '1-2-5-8-9',
+            'include_warranty_policy' => 1,
+            'warranty_days' => 45,
+            'warranty_policy' => 'Garantía válida únicamente para el servicio realizado.',
         ]);
         expect(substr((string) RepairOrder::latest('id')->value('received_time'), 0, 5))->toBe('08:35');
         expect(substr((string) RepairOrder::latest('id')->value('estimated_time'), 0, 5))->toBe('15:30');
+        $this->actingAs($user)
+            ->get(route('reparaciones.ticket', RepairOrder::latest('id')->value('id')))
+            ->assertOk()
+            ->assertSee('GARANTÍA: 45 DÍAS')
+            ->assertSee('Garantía válida únicamente para el servicio realizado.');
     });
 
     it('records the delivery date and time when the status changes to delivered', function () {

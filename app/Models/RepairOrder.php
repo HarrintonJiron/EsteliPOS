@@ -22,6 +22,9 @@ class RepairOrder extends Model
         'problem_description',
         'diagnosis',
         'repair_notes',
+        'include_warranty_policy',
+        'warranty_days',
+        'warranty_policy',
         'status',
         'priority',
         'technician_id',
@@ -43,6 +46,7 @@ class RepairOrder extends Model
     ];
 
     protected $casts = [
+        'include_warranty_policy' => 'boolean',
         'received_date' => 'date',
         'estimated_date' => 'date',
         'delivered_date' => 'date',

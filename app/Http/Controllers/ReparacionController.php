@@ -213,6 +213,9 @@ class ReparacionController extends Controller
             'problem_description' => 'required|string',
             'diagnosis' => 'nullable|string',
             'repair_notes' => 'nullable|string',
+            'include_warranty_policy' => 'nullable|boolean',
+            'warranty_days' => 'nullable|required_if:include_warranty_policy,1|integer|min:1|max:3650',
+            'warranty_policy' => 'nullable|required_if:include_warranty_policy,1|string|max:2000',
             'status' => 'required|in:received,diagnosing,waiting_parts,in_repair,ready,delivered,cancelled',
             'priority' => 'required|in:low,normal,high,urgent',
             'technician_id' => 'nullable|exists:users,id',
@@ -241,6 +244,7 @@ class ReparacionController extends Controller
         );
         $validated['lock_type'] = $lockData['lock_type'];
         $validated['device_password'] = $lockData['device_password'];
+        $validated['include_warranty_policy'] = $request->boolean('include_warranty_policy');
 
         $order = null;
 
@@ -272,6 +276,9 @@ class ReparacionController extends Controller
                 'problem_description' => $validated['problem_description'],
                 'diagnosis' => $validated['diagnosis'] ?? null,
                 'repair_notes' => $validated['repair_notes'] ?? null,
+                'include_warranty_policy' => $validated['include_warranty_policy'],
+                'warranty_days' => $validated['include_warranty_policy'] ? $validated['warranty_days'] : null,
+                'warranty_policy' => $validated['include_warranty_policy'] ? $validated['warranty_policy'] : null,
                 'status' => $validated['status'],
                 'priority' => $validated['priority'],
                 'technician_id' => $validated['technician_id'] ?? null,
@@ -380,6 +387,9 @@ class ReparacionController extends Controller
             'problem_description' => 'required|string',
             'diagnosis' => 'nullable|string',
             'repair_notes' => 'nullable|string',
+            'include_warranty_policy' => 'nullable|boolean',
+            'warranty_days' => 'nullable|required_if:include_warranty_policy,1|integer|min:1|max:3650',
+            'warranty_policy' => 'nullable|required_if:include_warranty_policy,1|string|max:2000',
             'status' => 'required|in:received,diagnosing,waiting_parts,in_repair,ready,delivered,cancelled',
             'priority' => 'required|in:low,normal,high,urgent',
             'technician_id' => 'nullable|exists:users,id',
@@ -410,6 +420,7 @@ class ReparacionController extends Controller
         );
         $validated['lock_type'] = $lockData['lock_type'];
         $validated['device_password'] = $lockData['device_password'];
+        $validated['include_warranty_policy'] = $request->boolean('include_warranty_policy');
 
         DB::transaction(function () use ($validated, $order) {
             $items = $validated['items'] ?? [];
@@ -447,6 +458,9 @@ class ReparacionController extends Controller
                 'problem_description' => $validated['problem_description'],
                 'diagnosis' => $validated['diagnosis'] ?? null,
                 'repair_notes' => $validated['repair_notes'] ?? null,
+                'include_warranty_policy' => $validated['include_warranty_policy'],
+                'warranty_days' => $validated['include_warranty_policy'] ? $validated['warranty_days'] : null,
+                'warranty_policy' => $validated['include_warranty_policy'] ? $validated['warranty_policy'] : null,
                 'status' => $validated['status'],
                 'priority' => $validated['priority'],
                 'technician_id' => $validated['technician_id'] ?? null,

@@ -75,6 +75,12 @@
                         <p class="text-sm text-slate-700 bg-amber-50 rounded-xl p-3 whitespace-pre-line">{{ $order->repair_notes }}</p>
                     </div>
                     @endif
+                    @if($order->include_warranty_policy && $order->warranty_policy)
+                    <div>
+                        <p class="text-xs font-semibold text-emerald-700 uppercase mb-1">Garantía incluida en el ticket · {{ $order->warranty_days }} días</p>
+                        <p class="text-sm text-slate-700 bg-emerald-50 rounded-xl p-3 whitespace-pre-line">{{ $order->warranty_policy }}</p>
+                    </div>
+                    @endif
                 </div>
             </div>
 

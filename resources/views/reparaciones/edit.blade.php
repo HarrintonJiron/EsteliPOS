@@ -174,6 +174,31 @@
                         </div>
                         <textarea id="repair_notesField" name="repair_notes" rows="2" class="input-field resize-none {{ old('repair_notes', $order->repair_notes) ? '' : 'hidden' }}" {{ old('repair_notes', $order->repair_notes) ? '' : 'disabled' }}>{{ old('repair_notes', $order->repair_notes) }}</textarea>
                     </div>
+                    @php
+                        $warrantyEnabled = (bool) old('include_warranty_policy', $order->include_warranty_policy);
+                        $defaultWarrantyPolicy = 'La garantía cubre únicamente el servicio realizado y los repuestos instalados. No cubre golpes, humedad, daños eléctricos, manipulación por terceros ni fallas distintas a la reportada. Para solicitar garantía es obligatorio presentar este ticket.';
+                    @endphp
+                    <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                        <input type="hidden" name="include_warranty_policy" value="0">
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input type="checkbox" id="includeWarrantyPolicy" name="include_warranty_policy" value="1" onchange="toggleWarrantyPolicy()"
+                                class="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" {{ $warrantyEnabled ? 'checked' : '' }}>
+                            <span>
+                                <span class="block text-sm font-semibold text-emerald-900">Agregar garantía y políticas al ticket</span>
+                                <span class="block text-xs text-emerald-700">El cliente recibirá esta información impresa al pie de su comprobante.</span>
+                            </span>
+                        </label>
+                        <div id="warrantyPolicyFields" class="mt-4 space-y-3 {{ $warrantyEnabled ? '' : 'hidden' }}">
+                            <div class="max-w-40">
+                                <label class="block text-sm text-slate-600 mb-1">Días de garantía *</label>
+                                <input type="number" name="warranty_days" min="1" max="3650" value="{{ old('warranty_days', $order->warranty_days ?? 30) }}" class="input-field" {{ $warrantyEnabled ? '' : 'disabled' }}>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-slate-600 mb-1">Políticas de garantía *</label>
+                                <textarea name="warranty_policy" rows="4" maxlength="2000" class="input-field resize-none" {{ $warrantyEnabled ? '' : 'disabled' }}>{{ old('warranty_policy', $order->warranty_policy ?? $defaultWarrantyPolicy) }}</textarea>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {{-- PARTS --}}
@@ -526,6 +551,13 @@ function toggleOptionalField(field) {
     }
 }
 
+function toggleWarrantyPolicy() {
+    const enabled = document.getElementById('includeWarrantyPolicy').checked;
+    const container = document.getElementById('warrantyPolicyFields');
+    container.classList.toggle('hidden', !enabled);
+    container.querySelectorAll('input, textarea').forEach(field => field.disabled = !enabled);
+}
+
 function fmt(v) { return 'C$ ' + parseFloat(v || 0).toFixed(2); }
 
 function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part', deviceBrand = '', serviceId = '') {
@@ -768,6 +800,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleLockFields();
     toggleOptionalField('diagnosis');
     toggleOptionalField('repair_notes');
+    toggleWarrantyPolicy();
     
     // Load brands dynamically
     loadBrands();
