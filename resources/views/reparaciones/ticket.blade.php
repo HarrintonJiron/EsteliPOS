@@ -68,15 +68,15 @@
 @php($totalItemQuantityFormatted = fmod($totalItemQuantity, 1.0) === 0.0 ? number_format($totalItemQuantity, 0) : number_format($totalItemQuantity, 2))
 <div class="receipt">
 
-    @php($receiptLogoUrl = $companyProfile['ticket_logo_url'] ?: $companyProfile['company_logo_url'])
-    
+    @php($receiptLogoUrl = $companyProfile['ticket_logo_url'] ?? $companyProfile['company_logo_url'] ?? null)
+
     @if($receiptLogoUrl)
         <img src="{{ $receiptLogoUrl }}" alt="Logo de {{ $companyProfile['company_name'] }}" class="ticket-logo" loading="eager" decoding="sync" onerror="this.remove()">
     @endif
-    
+
     <div class="shop-name">{{ $companyProfile['company_name'] }}</div>
-    @if($companyProfile['company_legal_name'])<div class="center" style="font-size:9px;">{{ $companyProfile['company_legal_name'] }}</div>@endif
-    @if($companyProfile['company_phone'])<div class="center" style="font-size:9px;">Tel: {{ $companyProfile['company_phone'] }}</div>@endif
+    @if($companyProfile['company_legal_name'] ?? null)<div class="center" style="font-size:9px;">{{ $companyProfile['company_legal_name'] }}</div>@endif
+    <div class="center" style="font-size:9px;">Taller de Reparaciones @if($companyProfile['company_phone'] ?? null)· Tel: {{ $companyProfile['company_phone'] }}@endif</div>
 
     <div class="badge">ORDEN DE SERVICIO</div>
 

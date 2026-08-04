@@ -19,11 +19,17 @@
     {{-- Header --}}
     <div class="flex justify-between items-start mb-6">
         <div>
-            <h1 class="text-xl font-black text-slate-900">AGROSERVICIO S.A.</h1>
-            <p class="text-xs text-slate-600">SUMINISTROS AGRÍCOLAS · TALLER TÉCNICO</p>
+            <h1 class="text-xl font-black text-slate-900">{{ $companyProfile['company_name'] }}</h1>
+            @if($companyProfile['company_legal_name'])
+            <p class="text-xs text-slate-600">{{ $companyProfile['company_legal_name'] }}</p>
+            @endif
             <div class="text-xs text-slate-600 mt-1 space-y-0.5">
-                <p>RUC: J10240330417 · Tel: +505 2772-0000</p>
-                <p>Carretera Norte Km 4.5, Managua, NI</p>
+                @if($companyProfile['company_ruc'] || $companyProfile['company_phone'])
+                <p>@if($companyProfile['company_ruc'])RUC: {{ $companyProfile['company_ruc'] }}@endif @if($companyProfile['company_ruc'] && $companyProfile['company_phone'])·@endif @if($companyProfile['company_phone'])Tel: {{ $companyProfile['company_phone'] }}@endif</p>
+                @endif
+                @if($companyProfile['company_address'])
+                <p>{{ $companyProfile['company_address'] }}@if($companyProfile['company_city']), {{ $companyProfile['company_city'] }}@endif @if($companyProfile['company_country']), {{ $companyProfile['company_country'] }}@endif</p>
+                @endif
             </div>
         </div>
         <div class="text-center bg-slate-800 text-white px-6 py-4 rounded-xl">

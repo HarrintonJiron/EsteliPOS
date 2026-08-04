@@ -342,13 +342,13 @@ class ProformaController extends Controller
 
     public function ticket($id)
     {
-        $proforma = Proforma::with('details.product', 'client', 'user')->find($id);
+        $proforma = Proforma::with('details.product', 'client', 'user')->findOrFail($id);
+        $companyProfile = [
+            'company_name' => \App\Models\Setting::get('company_name', 'Mi Agroservicio'),
+            'company_phone' => \App\Models\Setting::get('company_phone', ''),
+        ];
 
-        if (! $proforma) {
-            return $this->missingProformaResponse();
-        }
-
-        return view('proformas.ticket', compact('proforma'));
+        return view('proformas.ticket', compact('proforma', 'companyProfile'));
     }
 
     /**

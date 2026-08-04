@@ -70,18 +70,18 @@
     <x-mobile-ticket-paper selector=".receipt" />
 </head>
 <body>
-@php($receiptLogoUrl = $companyProfile['ticket_logo_url'] ?: $companyProfile['company_logo_url'])
+@php($receiptLogoUrl = $companyProfile['ticket_logo_url'] ?? $companyProfile['company_logo_url'] ?? null)
 @php($totalQuantity = $proforma->details->sum(fn ($detail) => (float) $detail->quantity))
 @php($totalQuantityFormatted = fmod($totalQuantity, 1.0) === 0.0 ? number_format($totalQuantity, 0) : number_format($totalQuantity, 2))
 <div class="receipt">
-    
+
     @if($receiptLogoUrl)
         <img src="{{ $receiptLogoUrl }}" alt="Logo de {{ $companyProfile['company_name'] }}" class="ticket-logo" loading="eager" decoding="sync" onerror="this.remove()">
     @endif
-    
+
     <div class="company-name">{{ $companyProfile['company_name'] }}</div>
-    @if($companyProfile['company_legal_name'])<p class="center" style="font-size:9px;">{{ $companyProfile['company_legal_name'] }}</p>@endif
-    @if($companyProfile['company_phone'])<p class="center" style="font-size:9px;">Tel: {{ $companyProfile['company_phone'] }}</p>@endif
+    @if($companyProfile['company_legal_name'] ?? null)<p class="center" style="font-size:9px;">{{ $companyProfile['company_legal_name'] }}</p>@endif
+    @if($companyProfile['company_phone'] ?? null)<p class="center" style="font-size:9px;">Tel: {{ $companyProfile['company_phone'] }}</p>@endif
 
     <div class="proforma-badge">COTIZACIÓN / PROFORMA</div>
 
