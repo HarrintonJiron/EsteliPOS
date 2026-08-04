@@ -33,14 +33,16 @@
             <h2 class="text-lg font-bold text-slate-900 mb-4">Resumen de Venta</h2>
             
             <div class="space-y-3 border-b border-slate-200 pb-4 mb-4">
-                <div class="flex justify-between text-slate-700">
-                    <span>Subtotal:</span>
-                    <span class="font-semibold">C$ {{ number_format($sale->subtotal, 2) }}</span>
-                </div>
-                <div class="flex justify-between text-slate-700">
-                    <span>IVA ({{ number_format($sale->tax_rate * 100, 2) }}%):</span>
-                    <span class="font-semibold">C$ {{ number_format($sale->tax_total, 2) }}</span>
-                </div>
+                @if($invoiceTaxDisplay->showsTaxBreakdown())
+                    <div class="flex justify-between text-slate-700">
+                        <span>Subtotal:</span>
+                        <span class="font-semibold">C$ {{ number_format($sale->subtotal, 2) }}</span>
+                    </div>
+                    <div class="flex justify-between text-slate-700">
+                        <span>{{ $invoiceTaxDisplay->taxLabel((float) $sale->tax_rate) }}:</span>
+                        <span class="font-semibold">C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $sale->tax_total), 2) }}</span>
+                    </div>
+                @endif
                 <div class="flex justify-between text-lg font-bold text-slate-900">
                     <span>Total:</span>
                     <span>C$ {{ number_format($sale->total, 2) }}</span>

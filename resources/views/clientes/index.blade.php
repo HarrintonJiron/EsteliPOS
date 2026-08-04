@@ -114,45 +114,45 @@
         </div>
         <form action="{{ route('clientes.store') }}" method="POST" class="p-5 space-y-4">
             @csrf
+            <input type="hidden" name="quick_client_form" value="1">
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Nombre *</label>
-                <input type="text" name="name" required class="input-field" placeholder="Nombre del cliente" autofocus>
+                <input type="text" name="name" value="{{ old('name') }}" required class="input-field" placeholder="Nombre del cliente" autofocus>
+                @error('name')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
             <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
-                <select name="client_type" id="quickClientType" class="select-field" onchange="toggleQuickClientTaxFields()">
-                    <option value="natural">Persona Natural</option>
-                    <option value="company">Empresa</option>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Tipo de cliente *</label>
+                <select name="client_type" id="quickClientType" class="select-field" required>
+                    <option value="natural" @selected(old('client_type', 'natural') === 'natural')>Persona Natural</option>
+                    <option value="company" @selected(old('client_type') === 'company')>Empresa</option>
                 </select>
+                @error('client_type')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
             <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
-                <input type="text" name="phone" class="input-field" placeholder="8888-8888">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Teléfono *</label>
+                <input type="text" name="phone" value="{{ old('phone') }}" required class="input-field" placeholder="8888-8888">
+                @error('phone')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
-            <div id="quickCedulaField">
+
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                    type="checkbox"
+                    name="save_cedula_identity"
+                    value="1"
+                    id="quickSaveCedula"
+                    class="rounded border-slate-300 text-indigo-600"
+                    onchange="toggleQuickCedulaField()"
+                    @checked(old('save_cedula_identity'))
+                >
+                <span class="text-sm font-medium text-slate-700">Guardar cédula de identidad</span>
+            </label>
+
+            <div id="quickCedulaField" class="hidden">
                 <label class="block text-sm font-medium text-slate-700 mb-1">Cédula</label>
-                <input type="text" name="cedula" class="input-field" placeholder="001-123456-0000A">
-            </div>
-            <div id="quickRucField" class="hidden">
-                <label class="block text-sm font-medium text-slate-700 mb-1">RUC</label>
-                <input type="text" name="ruc" class="input-field" placeholder="J0310000000012">
+                <input type="text" name="cedula" value="{{ old('cedula') }}" class="input-field" placeholder="001-123456-0000A">
+                @error('cedula')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
             <input type="hidden" name="status" value="active">
-            <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="credit_enabled" value="1" id="creditToggle" class="rounded border-slate-300 text-indigo-600" onchange="document.getElementById('creditFields').classList.toggle('hidden', !this.checked)">
-                <span class="text-sm font-medium text-slate-700">Habilitar crédito</span>
-            </label>
-            <div id="creditFields" class="hidden grid grid-cols-2 gap-3 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                <div>
-                    <label class="block text-xs text-slate-600 mb-1">Límite de crédito (C$)</label>
-                    <input type="number" name="credit_limit" step="0.01" min="0" value="5000" class="input-field">
-                    <p class="text-xs text-slate-400 mt-1">0 = sin límite</p>
-                </div>
-                <div>
-                    <label class="block text-xs text-slate-600 mb-1">Días para pagar</label>
-                    <input type="number" name="credit_days" min="1" max="365" value="30" class="input-field">
-                </div>
-            </div>
             <div class="flex justify-between items-center pt-2">
                 <a href="{{ route('clientes.create') }}" class="text-sm text-indigo-600">Formulario completo (Pro) →</a>
                 <div class="flex gap-2">
@@ -168,15 +168,19 @@
 
 @push('scripts')
 <script>
-function toggleQuickClientTaxFields() {
-    const type = document.getElementById('quickClientType')?.value;
+function toggleQuickCedulaField() {
+    const enabled = document.getElementById('quickSaveCedula')?.checked;
     const cedula = document.getElementById('quickCedulaField');
-    const ruc = document.getElementById('quickRucField');
-    if (!cedula || !ruc) return;
-    const isCompany = type === 'company';
-    cedula.classList.toggle('hidden', isCompany);
-    ruc.classList.toggle('hidden', !isCompany);
+    if (!cedula) return;
+    cedula.classList.toggle('hidden', !enabled);
 }
-document.addEventListener('DOMContentLoaded', toggleQuickClientTaxFields);
+document.addEventListener('DOMContentLoaded', toggleQuickCedulaField);
+
+document.addEventListener('DOMContentLoaded', function () {
+    const hasQuickErrors = {{ old('quick_client_form') ? 'true' : 'false' }};
+    if (hasQuickErrors) {
+        document.getElementById('modalCliente')?.classList.remove('hidden');
+    }
+});
 </script>
 @endpush

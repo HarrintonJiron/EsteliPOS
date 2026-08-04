@@ -103,14 +103,16 @@
     {{-- Totals --}}
     <div class="flex justify-end mb-5">
         <div class="w-56 space-y-1.5">
-            <div class="flex justify-between text-xs text-slate-600">
-                <span>Subtotal</span>
-                <span>C$ {{ number_format($proforma->subtotal, 2) }}</span>
-            </div>
-            <div class="flex justify-between text-xs text-slate-600">
-                <span>IVA ({{ number_format($proforma->tax_rate * 100, 2) }}%)</span>
-                <span>C$ {{ number_format($proforma->tax_total, 2) }}</span>
-            </div>
+            @if($invoiceTaxDisplay->showsTaxBreakdown())
+                <div class="flex justify-between text-xs text-slate-600">
+                    <span>Subtotal</span>
+                    <span>C$ {{ number_format($proforma->subtotal, 2) }}</span>
+                </div>
+                <div class="flex justify-between text-xs text-slate-600">
+                    <span>{{ $invoiceTaxDisplay->taxLabel((float) $proforma->tax_rate) }}</span>
+                    <span>C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $proforma->tax_total), 2) }}</span>
+                </div>
+            @endif
             <div class="flex justify-between font-bold text-sm border-t border-indigo-300 pt-1.5 mt-1 text-indigo-900">
                 <span>TOTAL</span>
                 <span>C$ {{ number_format($proforma->total, 2) }}</span>

@@ -103,15 +103,17 @@
     {{-- Totales --}}
     <div class="flex justify-end">
         <div class="w-1/3 space-y-2">
-            <div class="flex justify-between">
-                <span>Subtotal:</span>
-                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->subtotal ?? 0, 2) }}</span>
-            </div>
+            @if($invoiceTaxDisplay->showsTaxBreakdown())
+                <div class="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->subtotal ?? 0, 2) }}</span>
+                </div>
 
-            <div class="flex justify-between">
-                <span>IVA ({{ number_format(($sale?->tax_rate ?? 0) * 100, 2) }}%):</span>
-                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->tax_total ?? 0, 2) }}</span>
-            </div>
+                <div class="flex justify-between">
+                    <span>{{ $invoiceTaxDisplay->taxLabel((float) ($sale?->tax_rate ?? 0)) }}:</span>
+                    <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) ($sale?->tax_total ?? 0)), 2) }}</span>
+                </div>
+            @endif
 
             <div class="flex justify-between font-bold border-t pt-2">
                 <span>Total:</span>

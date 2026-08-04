@@ -89,14 +89,16 @@
                         @endforeach
                     </tbody>
                     <tfoot class="bg-slate-50 border-t border-slate-200">
-                        <tr>
-                            <td colspan="4" class="px-5 py-2 text-right text-slate-600 text-sm">Subtotal</td>
-                            <td class="px-5 py-2 text-right font-medium text-slate-800">C$ {{ number_format($proforma->subtotal, 2) }}</td>
-                        </tr>
-                        <tr>
-                            <td colspan="4" class="px-5 py-2 text-right text-slate-600 text-sm">IVA ({{ number_format($proforma->tax_rate * 100, 2) }}%)</td>
-                            <td class="px-5 py-2 text-right font-medium text-slate-800">C$ {{ number_format($proforma->tax_total, 2) }}</td>
-                        </tr>
+                        @if($invoiceTaxDisplay->showsTaxBreakdown())
+                            <tr>
+                                <td colspan="4" class="px-5 py-2 text-right text-slate-600 text-sm">Subtotal</td>
+                                <td class="px-5 py-2 text-right font-medium text-slate-800">C$ {{ number_format($proforma->subtotal, 2) }}</td>
+                            </tr>
+                            <tr>
+                                <td colspan="4" class="px-5 py-2 text-right text-slate-600 text-sm">{{ $invoiceTaxDisplay->taxLabel((float) $proforma->tax_rate) }}</td>
+                                <td class="px-5 py-2 text-right font-medium text-slate-800">C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $proforma->tax_total), 2) }}</td>
+                            </tr>
+                        @endif
                         <tr>
                             <td colspan="4" class="px-5 py-3 text-right font-bold text-slate-900">TOTAL</td>
                             <td class="px-5 py-3 text-right font-bold text-xl text-indigo-700">C$ {{ number_format($proforma->total, 2) }}</td>
@@ -157,14 +159,16 @@
             <div class="bg-indigo-50 rounded-xl border border-indigo-100 p-5">
                 <h2 class="text-sm font-semibold text-indigo-800 mb-3">Resumen</h2>
                 <div class="space-y-1.5 text-sm">
-                    <div class="flex justify-between text-slate-600">
-                        <span>Subtotal</span>
-                        <span>C$ {{ number_format($proforma->subtotal, 2) }}</span>
-                    </div>
-                    <div class="flex justify-between text-slate-600">
-                        <span>IVA ({{ number_format($proforma->tax_rate * 100, 2) }}%)</span>
-                        <span>C$ {{ number_format($proforma->tax_total, 2) }}</span>
-                    </div>
+                    @if($invoiceTaxDisplay->showsTaxBreakdown())
+                        <div class="flex justify-between text-slate-600">
+                            <span>Subtotal</span>
+                            <span>C$ {{ number_format($proforma->subtotal, 2) }}</span>
+                        </div>
+                        <div class="flex justify-between text-slate-600">
+                            <span>{{ $invoiceTaxDisplay->taxLabel((float) $proforma->tax_rate) }}</span>
+                            <span>C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $proforma->tax_total), 2) }}</span>
+                        </div>
+                    @endif
                     <div class="flex justify-between font-bold text-slate-900 border-t border-indigo-200 pt-2 mt-1">
                         <span>Total</span>
                         <span class="text-indigo-700 text-lg">C$ {{ number_format($proforma->total, 2) }}</span>

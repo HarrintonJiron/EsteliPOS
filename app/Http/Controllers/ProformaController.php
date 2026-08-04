@@ -9,6 +9,7 @@ use App\Models\Proforma;
 use App\Models\ProformaDetail;
 use App\Models\Sale;
 use App\Models\SaleDetail;
+use App\Models\Tax;
 use App\Models\InventoryMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,13 @@ use Throwable;
 class ProformaController extends Controller
 {
     private const DEFAULT_TAX_RATE = 0.15;
+
+    private function defaultTaxRate(): float
+    {
+        $rate = Tax::defaultRate();
+
+        return $rate > 0 ? $rate : self::DEFAULT_TAX_RATE;
+    }
 
     private function nextProformaNumber(): string
     {
@@ -69,8 +77,9 @@ class ProformaController extends Controller
 
         $clients = Client::orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
+        $defaultTaxRate = $this->defaultTaxRate();
 
-        return view('proformas.pos', compact('products', 'clients', 'categories'));
+        return view('proformas.pos', compact('products', 'clients', 'categories', 'defaultTaxRate'));
     }
 
     public function store(Request $request)
@@ -89,8 +98,9 @@ class ProformaController extends Controller
 
         $proforma = null;
         $userId = $request->user()?->id ?? 1;
+        $defaultTaxRate = $this->defaultTaxRate();
 
-        DB::transaction(function () use ($validated, $items, &$proforma, $userId) {
+        DB::transaction(function () use ($validated, $items, &$proforma, $userId, $defaultTaxRate) {
             $client = $validated['client_id']
                 ? Client::find($validated['client_id'])
                 : null;
@@ -107,7 +117,7 @@ class ProformaController extends Controller
                 'client_address'  => $client?->address,
                 'date'            => now()->toDateString(),
                 'expiry_date'     => now()->addDays($expiryDays)->toDateString(),
-                'tax_rate'        => self::DEFAULT_TAX_RATE,
+                'tax_rate'        => $defaultTaxRate,
                 'tax_included'    => false,
                 'status'          => 'draft',
                 'notes'           => $validated['notes'] ?? null,
@@ -139,7 +149,7 @@ class ProformaController extends Controller
                 $linesTotal += $subtotal;
             }
 
-            $rate        = self::DEFAULT_TAX_RATE;
+            $rate        = $defaultTaxRate;
             $taxTotal    = $linesTotal * $rate;
             $grandTotal  = $linesTotal + $taxTotal;
 

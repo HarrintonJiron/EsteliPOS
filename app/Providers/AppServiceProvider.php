@@ -14,6 +14,7 @@ use App\Models\Module;
 use App\Policies\ModulePolicy;
 use App\Services\ModuleAccessService;
 use App\Services\CompanySettingsService;
+use App\Services\InvoiceTaxDisplayService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -44,10 +45,18 @@ class AppServiceProvider extends ServiceProvider
             'facturacion.print',
             'facturacion.pdf',
             'facturacion.receipt',
+            'facturacion.show',
+            'facturacion.change',
+            'proformas.pdf',
+            'proformas.ticket',
+            'proformas.show',
+            'compras.show',
+            'contabilidad.impuestos.index',
             'auth.login',
             'auth.change-password',
         ], function ($view): void {
             $view->with('companyProfile', app(CompanySettingsService::class)->get());
+            $view->with('invoiceTaxDisplay', app(InvoiceTaxDisplayService::class));
             if ($view->name() === 'layouts.app') {
                 $view->with('accessibleModuleSlugs', app(ModuleAccessService::class)->accessibleSlugs(auth()->user()));
             }

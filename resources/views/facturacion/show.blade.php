@@ -129,14 +129,16 @@
                     @endforeach
                 </tbody>
                 <tfoot>
-                    <tr class="bg-gray-50">
-                        <td colspan="3" class="px-6 py-3 text-right text-sm">Subtotal</td>
-                        <td class="px-6 py-3 font-semibold">C$ {{ number_format($sale->subtotal ?? 0, 2) }}</td>
-                    </tr>
-                    <tr class="bg-gray-50">
-                        <td colspan="3" class="px-6 py-3 text-right text-sm">IVA ({{ number_format(($sale->tax_rate ?? 0) * 100, 2) }}%)</td>
-                        <td class="px-6 py-3 font-semibold">C$ {{ number_format($sale->tax_total ?? 0, 2) }}</td>
-                    </tr>
+                    @if($invoiceTaxDisplay->showsTaxBreakdown())
+                        <tr class="bg-gray-50">
+                            <td colspan="3" class="px-6 py-3 text-right text-sm">Subtotal</td>
+                            <td class="px-6 py-3 font-semibold">C$ {{ number_format($sale->subtotal ?? 0, 2) }}</td>
+                        </tr>
+                        <tr class="bg-gray-50">
+                            <td colspan="3" class="px-6 py-3 text-right text-sm">{{ $invoiceTaxDisplay->taxLabel((float) ($sale->tax_rate ?? 0)) }}</td>
+                            <td class="px-6 py-3 font-semibold">C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) ($sale->tax_total ?? 0)), 2) }}</td>
+                        </tr>
+                    @endif
                     <tr class="bg-gray-50">
                         <td colspan="3" class="px-6 py-4 text-right font-semibold">Total</td>
                         <td class="px-6 py-4 font-semibold">C$ {{ number_format($sale->total, 2) }}</td>

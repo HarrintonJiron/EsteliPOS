@@ -166,14 +166,16 @@
                 <span class="text-gray-600">Total Artículos:</span>
                 <span class="font-semibold">{{ $totalQty ?? 0 }}</span>
             </div>
-            <div class="flex justify-between text-xs py-1 border-t border-gray-200">
-                <span class="text-gray-600">Subtotal:</span>
-                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->subtotal ?? 0, 2) }}</span>
-            </div>
-            <div class="flex justify-between text-xs py-1">
-                <span class="text-gray-600">IVA ({{ number_format(($sale?->tax_rate ?? 0) * 100, 2) }}%):</span>
-                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->tax_total ?? 0, 2) }}</span>
-            </div>
+            @if($invoiceTaxDisplay->showsTaxBreakdown())
+                <div class="flex justify-between text-xs py-1 border-t border-gray-200">
+                    <span class="text-gray-600">Subtotal:</span>
+                    <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->subtotal ?? 0, 2) }}</span>
+                </div>
+                <div class="flex justify-between text-xs py-1">
+                    <span class="text-gray-600">{{ $invoiceTaxDisplay->taxLabel((float) ($sale?->tax_rate ?? 0)) }}:</span>
+                    <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) ($sale?->tax_total ?? 0)), 2) }}</span>
+                </div>
+            @endif
             @if($sale?->discount > 0)
             <div class="flex justify-between text-xs py-1 text-red-600">
                 <span>Descuento:</span>

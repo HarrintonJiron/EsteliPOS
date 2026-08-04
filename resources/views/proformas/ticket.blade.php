@@ -88,14 +88,16 @@
 
     <div class="divider"></div>
 
-    <div class="row">
-        <span>Subtotal</span>
-        <span>C$ {{ number_format($proforma->subtotal, 2) }}</span>
-    </div>
-    <div class="row">
-        <span>IVA ({{ number_format($proforma->tax_rate * 100, 2) }}%)</span>
-        <span>C$ {{ number_format($proforma->tax_total, 2) }}</span>
-    </div>
+    @if($invoiceTaxDisplay->showsTaxBreakdown())
+        <div class="row">
+            <span>Subtotal</span>
+            <span>C$ {{ number_format($proforma->subtotal, 2) }}</span>
+        </div>
+        <div class="row">
+            <span>{{ $invoiceTaxDisplay->taxLabel((float) $proforma->tax_rate) }}</span>
+            <span>C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $proforma->tax_total), 2) }}</span>
+        </div>
+    @endif
     <div class="divider"></div>
     <div class="total-grand">
         <span>TOTAL</span>

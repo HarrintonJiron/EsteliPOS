@@ -16,6 +16,7 @@ class ClientRequest extends FormRequest
     {
         $clientId = $this->route('id');
         $clientType = $this->input('client_type', 'natural');
+        $isQuickForm = $this->boolean('quick_client_form');
 
         return [
             'code' => [
@@ -26,9 +27,9 @@ class ClientRequest extends FormRequest
             ],
             'name' => 'required|string|max:255',
             'client_type' => ['required', Rule::in(['natural', 'company'])],
-            'business_name' => [Rule::requiredIf($clientType === 'company'), 'nullable', 'string', 'max:255'],
+            'business_name' => [Rule::requiredIf($clientType === 'company' && ! $isQuickForm), 'nullable', 'string', 'max:255'],
             'cedula' => [
-                Rule::requiredIf($clientType === 'natural'),
+                Rule::requiredIf($clientType === 'natural' && ! $isQuickForm),
                 'nullable',
                 'string',
                 'max:30',
@@ -36,14 +37,14 @@ class ClientRequest extends FormRequest
                 Rule::unique('clients', 'cedula')->ignore($clientId),
             ],
             'ruc' => [
-                Rule::requiredIf($clientType === 'company'),
+                Rule::requiredIf($clientType === 'company' && ! $isQuickForm),
                 'nullable',
                 'string',
                 'max:30',
                 'regex:/^(?:[A-Za-z]\d{13}|\d{3}-\d{6}-\d{4}[A-Za-z0-9]|\d{14}[A-Za-z0-9])$/',
                 Rule::unique('clients', 'ruc')->ignore($clientId),
             ],
-            'phone' => 'nullable|string|max:50',
+            'phone' => [Rule::requiredIf($isQuickForm), 'nullable', 'string', 'max:50'],
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string|max:500',
             'taxpayer_type' => 'nullable|string|max:50',
@@ -63,16 +64,24 @@ class ClientRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $clientType = $this->input('client_type', 'natural');
+        $isQuickForm = $this->boolean('quick_client_form');
+        $saveCedulaIdentity = $this->boolean('save_cedula_identity');
 
         $this->merge([
             'client_type' => $clientType,
-            'cedula' => $this->normalizeDocument($clientType === 'natural' ? $this->input('cedula') : null),
+            'cedula' => $this->normalizeDocument(
+                $clientType === 'natural' && (! $isQuickForm || $saveCedulaIdentity)
+                    ? $this->input('cedula')
+                    : null
+            ),
             'ruc' => $this->normalizeDocument($clientType === 'company' ? $this->input('ruc') : null),
             'business_name' => $clientType === 'company' ? ($this->input('business_name') ?: $this->input('name')) : null,
             'status' => $this->input('status', 'active'),
             'credit_enabled' => $this->boolean('credit_enabled'),
             'credit_limit' => $this->input('credit_limit', 0),
             'credit_days' => $this->input('credit_days', 30),
+            'quick_client_form' => $isQuickForm,
+            'save_cedula_identity' => $saveCedulaIdentity,
         ]);
     }
 
@@ -81,5 +90,18 @@ class ClientRequest extends FormRequest
         $value = strtoupper(trim((string) $value));
 
         return $value === '' ? null : $value;
+    }
+
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'El nombre del cliente es obligatorio.',
+            'client_type.required' => 'El tipo de cliente es obligatorio.',
+            'phone.required' => 'El teléfono es obligatorio en Cliente Rápido.',
+            'cedula.regex' => 'El formato de cédula no es válido.',
+            'cedula.unique' => 'La cédula ya está registrada en el sistema.',
+            'ruc.regex' => 'El formato de RUC no es válido.',
+            'ruc.unique' => 'El RUC ya está registrado en el sistema.',
+        ];
     }
 }

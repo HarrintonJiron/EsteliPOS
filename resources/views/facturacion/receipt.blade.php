@@ -150,7 +150,7 @@
                     </div>
                     <div class="item-meta">
                         {{ number_format($detail->quantity, 0) }} × {{ $companyProfile['currency_symbol'] }}{{ number_format($detail->price, 2) }}
-                        @if((float) $detail->tax_rate > 0) · IVA {{ number_format($detail->tax_rate * 100, 2) }}%@endif
+                        @if($invoiceTaxDisplay->showsLineTax((float) $detail->tax_rate)) · IVA {{ number_format($detail->tax_rate * 100, 2) }}%@endif
                     </div>
                 </article>
             @endforeach
@@ -159,8 +159,10 @@
         <div class="separator"></div>
 
         <section class="totals" aria-label="Totales">
-            <div class="total-row"><span>SUBTOTAL</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->subtotal, 2) }}</span></div>
-            <div class="total-row"><span>IVA ({{ number_format($sale->tax_rate * 100, 2) }}%)</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->tax_total, 2) }}</span></div>
+            @if($invoiceTaxDisplay->showsTaxBreakdown())
+                <div class="total-row"><span>SUBTOTAL</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->subtotal, 2) }}</span></div>
+                <div class="total-row"><span>{{ strtoupper($invoiceTaxDisplay->taxLabel((float) $sale->tax_rate)) }}</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $sale->tax_total), 2) }}</span></div>
+            @endif
             <div class="total-row grand-total"><span>TOTAL</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->total, 2) }}</span></div>
         </section>
 

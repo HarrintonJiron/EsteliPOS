@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\TaxRequest;
+use App\Models\Setting;
 use App\Models\Tax;
+use App\Services\InvoiceTaxDisplayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -22,8 +24,29 @@ class TaxController extends Controller
         }
 
         $taxes = $query->get();
+        $taxDisplayMode = app(InvoiceTaxDisplayService::class)->mode();
+        $taxDisplayModes = InvoiceTaxDisplayService::options();
 
-        return view('contabilidad.impuestos.index', compact('taxes'));
+        return view('contabilidad.impuestos.index', compact('taxes', 'taxDisplayMode', 'taxDisplayModes'));
+    }
+
+    public function updateDisplayMode(Request $request)
+    {
+        $validated = $request->validate([
+            'invoice_tax_display_mode' => 'required|in:general,exempt,hide',
+        ]);
+
+        Setting::set(
+            InvoiceTaxDisplayService::SETTING_KEY,
+            $validated['invoice_tax_display_mode'],
+            'string',
+            'general',
+            'Controla como se presenta el impuesto en documentos impresos.',
+        );
+
+        return redirect()
+            ->route('settings.taxes.index')
+            ->with('success', 'Modo de visualizacion de impuestos actualizado correctamente.');
     }
 
     public function create()

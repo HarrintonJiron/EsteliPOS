@@ -254,6 +254,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/general', [SettingsController::class, 'updateGeneral'])->middleware('permission:configuracion.edit')->name('general.update');
         Route::get('/taxes', [TaxController::class, 'index'])->name('taxes.index');
         Route::middleware('permission:configuracion.edit')->group(function () {
+            Route::post('/taxes/display-mode', [TaxController::class, 'updateDisplayMode'])->name('taxes.display-mode.update');
             Route::get('/taxes/create', [TaxController::class, 'create'])->name('taxes.create');
             Route::post('/taxes', [TaxController::class, 'store'])->name('taxes.store');
             Route::get('/taxes/{tax}/edit', [TaxController::class, 'edit'])->name('taxes.edit');

@@ -36,10 +36,12 @@
             <p class="text-sm text-gray-500">Subtotal</p>
             <p class="font-semibold">C$ {{ number_format($purchase->subtotal ?? 0, 2) }}</p>
         </div>
-        <div>
-            <p class="text-sm text-gray-500">IVA</p>
-            <p class="font-semibold">C$ {{ number_format($purchase->tax_total ?? 0, 2) }}</p>
-        </div>
+        @if($invoiceTaxDisplay->showsTaxBreakdown())
+            <div>
+                <p class="text-sm text-gray-500">{{ $invoiceTaxDisplay->taxLabel((float) ($purchase->tax_rate ?? 0)) }}</p>
+                <p class="font-semibold">C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) ($purchase->tax_total ?? 0)), 2) }}</p>
+            </div>
+        @endif
         <div>
             <p class="text-sm text-gray-500">Total</p>
             <p class="font-semibold text-blue-700">C$ {{ number_format($purchase->total ?? 0, 2) }}</p>
@@ -59,7 +61,9 @@
                     <th class="px-4 py-2">Cantidad</th>
                     <th class="px-4 py-2">Costo</th>
                     <th class="px-4 py-2">Subtotal</th>
-                    <th class="px-4 py-2">IVA</th>
+                    @if($invoiceTaxDisplay->showsTaxBreakdown())
+                        <th class="px-4 py-2">{{ $invoiceTaxDisplay->isExemptMode() ? 'Condición fiscal' : 'IVA' }}</th>
+                    @endif
                 </tr>
             </thead>
             <tbody class="divide-y">
@@ -69,16 +73,29 @@
                         <td class="px-4 py-2">{{ $detail->quantity }}</td>
                         <td class="px-4 py-2">C$ {{ number_format($detail->price, 2) }}</td>
                         <td class="px-4 py-2">C$ {{ number_format($detail->subtotal, 2) }}</td>
-                        <td class="px-4 py-2">C$ {{ number_format($detail->tax_amount ?? 0, 2) }} ({{ number_format(($detail->tax_rate ?? 0) * 100, 2) }}%)</td>
+                        @if($invoiceTaxDisplay->showsTaxBreakdown())
+                            <td class="px-4 py-2">
+                                @if($invoiceTaxDisplay->isExemptMode())
+                                    Exento de IVA
+                                @else
+                                    C$ {{ number_format($detail->tax_amount ?? 0, 2) }} ({{ number_format(($detail->tax_rate ?? 0) * 100, 2) }}%)
+                                @endif
+                            </td>
+                        @endif
                     </tr>
                 @endforeach
             </tbody>
             <tfoot>
                 <tr class="bg-gray-50">
-                    <td colspan="3" class="px-4 py-3 text-right font-semibold">Subtotal / IVA / Total</td>
-                    <td class="px-4 py-3 font-semibold" colspan="2">
-                        C$ {{ number_format($purchase->subtotal ?? 0, 2) }} + C$ {{ number_format($purchase->tax_total ?? 0, 2) }} = C$ {{ number_format($purchase->total ?? 0, 2) }}
-                    </td>
+                    @if($invoiceTaxDisplay->showsTaxBreakdown())
+                        <td colspan="3" class="px-4 py-3 text-right font-semibold">Subtotal / {{ $invoiceTaxDisplay->isExemptMode() ? 'Exento de IVA' : 'IVA' }} / Total</td>
+                        <td class="px-4 py-3 font-semibold" colspan="2">
+                            C$ {{ number_format($purchase->subtotal ?? 0, 2) }} + C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) ($purchase->tax_total ?? 0)), 2) }} = C$ {{ number_format($purchase->total ?? 0, 2) }}
+                        </td>
+                    @else
+                        <td colspan="3" class="px-4 py-3 text-right font-semibold">Total</td>
+                        <td class="px-4 py-3 font-semibold">C$ {{ number_format($purchase->total ?? 0, 2) }}</td>
+                    @endif
                 </tr>
             </tfoot>
         </table>
