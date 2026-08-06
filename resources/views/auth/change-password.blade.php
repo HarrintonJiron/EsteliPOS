@@ -1,5 +1,0 @@
-@extends('layouts.app')
-@section('title', 'Cambiar contraseña')
-@section('content')
-<div class="mx-auto max-w-xl"><div class="mb-6"><h1 class="page-title">Crea una nueva contraseña</h1><p class="page-subtitle">Tu contraseña actual es temporal y debe reemplazarse para continuar.</p></div><form method="POST" action="{{ route('password.update') }}" class="card space-y-5 p-6">@csrf @method('PUT')<div><label class="mb-1 block text-sm font-medium">Contraseña temporal</label><input type="password" name="current_password" class="input-field" required autocomplete="current-password"></div><div><label class="mb-1 block text-sm font-medium">Nueva contraseña</label><input type="password" name="password" class="input-field" required autocomplete="new-password"><p class="mt-1 text-xs text-slate-500">{{ $passwordPolicy }}.</p></div><div><label class="mb-1 block text-sm font-medium">Confirmar nueva contraseña</label><input type="password" name="password_confirmation" class="input-field" required autocomplete="new-password"></div><button class="btn-primary w-full justify-center">Guardar y continuar</button></form></div>
-@endsection
