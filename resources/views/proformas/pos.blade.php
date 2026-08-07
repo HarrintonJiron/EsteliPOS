@@ -3,18 +3,19 @@
 
 @section('title', 'Nueva Proforma')
 @section('hide-header', 'true')
-@section('main-class', 'p-0 overflow-hidden')
+@section('main-fluid', true)
+@section('main-class', 'p-0')
 
 @section('content')
 
-<div id="proformaApp" class="h-full overflow-hidden bg-slate-50 flex flex-col xl:flex-row"
+<div id="proformaApp" class="flex h-full min-h-0 flex-col overflow-y-auto bg-slate-50 sm:flex-row sm:overflow-hidden"
      data-products='@json($products)'
      data-clients='@json($clients)'
      data-categories='@json($categories)'
      data-default-tax-rate="{{ $defaultTaxRate }}">
 
     {{-- COLUMNA IZQUIERDA: ITEMS --}}
-    <div class="w-full xl:w-[42%] 2xl:w-2/5 bg-white flex flex-col border-b xl:border-b-0 xl:border-r border-slate-200">
+    <div class="flex max-h-[55vh] min-h-[24rem] w-full shrink-0 flex-col border-b border-slate-200 bg-white sm:h-full sm:max-h-none sm:min-h-0 sm:min-w-[280px] sm:max-w-[520px] sm:w-2/5 sm:border-b-0 sm:border-r">
 
         <div class="px-4 py-2 bg-indigo-700 text-white flex items-center justify-between text-xs shrink-0">
             <div class="flex items-center gap-2">
@@ -24,7 +25,7 @@
             <a href="{{ route('proformas.index') }}" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg">← Volver</a>
         </div>
 
-        <div class="flex-1 overflow-y-auto border-b border-slate-200">
+        <div class="min-h-0 flex-1 overflow-y-auto border-b border-slate-200">
             <div id="proformaItems" class="divide-y divide-slate-100"></div>
             <div id="emptyProforma" class="flex flex-col items-center justify-center h-full text-slate-400 py-12">
                 <svg class="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,7 +57,7 @@
             </div>
         </div>
 
-        <div class="p-4 space-y-3 overflow-y-auto shrink-0">
+        <div class="max-h-[45%] shrink-0 space-y-3 overflow-y-auto p-4">
             <button type="button" id="clientBtn"
                 onclick="document.getElementById('clientModal').classList.remove('hidden')"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl px-4 text-sm flex items-center justify-center gap-2 transition-all shadow">
@@ -95,19 +96,19 @@
     </div>
 
     {{-- COLUMNA DERECHA: PRODUCTOS --}}
-    <div class="flex-1 bg-white flex flex-col min-w-0">
+    <div class="flex min-h-[30rem] min-w-0 flex-1 flex-col bg-white sm:min-h-0">
 
         <div class="p-3 border-b border-slate-200 bg-white shrink-0 space-y-2">
-            <div class="flex gap-2">
+            <div class="flex min-w-0 gap-2">
                 <input type="text" id="productSearch" placeholder="Buscar producto por nombre o código..."
-                    class="flex-1 px-4 py-2 text-sm border border-slate-300 rounded-xl focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600" autocomplete="off">
-                <button type="button" onclick="applyOrderDiscount()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium" title="Descuento global">% Dto.</button>
+                    class="min-w-0 flex-1 px-4 py-2 text-sm border border-slate-300 rounded-xl focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600" autocomplete="off">
+                <button type="button" onclick="applyOrderDiscount()" class="shrink-0 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium" title="Descuento global">% Dto.</button>
             </div>
             <div id="categoryTabs" class="flex gap-2 overflow-x-auto pb-1"></div>
         </div>
 
-        <div id="productsGrid" class="flex-1 overflow-y-auto p-4 bg-slate-50">
-            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+        <div id="productsGrid" class="min-h-0 flex-1 overflow-y-auto p-4 bg-slate-50">
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4"></div>
         </div>
     </div>
 
@@ -409,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 class="bg-white border-2 border-slate-200 hover:border-indigo-500 hover:shadow-md rounded-xl p-3 transition-all text-left">
                 <div class="w-full h-16 mb-2 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center">
                     ${p.image_url
-                        ? `<img src="${p.image_url}" alt="${p.name}" class="w-full h-full object-cover" loading="lazy">`
+                        ? `<img src="${p.image_url}" alt="${p.name}" class="w-full h-full object-cover" referrerpolicy="no-referrer">`
                         : `<svg class="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>`
                     }
                 </div>

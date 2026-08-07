@@ -7,7 +7,7 @@
         <a href="{{ route('settings.users.create') }}" class="btn-primary justify-center">+ Nuevo usuario</a>
     </div>
 
-    <div class="grid grid-cols-3 gap-3">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
         @foreach(['total' => 'Total', 'active' => 'Activos', 'inactive' => 'Inactivos'] as $key => $label)
         <div class="card p-4"><p class="text-xs font-medium text-slate-500">{{ $label }}</p><p class="mt-1 text-2xl font-bold text-slate-900">{{ $counts[$key] }}</p></div>
         @endforeach

@@ -1,13 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('ui-toast-container');
-    if (!container) return;
 
-    document.querySelectorAll('[data-ui-toast]').forEach((el) => {
-        const type = el.dataset.uiToast || 'info';
-        const message = el.textContent.trim();
-        if (message) showToast(message, type);
-        el.remove();
-    });
+    if (container) {
+        document.querySelectorAll('[data-ui-toast]').forEach((el) => {
+            const type = el.dataset.uiToast || 'info';
+            const message = el.textContent.trim();
+            if (message) showToast(message, type);
+            el.remove();
+        });
+    }
 
     document.querySelectorAll('form[data-loading]').forEach((form) => {
         form.addEventListener('submit', () => {
@@ -18,6 +19,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.innerHTML = '<span class="inline-block animate-pulse">Procesando...</span>';
             }
         });
+    });
+
+    document.querySelectorAll('main table').forEach((table) => {
+        if (
+            table.dataset.responsive === 'false'
+            || table.closest('.responsive-table, .data-card-body, .overflow-x-auto')
+        ) {
+            return;
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'responsive-table';
+        wrapper.tabIndex = 0;
+        wrapper.setAttribute('role', 'region');
+        wrapper.setAttribute('aria-label', table.getAttribute('aria-label') || 'Tabla desplazable');
+        table.parentNode.insertBefore(wrapper, table);
+        wrapper.appendChild(table);
     });
 });
 

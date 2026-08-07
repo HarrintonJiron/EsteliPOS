@@ -41,7 +41,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div class="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-3">
             <div>
                 <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Costo</label>
                 <input type="number" name="purchase_price" id="quick_purchase_price" step="0.01" min="0"

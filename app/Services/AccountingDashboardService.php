@@ -12,8 +12,7 @@ class AccountingDashboardService
     public function __construct(
         private ReportService $reports,
         private LedgerService $ledger,
-    ) {
-    }
+    ) {}
 
     public function build(?string $month = null): array
     {
@@ -41,9 +40,9 @@ class AccountingDashboardService
 
             return [
                 'label' => ucfirst($cursor->locale('es')->translatedFormat('M y')),
-                'income' => $report['totalIngresos'] + $report['totalOtrosIngresos'],
-                'expenses' => $report['totalCostos'] + $report['totalGastos'] + $report['totalOtrosGastos'],
-                'profit' => $report['utilidadNeta'],
+                'income' => round((float) ($report['totalIngresos'] + $report['totalOtrosIngresos']), 2),
+                'expenses' => round((float) ($report['totalCostos'] + $report['totalGastos'] + $report['totalOtrosGastos']), 2),
+                'profit' => round((float) $report['utilidadNeta'], 2),
             ];
         });
 
@@ -56,13 +55,13 @@ class AccountingDashboardService
             'purchases' => round($purchases, 2),
             'income' => round($income['totalIngresos'] + $income['totalOtrosIngresos'], 2),
             'expenses' => round($income['totalCostos'] + $income['totalGastos'] + $income['totalOtrosGastos'], 2),
-            'profit' => $income['utilidadNeta'],
+            'profit' => round((float) $income['utilidadNeta'], 2),
             'cash' => $balance('1.1.01'),
             'bank' => $balance('1.1.02'),
             'receivables' => $balance('1.1.04'),
             'payables' => $balance('2.1.01'),
             'capital' => $balance('3.1'),
-            'chart' => $chart,
+            'chart' => $chart->values()->all(),
         ];
     }
 }

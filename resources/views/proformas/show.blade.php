@@ -4,16 +4,16 @@
 @section('title', 'Proforma ' . $proforma->proforma_number)
 
 @section('content')
-<div class="max-w-4xl mx-auto">
+<div class="mx-auto max-w-4xl">
 
     {{-- Header --}}
-    <div class="flex items-center justify-between mb-6">
-        <div>
-            <div class="flex items-center gap-3">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
+            <div class="flex min-w-0 flex-wrap items-center gap-3">
                 <a href="{{ route('proformas.index') }}" class="text-slate-400 hover:text-slate-600">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                 </a>
-                <h1 class="text-2xl font-bold text-slate-900">{{ $proforma->proforma_number }}</h1>
+                <h1 class="break-all text-2xl font-bold text-slate-900">{{ $proforma->proforma_number }}</h1>
                 <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold {{ $proforma->statusColor() }}">
                     {{ $proforma->statusLabel() }}
                 </span>
@@ -25,7 +25,7 @@
             </p>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex shrink-0 items-center gap-2">
             <a href="{{ route('proformas.ticket', $proforma->id) }}" target="_blank"
                class="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-xl">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
@@ -64,11 +64,12 @@
             </div>
 
             {{-- Items table --}}
-            <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
                 <div class="px-5 py-3 border-b border-slate-200">
                     <h2 class="text-sm font-semibold text-slate-700">Productos / Servicios</h2>
                 </div>
-                <table class="w-full text-sm">
+                <div class="overflow-x-auto">
+                <table class="w-full min-w-[620px] text-sm">
                     <thead class="bg-slate-50">
                         <tr>
                             <th class="text-left px-5 py-2.5 text-slate-500 font-medium">Descripción</th>
@@ -106,6 +107,7 @@
                         </tr>
                     </tfoot>
                 </table>
+                </div>
             </div>
 
             @if($proforma->notes)

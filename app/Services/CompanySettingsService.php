@@ -135,11 +135,19 @@ class CompanySettingsService
 
     private function publicUrl(?string $path): ?string
     {
-        if (! $path || ! Storage::disk('public')->exists($path)) {
+        if (! $path) {
             return null;
         }
 
-        return url('/storage/'.ltrim($path, '/'));
+        $publicPath = parse_url($path, PHP_URL_PATH) ?: $path;
+        $publicPath = preg_replace('#^/(?:storage|media)/#', '', $publicPath);
+        $publicPath = ltrim($publicPath, '/');
+
+        if (! Storage::disk('public')->exists($publicPath)) {
+            return null;
+        }
+
+        return '/media/'.$publicPath;
     }
 
     private function deleteReplacedFile(?string $oldPath, ?string $newPath): void

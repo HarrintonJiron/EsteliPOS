@@ -5,18 +5,18 @@
 
 @section('content')
 
-<div class="max-w-7xl mx-auto px-4 py-8">
+<div class="mx-auto max-w-7xl py-4 sm:px-4 sm:py-8">
 
     {{-- Encabezado --}}
     <div class="mb-8">
         <a href="{{ route('creditos.index') }}" class="text-indigo-600 hover:text-indigo-800 font-semibold mb-4 inline-block">
             ← Volver
         </a>
-        <h1 class="text-3xl font-bold text-gray-900">{{ $client->legal_name }}</h1>
+        <h1 class="break-words text-2xl font-bold text-gray-900 sm:text-3xl">{{ $client->legal_name }}</h1>
         <p class="text-gray-600">{{ $client->isCompany() ? 'Empresa' : 'Persona Natural' }} · {{ $client->document_label }}: {{ $client->document_number ?? '—' }}</p>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+    <div class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div class="card p-5">
             <p class="text-xs text-slate-500 mb-1">Límite de Crédito</p>
             <p class="text-xl font-bold text-indigo-600">
@@ -50,8 +50,8 @@
     {{-- MORA CARD --}}
     @if($client->mora_enabled && $totalMora > 0)
     <div class="card p-5 mb-6 border border-red-200 bg-red-50">
-        <div class="flex items-start justify-between gap-4">
-            <div>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div class="min-w-0">
                 <h3 class="font-bold text-red-800 text-lg mb-1">
                     ⚠ Mora Acumulada: C$ {{ number_format($totalMora, 2) }}
                 </h3>
@@ -83,7 +83,7 @@
                 </table>
                 @endif
             </div>
-            <div class="text-right shrink-0">
+            <div class="shrink-0 text-left sm:text-right">
                 <p class="text-3xl font-black text-red-700">C$ {{ number_format($totalMora, 2) }}</p>
                 <p class="text-xs text-red-500 mt-1">Total + mora: C$ {{ number_format($balance + $totalMora, 2) }}</p>
             </div>
@@ -91,8 +91,8 @@
     </div>
     @endif
 
-    <div class="grid grid-cols-2 gap-6">
-        <div class="col-span-2 text-right mb-4">
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div class="mb-4 text-left sm:text-right lg:col-span-2">
             <a href="{{ route('creditos.statement', $client->id) }}" class="btn-outline text-sm">Imprimir Estado de Cuenta</a>
         </div>
 

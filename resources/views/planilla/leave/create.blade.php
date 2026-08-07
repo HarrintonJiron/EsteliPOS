@@ -20,7 +20,7 @@
         <form action="{{ route('leave.store') }}" method="POST">
             @csrf
 
-            <div class="grid grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div class="col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Empleado *</label>
                     <select name="employee_id" required

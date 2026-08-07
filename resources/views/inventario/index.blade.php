@@ -20,7 +20,7 @@
     </div>
 
     {{-- KPIs compactos --}}
-    <div class="grid grid-cols-3 gap-2 lg:grid-cols-6">
+    <div class="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         @foreach([
             ['Productos', $stats['total_products'], 'text-indigo-600'],
             ['Bajo', $stats['low_stock_count'], 'text-amber-600'],

@@ -6,7 +6,6 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 
 class Product extends Model
 {
@@ -48,11 +47,21 @@ class Product extends Model
 
     public function getImageUrlAttribute(?string $value): ?string
     {
-        if (! $value || str_starts_with($value, 'http://') || str_starts_with($value, 'https://') || str_starts_with($value, '/')) {
+        if (! $value) {
             return $value;
         }
 
-        return Storage::disk('public')->url($value);
+        $path = parse_url($value, PHP_URL_PATH) ?: $value;
+
+        if (str_starts_with($path, '/storage/')) {
+            $path = substr($path, strlen('/storage/'));
+        } elseif (str_starts_with($path, '/media/')) {
+            $path = substr($path, strlen('/media/'));
+        } elseif (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+            return $value;
+        }
+
+        return '/media/'.ltrim($path, '/');
     }
 
     public function effectiveTaxRate(): float

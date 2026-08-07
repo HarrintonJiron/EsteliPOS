@@ -3,16 +3,16 @@
 @section('title', 'Proformas / Cotizaciones')
 
 @section('content')
-<div class="max-w-6xl mx-auto">
+<div class="mx-auto max-w-6xl">
 
     {{-- Header --}}
-    <div class="flex items-center justify-between mb-6">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold text-slate-900">Proformas / Cotizaciones</h1>
             <p class="text-sm text-slate-500 mt-0.5">Gestión de cotizaciones y presupuestos</p>
         </div>
         <a href="{{ route('proformas.pos') }}"
-           class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow transition-all">
+           class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow transition-all">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
             </svg>
@@ -27,11 +27,11 @@
 
     {{-- Filters --}}
     <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
-        <form method="GET" class="flex gap-3 flex-wrap">
+        <form method="GET" class="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <input type="text" name="search" value="{{ request('search') }}"
                 placeholder="Buscar por número o cliente..."
-                class="flex-1 min-w-48 px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500">
-            <select name="status" class="px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500">
+                class="min-w-0 flex-1 px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500 sm:min-w-48">
+            <select name="status" class="w-full px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500 sm:w-auto">
                 <option value="">Todos los estados</option>
                 <option value="draft" {{ request('status') === 'draft' ? 'selected' : '' }}>Borrador</option>
                 <option value="sent" {{ request('status') === 'sent' ? 'selected' : '' }}>Enviada</option>
@@ -40,7 +40,7 @@
                 <option value="expired" {{ request('status') === 'expired' ? 'selected' : '' }}>Expirada</option>
             </select>
             <input type="date" name="date" value="{{ request('date') }}"
-                class="px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500">
+                class="w-full px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500 sm:w-auto">
             <button type="submit" class="px-4 py-2 bg-slate-800 text-white text-sm rounded-xl hover:bg-slate-700">Filtrar</button>
             @if(request()->hasAny(['search','status','date']))
                 <a href="{{ route('proformas.index') }}" class="px-4 py-2 bg-slate-100 text-slate-700 text-sm rounded-xl hover:bg-slate-200">Limpiar</a>
@@ -49,8 +49,9 @@
     </div>
 
     {{-- Table --}}
-    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <table class="w-full text-sm">
+    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div class="overflow-x-auto">
+        <table class="w-full min-w-[760px] text-sm">
             <thead class="bg-slate-50 border-b border-slate-200">
                 <tr>
                     <th class="text-left px-4 py-3 font-semibold text-slate-600">#</th>
@@ -113,6 +114,7 @@
                 @endforelse
             </tbody>
         </table>
+        </div>
 
         @if($proformas->hasPages())
         <div class="px-4 py-3 border-t border-slate-200">

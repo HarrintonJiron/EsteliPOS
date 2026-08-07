@@ -38,8 +38,9 @@
 
         /* ── Sidebar (layout-specific) ── */
         #app-sidebar {
-            position: relative;
+            position: fixed;
             width: 17rem;
+            max-width: calc(100vw - 2rem);
             overflow: visible;
             transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1), transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -84,6 +85,10 @@
             transform: rotate(180deg);
         }
         @media (min-width: 1024px) {
+            #app-sidebar {
+                position: relative;
+                max-width: none;
+            }
             .sidebar-collapse-pill { display: inline-flex; }
         }
 
@@ -152,8 +157,13 @@
             display: none;
         }
         #app-sidebar.is-collapsed .sidebar-brand {
+            justify-content: center;
             padding-left: 0.5rem;
             padding-right: 0.5rem;
+        }
+        #app-sidebar.is-collapsed .sidebar-brand-logo {
+            width: 3.25rem;
+            height: 3.25rem;
         }
         #app-sidebar .sidebar-user-avatar {
             width: 2.75rem;
@@ -211,7 +221,7 @@
         @media print {
             aside, header, form, .no-print { display: none !important; }
             body, main { background: #fff !important; overflow: visible !important; }
-            .flex.h-screen { display: block !important; height: auto !important; overflow: visible !important; }
+            .flex.h-dvh { display: block !important; height: auto !important; overflow: visible !important; }
             main { padding: 0 !important; }
             .card { box-shadow: none !important; break-inside: avoid; }
         }
@@ -220,7 +230,7 @@
 
 <body class="{{ $bodyBg }}">
 
-    <div class="flex h-screen overflow-hidden">
+    <div class="flex h-dvh overflow-hidden">
 
         <div id="sidebar-overlay" class="fixed inset-0 z-40 hidden bg-slate-950/55 backdrop-blur-sm lg:hidden" aria-hidden="true"></div>
 
@@ -230,16 +240,23 @@
                aria-label="Navegación principal">
 
             {{-- Brand --}}
-            <div class="sidebar-brand relative flex items-start justify-between gap-3 border-b {{ $sidebarBorder }} px-4 py-5 lg:px-6">
-                <div class="sidebar-brand-text min-w-0 flex-1">
+            <div class="sidebar-brand relative flex items-center gap-3 border-b {{ $sidebarBorder }} px-4 py-4">
+                <div class="sidebar-brand-logo relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-lg ring-2 ring-white/20 transition-all">
                     @if($companyLogoUrl)
                         <img src="{{ $companyLogoUrl }}"
                              alt="Logo de {{ $systemName }}"
-                             class="mb-3 h-20 w-full max-w-48 object-contain object-left"
+                             class="h-full w-full object-contain p-1.5"
                              data-company-logo>
+                    @else
+                        <span class="text-lg font-black text-indigo-600">{{ mb_strtoupper(mb_substr($systemName, 0, 2)) }}</span>
                     @endif
-                    <h2 class="truncate text-xl font-bold tracking-tight text-white">{{ $systemName }}</h2>
-                    <p class="mt-1 text-xs text-slate-400">Sistema Administrativo</p>
+                    <span class="absolute bottom-0.5 right-0.5 h-2.5 w-2.5 rounded-full border-2 border-slate-900 bg-emerald-400" aria-hidden="true"></span>
+                </div>
+
+                <div class="sidebar-brand-text min-w-0 flex-1">
+                    <p class="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-indigo-300">Sistema administrativo</p>
+                    <h2 class="truncate text-lg font-bold leading-tight tracking-tight text-white">{{ $systemName }}</h2>
+                    <p class="mt-1 truncate text-xs text-slate-400">{{ $companyProfile['company_name'] ?? 'Gestión empresarial' }}</p>
                 </div>
 
                 <button id="sidebar-close" type="button"
@@ -416,7 +433,7 @@
         </aside>
 
         {{-- CONTENIDO PRINCIPAL --}}
-        <div class="flex min-w-0 flex-1 flex-col">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col">
 
             @unless(View::hasSection('hide-header'))
             <header class="app-header sticky top-0 z-30 flex shrink-0 items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -479,6 +496,19 @@
             </header>
             @endunless
 
+            @if(View::hasSection('hide-header'))
+            <header class="app-header z-30 flex shrink-0 items-center gap-3 px-3 py-2 lg:hidden">
+                <button id="sidebar-open-compact" type="button"
+                        class="btn-ghost btn-icon"
+                        aria-label="Abrir menú" aria-controls="app-sidebar" aria-expanded="false">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+                <h1 class="min-w-0 truncate text-sm font-semibold text-slate-800">@yield('title')</h1>
+            </header>
+            @endif
+
             @if(session('success'))
                 <div class="hidden" data-ui-toast="success">{{ session('success') }}</div>
             @endif
@@ -495,8 +525,16 @@
             </div>
             @endif
 
-            <main class="app-main flex-1 overflow-y-auto @yield('main-class', 'p-4 sm:p-6 lg:p-8')">
-                <div class="mx-auto max-w-[1600px]">
+            <main @class([
+                'app-main flex-1 min-h-0',
+                'overflow-hidden' => View::hasSection('main-fluid'),
+                'overflow-y-auto' => ! View::hasSection('main-fluid'),
+                trim(View::getSection('main-class') ?: 'p-4 sm:p-6 lg:p-8'),
+            ])>
+                <div @class([
+                    'flex h-full min-h-0 flex-col' => View::hasSection('main-fluid'),
+                    'mx-auto max-w-[1600px]' => ! View::hasSection('main-fluid'),
+                ])>
                     @hasSection('back')
                         <div class="mb-4">
                             @yield('back')
@@ -521,7 +559,10 @@
         (() => {
             const sidebar = document.getElementById('app-sidebar');
             const overlay = document.getElementById('sidebar-overlay');
-            const openButton = document.getElementById('sidebar-open');
+            const openButtons = [
+                document.getElementById('sidebar-open'),
+                document.getElementById('sidebar-open-compact'),
+            ].filter(Boolean);
             const closeButton = document.getElementById('sidebar-close');
             const toggleButton = document.getElementById('sidebar-toggle');
             const STORAGE_KEY = 'agroservicio.sidebar.collapsed';
@@ -531,7 +572,7 @@
             const setMobileOpen = (open) => {
                 sidebar.classList.toggle('-translate-x-full', !open);
                 overlay.classList.toggle('hidden', !open);
-                openButton?.setAttribute('aria-expanded', open ? 'true' : 'false');
+                openButtons.forEach((button) => button.setAttribute('aria-expanded', open ? 'true' : 'false'));
                 document.body.classList.toggle('overflow-hidden', open && !isDesktop());
                 if (open) closeButton?.focus();
             };
@@ -550,7 +591,7 @@
                 setCollapsed(true);
             }
 
-            openButton?.addEventListener('click', () => setMobileOpen(true));
+            openButtons.forEach((button) => button.addEventListener('click', () => setMobileOpen(true)));
             closeButton?.addEventListener('click', () => setMobileOpen(false));
             overlay?.addEventListener('click', () => setMobileOpen(false));
 
@@ -559,7 +600,7 @@
             });
 
             document.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape' && openButton?.getAttribute('aria-expanded') === 'true') {
+                if (event.key === 'Escape' && openButtons.some((button) => button.getAttribute('aria-expanded') === 'true')) {
                     setMobileOpen(false);
                 }
             });

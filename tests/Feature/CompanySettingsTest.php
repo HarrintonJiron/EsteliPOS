@@ -63,7 +63,8 @@ test('client branding uses a prominent logo and identifies the system developer'
     $this->actingAs($admin)->get(route('settings.general'))
         ->assertOk()
         ->assertSee('data-company-logo', false)
-        ->assertSee('h-20', false);
+        ->assertSee('sidebar-brand-logo', false)
+        ->assertSee('rounded-full', false);
 
     auth()->logout();
 
@@ -112,6 +113,7 @@ test('company and ticket logos are stored on the public disk', function () {
     expect($companyLogo)->toStartWith('company/')
         ->and($ticketLogo)->toStartWith('company/');
     Storage::disk('public')->assertExists([$companyLogo, $ticketLogo]);
+    $this->get('/media/'.$companyLogo)->assertSuccessful();
 });
 
 test('oversized company logos are resized and optimized automatically', function () {

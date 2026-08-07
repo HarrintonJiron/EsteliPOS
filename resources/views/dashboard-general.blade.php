@@ -340,6 +340,7 @@
 @if($hasVentas || $hasCompras || $hasInventario || $hasClientes)
 @push('scripts')
 <script>
+const initializeDashboardCharts = () => {
 Chart.defaults.font.family = 'Inter, sans-serif';
 Chart.defaults.color = '#64748b';
 
@@ -371,7 +372,7 @@ if (document.getElementById('combinedTrendChart') && combined.length) {
 
 @if($hasVentas)
 const payments = charts.payment_methods || [];
-if (document.getElementById('paymentMethodsChart') && payments.some(p => p.value > 0)) {
+if (document.getElementById('paymentMethodsChart')) {
     new Chart(document.getElementById('paymentMethodsChart'), {
         type: 'doughnut',
         data: {
@@ -420,7 +421,7 @@ if (document.getElementById('topProductsChart') && topProducts.length) {
 
 @if($hasInventario)
 const inventory = charts.inventory_health || [];
-if (document.getElementById('inventoryHealthChart') && inventory.some(i => i.value > 0)) {
+if (document.getElementById('inventoryHealthChart')) {
     new Chart(document.getElementById('inventoryHealthChart'), {
         type: 'doughnut',
         data: {
@@ -449,6 +450,13 @@ if (document.getElementById('topClientsChart') && topClients.length) {
     });
 }
 @endif
+};
+
+if (window.Chart) {
+    initializeDashboardCharts();
+} else {
+    window.addEventListener('charts:ready', initializeDashboardCharts, { once: true });
+}
 </script>
 @endpush
 @endif

@@ -29,11 +29,11 @@ class DashboardService
         $hasClientes = $modules->contains('clientes');
 
         $salesStats = [
-            'today' => $hasVentas ? (float) Sale::whereDate('date', $today)->where('status', '!=', 'cancelled')->sum('total') : 0,
-            'month' => $hasVentas ? (float) Sale::whereBetween('date', [$startOfMonth, $endOfMonth])->where('status', '!=', 'cancelled')->sum('total') : 0,
+            'today' => $hasVentas ? (float) Sale::whereDate('date', $today)->where('status', 'completed')->sum('total') : 0,
+            'month' => $hasVentas ? (float) Sale::whereBetween('date', [$startOfMonth, $endOfMonth])->where('status', 'completed')->sum('total') : 0,
             'pending' => $hasVentas ? Sale::where('status', 'pending')->count() : 0,
-            'count_today' => $hasVentas ? Sale::whereDate('date', $today)->where('status', '!=', 'cancelled')->count() : 0,
-            'count_month' => $hasVentas ? Sale::whereBetween('date', [$startOfMonth, $endOfMonth])->where('status', '!=', 'cancelled')->count() : 0,
+            'count_today' => $hasVentas ? Sale::whereDate('date', $today)->where('status', 'completed')->count() : 0,
+            'count_month' => $hasVentas ? Sale::whereBetween('date', [$startOfMonth, $endOfMonth])->where('status', 'completed')->count() : 0,
             'average_ticket' => 0,
         ];
 
@@ -42,19 +42,19 @@ class DashboardService
         }
 
         $purchaseStats = [
-            'month' => $hasCompras ? (float) Purchase::whereBetween('date', [$startOfMonth, $endOfMonth])->sum('total') : 0,
+            'month' => $hasCompras ? (float) Purchase::whereBetween('date', [$startOfMonth, $endOfMonth])->where('status', 'completed')->sum('total') : 0,
             'pending' => $hasCompras ? Purchase::where('status', 'pending')->count() : 0,
-            'count_month' => $hasCompras ? Purchase::whereBetween('date', [$startOfMonth, $endOfMonth])->count() : 0,
+            'count_month' => $hasCompras ? Purchase::whereBetween('date', [$startOfMonth, $endOfMonth])->where('status', 'completed')->count() : 0,
         ];
 
         $inventoryStats = [
-            'total_products' => $hasInventario ? Product::count() : 0,
-            'low_stock' => $hasInventario ? Product::whereColumn('stock', '<=', 'low_stock_threshold')->orWhere('stock', '<=', 10)->count() : 0,
-            'expired' => $hasInventario ? Product::whereNotNull('expiry_date')->where('expiry_date', '<', $today)->count() : 0,
-            'expiring_soon' => $hasInventario ? Product::whereNotNull('expiry_date')
+            'total_products' => $hasInventario ? Product::where('status', 'active')->count() : 0,
+            'low_stock' => $hasInventario ? Product::where('status', 'active')->whereRaw('stock <= COALESCE(low_stock_threshold, 10)')->count() : 0,
+            'expired' => $hasInventario ? Product::where('status', 'active')->whereNotNull('expiry_date')->where('expiry_date', '<', $today)->count() : 0,
+            'expiring_soon' => $hasInventario ? Product::where('status', 'active')->whereNotNull('expiry_date')
                 ->whereBetween('expiry_date', [$today, $today->copy()->addDays(30)])
                 ->count() : 0,
-            'inventory_value' => $hasInventario ? (float) (Product::select(DB::raw('SUM(stock * purchase_price) as total'))->value('total') ?? 0) : 0,
+            'inventory_value' => $hasInventario ? (float) (Product::where('status', 'active')->select(DB::raw('SUM(stock * purchase_price) as total'))->value('total') ?? 0) : 0,
             'normal_stock' => 0,
         ];
 
@@ -65,7 +65,7 @@ class DashboardService
         $customerStats = [
             'total_clients' => $hasClientes ? Client::count() : 0,
             'new_this_month' => $hasClientes ? Client::whereBetween('created_at', [$startOfMonth, $endOfMonth])->count() : 0,
-            'top_clients' => $hasClientes ? Client::withSum(['sales as total_sales' => fn ($q) => $q->where('status', '!=', 'cancelled')], 'total')
+            'top_clients' => $hasClientes ? Client::withSum(['sales as total_sales' => fn ($q) => $q->where('status', 'completed')], 'total')
                 ->orderByDesc('total_sales')
                 ->limit(5)
                 ->get() : collect(),
@@ -129,8 +129,8 @@ class DashboardService
             $end = $month->copy()->endOfMonth();
 
             $total = match ($type) {
-                'sales' => (float) Sale::whereBetween('date', [$start, $end])->where('status', '!=', 'cancelled')->sum('total'),
-                'purchases' => (float) Purchase::whereBetween('date', [$start, $end])->sum('total'),
+                'sales' => (float) Sale::whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total'),
+                'purchases' => (float) Purchase::whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total'),
                 default => 0,
             };
 
@@ -153,10 +153,10 @@ class DashboardService
             $end = $month->copy()->endOfMonth();
 
             $sales = $hasVentas
-                ? (float) Sale::whereBetween('date', [$start, $end])->where('status', '!=', 'cancelled')->sum('total')
+                ? (float) Sale::whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total')
                 : 0;
             $purchases = $hasCompras
-                ? (float) Purchase::whereBetween('date', [$start, $end])->sum('total')
+                ? (float) Purchase::whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total')
                 : 0;
 
             return [
@@ -179,14 +179,14 @@ class DashboardService
 
         $salesByDay = Sale::query()
             ->whereBetween('date', [$start, $end])
-            ->where('status', '!=', 'cancelled')
+            ->where('status', 'completed')
             ->selectRaw('DATE(date) as day, SUM(total) as total, COUNT(*) as count')
             ->groupBy('day')
             ->pluck('total', 'day');
 
         $countsByDay = Sale::query()
             ->whereBetween('date', [$start, $end])
-            ->where('status', '!=', 'cancelled')
+            ->where('status', 'completed')
             ->selectRaw('DATE(date) as day, COUNT(*) as count')
             ->groupBy('day')
             ->pluck('count', 'day');
@@ -220,7 +220,7 @@ class DashboardService
 
         $rows = Sale::query()
             ->whereBetween('date', [$start, $end])
-            ->where('status', '!=', 'cancelled')
+            ->where('status', 'completed')
             ->selectRaw('payment_type, SUM(total) as total, COUNT(*) as count')
             ->groupBy('payment_type')
             ->get()
@@ -246,7 +246,7 @@ class DashboardService
             ->select('products.name', DB::raw('SUM(sale_details.quantity) as total_qty'), DB::raw('SUM(sale_details.subtotal) as total_sales'))
             ->join('products', 'sale_details.product_id', '=', 'products.id')
             ->join('sales', 'sale_details.sale_id', '=', 'sales.id')
-            ->where('sales.status', '!=', 'cancelled')
+            ->where('sales.status', 'completed')
             ->where('sales.date', '>=', Carbon::now()->subMonths(6))
             ->groupBy('products.id', 'products.name')
             ->orderByDesc('total_qty')

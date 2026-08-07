@@ -363,12 +363,12 @@ class FacturacionController extends Controller
     public function pos()
     {
         $defaultWarehouseId = $this->posCatalog->resolveWarehouseId(null);
-        $products = Product::with(['category', 'tax', 'baseUnit', 'unitConversions.unit'])
+        $products = Product::with(['category', 'tax', 'baseUnit', 'unitConversions.unit', 'warehouseStocks.warehouse'])
             ->where('status', 'active')
             ->orderBy('name')
             ->limit(300)
             ->get()
-            ->map(fn (Product $product) => $this->posCatalog->serializeProduct($product, $defaultWarehouseId));
+            ->map(fn (Product $product) => $this->posCatalog->serializeProduct($product, null));
 
         Client::firstOrCreate(
             ['code' => 'GEN'],
@@ -392,11 +392,13 @@ class FacturacionController extends Controller
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
-        $warehouseId = $this->posCatalog->resolveWarehouseId($validated['warehouse_id'] ?? null);
+        $warehouseId = isset($validated['warehouse_id'])
+            ? $this->posCatalog->resolveWarehouseId((int) $validated['warehouse_id'])
+            : null;
         $priceListId = $this->posCatalog->resolvePriceListId($validated['client_id'] ?? null);
 
         $query = Product::query()
-            ->with(['category:id,name', 'tax:id,rate,is_active', 'baseUnit', 'unitConversions.unit'])
+            ->with(['category:id,name', 'tax:id,rate,is_active', 'baseUnit', 'unitConversions.unit', 'warehouseStocks.warehouse'])
             ->where('status', 'active')
             ->when(isset($validated['category_id']), fn ($q) => $q->where('category_id', $validated['category_id']))
             ->when($search !== '', function ($q) use ($search) {
@@ -497,7 +499,6 @@ class FacturacionController extends Controller
             ->get()
             ->each(function (Product $product) {
                 $product->setAttribute('effective_tax_rate', $product->effectiveTaxRate());
-                $product->image_url = $product->getRawOriginal('image_url');
             });
     }
 
@@ -563,14 +564,17 @@ class FacturacionController extends Controller
                     );
                 }
 
-                $warehouseId = $this->posCatalog->resolveWarehouseId($validated['warehouse_id'] ?? null);
+                $preferredWarehouseId = isset($validated['warehouse_id'])
+                    ? (int) $validated['warehouse_id']
+                    : null;
                 $priceListId = $client->price_list_id;
+                $saleWarehouseId = null;
 
                 $sale = Sale::create([
                     'invoice_number' => $invoiceNumber,
                     'client_id' => $client->id,
                     'user_id' => $userId,
-                    'warehouse_id' => $warehouseId,
+                    'warehouse_id' => $this->posCatalog->resolveWarehouseId($preferredWarehouseId),
                     'billing_name' => $client->name,
                     'billing_business_name' => $client->business_name ?? null,
                     'billing_document_type' => $client->isCompany() ? 'ruc' : ($client->cedula ? 'cedula' : null),
@@ -592,9 +596,11 @@ class FacturacionController extends Controller
                     'total' => 0,
                 ]);
 
-                $linesTotal = 0;
                 $subtotalExcl = 0;
                 $taxTotal = 0;
+                $grossSubtotal = 0;
+                $totalDiscountAmount = 0;
+                $orderDiscountPct = min(100, max(0, (float) ($validated['order_discount_pct'] ?? 0)));
 
                 foreach ($items as $item) {
                     $product = Product::query()->with(['baseUnit', 'unitConversions'])->findOrFail($item['product_id']);
@@ -606,10 +612,12 @@ class FacturacionController extends Controller
                     );
 
                     $discountPct = min(100, max(0, (float) ($item['discount'] ?? 0)));
-                    $orderDiscountPct = (float) ($validated['order_discount_pct'] ?? 0);
-                    $lineNet = ($line['price'] * $line['quantity'])
-                        * (1 - $discountPct / 100)
-                        * (1 - $orderDiscountPct / 100);
+                    $lineGross = $line['price'] * $line['quantity'];
+                    $afterItemDiscount = $lineGross * (1 - $discountPct / 100);
+                    $itemDiscountAmount = $lineGross - $afterItemDiscount;
+                    $orderDiscountOnLine = $afterItemDiscount * ($orderDiscountPct / 100);
+                    $lineDiscountAmount = $itemDiscountAmount + $orderDiscountOnLine;
+                    $lineNet = $afterItemDiscount - $orderDiscountOnLine;
 
                     $rate = $product->effectiveTaxRate();
                     $lineTax = $lineNet * $rate;
@@ -620,10 +628,19 @@ class FacturacionController extends Controller
                         'unit_id' => $line['unit_id'],
                         'quantity' => $line['quantity'],
                         'price' => $line['price'],
+                        'discount_percentage' => $discountPct,
+                        'discount_amount' => round($lineDiscountAmount, 2),
                         'subtotal' => $lineNet,
                         'tax_rate' => $rate,
                         'tax_amount' => round($lineTax, 2),
                     ]);
+
+                    $lineWarehouseId = $this->posCatalog->resolveWarehouseForQuantity(
+                        $product,
+                        $line['base_quantity'],
+                        $preferredWarehouseId,
+                    );
+                    $saleWarehouseId ??= $lineWarehouseId;
 
                     $this->inventoryService->stockOut(
                         $product,
@@ -632,17 +649,21 @@ class FacturacionController extends Controller
                         'Venta POS #'.$invoiceNumber,
                         $userId,
                         false,
-                        $warehouseId,
+                        $lineWarehouseId,
                     );
 
-                    $linesTotal += $lineNet;
+                    $grossSubtotal += $lineGross;
+                    $totalDiscountAmount += $lineDiscountAmount;
                     $subtotalExcl += $lineNet;
                     $taxTotal += $lineTax;
                 }
 
                 $sale->update([
+                    'warehouse_id' => $saleWarehouseId ?? $this->posCatalog->resolveWarehouseId($preferredWarehouseId),
                     'tax_rate' => $subtotalExcl > 0 ? round($taxTotal / $subtotalExcl, 4) : 0,
                     'subtotal' => round($subtotalExcl, 2),
+                    'discount_amount' => round($totalDiscountAmount, 2),
+                    'discount_percentage' => $orderDiscountPct,
                     'tax_total' => round($taxTotal, 2),
                     'total' => round($subtotalExcl + $taxTotal, 2),
                     'change_amount' => $storedPaymentType === 'cash'

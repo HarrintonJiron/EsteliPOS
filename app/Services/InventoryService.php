@@ -283,6 +283,67 @@ class InventoryService
         $product->update(['stock' => $total]);
     }
 
+    /**
+     * Transfiere existencias entre bodegas.
+     */
+    public function transfer(
+        Product $product,
+        float $quantity,
+        int $fromWarehouseId,
+        int $toWarehouseId,
+        string $note = '',
+        ?int $userId = null,
+    ): void {
+        if ($fromWarehouseId === $toWarehouseId) {
+            throw new \InvalidArgumentException('La bodega de origen y destino deben ser distintas.');
+        }
+
+        if ($quantity <= 0) {
+            throw new \InvalidArgumentException('La cantidad a transferir debe ser mayor que cero.');
+        }
+
+        DB::transaction(function () use ($product, $quantity, $fromWarehouseId, $toWarehouseId, $note, $userId) {
+            $from = $this->resolveWarehouse($fromWarehouseId);
+            $to = $this->resolveWarehouse($toWarehouseId);
+            $locked = Product::query()->lockForUpdate()->findOrFail($product->id);
+
+            $available = $this->warehouseQuantity($locked, $from);
+            if ($available < $quantity) {
+                throw new \RuntimeException(
+                    "Stock insuficiente en {$from->name} para «{$locked->name}». Disponible: {$available}"
+                );
+            }
+
+            $this->decrementWarehouseStock($locked, $from, $quantity);
+            $this->incrementWarehouseStock($locked->fresh(), $to, $quantity);
+            $locked->refresh();
+
+            $ref = 'transfer:'.$from->id.'-'.$to->id.':'.now()->timestamp;
+
+            InventoryMovement::create([
+                'product_id' => $locked->id,
+                'warehouse_id' => $from->id,
+                'type' => 'out',
+                'quantity' => $quantity,
+                'stock_after' => $locked->stock,
+                'reference' => $ref,
+                'note' => trim('Salida por transferencia a '.$to->name.($note ? ' · '.$note : '')),
+                'user_id' => $userId ?? auth()->id() ?? 1,
+            ]);
+
+            InventoryMovement::create([
+                'product_id' => $locked->id,
+                'warehouse_id' => $to->id,
+                'type' => 'in',
+                'quantity' => $quantity,
+                'stock_after' => $locked->stock,
+                'reference' => $ref,
+                'note' => trim('Entrada por transferencia desde '.$from->name.($note ? ' · '.$note : '')),
+                'user_id' => $userId ?? auth()->id() ?? 1,
+            ]);
+        });
+    }
+
     private function resolveWarehouse(?int $warehouseId): Warehouse
     {
         if ($warehouseId) {

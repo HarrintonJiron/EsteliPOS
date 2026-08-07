@@ -10,6 +10,34 @@
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4"><a href="{{ route('contabilidad.estado-resultados.index',['date_from'=>$dateFrom,'date_to'=>$dateTo]) }}" class="card p-4 hover:border-indigo-400"><strong>Estado de Resultados</strong><p class="text-sm text-slate-500">Detalle de la utilidad del período</p></a><a href="{{ route('contabilidad.balance-general.index',['as_of_date'=>$dateTo]) }}" class="card p-4 hover:border-indigo-400"><strong>Balance General</strong><p class="text-sm text-slate-500">Activos, pasivos y patrimonio</p></a><a href="{{ route('contabilidad.flujo-caja.index',['date_from'=>$dateFrom,'date_to'=>$dateTo]) }}" class="card p-4 hover:border-indigo-400"><strong>Flujo de Caja</strong><p class="text-sm text-slate-500">Entradas y salidas de efectivo</p></a></div>
 </div>
 @push('scripts')
-<script>const accountingData=@json($chart);new Chart(document.getElementById('accountingChart'),{type:'line',data:{labels:accountingData.map(i=>i.label),datasets:[{label:'Ingresos',data:accountingData.map(i=>i.income),borderColor:'#4f46e5',tension:.3},{label:'Egresos',data:accountingData.map(i=>i.expenses),borderColor:'#e11d48',tension:.3},{label:'Utilidad',data:accountingData.map(i=>i.profit),borderColor:'#059669',tension:.3}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'C$ '+Number(v).toLocaleString('es-NI')}}}}});</script>
+<script>
+const initializeAccountingChart = () => {
+    const accountingData = @json($chart);
+    new Chart(document.getElementById('accountingChart'), {
+        type: 'line',
+        data: {
+            labels: accountingData.map(item => item.label),
+            datasets: [
+                { label: 'Ingresos', data: accountingData.map(item => item.income), borderColor: '#4f46e5', tension: .3 },
+                { label: 'Egresos', data: accountingData.map(item => item.expenses), borderColor: '#e11d48', tension: .3 },
+                { label: 'Utilidad', data: accountingData.map(item => item.profit), borderColor: '#059669', tension: .3 },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: false } },
+            scales: { y: { ticks: { callback: value => 'C$ ' + Number(value).toLocaleString('es-NI') } } },
+        },
+    });
+};
+
+if (window.Chart) {
+    initializeAccountingChart();
+} else {
+    window.addEventListener('charts:ready', initializeAccountingChart, { once: true });
+}
+</script>
 @endpush
 @endsection

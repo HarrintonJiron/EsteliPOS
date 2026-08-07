@@ -5,36 +5,36 @@
 
 @section('content')
 
-<div class="max-w-2xl mx-auto px-4 py-8">
+<div class="mx-auto max-w-2xl py-4 sm:px-4 sm:py-8">
 
     {{-- Encabezado --}}
     <div class="mb-8">
         <a href="{{ route('creditos.show', $client->id) }}" class="text-indigo-600 hover:text-indigo-800 font-semibold mb-4 inline-block">
             ← Volver
         </a>
-        <h1 class="text-3xl font-bold text-gray-900">Registrar Abono</h1>
+        <h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Registrar Abono</h1>
         <p class="text-gray-600">{{ $client->legal_name }}</p>
         <p class="text-sm text-slate-500 mt-1">{{ $client->isCompany() ? 'Empresa' : 'Persona Natural' }} · {{ $client->document_label }}: {{ $client->document_number ?? '—' }}</p>
     </div>
 
     {{-- Resumen de Deuda --}}
-    <div class="grid grid-cols-3 gap-4 mb-8">
-        <div class="bg-blue-50 rounded shadow p-6 border-l-4 border-blue-900">
+    <div class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div class="rounded border-l-4 border-blue-900 bg-blue-50 p-4 shadow sm:p-6">
             <p class="text-gray-600 text-sm mb-1">Deuda Total</p>
             <p class="text-2xl font-bold text-blue-900">C$ {{ number_format($totalDebt, 2) }}</p>
         </div>
-        <div class="bg-green-50 rounded shadow p-6 border-l-4 border-green-700">
+        <div class="rounded border-l-4 border-green-700 bg-green-50 p-4 shadow sm:p-6">
             <p class="text-gray-600 text-sm mb-1">Abonos Anteriores</p>
             <p class="text-2xl font-bold text-green-700">C$ {{ number_format($totalDebt - $balance, 2) }}</p>
         </div>
-        <div class="bg-red-50 rounded shadow p-6 border-l-4 border-red-700">
+        <div class="rounded border-l-4 border-red-700 bg-red-50 p-4 shadow sm:p-6">
             <p class="text-gray-600 text-sm mb-1">Saldo Pendiente</p>
             <p class="text-2xl font-bold text-red-700">C$ {{ number_format($balance, 2) }}</p>
         </div>
     </div>
 
     {{-- Formulario --}}
-    <form action="{{ route('creditos.store') }}" method="POST" class="bg-white rounded shadow p-8">
+    <form action="{{ route('creditos.store') }}" method="POST" class="rounded bg-white p-4 shadow sm:p-8">
         @csrf
 
         <input type="hidden" name="client_id" value="{{ $client->id }}">
@@ -54,7 +54,7 @@
                     max="{{ $balance }}"
                     placeholder="0.00"
                     required
-                    class="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded focus:border-blue-900 focus:outline-none"
+                    class="input-with-leading-prefix w-full pr-4 py-3 border-2 border-gray-300 rounded focus:border-blue-900 focus:outline-none"
                     @error('amount') style="border-color: rgb(185, 28, 28);" @enderror>
             </div>
             @error('amount')

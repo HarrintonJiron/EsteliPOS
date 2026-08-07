@@ -49,7 +49,7 @@ test('an image can be uploaded while creating a product', function () {
     $storedPath = $product->getRawOriginal('image_url');
 
     expect($storedPath)->toStartWith('products/')
-        ->and($product->image_url)->toContain('/storage/products/');
+        ->and($product->image_url)->toContain('/media/products/');
     Storage::disk('public')->assertExists($storedPath);
 });
 
@@ -101,4 +101,36 @@ test('a product image can be replaced and removed', function () {
 
     expect($product->fresh()->getRawOriginal('image_url'))->toBeNull();
     Storage::disk('public')->assertMissing($newPath);
+});
+
+test('product images use public URLs in pos and proforma cards', function () {
+    Storage::fake('public');
+    $admin = productImageAdmin();
+    $category = Category::create(['name' => 'Catálogo visual']);
+    Storage::disk('public')->put('products/catalog-card.png', 'image');
+
+    Product::create([
+        ...productImagePayload($category, 'IMG-CATALOG-001'),
+        'image_url' => 'products/catalog-card.png',
+    ]);
+
+    $encodedPublicUrl = '\/media\/products\/catalog-card.png';
+
+    $this->actingAs($admin)
+        ->get(route('facturacion.pos'))
+        ->assertSuccessful()
+        ->assertSee($encodedPublicUrl, false);
+
+    $this->actingAs($admin)
+        ->get(route('proformas.pos'))
+        ->assertSuccessful()
+        ->assertSee($encodedPublicUrl, false);
+
+    $this->get('/media/products/catalog-card.png')->assertSuccessful();
+});
+
+test('legacy storage image URLs are normalized to the media endpoint', function () {
+    $product = new Product(['image_url' => '/storage/products/legacy-card.png']);
+
+    expect($product->image_url)->toBe('/media/products/legacy-card.png');
 });

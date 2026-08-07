@@ -15,11 +15,11 @@
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
             <h1 class="page-title">Dashboard de Planilla</h1>
-            <p class="page-subtitle">Resumen de nómina, personal y pendientes · {{ $dashboard['period_label'] }}</p>
+            <p id="dashboardPageSubtitle" class="page-subtitle">Resumen de nómina, personal y pendientes · {{ $dashboard['period_label'] }}</p>
         </div>
 
-        <form method="GET" class="flex items-center gap-2">
-            <input type="month" name="month" value="{{ $selectedMonth }}" class="input-field w-auto">
+        <form method="GET" class="flex items-center gap-2" data-chart-filter>
+            <input id="payrollMonthFilter" type="month" name="month" value="{{ $selectedMonth }}" class="input-field w-auto">
             <button type="submit" class="btn-primary">Actualizar</button>
         </form>
     </div>
@@ -29,28 +29,28 @@
         <div class="card p-5 relative overflow-hidden">
             <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-indigo-500/10"></div>
             <p class="text-xs uppercase tracking-wide text-slate-500">Empleados activos</p>
-            <p class="mt-2 text-3xl font-bold text-slate-800">{{ $stats['active_employees'] }}</p>
+            <p class="mt-2 text-3xl font-bold text-slate-800" data-dashboard-stat="active-employees">{{ $stats['active_employees'] }}</p>
             <p class="mt-1 text-sm text-slate-500">{{ $stats['inactive_employees'] }} inactivos · {{ $stats['total_employees'] }} total</p>
         </div>
 
         <div class="card p-5 relative overflow-hidden">
             <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-emerald-500/10"></div>
             <p class="text-xs uppercase tracking-wide text-slate-500">Nómina neta del mes</p>
-            <p class="mt-2 text-3xl font-bold text-emerald-700">C$ {{ number_format($totals['net_salary'], 2) }}</p>
+            <p class="mt-2 text-3xl font-bold text-emerald-700" data-dashboard-stat="net-salary">C$ {{ number_format($totals['net_salary'], 2) }}</p>
             <p class="mt-1 text-sm text-slate-500">Bruto C$ {{ number_format($totals['gross_salary'], 2) }}</p>
         </div>
 
         <div class="card p-5 relative overflow-hidden">
             <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-rose-500/10"></div>
             <p class="text-xs uppercase tracking-wide text-slate-500">Deducciones del mes</p>
-            <p class="mt-2 text-3xl font-bold text-rose-700">C$ {{ number_format($totals['total_deductions'], 2) }}</p>
+            <p class="mt-2 text-3xl font-bold text-rose-700" data-dashboard-stat="total-deductions">C$ {{ number_format($totals['total_deductions'], 2) }}</p>
             <p class="mt-1 text-sm text-slate-500">INSS + IR + otras + préstamos</p>
         </div>
 
         <div class="card p-5 relative overflow-hidden">
             <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-amber-500/10"></div>
             <p class="text-xs uppercase tracking-wide text-slate-500">Pendientes de aprobación</p>
-            <p class="mt-2 text-3xl font-bold text-amber-700">{{ $stats['pending_total'] }}</p>
+            <p class="mt-2 text-3xl font-bold text-amber-700" data-dashboard-stat="pending-total">{{ $stats['pending_total'] }}</p>
             <p class="mt-1 text-sm text-slate-500">Permisos, préstamos, bonos y deducciones</p>
         </div>
     </div>
@@ -204,121 +204,14 @@
     </div>
 </div>
 
+
+
 @push('scripts')
-<script>
-const money = (v) => 'C$ ' + Number(v).toLocaleString('es-NI', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-const trend = @json($dashboard['trend']);
-const deductionBreakdown = @json($charts['deduction_breakdown']);
-const salaryByEmployee = @json($charts['salary_by_employee']);
-const contractDistribution = @json($charts['contract_distribution']);
-
-Chart.defaults.font.family = 'Inter, sans-serif';
-Chart.defaults.color = '#64748b';
-
-new Chart(document.getElementById('payrollTrendChart'), {
-    type: 'line',
-    data: {
-        labels: trend.map(i => i.label),
-        datasets: [
-            {
-                label: 'Bruto',
-                data: trend.map(i => i.gross),
-                borderColor: '#4f46e5',
-                backgroundColor: 'rgba(79, 70, 229, 0.12)',
-                fill: true,
-                tension: 0.35,
-            },
-            {
-                label: 'Neto',
-                data: trend.map(i => i.net),
-                borderColor: '#059669',
-                backgroundColor: 'rgba(5, 150, 105, 0.08)',
-                fill: true,
-                tension: 0.35,
-            },
-            {
-                label: 'Deducciones',
-                data: trend.map(i => i.deductions),
-                borderColor: '#e11d48',
-                tension: 0.35,
-            },
-        ],
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { display: false } },
-        scales: {
-            y: { ticks: { callback: money }, grid: { color: 'rgba(148,163,184,0.2)' } },
-            x: { grid: { display: false } },
-        },
-    },
-});
-
-new Chart(document.getElementById('deductionsChart'), {
-    type: 'doughnut',
-    data: {
-        labels: deductionBreakdown.map(i => i.label),
-        datasets: [{
-            data: deductionBreakdown.map(i => i.value),
-            backgroundColor: ['#4f46e5', '#f59e0b', '#f43f5e', '#0ea5e9'],
-            borderWidth: 0,
-            hoverOffset: 6,
-        }],
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16 } },
-            tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${money(ctx.raw)}` } },
-        },
-        cutout: '62%',
-    },
-});
-
-new Chart(document.getElementById('salaryByEmployeeChart'), {
-    type: 'bar',
-    data: {
-        labels: salaryByEmployee.map(i => i.name),
-        datasets: [{
-            label: 'Neto',
-            data: salaryByEmployee.map(i => i.net),
-            backgroundColor: '#6366f1',
-            borderRadius: 8,
-            maxBarThickness: 36,
-        }],
-    },
-    options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => money(ctx.raw) } } },
-        scales: {
-            x: { ticks: { callback: money }, grid: { color: 'rgba(148,163,184,0.2)' } },
-            y: { grid: { display: false } },
-        },
-    },
-});
-
-new Chart(document.getElementById('contractChart'), {
-    type: 'doughnut',
-    data: {
-        labels: contractDistribution.map(i => i.label),
-        datasets: [{
-            data: contractDistribution.map(i => i.value),
-            backgroundColor: ['#0f766e', '#2563eb', '#d97706', '#7c3aed', '#64748b'],
-            borderWidth: 0,
-        }],
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } } },
-        cutout: '55%',
-    },
-});
-</script>
+@include('planilla.partials.dynamic-payroll-charts', [
+    'chartsUrl' => $chartsUrl,
+    'initialChartData' => $initialChartData,
+    'mode' => 'dashboard',
+    'monthInputId' => 'payrollMonthFilter',
+])
 @endpush
 @endsection

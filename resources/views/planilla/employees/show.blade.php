@@ -91,7 +91,7 @@
     </div>
 
     <!-- Vacaciones y Prestaciones -->
-    <div class="grid grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div class="bg-white rounded-xl shadow p-6">
             <h3 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">Vacaciones</h3>
             <div class="space-y-3">

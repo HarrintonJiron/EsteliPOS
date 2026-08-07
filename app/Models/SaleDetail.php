@@ -11,7 +11,31 @@ class SaleDetail extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['sale_id', 'product_id', 'unit_id', 'quantity', 'price', 'subtotal', 'tax_rate', 'tax_amount'];
+    protected $fillable = [
+        'sale_id',
+        'product_id',
+        'unit_id',
+        'quantity',
+        'price',
+        'discount_percentage',
+        'discount_amount',
+        'subtotal',
+        'tax_rate',
+        'tax_amount',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'quantity' => 'decimal:4',
+            'price' => 'decimal:2',
+            'discount_percentage' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
+            'subtotal' => 'decimal:2',
+            'tax_rate' => 'decimal:4',
+            'tax_amount' => 'decimal:2',
+        ];
+    }
 
     public function sale()
     {

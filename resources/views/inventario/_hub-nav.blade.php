@@ -16,6 +16,11 @@
             'match' => ['inventario.warehouses.*'],
         ],
         [
+            'route' => 'inventario.transfers.index',
+            'label' => 'Transferencias',
+            'match' => ['inventario.transfers.*'],
+        ],
+        [
             'route' => 'inventario.price-lists.index',
             'label' => 'Precios',
             'match' => ['inventario.price-lists.*'],

@@ -152,6 +152,7 @@
 
 @push('scripts')
 <script>
+const initializeInventoryCharts = () => {
 const movementTrend = @json($movementTrend);
 const stockHealth = @json($stockHealth);
 const topSellersChart = @json($topSellersChart);
@@ -215,6 +216,13 @@ new Chart(document.getElementById('categoryValueChart'), {
         scales: { r: { ticks: { display: false } } },
     },
 });
+};
+
+if (window.Chart) {
+    initializeInventoryCharts();
+} else {
+    window.addEventListener('charts:ready', initializeInventoryCharts, { once: true });
+}
 </script>
 @endpush
 @endsection

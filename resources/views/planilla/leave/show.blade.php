@@ -17,7 +17,7 @@
     </div>
 
     <div class="bg-white rounded-xl shadow p-6">
-        <div class="grid grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div>
                 <p class="text-sm text-gray-500">Empleado</p>
                 <p class="font-medium text-lg">{{ $leaveRequest->employee?->name ?? 'Empleado no disponible' }}</p>

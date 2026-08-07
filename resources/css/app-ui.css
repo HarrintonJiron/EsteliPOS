@@ -52,6 +52,16 @@ main textarea,
     transition: border-color var(--ui-transition), box-shadow var(--ui-transition);
 }
 
+main .input-with-leading-icon,
+.input-field.input-with-leading-icon {
+    padding-left: 2.5rem !important;
+}
+
+main .input-with-leading-prefix,
+.input-field.input-with-leading-prefix {
+    padding-left: 3rem !important;
+}
+
 main input:focus,
 main select:focus,
 main textarea:focus,
@@ -813,6 +823,18 @@ main span.rounded-full.text-xs[class*="bg-red-100"] {
     overflow-x: auto;
 }
 
+.responsive-table {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.responsive-table > table {
+    min-width: max-content;
+}
+
 .data-card-footer {
     padding: 0.875rem 1.25rem;
     border-top: 1px solid var(--ui-border);
@@ -924,6 +946,122 @@ main nav[role="navigation"] span.relative.inline-flex {
     transform: translateY(-50%);
     font-size: 0.65rem;
     color: #94a3b8;
+}
+
+/* ── Responsive system safeguards ── */
+img,
+svg,
+video,
+canvas {
+    max-width: 100%;
+}
+
+main,
+main > div,
+.page-shell,
+.card,
+.data-card {
+    min-width: 0;
+}
+
+@media (max-width: 639px) {
+    .page-shell {
+        gap: 1rem;
+    }
+
+    .page-header,
+    .card-header,
+    .data-card-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .page-title {
+        font-size: 1.375rem;
+        overflow-wrap: anywhere;
+    }
+
+    .page-actions {
+        width: 100%;
+    }
+
+    .page-actions > a,
+    .page-actions > button,
+    .page-actions > form {
+        flex: 1 1 auto;
+    }
+
+    .page-actions > form > button {
+        width: 100%;
+    }
+
+    .filter-panel,
+    .card-body,
+    .ui-modal-body {
+        padding: 1rem;
+    }
+
+    .filter-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+    main select,
+    main textarea,
+    .input-field,
+    .select-field {
+        font-size: 1rem;
+    }
+
+    .ui-modal-backdrop {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .ui-modal {
+        max-height: calc(100dvh - 1rem);
+        border-radius: var(--ui-radius-lg) var(--ui-radius-lg) 0 0;
+        overflow-y: auto;
+    }
+
+    main .fixed.inset-0 {
+        padding: 0.75rem;
+    }
+
+    main .fixed.inset-0 > .bg-white {
+        width: 100%;
+        max-width: min(100%, 32rem);
+        max-height: calc(100dvh - 1.5rem);
+        overflow-y: auto;
+    }
+
+    .ui-modal-footer {
+        flex-wrap: wrap;
+    }
+
+    .ui-modal-footer > button,
+    .ui-modal-footer > a {
+        flex: 1 1 auto;
+    }
+
+    .empty-state {
+        padding: 2rem 1rem;
+    }
+
+    .pagination {
+        justify-content: center;
+    }
+
+    .table-agro thead th,
+    .table-agro tbody td {
+        padding: 0.625rem 0.75rem;
+    }
+
+    .ui-toast-container {
+        left: max(1rem, env(safe-area-inset-left));
+        right: max(1rem, env(safe-area-inset-right));
+        max-width: none;
+    }
 }
 
 @media print {

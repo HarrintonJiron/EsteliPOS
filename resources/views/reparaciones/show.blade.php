@@ -7,14 +7,14 @@
 <div class="max-w-5xl mx-auto space-y-5">
 
     {{-- Header --}}
-    <div class="flex items-start justify-between">
-        <div class="flex items-center gap-3">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="flex min-w-0 items-start gap-3">
             <a href="{{ route('reparaciones.index') }}" class="text-slate-400 hover:text-slate-600">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             </a>
             <div>
-                <div class="flex items-center gap-3">
-                    <h1 class="text-2xl font-bold text-slate-900">{{ $order->order_number }}</h1>
+                <div class="flex flex-wrap items-center gap-3">
+                    <h1 class="break-all text-2xl font-bold text-slate-900">{{ $order->order_number }}</h1>
                     <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold {{ $order->statusColor() }}">{{ $order->statusLabel() }}</span>
                     <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold {{ $order->priorityColor() }}">{{ $order->priorityLabel() }}</span>
                 </div>
@@ -37,7 +37,7 @@
                 </p>
             </div>
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
             <a href="{{ route('reparaciones.ticket', $order->id) }}" target="_blank" class="btn-outline text-sm">Ticket</a>
             <a href="{{ route('reparaciones.pdf', $order->id) }}" target="_blank" class="btn-outline text-sm">PDF</a>
             <a href="{{ route('reparaciones.edit', $order->id) }}" class="btn-secondary text-sm">Editar</a>
@@ -48,13 +48,13 @@
         <div class="card p-3 bg-green-50 border border-green-200 text-green-800 text-sm">{{ session('success') }}</div>
     @endif
 
-    <div class="grid grid-cols-3 gap-5">
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
 
         {{-- LEFT --}}
-        <div class="col-span-2 space-y-5">
+        <div class="space-y-5 lg:col-span-2">
 
             {{-- Client & Device --}}
-            <div class="card p-5 grid grid-cols-2 gap-5">
+            <div class="card grid grid-cols-1 gap-5 p-5 sm:grid-cols-2">
                 <div>
                     <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Cliente</p>
                     <p class="font-bold text-slate-900 text-lg">{{ $order->client_name }}</p>

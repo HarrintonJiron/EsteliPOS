@@ -1,19 +1,19 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="p-6">
-    <div class="flex items-center justify-between mb-3">
+<div class="p-3 sm:p-6">
+    <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h2 class="text-lg font-bold">Arqueo #{{ $arqueo->id ?? '—' }}</h2>
             <div class="text-sm text-slate-500">Fecha: {{ $date->format('d/m/Y') }} · Sesión: {{ optional($arqueo->caja_session_id) ? 'Sí' : 'Manual' }}</div>
         </div>
-        <div class="space-x-2">
+        <div class="flex flex-wrap gap-2">
             <button onclick="window.print()" class="btn-outline">Imprimir</button>
             <a href="{{ route('arqueo.index') }}" class="btn-primary">Nuevo</a>
         </div>
     </div>
 
-    <div class="grid grid-cols-3 gap-3 mb-3 text-sm">
+    <div class="mb-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
         <div class="p-3 bg-white rounded shadow">
             <div class="text-xs text-slate-500">Ventas</div>
             <div class="text-lg font-semibold">{{ number_format($totalSalesAmount, 2) }}</div>

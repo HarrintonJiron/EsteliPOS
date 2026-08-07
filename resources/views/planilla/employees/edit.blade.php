@@ -21,7 +21,7 @@
             @csrf
             @method('PATCH')
 
-            <div class="grid grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <!-- Información Personal -->
                 <div class="col-span-2">
                     <h3 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">Información Personal</h3>

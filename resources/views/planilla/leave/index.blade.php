@@ -99,8 +99,8 @@
 </div>
 
 <!-- Modal de Rechazo -->
-<div id="rejectModal" class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-    <div class="bg-white rounded-xl shadow-xl w-[500px] p-6">
+<div id="rejectModal" class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+    <div class="w-full max-w-lg rounded-xl bg-white p-4 shadow-xl sm:p-6">
         <h3 class="text-lg font-semibold mb-4">Rechazar Permiso</h3>
         <form id="rejectForm" method="POST">
             @csrf
@@ -110,7 +110,7 @@
                 <textarea name="rejection_reason" required rows="3"
                     class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"></textarea>
             </div>
-            <div class="flex justify-end space-x-3">
+            <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <button type="button" onclick="closeRejectModal()" class="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400">
                     Cancelar
                 </button>

@@ -37,6 +37,7 @@ use App\Http\Controllers\PlanillaController;
 use App\Http\Controllers\PriceListController;
 use App\Http\Controllers\ProformaController;
 use App\Http\Controllers\ProveedorController;
+use App\Http\Controllers\PublicImageController;
 use App\Http\Controllers\RepairServiceController;
 use App\Http\Controllers\ReparacionController;
 use App\Http\Controllers\ReporteController;
@@ -46,9 +47,14 @@ use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\WarehouseTransferController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas públicas (sin autenticación)
+Route::get('/media/{directory}/{filename}', PublicImageController::class)
+    ->whereIn('directory', ['company', 'products'])
+    ->where('filename', '[A-Za-z0-9._-]+')
+    ->name('media.show');
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -125,6 +131,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/inventario/bodegas/{warehouse}', [WarehouseController::class, 'show'])->name('inventario.warehouses.show');
         Route::get('/inventario/bodegas/{warehouse}/edit', [WarehouseController::class, 'edit'])->name('inventario.warehouses.edit');
         Route::put('/inventario/bodegas/{warehouse}', [WarehouseController::class, 'update'])->name('inventario.warehouses.update');
+        Route::post('/inventario/bodegas/{warehouse}/transferir', [WarehouseController::class, 'transfer'])->name('inventario.warehouses.transfer');
+        Route::delete('/inventario/bodegas/{warehouse}', [WarehouseController::class, 'destroy'])->name('inventario.warehouses.destroy');
+        Route::get('/inventario/transferencias', [WarehouseTransferController::class, 'index'])->name('inventario.transfers.index');
+        Route::post('/inventario/transferencias', [WarehouseTransferController::class, 'store'])->name('inventario.transfers.store');
+        Route::get('/inventario/transferencias/stock', [WarehouseTransferController::class, 'stockAvailability'])->name('inventario.transfers.stock');
         Route::get('/inventario/listas-precios', [PriceListController::class, 'index'])->name('inventario.price-lists.index');
         Route::get('/inventario/listas-precios/nueva', [PriceListController::class, 'create'])->name('inventario.price-lists.create');
         Route::post('/inventario/listas-precios', [PriceListController::class, 'store'])->name('inventario.price-lists.store');
@@ -189,6 +200,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::get('/planilla', [PlanillaController::class, 'index'])->middleware('module:planilla')->name('planilla.index');
+    Route::get('/planilla/charts', [PlanillaController::class, 'charts'])->middleware('module:planilla')->name('planilla.charts');
 
     // Gestión de Empleados
     Route::middleware('module:planilla')->group(function () {
@@ -314,6 +326,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::get('/nomina', [NominaController::class, 'index'])->middleware('module:planilla')->name('nomina.index');
+    Route::get('/nomina/charts', [NominaController::class, 'charts'])->middleware('module:planilla')->name('nomina.charts');
     Route::post('/nomina/pagar', [NominaController::class, 'pay'])->middleware('module:planilla')->name('nomina.pay');
     Route::get('/nomina/ticket', [NominaController::class, 'ticket'])->middleware('module:planilla')->name('nomina.ticket');
 

@@ -33,7 +33,7 @@
         </div>
     </div>
 
-    <div class="flex gap-1 border-b border-slate-200">
+    <div class="flex gap-1 overflow-x-auto border-b border-slate-200">
         <a href="{{ route('creditos.index') }}" class="tab-link tab-link-active">Clientes con Deuda</a>
         <a href="{{ route('creditos.overdue') }}" class="tab-link tab-link-inactive">Vencidos</a>
         <a href="{{ route('creditos.report') }}" class="tab-link tab-link-inactive">Reporte Pro</a>

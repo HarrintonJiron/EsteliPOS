@@ -12,8 +12,8 @@
 
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
-            <h1 class="page-title">Nómina · {{ $startDate->translatedFormat('F Y') }}</h1>
-            <p class="page-subtitle">
+            <h1 id="payrollPageTitle" class="page-title">Nómina · {{ $startDate->translatedFormat('F Y') }}</h1>
+            <p id="payrollPageSubtitle" class="page-subtitle">
                 {{ $startDate->format('d/m/Y') }} – {{ $endDate->format('d/m/Y') }} ·
                 {{ count($payrollReport['employees']) }} empleados
                 @if($isPaid)
@@ -31,8 +31,8 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-            <form method="GET" class="flex items-center gap-2">
-                <input type="month" name="month" value="{{ $selectedMonth }}" class="input-field w-auto">
+            <form method="GET" class="flex items-center gap-2" data-chart-filter>
+                <input id="payrollMonthFilter" type="month" name="month" value="{{ $selectedMonth }}" class="input-field w-auto">
                 <button type="submit" class="btn-primary">Ver período</button>
             </form>
 
@@ -62,27 +62,27 @@
     <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <div class="card p-4 border-t-4 border-slate-400">
             <p class="text-xs uppercase tracking-wide text-slate-500">Salario base</p>
-            <p class="mt-2 text-lg font-bold text-slate-800">C$ {{ number_format($totals['base_salary'], 2) }}</p>
+            <p class="mt-2 text-lg font-bold text-slate-800" data-payroll-total="base_salary">C$ {{ number_format($totals['base_salary'], 2) }}</p>
         </div>
         <div class="card p-4 border-t-4 border-emerald-500">
             <p class="text-xs uppercase tracking-wide text-slate-500">Bonos</p>
-            <p class="mt-2 text-lg font-bold text-emerald-700">C$ {{ number_format($totals['bonuses'], 2) }}</p>
+            <p class="mt-2 text-lg font-bold text-emerald-700" data-payroll-total="bonuses">C$ {{ number_format($totals['bonuses'], 2) }}</p>
         </div>
         <div class="card p-4 border-t-4 border-indigo-500">
             <p class="text-xs uppercase tracking-wide text-slate-500">Bruto</p>
-            <p class="mt-2 text-lg font-bold text-indigo-700">C$ {{ number_format($totals['gross_salary'], 2) }}</p>
+            <p class="mt-2 text-lg font-bold text-indigo-700" data-payroll-total="gross_salary">C$ {{ number_format($totals['gross_salary'], 2) }}</p>
         </div>
         <div class="card p-4 border-t-4 border-orange-500">
             <p class="text-xs uppercase tracking-wide text-slate-500">INSS + IR</p>
-            <p class="mt-2 text-lg font-bold text-orange-700">C$ {{ number_format($totals['inss_deduction'] + $totals['ir_deduction'], 2) }}</p>
+            <p class="mt-2 text-lg font-bold text-orange-700" data-payroll-total="statutory_deductions">C$ {{ number_format($totals['inss_deduction'] + $totals['ir_deduction'], 2) }}</p>
         </div>
         <div class="card p-4 border-t-4 border-rose-500">
             <p class="text-xs uppercase tracking-wide text-slate-500">Total deducciones</p>
-            <p class="mt-2 text-lg font-bold text-rose-700">C$ {{ number_format($totals['total_deductions'], 2) }}</p>
+            <p class="mt-2 text-lg font-bold text-rose-700" data-payroll-total="total_deductions">C$ {{ number_format($totals['total_deductions'], 2) }}</p>
         </div>
         <div class="card p-4 border-t-4 border-violet-500">
             <p class="text-xs uppercase tracking-wide text-slate-500">Neto a pagar</p>
-            <p class="mt-2 text-lg font-bold text-violet-700">C$ {{ number_format($totals['net_salary'], 2) }}</p>
+            <p class="mt-2 text-lg font-bold text-violet-700" data-payroll-total="net_salary">C$ {{ number_format($totals['net_salary'], 2) }}</p>
         </div>
     </div>
 
@@ -233,94 +233,14 @@
     </div>
 </div>
 
+
+
 @push('scripts')
-<script>
-const money = (v) => 'C$ ' + Number(v).toLocaleString('es-NI', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-const salaryByEmployee = @json($charts['salary_by_employee']);
-const deductionBreakdown = @json($charts['deduction_breakdown']);
-const trend = @json($trend);
-
-Chart.defaults.font.family = 'Inter, sans-serif';
-Chart.defaults.color = '#64748b';
-
-new Chart(document.getElementById('employeePayrollChart'), {
-    type: 'bar',
-    data: {
-        labels: salaryByEmployee.map(i => i.name),
-        datasets: [
-            {
-                label: 'Bruto',
-                data: salaryByEmployee.map(i => i.gross),
-                backgroundColor: '#818cf8',
-                borderRadius: 6,
-                maxBarThickness: 28,
-            },
-            {
-                label: 'Neto',
-                data: salaryByEmployee.map(i => i.net),
-                backgroundColor: '#34d399',
-                borderRadius: 6,
-                maxBarThickness: 28,
-            },
-        ],
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${money(ctx.raw)}` } },
-        },
-        scales: {
-            y: { ticks: { callback: money }, grid: { color: 'rgba(148,163,184,0.2)' } },
-            x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 0 } },
-        },
-    },
-});
-
-new Chart(document.getElementById('nominaDeductionsChart'), {
-    type: 'doughnut',
-    data: {
-        labels: deductionBreakdown.map(i => i.label),
-        datasets: [{
-            data: deductionBreakdown.map(i => i.value),
-            backgroundColor: ['#4f46e5', '#f59e0b', '#f43f5e', '#0ea5e9'],
-            borderWidth: 0,
-            hoverOffset: 6,
-        }],
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16 } },
-            tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${money(ctx.raw)}` } },
-        },
-        cutout: '60%',
-    },
-});
-
-new Chart(document.getElementById('nominaTrendChart'), {
-    type: 'line',
-    data: {
-        labels: trend.map(i => i.label),
-        datasets: [
-            { label: 'Bruto', data: trend.map(i => i.gross), borderColor: '#4f46e5', tension: 0.35, fill: false },
-            { label: 'Neto', data: trend.map(i => i.net), borderColor: '#059669', tension: 0.35, fill: false },
-            { label: 'Deducciones', data: trend.map(i => i.deductions), borderColor: '#e11d48', tension: 0.35, fill: false },
-        ],
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { display: false } },
-        scales: {
-            y: { ticks: { callback: money }, grid: { color: 'rgba(148,163,184,0.2)' } },
-            x: { grid: { display: false } },
-        },
-    },
-});
-</script>
+@include('planilla.partials.dynamic-payroll-charts', [
+    'chartsUrl' => $chartsUrl,
+    'initialChartData' => $initialChartData,
+    'mode' => 'nomina',
+    'monthInputId' => 'payrollMonthFilter',
+])
 @endpush
 @endsection

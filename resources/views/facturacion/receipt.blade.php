@@ -143,9 +143,19 @@
         <button type="button" onclick="window.close()">Cerrar</button>
     </div>
 
-    @php($receiptLogoUrl = $companyProfile['ticket_logo_url'] ?: $companyProfile['company_logo_url'])
-    @php($totalQuantity = $sale->details->sum(fn ($detail) => (float) $detail->quantity))
-    @php($totalQuantityFormatted = fmod($totalQuantity, 1.0) === 0.0 ? number_format($totalQuantity, 0) : number_format($totalQuantity, 2))
+    @php
+        $receiptLogoUrl = $companyProfile['ticket_logo_url'] ?: $companyProfile['company_logo_url'];
+        $totalQuantity = $sale->details->sum(fn ($detail) => (float) $detail->quantity);
+        $totalQuantityFormatted = fmod($totalQuantity, 1.0) === 0.0
+            ? number_format($totalQuantity, 0)
+            : number_format($totalQuantity, 2);
+        $grossSubtotal = $sale->details->sum(fn ($detail) => (float) $detail->price * (float) $detail->quantity);
+        $discountAmount = (float) ($sale->discount_amount ?? 0);
+        if ($discountAmount <= 0) {
+            $discountAmount = max(0, $grossSubtotal - (float) $sale->subtotal);
+        }
+        $hasDiscount = $discountAmount > 0.009;
+    @endphp
 
     <main class="receipt" data-paper-width="80mm">
         <header class="center">
@@ -192,16 +202,35 @@
                     </div>
                     <div class="item-meta">
                         {{ number_format($detail->quantity, 0) }} × {{ $companyProfile['currency_symbol'] }}{{ number_format($detail->price, 2) }}
+                        @if((float) ($detail->discount_percentage ?? 0) > 0)
+                            · Dto. {{ number_format((float) $detail->discount_percentage, 2) }}%
+                        @endif
+                        @if((float) ($detail->discount_amount ?? 0) > 0.009)
+                            · Ahorro {{ $companyProfile['currency_symbol'] }}{{ number_format((float) $detail->discount_amount, 2) }}
+                        @endif
                         @if($invoiceTaxDisplay->showsLineTax((float) $detail->tax_rate)) · IVA {{ number_format($detail->tax_rate * 100, 2) }}%@endif
                     </div>
                 </article>
             @endforeach
-            @if($invoiceTaxDisplay->showsTaxInTotals((float) $sale->tax_total))
-                <div class="items-footer" style="margin-top: 1mm; padding-top: 1mm; border-top: 1px dashed #777; font-size: 9pt; font-weight: 400;">
-                    <span>SUBTOTAL</span>
+
+            <div class="items-footer" style="margin-top: 1mm; padding-top: 1mm; border-top: 1px dashed #777; font-size: 9pt; font-weight: 400;">
+                <span>SUBTOTAL</span>
+                <span class="item-qty"></span>
+                <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($hasDiscount ? $grossSubtotal : (float) $sale->subtotal, 2) }}</span>
+            </div>
+            @if($hasDiscount)
+                <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 400;">
+                    <span>
+                        DESCUENTO
+                        @if((float) $sale->discount_percentage > 0)
+                            ({{ number_format((float) $sale->discount_percentage, 2) }}% factura)
+                        @endif
+                    </span>
                     <span class="item-qty"></span>
-                    <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($sale->subtotal, 2) }}</span>
+                    <span class="item-amount">-{{ $companyProfile['currency_symbol'] }}{{ number_format($discountAmount, 2) }}</span>
                 </div>
+            @endif
+            @if($invoiceTaxDisplay->showsTaxInTotals((float) $sale->tax_total))
                 <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 400;">
                     <span>{{ strtoupper($invoiceTaxDisplay->taxLabel((float) $sale->tax_rate)) }}</span>
                     <span class="item-qty"></span>
@@ -213,6 +242,11 @@
                 <span class="item-qty">{{ $totalQuantityFormatted }}</span>
                 <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($sale->total, 2) }}</span>
             </div>
+            @if($hasDiscount)
+                <div class="center" style="margin-top: 2mm; font-size: 9pt; font-weight: 700;">
+                    ¡Ahorraste {{ $companyProfile['currency_symbol'] }}{{ number_format($discountAmount, 2) }}!
+                </div>
+            @endif
         </section>
 
         <div class="separator"></div>

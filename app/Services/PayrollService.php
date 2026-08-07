@@ -379,7 +379,7 @@ class PayrollService
         $startDate = $referenceDate->copy()->startOfMonth();
         $endDate = $referenceDate->copy()->endOfMonth();
 
-        $payrollReport = $this->generatePayrollReport($startDate, $endDate);
+        $payrollReport = $this->getPayrollReportForPeriod($startDate, $endDate);
         $trend = $this->getPayrollTrend(6, $referenceDate);
 
         $activeEmployees = Employee::where('is_active', true)->count();
@@ -466,7 +466,7 @@ class PayrollService
             $month = $referenceDate->copy()->subMonths($monthsAgo);
             $start = $month->copy()->startOfMonth();
             $end = $month->copy()->endOfMonth();
-            $report = $this->generatePayrollReport($start, $end);
+            $report = $this->getPayrollTicketData($start, $end);
 
             return [
                 'label' => $start->translatedFormat('M Y'),
@@ -601,6 +601,117 @@ class PayrollService
             'is_paid' => false,
             'paid_at' => null,
             'paid_by_name' => null,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     period_start: string,
+     *     period_end: string,
+     *     employees: array<int, array<string, mixed>>,
+     *     totals: array<string, float>,
+     *     is_paid: bool,
+     *     paid_at: ?Carbon,
+     *     paid_by_name: ?string
+     * }
+     */
+    public function getPayrollReportForPeriod(Carbon $startDate, Carbon $endDate): array
+    {
+        $data = $this->getPayrollTicketData($startDate, $endDate);
+
+        if (! $data['is_paid']) {
+            return $data;
+        }
+
+        $liveEmployees = collect($this->generatePayrollReport($startDate, $endDate)['employees'])
+            ->keyBy('employee_id');
+
+        $data['employees'] = collect($data['employees'])
+            ->map(function (array $row) use ($liveEmployees): array {
+                $live = $liveEmployees->get($row['employee_id'], []);
+
+                return array_merge($row, [
+                    'worked_days' => $live['worked_days'] ?? 0,
+                    'leave_days' => $live['leave_days'] ?? 0,
+                ]);
+            })
+            ->values()
+            ->all();
+
+        return $data;
+    }
+
+    /**
+     * @return array{
+     *     salary_by_employee: array<int, array{name: string, net: float, gross: float, deductions: float}>,
+     *     deduction_breakdown: array<int, array{label: string, value: float}>
+     * }
+     */
+    public function buildNominaChartSeries(array $report): array
+    {
+        return [
+            'salary_by_employee' => collect($report['employees'])
+                ->sortByDesc('net_salary')
+                ->values()
+                ->map(fn (array $row) => [
+                    'name' => $row['employee_name'],
+                    'net' => round($row['net_salary'], 2),
+                    'gross' => round($row['gross_salary'], 2),
+                    'deductions' => round($row['total_deductions'], 2),
+                ])
+                ->all(),
+            'deduction_breakdown' => [
+                ['label' => 'INSS', 'value' => $report['totals']['inss_deduction']],
+                ['label' => 'IR', 'value' => $report['totals']['ir_deduction']],
+                ['label' => 'Otras', 'value' => $report['totals']['other_deductions']],
+                ['label' => 'Préstamos', 'value' => $report['totals']['loan_payments']],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getNominaAnalyticsPayload(?string $month = null): array
+    {
+        $period = $this->resolvePeriodDates($month);
+        $startDate = $period['start'];
+        $endDate = $period['end'];
+        $report = $this->getPayrollReportForPeriod($startDate, $endDate);
+
+        return [
+            'selectedMonth' => $period['selected_month'],
+            'periodLabel' => $startDate->translatedFormat('F Y'),
+            'periodStart' => $startDate->format('d/m/Y'),
+            'periodEnd' => $endDate->format('d/m/Y'),
+            'employeeCount' => count($report['employees']),
+            'isPaid' => $report['is_paid'],
+            'paidAt' => $report['paid_at']?->format('d/m/Y H:i'),
+            'paidByName' => $report['paid_by_name'],
+            'payrollReport' => $report,
+            'trend' => $this->getPayrollTrend(6, $startDate),
+            'charts' => $this->buildNominaChartSeries($report),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getPlanillaDashboardAnalyticsPayload(?string $month = null): array
+    {
+        $referenceDate = $month
+            ? Carbon::createFromFormat('Y-m', $month)->startOfMonth()
+            : Carbon::now()->startOfMonth();
+
+        $dashboard = $this->getDashboardData($referenceDate);
+
+        return [
+            'selectedMonth' => $dashboard['month'],
+            'periodLabel' => $dashboard['period_label'],
+            'stats' => $dashboard['stats'],
+            'totals' => $dashboard['payroll']['totals'],
+            'trend' => $dashboard['trend'],
+            'charts' => $dashboard['charts'],
         ];
     }
 

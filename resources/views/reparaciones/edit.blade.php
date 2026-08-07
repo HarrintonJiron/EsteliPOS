@@ -6,8 +6,8 @@
 @section('content')
 <div class="max-w-5xl mx-auto space-y-5">
 
-    <div class="flex justify-between items-center">
-        <div>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
             <h1 class="page-title">Editar {{ $order->order_number }}</h1>
             <p class="page-subtitle">{{ $order->device_brand }} {{ $order->device_model }} · {{ $order->client_name }}</p>
         </div>
@@ -23,16 +23,16 @@
     <form action="{{ route('reparaciones.update', $order->id) }}" method="POST" id="repairForm">
         @csrf @method('PUT')
 
-        <div class="grid grid-cols-3 gap-5">
+        <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
 
             {{-- LEFT --}}
-            <div class="col-span-2 space-y-5">
+            <div class="space-y-5 lg:col-span-2">
 
                 {{-- CLIENT --}}
                 <div class="card p-5 space-y-4">
                     <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Datos del Cliente</h2>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="col-span-2">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div class="sm:col-span-2">
                             <label class="block text-sm text-slate-600 mb-1">Buscar cliente existente</label>
                             <select id="client_selector" onchange="fillClient(this)" class="select-field">
                                 <option value="">— Cliente nuevo / sin registro —</option>
@@ -53,7 +53,7 @@
                             <label class="block text-sm text-slate-600 mb-1">Teléfono</label>
                             <input type="text" name="client_phone" value="{{ old('client_phone', $order->client_phone) }}" class="input-field">
                         </div>
-                        <div class="col-span-2">
+                        <div class="sm:col-span-2">
                             <label class="block text-sm text-slate-600 mb-1">Email</label>
                             <input type="email" name="client_email" value="{{ old('client_email', $order->client_email) }}" class="input-field">
                         </div>
@@ -63,7 +63,7 @@
                 {{-- DEVICE --}}
                 <div class="card p-5 space-y-4">
                     <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Datos del Equipo</h2>
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label class="block text-sm text-slate-600 mb-1">Marca *</label>
                             <div class="flex gap-2">
@@ -255,7 +255,7 @@
                         <input type="number" step="0.01" min="0" name="labor_cost" id="laborCostInput"
                             value="{{ old('labor_cost', $order->labor_cost) }}" class="input-field" oninput="updateTotal()">
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label class="block text-sm text-slate-600 mb-1">Descuento %</label>
                             <input type="number" step="0.01" min="0" max="100" name="discount_percentage" id="discountPercentageInput"

@@ -82,7 +82,6 @@ class ProformaController extends Controller
             ->get()
             ->each(function (Product $product) {
                 $product->setAttribute('effective_tax_rate', $product->effectiveTaxRate());
-                $product->image_url = $product->getRawOriginal('image_url');
             });
 
         $clients = Client::orderBy('name')->get();

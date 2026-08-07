@@ -3,11 +3,12 @@
 
 @section('title', 'POS - Punto de Venta')
 @section('hide-header', 'true')
-@section('main-class', 'p-0 overflow-hidden')
+@section('main-fluid', true)
+@section('main-class', 'p-0')
 
 @section('content')
 
-<div id="posApp" class="h-full overflow-hidden bg-slate-50 flex"
+<div id="posApp" class="flex h-full min-h-0 flex-col overflow-y-auto bg-slate-50 sm:flex-row sm:overflow-hidden"
      data-products='@json($products)'
      data-clients='@json($clients)'
      data-categories='@json($categories)'
@@ -21,7 +22,7 @@
     <input type="file" id="posProductImageInput" class="hidden" accept="image/jpeg,image/png,image/webp" capture="environment">
 
     {{-- COLUMNA IZQUIERDA: TICKET --}}
-    <div class="w-2/5 bg-white flex flex-col border-r border-slate-200">
+    <div class="flex max-h-[55vh] min-h-[24rem] w-full shrink-0 flex-col border-b border-slate-200 bg-white sm:h-full sm:max-h-none sm:min-h-0 sm:min-w-[280px] sm:max-w-[520px] sm:w-2/5 sm:border-b-0 sm:border-r">
 
         {{-- Barra de acciones rápidas --}}
         <div class="px-4 py-2 bg-slate-800 text-white flex items-center justify-between text-xs shrink-0">
@@ -34,9 +35,9 @@
             </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto border-b border-slate-200">
+        <div class="min-h-0 flex-1 overflow-y-auto border-b border-slate-200">
             <div id="ticketItems" class="divide-y divide-slate-100"></div>
-            <div id="emptyTicket" class="flex flex-col items-center justify-center h-full text-slate-400 py-12">
+            <div id="emptyTicket" class="flex h-full flex-col items-center justify-center py-12 text-slate-400">
                 <svg class="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                 </svg>
@@ -52,7 +53,7 @@
                     <span id="subtotalDisplay" class="font-medium">C$ 0.00</span>
                 </div>
                 <div class="flex justify-between text-sm text-slate-600">
-                    <span id="discountLabel" class="hidden">Descuento</span>
+                    <span id="orderDiscountLabel" class="hidden">Descuento</span>
                     <span id="discountDisplay" class="font-medium text-red-600 hidden">-C$ 0.00</span>
                 </div>
                 <div class="flex justify-between text-sm text-slate-600">
@@ -66,7 +67,7 @@
             </div>
         </div>
 
-        <div class="p-4 space-y-3 overflow-y-auto shrink-0 max-h-[45%]">
+        <div class="max-h-[45%] shrink-0 space-y-3 overflow-y-auto p-4">
             <button type="button" id="clientBtn" onclick="openClientModal()"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl px-4 transition-all shadow-md text-sm flex items-center justify-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
@@ -99,9 +100,9 @@
     </div>
 
     {{-- COLUMNA DERECHA: PRODUCTOS Y PAGO --}}
-    <div class="flex-1 bg-white flex flex-col min-w-0">
+    <div class="flex min-h-[36rem] min-w-0 flex-1 flex-col bg-white sm:min-h-0">
 
-        <div class="p-3 border-b border-slate-200 bg-white shrink-0 space-y-2">
+        <div class="shrink-0 space-y-2 border-b border-slate-200 bg-white p-3">
             <div class="flex items-center gap-2 overflow-x-auto pb-1 text-[11px] text-slate-500" aria-label="Atajos de teclado del punto de venta">
                 <button type="button" onclick="showShortcutHelp()" class="shrink-0 rounded-md bg-slate-800 px-2 py-1 font-semibold text-white" title="Ver todos los atajos">F1 Atajos</button>
                 <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F2</b> Buscar</span>
@@ -111,24 +112,34 @@
                 <span class="shrink-0 rounded-md bg-indigo-50 px-2 py-1 font-semibold text-indigo-700"><b>F9</b> Cobrar</span>
                 <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F10</b> Corte</span>
             </div>
-            <div class="flex gap-2">
-                <select id="warehouseSelect" class="select-field text-sm min-w-[160px]" title="Bodega de salida">
+            <div>
+                <label for="productSearch" class="mb-1 block text-xs font-semibold text-slate-600">Buscar producto</label>
+                <div class="relative">
+                    <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m1.35-5.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/>
+                    </svg>
+                    <input type="search" id="productSearch" placeholder="Nombre o código de barras; Enter para agregar..."
+                        class="input-with-leading-icon w-full rounded-xl border border-slate-300 py-2.5 pr-4 text-sm focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600" autocomplete="off">
+                </div>
+            </div>
+            <div class="flex min-w-0 flex-col gap-2 sm:flex-row">
+                <select id="warehouseSelect" class="select-field min-w-0 text-sm sm:max-w-xs" title="Bodega de salida (opcional)">
+                    <option value="" selected>Automática (según stock)</option>
                     @foreach($warehouses as $wh)
-                        <option value="{{ $wh->id }}" @selected($wh->id == $defaultWarehouseId)>{{ $wh->name }}</option>
+                        <option value="{{ $wh->id }}">{{ $wh->name }}{{ $wh->is_default ? ' · Principal' : '' }}</option>
                     @endforeach
                 </select>
-                <input type="text" id="productSearch" placeholder="Buscar por nombre o código de barras..."
-                    class="flex-1 px-4 py-2 text-sm border border-slate-300 rounded-xl focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600" autocomplete="off">
-                <button type="button" onclick="applyOrderDiscount()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium" title="Descuento global">% Dto.</button>
+                <button type="button" onclick="applyOrderDiscount()" class="shrink-0 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200" title="Descuento global">% Descuento</button>
             </div>
+            <p id="warehouseHint" class="text-[11px] text-slate-500">Si no eliges bodega, el sistema descuenta de la que tenga stock disponible.</p>
             <div id="categoryTabs" class="flex gap-2 overflow-x-auto pb-1"></div>
         </div>
 
-        <div id="productsGrid" class="flex-1 overflow-y-auto p-4 bg-slate-50">
-            <div class="grid grid-cols-3 xl:grid-cols-4 gap-3"></div>
+        <div id="productsGrid" class="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4">
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5"></div>
         </div>
 
-        <div class="bg-white border-t border-slate-200 p-4 space-y-2 shrink-0 max-h-[50%] overflow-y-auto">
+        <div class="max-h-[50%] shrink-0 space-y-2 overflow-y-auto border-t border-slate-200 bg-white p-4">
             <label class="block text-sm font-semibold text-slate-700">Método de Pago</label>
             <div class="grid grid-cols-2 gap-2">
                 @foreach([
@@ -273,7 +284,7 @@
                     </button>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1" id="discountLabel">Porcentaje de descuento</label>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1" id="discountInputLabel">Porcentaje de descuento</label>
                     <input type="number" id="discountValue" step="0.01" min="0" placeholder="0" 
                         class="w-full px-4 py-3 text-xl font-bold border-2 border-slate-200 rounded-xl focus:border-amber-500 focus:outline-none text-center bg-slate-50">
                 </div>
@@ -426,6 +437,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const app = document.getElementById('posApp');
     const normalizeProduct = p => {
         const defaultUnit = (p.sale_units || []).find(u => u.is_default) || (p.sale_units || [])[0];
+        const totalStock = parseFloat(p.total_stock ?? p.stock ?? 0);
+        const warehouseStock = parseFloat(p.warehouse_stock ?? 0);
         return {
         id: p.id,
         code: p.code ?? '',
@@ -433,7 +446,12 @@ document.addEventListener('DOMContentLoaded', function() {
         price: parseFloat(defaultUnit?.price ?? p.sale_price ?? 0),
         discount_pct: parseFloat(p.discount_pct ?? 0),
         discount_label: p.discount_label ?? '',
-        stock: parseFloat(defaultUnit?.stock ?? p.stock ?? 0),
+        stock: parseFloat(defaultUnit?.stock ?? totalStock ?? 0),
+        total_stock: totalStock,
+        warehouse_stock: warehouseStock,
+        preferred_warehouse_id: p.preferred_warehouse_id ? parseInt(p.preferred_warehouse_id, 10) : null,
+        preferred_warehouse_name: p.preferred_warehouse_name ?? null,
+        stocks_by_warehouse: p.stocks_by_warehouse || [],
         unit_id: defaultUnit?.id ?? p.default_unit_id ?? p.base_unit_id ?? null,
         unit_label: defaultUnit?.abbreviation ?? p.default_unit_label ?? 'und',
         sale_units: (p.sale_units || []).map(u => ({
@@ -451,7 +469,11 @@ document.addEventListener('DOMContentLoaded', function() {
     };};
     let products = JSON.parse(app.dataset.products).map(normalizeProduct);
     const warehousesData = JSON.parse(app.dataset.warehouses || '[]');
-    let selectedWarehouseId = parseInt(app.dataset.defaultWarehouseId || warehousesData[0]?.id || '0', 10);
+    let selectedWarehouseId = null; // null = automática
+    const warehouseSelectEl = document.getElementById('warehouseSelect');
+    if (warehouseSelectEl?.value) {
+        selectedWarehouseId = parseInt(warehouseSelectEl.value, 10);
+    }
     const clientsData = JSON.parse(app.dataset.clients)
         .filter(c => c.code !== 'GEN')
         .map(c => ({
@@ -497,7 +519,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function refreshCatalogPrices() {
-        const params = new URLSearchParams({ search: '', warehouse_id: selectedWarehouseId });
+        const params = new URLSearchParams({ search: '' });
+        if (selectedWarehouseId) params.set('warehouse_id', selectedWarehouseId);
         if (currentClient) params.set('client_id', currentClient);
         try {
             const response = await fetch(`${app.dataset.productSearchUrl}?${params}`, { headers: { Accept: 'application/json' } });
@@ -523,12 +546,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function syncWarehouseInput() {
+        document.getElementById('warehouseIdInput').value = selectedWarehouseId || '';
+        const hint = document.getElementById('warehouseHint');
+        if (hint) {
+            hint.textContent = selectedWarehouseId
+                ? 'Preferencia fija: se intentará salir de esa bodega; si no hay stock, se usará otra automáticamente.'
+                : 'Modo automático: el sistema descuenta de la bodega que tenga stock disponible.';
+        }
+    }
+
     document.getElementById('warehouseSelect')?.addEventListener('change', (e) => {
-        selectedWarehouseId = parseInt(e.target.value, 10);
-        document.getElementById('warehouseIdInput').value = selectedWarehouseId;
+        selectedWarehouseId = e.target.value ? parseInt(e.target.value, 10) : null;
+        syncWarehouseInput();
         refreshCatalogPrices();
     });
-    document.getElementById('warehouseIdInput').value = selectedWarehouseId;
+    syncWarehouseInput();
 
     function visibleModal() {
         return modalIds
@@ -583,7 +616,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const percentageBtn = document.getElementById('discountTypePercentage');
         const fixedBtn = document.getElementById('discountTypeFixed');
-        const label = document.getElementById('discountLabel');
+        const label = document.getElementById('discountInputLabel');
         
         if (type === 'percentage') {
             percentageBtn.classList.add('border-amber-500', 'bg-amber-50', 'text-amber-700');
@@ -769,12 +802,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const labelRate = rates.length === 1 ? `${(parseFloat(rates[0]) * 100).toFixed(2)}%` : (rates.length > 1 ? 'mixto' : `${(parseFloat(app.dataset.defaultTaxRate || 0) * 100).toFixed(2)}%`);
         document.getElementById('taxLabel').textContent = `IVA (${labelRate})`;
 
-        const discLabel = document.getElementById('discountLabel');
+        const discLabel = document.getElementById('orderDiscountLabel');
         const discDisplay = document.getElementById('discountDisplay');
         if (orderDiscount > 0) {
             discLabel.classList.remove('hidden');
             discDisplay.classList.remove('hidden');
-            discDisplay.textContent = '-' + formatMoney(orderDiscount) + ` (${orderDiscountPct}%)`;
+            discDisplay.textContent = '-' + formatMoney(orderDiscount) + ` (${orderDiscountPct.toFixed(1)}%)`;
         } else {
             discLabel.classList.add('hidden');
             discDisplay.classList.add('hidden');
@@ -804,6 +837,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span>Cant: <b>${item.quantity}</b> ${item.unit_label || ''}</span>
                             <span>${formatMoney(item.price)}</span>
                             ${item.discount > 0 ? `<span class="text-red-600">-${item.discount}%</span>` : ''}
+                            ${item.source_warehouse_name ? `<span class="text-indigo-600">${item.source_warehouse_name}</span>` : ''}
                         </div>
                     </div>
                     <div class="text-right shrink-0">
@@ -837,11 +871,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const unit = productUnit(product, unitId ?? product.unit_id);
         const resolvedUnitId = unit?.id ?? product.unit_id;
-        const unitStock = parseFloat(unit?.stock ?? product.stock ?? 0);
+        const totalStock = parseFloat(product.total_stock ?? product.stock ?? 0);
+        const unitStock = parseFloat(unit?.stock ?? totalStock ?? 0);
         const unitPrice = parseFloat(unit?.price ?? product.price ?? 0);
 
-        if (unitStock <= 0) {
-            alert('Producto sin stock disponible en esta bodega');
+        if (totalStock <= 0 || unitStock <= 0) {
+            alert('Producto sin stock disponible en ninguna bodega');
             return;
         }
 
@@ -853,8 +888,18 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // Si hay stock en otra bodega, sincroniza preferencia (sin forzar al cajero).
+        if (!selectedWarehouseId && product.preferred_warehouse_id) {
+            // Mantener automático; el servidor elegirá la bodega con stock.
+        } else if (selectedWarehouseId && product.warehouse_stock <= 0 && product.preferred_warehouse_id) {
+            // Preferencia actual sin stock: no bloquear; avisar en el ticket.
+        }
+
         if (existing) {
             existing.quantity = newQty;
+            existing.max_stock = unitStock;
+            existing.source_warehouse_id = product.preferred_warehouse_id || selectedWarehouseId;
+            existing.source_warehouse_name = product.preferred_warehouse_name || null;
         } else {
             ticket.push({
                 product_id: productId,
@@ -866,6 +911,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 discount: product.discount_pct || 0,
                 tax_rate: product.tax_rate,
                 max_stock: unitStock,
+                source_warehouse_id: product.preferred_warehouse_id || selectedWarehouseId,
+                source_warehouse_name: product.preferred_warehouse_name || null,
             });
         }
         renderTicket();
@@ -936,7 +983,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const qty = parseFloat(padBuffer) || 1;
         const item = ticket[selectedItemIndex];
         const product = products.find(p => p.id == item.product_id);
-        const maxStock = product?.stock ?? item.max_stock;
+        const maxStock = product?.total_stock ?? product?.stock ?? item.max_stock;
 
         if (qty <= 0) { alert('Cantidad inválida'); return; }
         if (qty > maxStock) { alert(`Stock máximo: ${maxStock}`); return; }
@@ -967,40 +1014,49 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         grid.innerHTML = filtered.map(p => {
-            const lowStock = p.stock <= 5;
-            const outStock = p.stock <= 0;
+            const totalStock = parseFloat(p.total_stock ?? p.stock ?? 0);
+            const warehouseStock = parseFloat(p.warehouse_stock ?? 0);
+            const lowStock = totalStock > 0 && totalStock <= 5;
+            const outStock = totalStock <= 0;
+            const otherWarehouseHint = !outStock && selectedWarehouseId && warehouseStock <= 0 && p.preferred_warehouse_name
+                ? `En ${p.preferred_warehouse_name}`
+                : null;
             const safeName = String(p.name).replace(/"/g, '&quot;');
             const imageBlock = p.image_url
-                ? `<img src="${p.image_url}" alt="${safeName}" class="w-full h-full object-cover" loading="lazy"
+                ? `<img src="${p.image_url}" alt="${safeName}" class="w-full h-full object-cover" referrerpolicy="no-referrer"
                         onerror="this.classList.add('hidden');this.nextElementSibling.classList.remove('hidden')">
                    <div class="hidden w-full h-full flex flex-col items-center justify-center gap-1 text-slate-400">
-                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                         <span class="text-[10px]">Sin imagen</span>
                    </div>`
                 : `<div class="w-full h-full flex flex-col items-center justify-center gap-1 text-slate-400 group-hover:text-indigo-400 transition-colors">
-                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                         <span class="text-[10px]">Sin imagen</span>
                    </div>`;
 
             return `
             <div class="relative bg-white border-2 ${outStock ? 'border-slate-100 opacity-60' : 'border-slate-200 hover:border-indigo-500 hover:shadow-md'} rounded-xl overflow-hidden transition-all group">
                 <button type="button" onclick="event.stopPropagation(); pickProductImage(${p.id})"
-                    class="absolute top-2 right-2 z-10 rounded-lg bg-white/95 border border-slate-200 p-1.5 text-slate-600 shadow-sm hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition"
+                    class="absolute right-1.5 top-1.5 z-10 rounded-md border border-slate-200 bg-white/95 p-1 text-slate-600 shadow-sm transition hover:border-indigo-600 hover:bg-indigo-600 hover:text-white"
                     title="${p.image_url ? 'Cambiar imagen' : 'Cargar imagen'}">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 </button>
                 <button type="button" onclick="addProductToTicket(${p.id})" ${outStock ? 'disabled' : ''}
                     class="w-full text-left ${outStock ? 'cursor-not-allowed' : ''}">
-                    <div class="w-full h-32 bg-slate-100 flex items-center justify-center overflow-hidden border-b border-slate-100">
+                    <div class="flex h-24 w-full items-center justify-center overflow-hidden border-b border-slate-100 bg-slate-100">
                         ${imageBlock}
                     </div>
-                    <div class="p-3">
-                        <p class="font-semibold text-slate-800 text-xs line-clamp-2 min-h-[2rem]">${p.name}</p>
-                        <p class="text-xs text-slate-400 mt-0.5">${p.code || '—'}</p>
-                        <p class="text-base font-bold text-indigo-600 mt-1">${formatMoney(p.price)}</p>
-                        ${p.discount_pct > 0 ? `<p class="text-xs font-bold text-amber-600">${p.discount_label || p.discount_pct + '% OFF'} → ${formatMoney(p.price * (1 - p.discount_pct/100))}</p>` : ''}
-                        <p class="text-xs mt-1 ${outStock ? 'text-red-600 font-bold' : lowStock ? 'text-amber-600' : 'text-slate-400'}">
-                            ${outStock ? 'Sin stock' : 'Stock: ' + p.stock + ' ' + (p.unit_label || '')}
+                    <div class="p-2">
+                        <p class="min-h-[2rem] line-clamp-2 text-xs font-semibold leading-4 text-slate-800">${p.name}</p>
+                        <p class="mt-0.5 truncate text-[10px] text-slate-400">${p.code || '—'}</p>
+                        <p class="mt-0.5 text-sm font-bold text-indigo-600">${formatMoney(p.price)}</p>
+                        ${p.discount_pct > 0 ? `<p class="text-[10px] font-bold text-amber-600">${p.discount_label || p.discount_pct + '% OFF'} → ${formatMoney(p.price * (1 - p.discount_pct/100))}</p>` : ''}
+                        <p class="mt-0.5 text-[10px] ${outStock ? 'text-red-600 font-bold' : lowStock ? 'text-amber-600' : 'text-slate-500'}">
+                            ${outStock
+                                ? 'Sin stock'
+                                : (otherWarehouseHint
+                                    ? `Stock total: ${totalStock} · ${otherWarehouseHint}`
+                                    : `Stock: ${totalStock} ${p.unit_label || ''}${selectedWarehouseId ? ` · Bodega: ${warehouseStock}` : ''}`)}
                         </p>
                         ${(p.sale_units || []).length > 1 ? `<p class="text-[10px] text-slate-400 mt-1">${p.sale_units.map(u => u.abbreviation).join(' · ')}</p>` : ''}
                     </div>
@@ -1096,7 +1152,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         productSearchTimer = window.setTimeout(async () => {
             const requestId = ++productSearchRequest;
-            const params = new URLSearchParams({ search: query, warehouse_id: selectedWarehouseId });
+            const params = new URLSearchParams({ search: query });
+            if (selectedWarehouseId) params.set('warehouse_id', selectedWarehouseId);
             if (currentClient) params.set('client_id', currentClient);
             if (currentCategory !== 'all') params.set('category_id', currentCategory);
             try {

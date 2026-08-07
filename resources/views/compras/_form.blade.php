@@ -154,7 +154,7 @@
                             type="search"
                             id="productSearch"
                             placeholder="Buscar producto por nombre o código…"
-                            class="input-field pl-10 text-base"
+                            class="input-field input-with-leading-icon text-base"
                             autocomplete="off"
                         />
                         <div

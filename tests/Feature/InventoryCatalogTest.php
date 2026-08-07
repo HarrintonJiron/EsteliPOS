@@ -14,6 +14,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AccountingService;
+use App\Services\InventoryService;
 use App\Services\UnitConversionService;
 use Database\Seeders\ConfigurationSeeder;
 use Database\Seeders\InventoryCatalogSeeder;
@@ -208,6 +209,105 @@ test('pos applies client price list and warehouse stock', function () {
     $sale = Sale::query()->with('details')->latest('id')->firstOrFail();
     expect($sale->warehouse_id)->toBe($warehouse->id)
         ->and((float) $sale->details->first()->price)->toBe(250.0);
+});
+
+test('pos shows product available when stock is in another warehouse', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+    $category = Category::firstOrCreate(['name' => 'Pruebas Bodega']);
+    $main = Warehouse::query()->where('is_default', true)->firstOrFail();
+    $secondary = Warehouse::query()->where('is_default', false)->where('is_active', true)->firstOrFail();
+
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Cemento Gris',
+        'code' => 'CEM-AUTO-001',
+        'purchase_price' => 280,
+        'sale_price' => 320,
+        'stock' => 0,
+        'unit' => 'saco',
+        'status' => 'active',
+    ]);
+
+    app(InventoryService::class)->stockIn(
+        $product,
+        10,
+        'test-in',
+        'Entrada a bodega secundaria',
+        $admin->id,
+        $secondary->id,
+    );
+
+    $response = $this->actingAs($admin)->getJson(route('facturacion.pos-products', [
+        'search' => 'CEM-AUTO-001',
+    ]));
+
+    $response->assertOk();
+    $payload = collect($response->json())->firstWhere('code', 'CEM-AUTO-001');
+
+    expect($payload)->not->toBeNull()
+        ->and((float) $payload['total_stock'])->toBe(10.0)
+        ->and((float) $payload['stock'])->toBeGreaterThan(0)
+        ->and((int) $payload['preferred_warehouse_id'])->toBe($secondary->id);
+
+    $accounting = Mockery::mock(AccountingService::class);
+    $accounting->shouldReceive('recordSale')->once();
+    app()->instance(AccountingService::class, $accounting);
+
+    $this->actingAs($admin)->post(route('facturacion.pos-store'), [
+        'payment_type' => 'cash',
+        'warehouse_id' => null,
+        'items' => json_encode([[
+            'product_id' => $product->id,
+            'quantity' => 2,
+            'discount' => 0,
+        ]]),
+        'amount_received' => 640,
+        'order_discount_pct' => 0,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect((float) $product->fresh()->stock)->toBe(8.0)
+        ->and((float) $product->stockInWarehouse($secondary->id))->toBe(8.0)
+        ->and((float) $product->stockInWarehouse($main->id))->toBe(0.0);
+});
+
+test('warehouse transfer moves stock between locations', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+    $category = Category::firstOrCreate(['name' => 'Transferencias']);
+    $from = Warehouse::query()->where('is_default', true)->firstOrFail();
+    $to = Warehouse::query()->where('is_default', false)->where('is_active', true)->firstOrFail();
+
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Varilla 3/8',
+        'code' => 'VAR-TRF-001',
+        'purchase_price' => 50,
+        'sale_price' => 75,
+        'stock' => 0,
+        'unit' => 'und',
+        'status' => 'active',
+    ]);
+
+    app(InventoryService::class)->stockIn(
+        $product,
+        20,
+        'seed',
+        'Carga inicial',
+        $admin->id,
+        $from->id,
+    );
+
+    $this->actingAs($admin)->post(route('inventario.warehouses.transfer', $from), [
+        'product_id' => $product->id,
+        'to_warehouse_id' => $to->id,
+        'quantity' => 5,
+        'note' => 'Movimiento a patio',
+    ])->assertRedirect()->assertSessionHas('success');
+
+    expect((float) $product->fresh()->stock)->toBe(20.0)
+        ->and((float) $product->stockInWarehouse($from->id))->toBe(15.0)
+        ->and((float) $product->stockInWarehouse($to->id))->toBe(5.0);
 });
 
 test('pos sale deducts stock from default warehouse for legacy products', function () {
