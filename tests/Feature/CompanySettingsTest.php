@@ -114,6 +114,28 @@ test('company and ticket logos are stored on the public disk', function () {
     Storage::disk('public')->assertExists([$companyLogo, $ticketLogo]);
 });
 
+test('oversized company logos are resized and optimized automatically', function () {
+    Storage::fake('public');
+    $admin = companyAdmin();
+
+    $payload = validCompanySettings([
+        'company_logo' => UploadedFile::fake()->image('big-logo.png', 4000, 3000),
+    ]);
+
+    $this->actingAs($admin)->post(route('settings.general.update'), $payload)
+        ->assertRedirect(route('settings.general'))
+        ->assertSessionHasNoErrors();
+
+    $companyLogo = Setting::get('company_logo');
+    Storage::disk('public')->assertExists($companyLogo);
+
+    $size = getimagesize(Storage::disk('public')->path($companyLogo));
+
+    expect($size)->not->toBeFalse()
+        ->and($size[0])->toBeLessThanOrEqual(1200)
+        ->and($size[1])->toBeLessThanOrEqual(1200);
+});
+
 test('invalid company data and unsafe logo formats are rejected', function () {
     Storage::fake('public');
     $admin = companyAdmin();

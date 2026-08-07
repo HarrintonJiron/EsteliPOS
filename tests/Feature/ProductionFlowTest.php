@@ -3,12 +3,16 @@
 use App\Models\Client;
 use App\Models\Employee;
 use App\Models\ExchangeRate;
+use App\Models\LeaveRequest;
+use App\Models\Loan;
+use App\Models\Payroll;
 use App\Models\Product;
 use App\Models\Proforma;
 use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Models\User;
 use App\Services\PayrollService;
+use Carbon\Carbon;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -129,6 +133,134 @@ test('contabilidad dashboard and core reports load', function () {
     $this->actingAs($admin)->get(route('contabilidad.dashboard'))->assertOk();
     $this->actingAs($admin)->get(route('contabilidad.estado-resultados.index'))->assertOk();
     $this->actingAs($admin)->get(route('contabilidad.cuentas.index'))->assertOk();
+});
+
+test('nomina can be paid and ticket printed', function () {
+    $admin = flowAdmin();
+    $month = now()->format('Y-m');
+
+    Employee::create([
+        'name' => 'Empleado Nomina',
+        'position' => 'Operativo',
+        'salary' => 12000,
+        'phone' => null,
+        'address' => null,
+        'contract_type' => 'full_time',
+        'payment_frequency' => 'monthly',
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($admin)->get(route('nomina.index', ['month' => $month]))
+        ->assertOk()
+        ->assertSee('Pagar nómina')
+        ->assertSee('Imprimir ticket');
+
+    $this->actingAs($admin)->post(route('nomina.pay'), ['month' => $month])
+        ->assertRedirect(route('nomina.index', ['month' => $month]))
+        ->assertSessionHas('success');
+
+    expect(Payroll::query()->where('status', 'paid')->count())->toBe(1);
+
+    $this->actingAs($admin)->get(route('nomina.ticket', ['month' => $month]))
+        ->assertOk()
+        ->assertSee('NÓMINA PAGADA')
+        ->assertSee('Empleado Nomina')
+        ->assertSee('size: 80mm auto');
+
+    $this->actingAs($admin)->get(route('nomina.index', ['month' => $month]))
+        ->assertOk()
+        ->assertSee('Pagada')
+        ->assertDontSee('Pagar nómina');
+});
+
+test('loan can be created with string months from form', function () {
+    $admin = flowAdmin();
+    $employee = Employee::create([
+        'name' => 'Empleado Nuevo Prestamo',
+        'position' => 'Operativo',
+        'salary' => 10000,
+        'phone' => null,
+        'address' => null,
+        'contract_type' => 'full_time',
+        'payment_frequency' => 'monthly',
+    ]);
+
+    $this->actingAs($admin)->post(route('loans.store'), [
+        'employee_id' => (string) $employee->id,
+        'type' => 'loan',
+        'amount' => '1200',
+        'months' => '12',
+        'start_date' => now()->toDateString(),
+        'reason' => 'Prueba',
+    ])->assertRedirect(route('loans.index'));
+
+    $loan = Loan::query()->latest('id')->first();
+
+    expect($loan)->not->toBeNull()
+        ->and($loan->months)->toBe(12)
+        ->and((float) $loan->monthly_payment)->toBe(100.0)
+        ->and($loan->end_date->equalTo(
+            Carbon::parse($loan->start_date)->addMonths(12)
+        ))->toBeTrue();
+});
+
+test('loan show loads when employee was soft deleted', function () {
+    $admin = flowAdmin();
+    $employee = Employee::create([
+        'name' => 'Empleado Prestamo',
+        'position' => 'Operativo',
+        'salary' => 10000,
+        'phone' => null,
+        'address' => null,
+        'contract_type' => 'full_time',
+        'payment_frequency' => 'monthly',
+    ]);
+
+    $loan = Loan::create([
+        'employee_id' => $employee->id,
+        'type' => 'loan',
+        'amount' => 1000,
+        'monthly_payment' => 100,
+        'months' => 10,
+        'start_date' => now()->toDateString(),
+        'end_date' => now()->addMonths(10)->toDateString(),
+        'remaining_balance' => 1000,
+        'status' => 'pending',
+    ]);
+
+    $employee->delete();
+
+    $this->actingAs($admin)->get(route('loans.show', $loan))
+        ->assertOk()
+        ->assertSee('Empleado Prestamo');
+});
+
+test('leave show loads when employee was soft deleted', function () {
+    $admin = flowAdmin();
+    $employee = Employee::create([
+        'name' => 'Empleado Permiso',
+        'position' => 'Operativo',
+        'salary' => 10000,
+        'phone' => null,
+        'address' => null,
+        'contract_type' => 'full_time',
+        'payment_frequency' => 'monthly',
+    ]);
+
+    $leave = LeaveRequest::create([
+        'employee_id' => $employee->id,
+        'type' => 'vacation',
+        'start_date' => now()->toDateString(),
+        'end_date' => now()->addDays(2)->toDateString(),
+        'days' => 3,
+        'status' => 'pending',
+    ]);
+
+    $employee->delete();
+
+    $this->actingAs($admin)->get(route('leave.show', $leave))
+        ->assertOk()
+        ->assertSee('Empleado Permiso');
 });
 
 test('planilla submodules create forms load', function (string $routeName) {

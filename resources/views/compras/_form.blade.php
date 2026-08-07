@@ -4,6 +4,7 @@
     'purchase' => null,
     'suppliers',
     'warehouses',
+    'categories' => collect(),
     'initialItems' => [],
     'title',
     'submitLabel' => 'Registrar compra',
@@ -22,6 +23,8 @@
     class="flex min-h-[calc(100dvh-4rem)] flex-col bg-slate-50 lg:flex-row"
     data-initial-items='@json($initialItems)'
     data-search-url="{{ route('compras.products.search') }}"
+    data-quick-store-url="{{ route('compras.products.quick-store') }}"
+    data-next-code-url="{{ route('compras.products.next-code') }}"
 >
     <form
         action="{{ $action }}"
@@ -142,22 +145,28 @@
         {{-- Área principal: búsqueda + líneas --}}
         <section class="flex min-h-0 flex-1 flex-col">
             <div class="border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
-                <div class="relative max-w-3xl">
-                    <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
-                    <input
-                        type="search"
-                        id="productSearch"
-                        placeholder="Buscar producto por nombre o código…"
-                        class="input-field pl-10 text-base"
-                        autocomplete="off"
-                    />
-                    <div
-                        id="searchResults"
-                        class="absolute z-30 mt-1 hidden w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
-                        role="listbox"
-                    ></div>
+                <div class="flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-center">
+                    <div class="relative min-w-0 flex-1">
+                        <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <input
+                            type="search"
+                            id="productSearch"
+                            placeholder="Buscar producto por nombre o código…"
+                            class="input-field pl-10 text-base"
+                            autocomplete="off"
+                        />
+                        <div
+                            id="searchResults"
+                            class="absolute z-30 mt-1 hidden w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+                            role="listbox"
+                        ></div>
+                    </div>
+                    <button type="button" id="openQuickProduct" class="btn-outline shrink-0 justify-center whitespace-nowrap">
+                        <svg class="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Nuevo producto
+                    </button>
                 </div>
                 <p id="searchHint" class="mt-2 text-xs text-slate-500">Busca en todo el inventario. Si el producto tiene costo del proveedor, se usa automáticamente.</p>
             </div>
@@ -177,6 +186,67 @@
             </div>
         </section>
     </form>
+
+    {{-- Modal: producto rápido --}}
+    <div id="quickProductModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4" aria-hidden="true">
+        <div class="w-full max-w-lg rounded-2xl bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="quickProductTitle">
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                    <h2 id="quickProductTitle" class="text-lg font-bold text-slate-900">Nuevo producto</h2>
+                    <p class="text-xs text-slate-500">Se agrega al inventario y a esta compra al guardar.</p>
+                </div>
+                <button type="button" id="closeQuickProduct" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Cerrar">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <form id="quickProductForm" class="space-y-4 px-5 py-4">
+                <div id="quickProductError" class="hidden rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></div>
+
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1.4fr]">
+                    <div>
+                        <label for="quickProductCode" class="mb-1 block text-xs font-medium text-slate-500">Código</label>
+                        <input type="text" id="quickProductCode" name="code" class="input-field py-2 font-mono text-sm" placeholder="Auto">
+                    </div>
+                    <div>
+                        <label for="quickProductName" class="mb-1 block text-xs font-medium text-slate-500">Nombre *</label>
+                        <input type="text" id="quickProductName" name="name" required class="input-field py-2" placeholder="Nombre del producto">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="quickProductPurchasePrice" class="mb-1 block text-xs font-medium text-slate-500">Costo compra *</label>
+                        <input type="number" id="quickProductPurchasePrice" name="purchase_price" min="0" step="0.01" required class="input-field py-2" placeholder="0.00">
+                    </div>
+                    <div>
+                        <label for="quickProductSalePrice" class="mb-1 block text-xs font-medium text-slate-500">Precio venta</label>
+                        <input type="number" id="quickProductSalePrice" name="sale_price" min="0" step="0.01" class="input-field py-2" placeholder="Auto (+18%)">
+                    </div>
+                </div>
+
+                @if($categories->isNotEmpty())
+                    <div>
+                        <label for="quickProductCategory" class="mb-1 block text-xs font-medium text-slate-500">Categoría</label>
+                        <select id="quickProductCategory" name="category_id" class="select-field">
+                            @foreach($categories as $category)
+                                <option value="{{ $category->id }}">{{ $category->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @else
+                    <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Crea al menos una categoría en inventario antes de registrar productos.</p>
+                @endif
+
+                <div class="flex gap-2 border-t border-slate-100 pt-4">
+                    <button type="button" id="cancelQuickProduct" class="btn-outline flex-1 justify-center">Cancelar</button>
+                    <button type="submit" id="saveQuickProduct" class="btn-primary flex-[1.4] justify-center" @disabled($categories->isEmpty())>
+                        Crear y agregar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -194,11 +264,28 @@
     const unitCountEl = document.getElementById('purchaseUnitCount');
     const submitBtn = document.getElementById('purchaseSubmit');
     const searchUrl = app.dataset.searchUrl;
+    const quickStoreUrl = app.dataset.quickStoreUrl;
+    const nextCodeUrl = app.dataset.nextCodeUrl;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+    const quickModal = document.getElementById('quickProductModal');
+    const quickForm = document.getElementById('quickProductForm');
+    const quickError = document.getElementById('quickProductError');
+    const openQuickBtn = document.getElementById('openQuickProduct');
+    const closeQuickBtn = document.getElementById('closeQuickProduct');
+    const cancelQuickBtn = document.getElementById('cancelQuickProduct');
+    const saveQuickBtn = document.getElementById('saveQuickProduct');
+    const quickNameInput = document.getElementById('quickProductName');
+    const quickCodeInput = document.getElementById('quickProductCode');
+    const quickPurchaseInput = document.getElementById('quickProductPurchasePrice');
+    const quickSaleInput = document.getElementById('quickProductSalePrice');
+    const quickCategoryInput = document.getElementById('quickProductCategory');
 
     let items = JSON.parse(app.dataset.initialItems || '[]');
     let searchCache = [];
     let searchTimer = null;
     let activeResultIndex = -1;
+    let lastSearchTerm = '';
 
     const money = (value) => `C$ ${Number(value || 0).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -220,8 +307,16 @@
         activeResultIndex = products.length ? 0 : -1;
 
         if (!products.length) {
-            searchResults.innerHTML = '<div class="px-4 py-3 text-sm text-slate-500">Sin coincidencias en el inventario.</div>';
+            const term = escapeHtml(lastSearchTerm);
+            searchResults.innerHTML = `
+                <div class="px-4 py-3 text-sm text-slate-500">Sin coincidencias en el inventario.</div>
+                <button type="button" id="createFromSearch" class="flex w-full items-center gap-2 border-t border-slate-100 px-4 py-3 text-left text-sm font-medium text-indigo-700 hover:bg-indigo-50">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Crear producto «${term}»
+                </button>
+            `;
             searchResults.classList.remove('hidden');
+            document.getElementById('createFromSearch')?.addEventListener('click', () => openQuickProductModal(lastSearchTerm));
             return;
         }
 
@@ -256,6 +351,8 @@
     }
 
     async function runSearch(term) {
+        lastSearchTerm = term;
+
         if (term.length < 2) {
             hideResults();
             return;
@@ -415,6 +512,8 @@
             event.preventDefault();
             if (activeResultIndex >= 0 && searchCache[activeResultIndex]) {
                 addProduct(searchCache[activeResultIndex]);
+            } else if (!searchCache.length && lastSearchTerm.length >= 2) {
+                openQuickProductModal(lastSearchTerm);
             }
         }
 
@@ -457,6 +556,133 @@
         }
 
         renderLines();
+    });
+
+    function showQuickError(message) {
+        quickError.textContent = message;
+        quickError.classList.remove('hidden');
+    }
+
+    function hideQuickError() {
+        quickError.textContent = '';
+        quickError.classList.add('hidden');
+    }
+
+    async function fetchNextCode() {
+        try {
+            const response = await fetch(nextCodeUrl, { headers: { Accept: 'application/json' } });
+            const data = await response.json();
+            quickCodeInput.value = data.code ?? '';
+        } catch {
+            quickCodeInput.value = '';
+        }
+    }
+
+    function openQuickProductModal(prefillName = '') {
+        hideQuickError();
+        quickForm.reset();
+        quickNameInput.value = prefillName;
+        fetchNextCode();
+        quickModal.classList.remove('hidden');
+        quickModal.classList.add('flex');
+        quickModal.setAttribute('aria-hidden', 'false');
+        hideResults();
+        setTimeout(() => quickNameInput.focus(), 50);
+    }
+
+    function closeQuickProductModal() {
+        quickModal.classList.add('hidden');
+        quickModal.classList.remove('flex');
+        quickModal.setAttribute('aria-hidden', 'true');
+        hideQuickError();
+    }
+
+    quickPurchaseInput?.addEventListener('input', () => {
+        if (quickSaleInput.value.trim() !== '') {
+            return;
+        }
+
+        const purchase = parseFloat(quickPurchaseInput.value);
+        if (!Number.isFinite(purchase) || purchase <= 0) {
+            return;
+        }
+
+        quickSaleInput.placeholder = `Sugerido: ${(purchase / 0.85).toFixed(2)}`;
+    });
+
+    openQuickBtn?.addEventListener('click', () => openQuickProductModal(searchInput.value.trim()));
+    closeQuickBtn?.addEventListener('click', closeQuickProductModal);
+    cancelQuickBtn?.addEventListener('click', closeQuickProductModal);
+
+    quickModal?.addEventListener('click', (event) => {
+        if (event.target === quickModal) {
+            closeQuickProductModal();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !quickModal.classList.contains('hidden')) {
+            closeQuickProductModal();
+        }
+    });
+
+    quickForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        hideQuickError();
+
+        if (!quickNameInput.value.trim()) {
+            showQuickError('El nombre del producto es obligatorio.');
+            return;
+        }
+
+        const purchasePrice = parseFloat(quickPurchaseInput.value);
+        if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
+            showQuickError('Indica un costo de compra válido.');
+            return;
+        }
+
+        saveQuickBtn.disabled = true;
+        saveQuickBtn.textContent = 'Guardando…';
+
+        const payload = {
+            name: quickNameInput.value.trim(),
+            code: quickCodeInput.value.trim() || null,
+            purchase_price: purchasePrice,
+            sale_price: quickSaleInput.value.trim() ? parseFloat(quickSaleInput.value) : null,
+            category_id: quickCategoryInput?.value ?? null,
+            supplier_id: supplierSelect.value || null,
+        };
+
+        try {
+            const response = await fetch(quickStoreUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                const messages = data.errors
+                    ? Object.values(data.errors).flat().join(' ')
+                    : (data.message ?? 'No se pudo crear el producto.');
+                showQuickError(messages);
+                return;
+            }
+
+            addProduct(data.product);
+            searchInput.value = '';
+            closeQuickProductModal();
+        } catch {
+            showQuickError('Error de conexión. Intenta de nuevo.');
+        } finally {
+            saveQuickBtn.disabled = false;
+            saveQuickBtn.textContent = 'Crear y agregar';
+        }
     });
 
     updateSearchState();

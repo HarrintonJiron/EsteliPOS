@@ -11,6 +11,7 @@
         'purchase' => null,
         'suppliers' => $suppliers,
         'warehouses' => $warehouses,
+        'categories' => $categories,
         'initialItems' => [],
         'title' => 'Ingreso a inventario',
         'submitLabel' => 'Registrar compra',

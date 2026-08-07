@@ -148,8 +148,8 @@
                 <p class="mt-1 text-sm text-slate-500">Se guardan de forma segura y se utilizan según el tipo de documento.</p>
             </div>
             <div class="grid grid-cols-1 gap-5 p-5 lg:grid-cols-2 sm:p-6">
-                <x-settings.image-upload name="company_logo" label="Logo principal" :current-url="$settings['company_logo_url']" help="Recomendado: fondo transparente y formato horizontal." max="2 MB" remove-name="remove_company_logo" />
-                <x-settings.image-upload name="ticket_logo" label="Logo para tickets" :current-url="$settings['ticket_logo_url']" help="Recomendado: alto contraste para impresión térmica." max="1 MB" remove-name="remove_ticket_logo" />
+                <x-settings.image-upload name="company_logo" label="Logo principal" :current-url="$settings['company_logo_url']" help="Fondo transparente recomendado. Se redimensiona y optimiza al guardar." remove-name="remove_company_logo" />
+                <x-settings.image-upload name="ticket_logo" label="Logo para tickets" :current-url="$settings['ticket_logo_url']" help="Alto contraste recomendado para impresión térmica. Se optimiza al guardar." remove-name="remove_ticket_logo" />
             </div>
         </section>
 

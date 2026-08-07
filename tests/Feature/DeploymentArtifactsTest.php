@@ -14,6 +14,14 @@ test('the windows deployment package is self contained and production safe', fun
         ->toContain('Register-EsteliPOSServerTask')
         ->toContain('Save-EsteliPOSDeploymentConfig')
         ->toContain('Write-EsteliPOSNetworkAccessPage')
+        ->toContain('ServerProfile')
+        ->toContain('Install-EsteliPOSIISSite')
+        ->toContain('Install-EsteliPOSIISPlatform')
+        ->toContain('EsteliPOS-PHP.ps1')
+        ->toContain('Ensure-EsteliPOSPhp')
+        ->toContain('AutoInstallPhp')
+        ->toContain('Test-EsteliPOSInstallation.ps1')
+        ->toContain('public\web.config')
         ->toContain('ExternalBackupPath')
         ->toContain('HostAddress 0.0.0.0')
         ->toContain('RemoteAddress LocalSubnet')
@@ -23,14 +31,26 @@ test('the windows deployment package is self contained and production safe', fun
         ->and($buildScript)
         ->toContain('composer install')
         ->toContain('--no-dev')
+        ->toContain('deployment/windows/EsteliPOS-IIS.ps1')
+        ->toContain('deployment/windows/Verify-PHP-EsteliPOS.ps1')
+        ->toContain('public/web.config')
         ->toContain('npm --prefix "$stage_dir" run build')
         ->toContain('git -C "$project_root" archive')
         ->and(is_executable(base_path('deployment/build-release.sh')))->toBeTrue()
+        ->and(file_exists(base_path('public/web.config')))->toBeTrue()
+        ->and(file_exists(base_path('deployment/windows/EsteliPOS-IIS.ps1')))->toBeTrue()
+        ->and(file_exists(base_path('deployment/windows/Verify-PHP-EsteliPOS.ps1')))->toBeTrue()
+        ->and(file_exists(base_path('deployment/windows/Test-EsteliPOSInstallation.ps1')))->toBeTrue()
+        ->and(file_exists(base_path('deployment/windows/Update-EsteliPOS.ps1')))->toBeTrue()
         ->and(file_exists(base_path('deployment/windows/Start-EsteliPOS.ps1')))->toBeTrue()
         ->and(file_exists(base_path('deployment/windows/Stop-EsteliPOS.ps1')))->toBeTrue()
         ->and(file_exists(base_path('deployment/windows/Backup-EsteliPOS.ps1')))->toBeTrue()
         ->and(file_exists(base_path('deployment/windows/Diagnose-EsteliPOS.ps1')))->toBeTrue()
+        ->and(file_exists(base_path('deployment/produccion2.0.zip')))->toBeTrue()
         ->and(file_exists(base_path('deployment/windows/Install-EsteliPOS.bat')))->toBeTrue()
+        ->and(file_exists(base_path('Instalar-EsteliPOS.bat')))->toBeTrue()
+        ->and(file_exists(base_path('deployment/windows/EsteliPOS-InstallErrors.ps1')))->toBeTrue()
+        ->and(file_exists(base_path('deployment/windows/EsteliPOS-PHP.ps1')))->toBeTrue()
         ->and(file_exists(base_path('deployment/windows/EsteliPOS-Common.ps1')))->toBeTrue()
         ->and(file_exists(base_path('deployment/windows/templates/acceso-red.html')))->toBeTrue()
         ->and(file_exists(base_path('deployment/windows/assets/qrcode.min.js')))->toBeTrue();
@@ -56,15 +76,16 @@ test('production views do not depend on internet CDNs', function () {
         ->and(file_get_contents(resource_path('js/app.js')))->toContain('chart.js/auto');
 });
 
-test('the receipt button uses the silent print flow', function () {
+test('ticket printing is optional and uses a manual print button', function () {
     $changeView = file_get_contents(resource_path('views/facturacion/change.blade.php'));
     $receiptView = file_get_contents(resource_path('views/facturacion/receipt.blade.php'));
 
-    expect($changeView)->toContain('autoprint=1')
+    expect($changeView)
+        ->toContain('Imprimir ticket')
+        ->not->toContain('autoprint=1')
         ->and($receiptView)
-        ->toContain("request()->boolean('autoprint')")
-        ->toContain("window.addEventListener('load', () => window.print())")
-        ->toContain("window.addEventListener('afterprint', () => window.close())");
+        ->toContain('onclick="window.print()"')
+        ->not->toContain("request()->boolean('autoprint')");
 });
 
 test('sqlite is tuned for light lan concurrency', function () {

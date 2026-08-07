@@ -2,10 +2,13 @@
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=302, initial-scale=1">
     <title>Ticket #{{ $sale->invoice_number }}</title>
     <style>
-        @page { size: 80mm auto; margin: 0; }
+        @page {
+            size: 80mm auto;
+            margin: 0;
+        }
 
         *, *::before, *::after { box-sizing: border-box; }
 
@@ -21,6 +24,7 @@
 
         .receipt {
             width: 80mm;
+            max-width: 80mm;
             margin: 12px auto;
             padding: 4mm;
             background: #fff;
@@ -39,13 +43,21 @@
         .info-row span:last-child { text-align: right; overflow-wrap: anywhere; }
 
         .items-header,
-        .item-main {
+        .item-main,
+        .items-footer {
             display: grid;
             grid-template-columns: minmax(0, 1fr) 9mm 21mm;
             gap: 1.5mm;
             align-items: start;
         }
         .items-header { padding-bottom: 1mm; border-bottom: 1px solid #000; font-size: 8.5pt; font-weight: 700; }
+        .items-footer {
+            margin-top: 1.5mm;
+            padding-top: 1.5mm;
+            border-top: 1.5px solid #000;
+            font-size: 11pt;
+            font-weight: 700;
+        }
         .item { padding: 1.5mm 0; border-bottom: 1px dotted #777; break-inside: avoid; page-break-inside: avoid; }
         .item:last-child { border-bottom: 0; }
         .item-name { font-weight: 700; overflow-wrap: anywhere; }
@@ -56,7 +68,6 @@
         .totals { display: grid; gap: 1mm; }
         .total-row { display: flex; justify-content: space-between; gap: 3mm; }
         .total-row span:last-child { white-space: nowrap; }
-        .grand-total { margin-top: 1.5mm; padding-top: 1.5mm; border-top: 1.5px solid #000; font-size: 12pt; font-weight: 700; }
         .payment { font-size: 9pt; }
         .payment-method { margin-top: 1mm; font-size: 10pt; font-weight: 700; }
         .footer { margin-top: 3mm; text-align: center; font-size: 8.5pt; }
@@ -82,28 +93,59 @@
             cursor: pointer;
         }
         .screen-actions button:last-child { background: #475569; }
+        .print-hint {
+            max-width: 80mm;
+            margin: 0 auto 10px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: #fff7ed;
+            border: 1px solid #fdba74;
+            color: #9a3412;
+            font: 12px/1.4 system-ui, sans-serif;
+            text-align: center;
+        }
 
         @media print {
-            html, body { width: 80mm; background: #fff; }
+            html, body {
+                width: 80mm !important;
+                max-width: 80mm !important;
+                min-width: 80mm !important;
+                height: auto !important;
+                background: #fff !important;
+            }
             .screen-only { display: none !important; }
             .receipt {
-                width: 80mm;
-                margin: 0;
-                padding: 3mm 4mm 5mm;
-                box-shadow: none;
+                width: 72mm !important;
+                max-width: 72mm !important;
+                margin: 0 auto !important;
+                padding: 2mm 4mm 4mm !important;
+                box-shadow: none !important;
                 print-color-adjust: exact;
                 -webkit-print-color-adjust: exact;
+            }
+        }
+
+        @media print and (width: 21cm), print and (width: 8.5in) {
+            html, body {
+                width: 80mm !important;
+                max-width: 80mm !important;
             }
         }
     </style>
 </head>
 <body>
+    <div class="print-hint screen-only">
+        Impresora térmica 80 mm: papel <strong>80 mm</strong>, márgenes <strong>ninguno</strong>, escala <strong>100%</strong>.
+        No uses Word; imprime directo desde el navegador (Chrome o Edge).
+    </div>
     <div class="screen-actions screen-only">
         <button type="button" onclick="window.print()">Imprimir ticket 80 mm</button>
         <button type="button" onclick="window.close()">Cerrar</button>
     </div>
 
     @php($receiptLogoUrl = $companyProfile['ticket_logo_url'] ?: $companyProfile['company_logo_url'])
+    @php($totalQuantity = $sale->details->sum(fn ($detail) => (float) $detail->quantity))
+    @php($totalQuantityFormatted = fmod($totalQuantity, 1.0) === 0.0 ? number_format($totalQuantity, 0) : number_format($totalQuantity, 2))
 
     <main class="receipt" data-paper-width="80mm">
         <header class="center">
@@ -154,17 +196,23 @@
                     </div>
                 </article>
             @endforeach
-        </section>
-
-        <div class="separator"></div>
-
-        <section class="totals" aria-label="Totales">
-            <div class="total-row"><span>TOTAL ARTÍCULOS</span><span>{{ $sale->details->sum('quantity') }}</span></div>
             @if($invoiceTaxDisplay->showsTaxInTotals((float) $sale->tax_total))
-                <div class="total-row"><span>SUBTOTAL</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->subtotal, 2) }}</span></div>
-                <div class="total-row"><span>{{ strtoupper($invoiceTaxDisplay->taxLabel((float) $sale->tax_rate)) }}</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $sale->tax_total), 2) }}</span></div>
+                <div class="items-footer" style="margin-top: 1mm; padding-top: 1mm; border-top: 1px dashed #777; font-size: 9pt; font-weight: 400;">
+                    <span>SUBTOTAL</span>
+                    <span class="item-qty"></span>
+                    <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($sale->subtotal, 2) }}</span>
+                </div>
+                <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 400;">
+                    <span>{{ strtoupper($invoiceTaxDisplay->taxLabel((float) $sale->tax_rate)) }}</span>
+                    <span class="item-qty"></span>
+                    <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $sale->tax_total), 2) }}</span>
+                </div>
             @endif
-            <div class="total-row grand-total"><span>TOTAL A PAGAR</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->total, 2) }}</span></div>
+            <div class="items-footer">
+                <span>TOTAL</span>
+                <span class="item-qty">{{ $totalQuantityFormatted }}</span>
+                <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($sale->total, 2) }}</span>
+            </div>
         </section>
 
         <div class="separator"></div>
@@ -195,12 +243,5 @@
             <p>Recibo válido sin firma</p>
         </footer>
     </main>
-
-    @if(request()->boolean('autoprint'))
-    <script>
-        window.addEventListener('load', () => window.print());
-        window.addEventListener('afterprint', () => window.close());
-    </script>
-    @endif
 </body>
 </html>

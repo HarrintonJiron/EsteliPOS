@@ -165,6 +165,8 @@ Route::middleware(['auth'])->group(function () {
 
     Route::middleware('module:compras')->group(function () {
         Route::get('/compras/productos/buscar', [CompraController::class, 'searchProducts'])->name('compras.products.search');
+        Route::get('/compras/productos/siguiente-codigo', [CompraController::class, 'nextProductCode'])->name('compras.products.next-code');
+        Route::post('/compras/productos/rapido', [CompraController::class, 'quickStoreProduct'])->name('compras.products.quick-store');
         Route::get('/compras', [CompraController::class, 'index'])->name('compras.index');
         Route::get('/compras/create', [CompraController::class, 'create'])->name('compras.create');
         Route::get('/compras/{id}', [CompraController::class, 'show'])->name('compras.show');
@@ -212,8 +214,8 @@ Route::middleware(['auth'])->group(function () {
             'update' => 'leave.update',
             'destroy' => 'leave.destroy',
         ]);
-        Route::post('/leave/{leaveRequest}/approve', [LeaveRequestController::class, 'approve'])->name('leave.approve');
-        Route::post('/leave/{leaveRequest}/reject', [LeaveRequestController::class, 'reject'])->name('leave.reject');
+        Route::post('/leave/{leave}/approve', [LeaveRequestController::class, 'approve'])->name('leave.approve');
+        Route::post('/leave/{leave}/reject', [LeaveRequestController::class, 'reject'])->name('leave.reject');
     });
 
     // Gestión de Préstamos
@@ -312,6 +314,8 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::get('/nomina', [NominaController::class, 'index'])->middleware('module:planilla')->name('nomina.index');
+    Route::post('/nomina/pagar', [NominaController::class, 'pay'])->middleware('module:planilla')->name('nomina.pay');
+    Route::get('/nomina/ticket', [NominaController::class, 'ticket'])->middleware('module:planilla')->name('nomina.ticket');
 
     // Ajustes de inventario solo para admin
     Route::middleware(['module:inventario', 'role:admin'])->group(function () {

@@ -16,13 +16,46 @@
             <p class="page-subtitle">
                 {{ $startDate->format('d/m/Y') }} – {{ $endDate->format('d/m/Y') }} ·
                 {{ count($payrollReport['employees']) }} empleados
+                @if($isPaid)
+                    · <span class="text-emerald-700 font-medium">Pagada</span>
+                    @if($paidAt)
+                        el {{ $paidAt->format('d/m/Y H:i') }}
+                    @endif
+                    @if($paidByName)
+                        por {{ $paidByName }}
+                    @endif
+                @else
+                    · <span class="text-amber-700 font-medium">Pendiente de pago</span>
+                @endif
             </p>
         </div>
 
-        <form method="GET" class="flex items-center gap-2">
-            <input type="month" name="month" value="{{ $selectedMonth }}" class="input-field w-auto">
-            <button type="submit" class="btn-primary">Ver período</button>
-        </form>
+        <div class="flex flex-wrap items-center gap-2">
+            <form method="GET" class="flex items-center gap-2">
+                <input type="month" name="month" value="{{ $selectedMonth }}" class="input-field w-auto">
+                <button type="submit" class="btn-primary">Ver período</button>
+            </form>
+
+            @if(count($payrollReport['employees']) > 0)
+                <a href="{{ route('nomina.ticket', ['month' => $selectedMonth]) }}"
+                   target="_blank"
+                   rel="noopener"
+                   class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                    Imprimir ticket
+                </a>
+
+                @unless($isPaid)
+                    <form method="POST" action="{{ route('nomina.pay') }}"
+                          onsubmit="return confirm('¿Confirmar pago de la nómina de {{ $startDate->translatedFormat('F Y') }} por C$ {{ number_format($totals['net_salary'], 2) }}?');">
+                        @csrf
+                        <input type="hidden" name="month" value="{{ $selectedMonth }}">
+                        <button type="submit" class="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+                            Pagar nómina
+                        </button>
+                    </form>
+                @endunless
+            @endif
+        </div>
     </div>
 
     {{-- Resumen --}}

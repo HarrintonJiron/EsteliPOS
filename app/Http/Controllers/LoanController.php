@@ -44,14 +44,14 @@ class LoanController extends Controller
             'reason' => 'nullable|string',
         ]);
 
-        // Calcular pago mensual
-        $validated['monthly_payment'] = round($validated['amount'] / $validated['months'], 2);
+        $months = (int) $validated['months'];
+        $amount = (float) $validated['amount'];
 
-        // Calcular fecha final
-        $validated['end_date'] = Carbon::parse($validated['start_date'])->addMonths($validated['months']);
-
-        // Inicializar balance restante
-        $validated['remaining_balance'] = $validated['amount'];
+        $validated['months'] = $months;
+        $validated['amount'] = $amount;
+        $validated['monthly_payment'] = round($amount / $months, 2);
+        $validated['end_date'] = Carbon::parse($validated['start_date'])->addMonths($months);
+        $validated['remaining_balance'] = $amount;
         $validated['status'] = 'pending';
 
         Loan::create($validated);
@@ -93,14 +93,14 @@ class LoanController extends Controller
             'reason' => 'nullable|string',
         ]);
 
-        // Recalcular pago mensual
-        $validated['monthly_payment'] = round($validated['amount'] / $validated['months'], 2);
+        $months = (int) $validated['months'];
+        $amount = (float) $validated['amount'];
 
-        // Recalcular fecha final
-        $validated['end_date'] = Carbon::parse($validated['start_date'])->addMonths($validated['months']);
-
-        // Actualizar balance restante
-        $validated['remaining_balance'] = $validated['amount'];
+        $validated['months'] = $months;
+        $validated['amount'] = $amount;
+        $validated['monthly_payment'] = round($amount / $months, 2);
+        $validated['end_date'] = Carbon::parse($validated['start_date'])->addMonths($months);
+        $validated['remaining_balance'] = $amount;
 
         $loan->update($validated);
 

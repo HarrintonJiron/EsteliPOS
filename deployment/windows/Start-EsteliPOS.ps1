@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [int]$Port = 0,
-    [string]$HostAddress = "127.0.0.1"
+    [string]$HostAddress = "127.0.0.1",
+    [ValidateSet("Simple", "IIS", "Auto")]
+    [string]$ServerProfile = "Auto"
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +16,38 @@ if ($Port -le 0 -and $DeploymentConfig) {
 }
 if ($Port -le 0) {
     $Port = 8080
+}
+
+$ResolvedProfile = Get-EsteliPOSResolvedServerProfile -ServerProfile $ServerProfile
+
+if ($ResolvedProfile -eq "IIS") {
+    try {
+        Start-EsteliPOSIISSite -Port $Port
+    } catch {
+        Write-Error $_.Exception.Message
+        exit 1
+    }
+
+    $Ready = $false
+    for ($Attempt = 1; $Attempt -le 20; $Attempt++) {
+        Start-Sleep -Seconds 1
+        try {
+            $Response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/login" -UseBasicParsing -TimeoutSec 2
+            if ($Response.StatusCode -eq 200) {
+                $Ready = $true
+                break
+            }
+        } catch {
+            continue
+        }
+    }
+
+    if (-not $Ready) {
+        Write-Error "EsteliPOS (IIS) no respondio en http://127.0.0.1:$Port/login"
+        exit 1
+    }
+
+    exit 0
 }
 
 $PhpPath = (Get-Command php.exe -ErrorAction Stop).Source

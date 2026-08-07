@@ -1,25 +1,37 @@
 [CmdletBinding()]
 param(
     [int]$Port = 8080,
+    [ValidateSet("Simple", "IIS")]
+    [string]$ServerProfile = "IIS",
+    [int]$FastCgiMaxInstances = 4,
     [string]$AdminName = "Administrador",
     [string]$AdminEmail = "",
     [string]$ExternalBackupPath = "",
-    [string]$LanAddress = ""
+    [string]$LanAddress = "",
+    [switch]$AutoInstallPhp = $true,
+    [string]$PhpInstallDirectory = "C:\EsteliPOS\PHP"
 )
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "EsteliPOS-Common.ps1")
+. (Join-Path $PSScriptRoot "EsteliPOS-InstallErrors.ps1")
 $ProjectRoot = Get-EsteliPOSProjectRoot
 $PhpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
+$InstallLogPath = Get-EsteliPOSInstallLogPath
 
 function Write-Step([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Cyan
+    Write-InstallLogLine -LogPath $InstallLogPath -Line "[PASO] $Message"
 }
 
-function Stop-WithError([string]$Message) {
-    Write-Host "`nERROR: $Message" -ForegroundColor Red
-    Read-Host "Presiona Enter para cerrar"
-    exit 1
+function Stop-WithError {
+    param(
+        [string]$Message,
+        [int]$ExitCode = 99,
+        [string[]]$ExtraSolutions = @()
+    )
+
+    Stop-EsteliPOSInstall -ExitCode $ExitCode -Message $Message -ExtraSolutions $ExtraSolutions -LogPath $InstallLogPath
 }
 
 function Set-EnvValue([string]$Path, [string]$Name, [string]$Value) {
@@ -36,44 +48,75 @@ function Set-EnvValue([string]$Path, [string]$Name, [string]$Value) {
 try {
     Write-Host "EsteliPOS - Instalacion local para Windows" -ForegroundColor Green
     Write-Host "Northlink Microsystem"
+    Write-Host "Perfil de servidor: $ServerProfile"
+    Write-InstallLogLine -LogPath $InstallLogPath -Line "=== Inicio instalacion EsteliPOS $(Get-Date -Format o) ==="
+    Write-InstallLogLine -LogPath $InstallLogPath -Line "Perfil: $ServerProfile | Puerto: $Port | Equipo: $env:COMPUTERNAME"
 
     $CurrentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $CurrentPrincipal = New-Object Security.Principal.WindowsPrincipal($CurrentIdentity)
     if (-not $CurrentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        Stop-WithError "Abre PowerShell con la opcion Ejecutar como administrador y vuelve a intentarlo."
+        Stop-WithError "Ejecute el instalador como administrador." -ExitCode 1
+    }
+
+    if ($AutoInstallPhp) {
+        Write-Step "Comprobando o instalando PHP Thread Safe"
+        try {
+            . (Join-Path $PSScriptRoot "EsteliPOS-PHP.ps1")
+            $PhpStatus = Ensure-EsteliPOSPhp -ServerProfile $ServerProfile -InstallDirectory $PhpInstallDirectory
+            Write-InstallLogLine -LogPath $InstallLogPath -Line "PHP: $($PhpStatus.Version) en $($PhpStatus.PhpPath)"
+            $PhpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
+        } catch {
+            Stop-WithError $_.Exception.Message -ExitCode 19
+        }
     }
 
     Write-Step "Comprobando PHP y el paquete"
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Verify-PHP-EsteliPOS.ps1") -ServerProfile $ServerProfile
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithError "La verificacion previa detecto problemas. Revise los mensajes FALLO arriba." -ExitCode 2
+    }
+
     if (-not $PhpCommand) {
-        Stop-WithError "PHP 8.4.1 o superior no esta instalado o no esta agregado al PATH."
+        Stop-WithError "php.exe no esta en el PATH del sistema." -ExitCode 3
     }
 
     $PhpPath = $PhpCommand.Source
     $PhpVersion = & $PhpPath -r "echo PHP_VERSION;"
     if ([version]$PhpVersion -lt [version]"8.4.1") {
-        Stop-WithError "Se requiere PHP 8.4.1 o superior. Version encontrada: $PhpVersion"
+        Stop-WithError "Version encontrada: $PhpVersion" -ExitCode 4
     }
 
     $RequiredExtensions = @("ctype", "dom", "fileinfo", "gd", "mbstring", "openssl", "pdo_sqlite", "sqlite3", "tokenizer", "xml", "zip")
     $LoadedExtensions = @(& $PhpPath -m | ForEach-Object { $_.Trim().ToLowerInvariant() })
     $MissingExtensions = @($RequiredExtensions | Where-Object { $LoadedExtensions -notcontains $_ })
     if ($MissingExtensions.Count -gt 0) {
-        Stop-WithError "Faltan extensiones de PHP: $($MissingExtensions -join ', '). Habilitalas en php.ini."
+        Stop-WithError "Extensiones faltantes: $($MissingExtensions -join ', ')" -ExitCode 5
+    }
+
+    if ($ServerProfile -eq "IIS") {
+        try {
+            $PhpCgiPath = Get-EsteliPOSPhpCgiPath
+        } catch {
+            Stop-WithError $_.Exception.Message -ExitCode 6
+        }
     }
 
     if (-not (Test-Path (Join-Path $ProjectRoot "vendor\autoload.php"))) {
-        Stop-WithError "El paquete no incluye vendor. Genera el ZIP con deployment/build-release.sh."
+        Stop-WithError "No existe vendor\autoload.php en el paquete extraido." -ExitCode 7
     }
     if (-not (Test-EsteliPOSFrontendAssets -ProjectRoot $ProjectRoot)) {
-        Stop-WithError "El paquete no contiene los recursos web compilados."
+        Stop-WithError "Faltan archivos en public\build o public\css\app-ui.css." -ExitCode 8
+    }
+    if (-not (Test-Path (Join-Path $ProjectRoot "public\web.config"))) {
+        Stop-WithError "No se encontro public\web.config." -ExitCode 9
     }
     if ($Port -lt 1024 -or $Port -gt 65535) {
-        Stop-WithError "El puerto debe estar entre 1024 y 65535."
+        Stop-WithError "Puerto indicado: $Port" -ExitCode 10
     }
 
     $LanAddress = Get-EsteliPOSLanAddress -PreferredAddress $LanAddress
     if ([string]::IsNullOrWhiteSpace($LanAddress)) {
-        Stop-WithError "No se encontro una direccion IPv4 de red local. Conecta la PC al Wi-Fi y vuelve a intentar."
+        Stop-WithError "No hay adaptador de red con IPv4 en la LAN." -ExitCode 11
     }
 
     $MacAddress = Get-EsteliPOSMacAddress
@@ -123,30 +166,59 @@ try {
     New-Item -ItemType Directory -Force -Path (Join-Path $ProjectRoot "storage\app\backups") | Out-Null
 
     & $PhpPath artisan key:generate --force
-    if ($LASTEXITCODE -ne 0) { Stop-WithError "No se pudo generar APP_KEY." }
+    if ($LASTEXITCODE -ne 0) { Stop-WithError "artisan key:generate devolvio codigo $LASTEXITCODE." -ExitCode 12 }
 
     if ([string]::IsNullOrWhiteSpace($AdminEmail)) {
         $AdminEmail = Read-Host "Correo del administrador"
     }
     if ([string]::IsNullOrWhiteSpace($AdminEmail)) {
-        Stop-WithError "El correo del administrador es obligatorio."
+        Stop-WithError "Debe ingresar un correo para el usuario administrador." -ExitCode 13
     }
 
     Write-Step "Instalando base de datos y administrador"
     Write-Host "El sistema solicitara una contrasena segura de 12 o mas caracteres."
     & $PhpPath artisan app:install-production "--admin-name=$AdminName" "--admin-email=$AdminEmail" --force
-    if ($LASTEXITCODE -ne 0) { Stop-WithError "La instalacion de la aplicacion no termino correctamente." }
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithError "app:install-production devolvio codigo $LASTEXITCODE." -ExitCode 14
+    }
+
+    if ($ServerProfile -eq "IIS") {
+        Write-Step "Instalando IIS (Internet Information Services)"
+        try {
+            Install-EsteliPOSIISPlatform
+        } catch {
+            Stop-WithError $_.Exception.Message -ExitCode 20
+        }
+
+        Write-Step "Configurando sitio EsteliPOS + PHP FastCGI + URL Rewrite"
+        try {
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Stop-EsteliPOS.ps1") -ServerProfile Simple
+            Install-EsteliPOSIISSite `
+                -ProjectRoot $ProjectRoot `
+                -PhpCgiPath $PhpCgiPath `
+                -Port $Port `
+                -FastCgiMaxInstances $FastCgiMaxInstances `
+                -SkipPlatformInstall
+            Write-Host "Workers PHP FastCGI: $FastCgiMaxInstances"
+        } catch {
+            Stop-WithError $_.Exception.Message -ExitCode 15
+        }
+    }
 
     Write-Step "Guardando configuracion de red y acceso LAN"
     Save-EsteliPOSDeploymentConfig -Config @{
-        version = "1.0"
+        version = "1.1"
         installed_at = (Get-Date).ToString("o")
+        server_profile = $ServerProfile.ToLowerInvariant()
+        fastcgi_max_instances = $FastCgiMaxInstances
+        iis_site_name = (Get-EsteliPOSIISSiteName)
         port = $Port
         lan_address = $LanAddress
         app_url = $AppUrl
         mac_address = $MacAddress
         computer_name = $env:COMPUTERNAME
         admin_email = $AdminEmail
+        php_directory = (Split-Path $PhpPath -Parent)
     }
 
     $NetworkPage = Write-EsteliPOSNetworkAccessPage `
@@ -159,12 +231,15 @@ try {
     Write-Step "Configurando arranque automatico y respaldos"
     $StartScript = Join-Path $PSScriptRoot "Start-EsteliPOS.ps1"
     $BackupScript = Join-Path $PSScriptRoot "Backup-EsteliPOS.ps1"
-    Register-EsteliPOSServerTask -StartScript $StartScript -Port $Port
+    Register-EsteliPOSServerTask -StartScript $StartScript -Port $Port -ServerProfile $ServerProfile
 
     if ([string]::IsNullOrWhiteSpace($ExternalBackupPath)) {
         $ExternalBackupPath = Read-Host "Ruta opcional para una segunda copia (USB, red o nube; Enter para omitir)"
     }
-    $BackupArguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$BackupScript`" -Port $Port -HostAddress 0.0.0.0"
+    $BackupArguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$BackupScript`" -Port $Port -ServerProfile $ServerProfile"
+    if ($ServerProfile -eq "Simple") {
+        $BackupArguments += " -HostAddress 0.0.0.0"
+    }
     if (-not [string]::IsNullOrWhiteSpace($ExternalBackupPath)) {
         New-Item -ItemType Directory -Force -Path $ExternalBackupPath | Out-Null
         $BackupArguments += " -ExternalBackupPath `"$ExternalBackupPath`""
@@ -192,7 +267,7 @@ try {
     )
     $BrowserPath = $BrowserCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
     if (-not $BrowserPath) {
-        Stop-WithError "No se encontro Microsoft Edge ni Google Chrome. Se requiere uno para la impresion silenciosa."
+        Stop-WithError "Instale Edge o Chrome en este equipo." -ExitCode 16
     }
 
     $Desktop = [Environment]::GetFolderPath("Desktop")
@@ -215,10 +290,25 @@ try {
     $NetworkShortcut.Save()
 
     Write-Step "Iniciando y comprobando EsteliPOS"
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $StartScript -Port $Port -HostAddress "0.0.0.0"
-    if ($LASTEXITCODE -ne 0) { Stop-WithError "El servicio local no pudo iniciar." }
+    $StartArguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $StartScript, "-Port", $Port, "-ServerProfile", $ServerProfile)
+    if ($ServerProfile -eq "Simple") {
+        $StartArguments += @("-HostAddress", "0.0.0.0")
+    }
+    & powershell.exe @StartArguments
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithError "Start-EsteliPOS.ps1 devolvio codigo $LASTEXITCODE." -ExitCode 17
+    }
 
+    Write-Step "Verificando instalacion completa"
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Test-EsteliPOSInstallation.ps1") -Port $Port -ServerProfile $ServerProfile
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithError "Revise storage\app\deployment\post-install-report.json" -ExitCode 18
+    }
+
+    Write-InstallLogLine -LogPath $InstallLogPath -Line "=== Instalacion completada OK $(Get-Date -Format o) ==="
     Write-Host "`nDESPLIEGUE COMPLETADO" -ForegroundColor Green
+    Write-Host "Log de instalacion: $InstallLogPath" -ForegroundColor DarkGray
+    Write-Host "Perfil de servidor: $ServerProfile"
     Write-Host "Direccion para PC, tablets y otros equipos: $AppUrl"
     Write-Host "Reserva la IP $LanAddress en el router usando la MAC $MacAddress"
     Write-Host "Hoja de acceso con QR: $NetworkPage"
@@ -233,5 +323,5 @@ try {
     Start-Process $ShortcutPath
     Read-Host "Presiona Enter para finalizar"
 } catch {
-    Stop-WithError $_.Exception.Message
+    Stop-WithError $_.Exception.Message -ExitCode 99
 }

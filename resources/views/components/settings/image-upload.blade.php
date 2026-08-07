@@ -2,8 +2,8 @@
     'name',
     'label',
     'currentUrl' => null,
-    'help' => 'JPG, PNG o WebP.',
-    'max' => '2 MB',
+    'help' => 'Cualquier tamaño. Se optimiza automáticamente.',
+    'max' => '20 MB',
     'removeName' => null,
 ])
 
@@ -19,7 +19,7 @@
         <div class="min-w-0 flex-1">
             <label for="{{ $inputId }}" class="block text-sm font-semibold text-slate-800">{{ $label }}</label>
             <p class="mt-1 text-xs text-slate-500">{{ $help }} Máximo {{ $max }}.</p>
-            <input id="{{ $inputId }}" type="file" name="{{ $name }}" accept="image/jpeg,image/png,image/webp" class="mt-3 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100" data-image-input>
+            <input id="{{ $inputId }}" type="file" name="{{ $name }}" accept="image/*" class="mt-3 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100" data-image-input>
 
             @if($removeName && $currentUrl)
                 <label class="mt-3 inline-flex items-center gap-2 text-sm text-slate-600">

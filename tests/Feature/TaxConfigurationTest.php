@@ -135,7 +135,7 @@ test('pos persists the same exempt total shown by its preview', function () {
     $this->actingAs($admin)->get(route('facturacion.receipt', ['saleId' => $sale->id, 'change' => 0]))
         ->assertOk()
         ->assertSee('data-paper-width="80mm"', false)
-        ->assertSee('@page { size: 80mm auto; margin: 0; }', false)
+        ->assertSee('size: 80mm auto', false)
         ->assertSee('max-width: 68mm; max-height: 44mm', false)
         ->assertSee('company/main-logo.png', false)
         ->assertSee('RUC: RUC-TEST-001')

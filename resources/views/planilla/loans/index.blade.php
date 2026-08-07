@@ -42,7 +42,7 @@
             <tbody class="divide-y">
                 @forelse($loans as $loan)
                 <tr>
-                    <td class="px-6 py-4 font-medium">{{ $loan->employee->name }}</td>
+                    <td class="px-6 py-4 font-medium">{{ $loan->employee?->name ?? 'Empleado no disponible' }}</td>
                     <td class="px-6 py-4">{{ $loan->type_label }}</td>
                     <td class="px-6 py-4">C$ {{ number_format($loan->amount, 2) }}</td>
                     <td class="px-6 py-4">C$ {{ number_format($loan->monthly_payment, 2) }}</td>

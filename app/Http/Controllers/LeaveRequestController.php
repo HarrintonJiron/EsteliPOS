@@ -58,25 +58,25 @@ class LeaveRequestController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(LeaveRequest $leaveRequest)
+    public function show(LeaveRequest $leave)
     {
-        $leaveRequest->load('employee', 'approvedBy');
+        $leave->load('employee', 'approvedBy');
 
-        return view('planilla.leave.show', compact('leaveRequest'));
+        return view('planilla.leave.show', ['leaveRequest' => $leave]);
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(LeaveRequest $leaveRequest)
+    public function edit(LeaveRequest $leave)
     {
-        return view('planilla.leave.edit', compact('leaveRequest'));
+        return view('planilla.leave.edit', ['leaveRequest' => $leave]);
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, LeaveRequest $leaveRequest)
+    public function update(Request $request, LeaveRequest $leave)
     {
         $validated = $request->validate([
             'type' => 'required|in:vacation,sick,personal,maternity,paternity,bereavement,unpaid',
@@ -90,7 +90,7 @@ class LeaveRequestController extends Controller
         $endDate = Carbon::parse($validated['end_date']);
         $validated['days'] = $startDate->diffInDays($endDate) + 1;
 
-        $leaveRequest->update($validated);
+        $leave->update($validated);
 
         return redirect()->route('leave.index')
             ->with('success', 'Solicitud actualizada correctamente');
@@ -99,9 +99,9 @@ class LeaveRequestController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(LeaveRequest $leaveRequest)
+    public function destroy(LeaveRequest $leave)
     {
-        $leaveRequest->delete();
+        $leave->delete();
 
         return redirect()->route('leave.index')
             ->with('success', 'Solicitud eliminada correctamente');
@@ -110,13 +110,13 @@ class LeaveRequestController extends Controller
     /**
      * Aprobar solicitud de permiso
      */
-    public function approve(Request $request, LeaveRequest $leaveRequest)
+    public function approve(Request $request, LeaveRequest $leave)
     {
         $validated = $request->validate([
             'rejection_reason' => 'nullable|string',
         ]);
 
-        $leaveRequest->update([
+        $leave->update([
             'status' => 'approved',
             'approved_by' => auth()->id(),
             'approved_at' => now(),
@@ -129,13 +129,13 @@ class LeaveRequestController extends Controller
     /**
      * Rechazar solicitud de permiso
      */
-    public function reject(Request $request, LeaveRequest $leaveRequest)
+    public function reject(Request $request, LeaveRequest $leave)
     {
         $validated = $request->validate([
             'rejection_reason' => 'required|string',
         ]);
 
-        $leaveRequest->update([
+        $leave->update([
             'status' => 'rejected',
             'approved_by' => auth()->id(),
             'approved_at' => now(),

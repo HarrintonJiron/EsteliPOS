@@ -7,8 +7,11 @@ use App\Models\Deduction;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\Loan;
+use App\Models\Payroll;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class PayrollService
 {
@@ -474,5 +477,210 @@ class PayrollService
                 'bonuses' => $report['totals']['bonuses'],
             ];
         })->values()->all();
+    }
+
+    /**
+     * @return array{start: Carbon, end: Carbon, selected_month: string}
+     */
+    public function resolvePeriodDates(?string $month = null): array
+    {
+        $startDate = Carbon::now()->startOfMonth();
+
+        if ($month) {
+            $startDate = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+        }
+
+        return [
+            'start' => $startDate,
+            'end' => $startDate->copy()->endOfMonth(),
+            'selected_month' => $startDate->format('Y-m'),
+        ];
+    }
+
+    public function isPeriodPaid(Carbon $startDate): bool
+    {
+        return Payroll::query()
+            ->where('month', $startDate->format('m'))
+            ->where('year', $startDate->year)
+            ->where('status', 'paid')
+            ->exists();
+    }
+
+    /**
+     * @return array{
+     *     paid_at: ?Carbon,
+     *     paid_by_name: ?string,
+     *     payrolls: Collection<int, Payroll>
+     * }
+     */
+    public function getPeriodPaymentSummary(Carbon $startDate): array
+    {
+        $payrolls = Payroll::query()
+            ->with(['employee', 'paidBy'])
+            ->where('month', $startDate->format('m'))
+            ->where('year', $startDate->year)
+            ->where('status', 'paid')
+            ->orderBy('id')
+            ->get();
+
+        $first = $payrolls->first();
+
+        return [
+            'paid_at' => $first?->paid_at,
+            'paid_by_name' => $first?->paidBy?->name,
+            'payrolls' => $payrolls,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     period_start: string,
+     *     period_end: string,
+     *     employees: array<int, array<string, mixed>>,
+     *     totals: array<string, float>,
+     *     is_paid: bool,
+     *     paid_at: ?Carbon,
+     *     paid_by_name: ?string
+     * }
+     */
+    public function getPayrollTicketData(Carbon $startDate, Carbon $endDate): array
+    {
+        $paymentSummary = $this->getPeriodPaymentSummary($startDate);
+
+        if ($paymentSummary['payrolls']->isNotEmpty()) {
+            $employees = $paymentSummary['payrolls']->map(function (Payroll $payroll): array {
+                return [
+                    'employee_id' => $payroll->employee_id,
+                    'employee_name' => $payroll->employee?->name ?? 'Empleado no disponible',
+                    'position' => $payroll->employee?->position,
+                    'base_salary' => (float) $payroll->base_salary,
+                    'bonuses' => (float) $payroll->bonuses,
+                    'gross_salary' => (float) $payroll->gross_salary,
+                    'inss_deduction' => (float) $payroll->inss_deduction,
+                    'ir_deduction' => (float) $payroll->ir_deduction,
+                    'other_deductions' => (float) $payroll->deductions,
+                    'loan_payments' => (float) $payroll->loan_payments,
+                    'total_deductions' => round(
+                        (float) $payroll->inss_deduction
+                        + (float) $payroll->ir_deduction
+                        + (float) $payroll->deductions
+                        + (float) $payroll->loan_payments,
+                        2
+                    ),
+                    'net_salary' => (float) $payroll->net_salary,
+                ];
+            })->values()->all();
+
+            $totals = [
+                'base_salary' => round(collect($employees)->sum('base_salary'), 2),
+                'bonuses' => round(collect($employees)->sum('bonuses'), 2),
+                'gross_salary' => round(collect($employees)->sum('gross_salary'), 2),
+                'inss_deduction' => round(collect($employees)->sum('inss_deduction'), 2),
+                'ir_deduction' => round(collect($employees)->sum('ir_deduction'), 2),
+                'other_deductions' => round(collect($employees)->sum('other_deductions'), 2),
+                'loan_payments' => round(collect($employees)->sum('loan_payments'), 2),
+                'total_deductions' => round(collect($employees)->sum('total_deductions'), 2),
+                'net_salary' => round(collect($employees)->sum('net_salary'), 2),
+            ];
+
+            return [
+                'period_start' => $startDate->format('Y-m-d'),
+                'period_end' => $endDate->format('Y-m-d'),
+                'employees' => $employees,
+                'totals' => $totals,
+                'is_paid' => true,
+                'paid_at' => $paymentSummary['paid_at'],
+                'paid_by_name' => $paymentSummary['paid_by_name'],
+            ];
+        }
+
+        $report = $this->generatePayrollReport($startDate, $endDate);
+
+        return [
+            ...$report,
+            'is_paid' => false,
+            'paid_at' => null,
+            'paid_by_name' => null,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     period_start: string,
+     *     period_end: string,
+     *     employees_count: int,
+     *     net_salary: float
+     * }
+     */
+    public function payPayroll(Carbon $startDate, Carbon $endDate, int $paidByUserId): array
+    {
+        if ($this->isPeriodPaid($startDate)) {
+            throw new \RuntimeException('La nómina de este período ya fue pagada.');
+        }
+
+        $report = $this->generatePayrollReport($startDate, $endDate);
+
+        if (count($report['employees']) === 0) {
+            throw new \RuntimeException('No hay empleados activos para pagar en este período.');
+        }
+
+        DB::transaction(function () use ($report, $startDate, $endDate, $paidByUserId): void {
+            $paidAt = now();
+            $month = $startDate->format('m');
+            $year = $startDate->year;
+
+            foreach ($report['employees'] as $row) {
+                Payroll::query()->create([
+                    'employee_id' => $row['employee_id'],
+                    'month' => $month,
+                    'year' => $year,
+                    'base_salary' => $row['base_salary'],
+                    'gross_salary' => $row['gross_salary'],
+                    'bonuses' => $row['bonuses'],
+                    'inss_deduction' => $row['inss_deduction'],
+                    'ir_deduction' => $row['ir_deduction'],
+                    'deductions' => $row['other_deductions'],
+                    'loan_payments' => $row['loan_payments'],
+                    'net_salary' => $row['net_salary'],
+                    'status' => 'paid',
+                    'paid_at' => $paidAt,
+                    'paid_by' => $paidByUserId,
+                ]);
+
+                Bonus::query()
+                    ->where('employee_id', $row['employee_id'])
+                    ->where('status', 'approved')
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->update(['status' => 'paid']);
+
+                Deduction::query()
+                    ->where('employee_id', $row['employee_id'])
+                    ->where('status', 'approved')
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->update(['status' => 'deducted']);
+
+                Loan::query()
+                    ->where('employee_id', $row['employee_id'])
+                    ->where('status', 'active')
+                    ->where('start_date', '<=', $endDate)
+                    ->where('end_date', '>=', $startDate)
+                    ->get()
+                    ->each(function (Loan $loan): void {
+                        $remainingBalance = max(0, (float) $loan->remaining_balance - (float) $loan->monthly_payment);
+
+                        $loan->update([
+                            'remaining_balance' => $remainingBalance,
+                            'status' => $remainingBalance <= 0 ? 'completed' : 'active',
+                        ]);
+                    });
+            }
+        });
+
+        return [
+            'period_start' => $startDate->format('Y-m-d'),
+            'period_end' => $endDate->format('Y-m-d'),
+            'employees_count' => count($report['employees']),
+            'net_salary' => $report['totals']['net_salary'],
+        ];
     }
 }

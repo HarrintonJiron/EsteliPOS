@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\PurchaseRequest;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseDetail;
@@ -12,6 +13,7 @@ use App\Models\Warehouse;
 use App\Services\AccountingService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
+use App\Services\PricingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +24,7 @@ class CompraController extends Controller
         private AccountingService $accountingService,
         private InventoryService $inventoryService,
         private PosCatalogService $posCatalog,
+        private PricingService $pricing,
     ) {}
 
     public function index(Request $request)
@@ -126,6 +129,81 @@ class CompraController extends Controller
             ->all();
     }
 
+    public function nextProductCode(): JsonResponse
+    {
+        return response()->json([
+            'code' => $this->inventoryService->nextProductCode(),
+        ]);
+    }
+
+    public function quickStoreProduct(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'code' => 'nullable|string|max:50|unique:products,code',
+            'purchase_price' => 'required|numeric|min:0',
+            'sale_price' => 'nullable|numeric|min:0',
+            'category_id' => 'nullable|exists:categories,id',
+            'supplier_id' => 'nullable|exists:suppliers,id',
+        ], [
+            'name.required' => 'El nombre del producto es obligatorio.',
+            'purchase_price.required' => 'Indica el costo de compra.',
+            'code.unique' => 'Ese código ya existe en el inventario.',
+        ]);
+
+        $categoryId = $validated['category_id'] ?? Category::query()->value('id');
+
+        if (! $categoryId) {
+            return response()->json([
+                'message' => 'Crea al menos una categoría antes de registrar productos.',
+                'errors' => ['category_id' => ['Crea al menos una categoría antes de registrar productos.']],
+            ], 422);
+        }
+
+        $purchasePrice = (float) $validated['purchase_price'];
+        $salePrice = isset($validated['sale_price'])
+            ? (float) $validated['sale_price']
+            : round($purchasePrice / 0.85, 2);
+        $code = $validated['code'] ?? $this->inventoryService->nextProductCode();
+        $supplierId = isset($validated['supplier_id']) ? (int) $validated['supplier_id'] : null;
+
+        $product = DB::transaction(function () use ($categoryId, $validated, $purchasePrice, $salePrice, $code, $supplierId) {
+            $product = Product::create([
+                'category_id' => $categoryId,
+                'name' => $validated['name'],
+                'code' => $code,
+                'purchase_price' => $purchasePrice,
+                'sale_price' => $salePrice,
+                'stock' => 0,
+                'unit' => 'unidad',
+                'low_stock_threshold' => 5,
+                'status' => 'active',
+            ]);
+
+            $this->pricing->syncProductToDefaultList($product);
+
+            if ($supplierId) {
+                $product->suppliers()->syncWithoutDetaching([
+                    $supplierId => ['purchase_price' => $purchasePrice],
+                ]);
+            }
+
+            return $product;
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Producto creado correctamente.',
+            'product' => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'code' => $product->code,
+                'price' => $purchasePrice,
+                'has_supplier_price' => $supplierId !== null,
+            ],
+        ]);
+    }
+
     public function show($id)
     {
         $purchase = Purchase::with('details.product', 'supplier', 'warehouse')->findOrFail($id);
@@ -135,11 +213,11 @@ class CompraController extends Controller
 
     public function create()
     {
-        $products = Product::orderBy('name')->get();
         $suppliers = Supplier::orderBy('name')->get();
         $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
 
-        return view('compras.create', compact('products', 'suppliers', 'warehouses'));
+        return view('compras.create', compact('suppliers', 'warehouses', 'categories'));
     }
 
     public function store(PurchaseRequest $request)
@@ -210,11 +288,11 @@ class CompraController extends Controller
     public function edit($id)
     {
         $purchase = Purchase::with('details.product')->findOrFail($id);
-        $products = Product::orderBy('name')->get();
         $suppliers = Supplier::orderBy('name')->get();
         $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
 
-        return view('compras.edit', compact('purchase', 'products', 'suppliers', 'warehouses'));
+        return view('compras.edit', compact('purchase', 'suppliers', 'warehouses', 'categories'));
     }
 
     public function productosPorProveedor($supplierId)

@@ -20,8 +20,8 @@
         <div class="grid grid-cols-2 gap-6">
             <div>
                 <p class="text-sm text-gray-500">Empleado</p>
-                <p class="font-medium text-lg">{{ $leaveRequest->employee->name }}</p>
-                <p class="text-sm text-gray-500">{{ $leaveRequest->employee->position }}</p>
+                <p class="font-medium text-lg">{{ $leaveRequest->employee?->name ?? 'Empleado no disponible' }}</p>
+                <p class="text-sm text-gray-500">{{ $leaveRequest->employee?->position ?? '—' }}</p>
             </div>
 
             <div>
@@ -67,11 +67,11 @@
             </div>
             @endif
 
-            @if($leaveRequest->approved_by)
+            @if($leaveRequest->approved_by && $leaveRequest->approvedBy)
             <div class="col-span-2">
                 <p class="text-sm text-gray-500">Aprobado por</p>
                 <p class="font-medium">{{ $leaveRequest->approvedBy->name }}</p>
-                <p class="text-sm text-gray-500">{{ $leaveRequest->approved_at->format('d/m/Y H:i') }}</p>
+                <p class="text-sm text-gray-500">{{ $leaveRequest->approved_at?->format('d/m/Y H:i') }}</p>
             </div>
             @endif
         </div>

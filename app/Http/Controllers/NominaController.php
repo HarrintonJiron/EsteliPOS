@@ -3,25 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Services\PayrollService;
-use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 class NominaController extends Controller
 {
     public function __construct(private PayrollService $payrollService) {}
 
-    public function index()
+    public function index(): View
     {
-        $startDate = Carbon::now()->startOfMonth();
-
-        if (request()->filled('month')) {
-            $startDate = Carbon::createFromFormat('Y-m', request('month'))->startOfMonth();
-        } elseif (request()->has('month') && request()->has('year')) {
-            $startDate = Carbon::create((int) request('year'), (int) request('month'), 1)->startOfMonth();
-        }
-
-        $endDate = $startDate->copy()->endOfMonth();
+        $period = $this->payrollService->resolvePeriodDates(request('month'));
+        $startDate = $period['start'];
+        $endDate = $period['end'];
         $payrollReport = $this->payrollService->generatePayrollReport($startDate, $endDate);
         $trend = $this->payrollService->getPayrollTrend(6, $startDate);
+        $isPaid = $this->payrollService->isPeriodPaid($startDate);
+        $paymentSummary = $this->payrollService->getPeriodPaymentSummary($startDate);
 
         $charts = [
             'salary_by_employee' => collect($payrollReport['employees'])
@@ -51,9 +49,58 @@ class NominaController extends Controller
             'payrollReport' => $payrollReport,
             'startDate' => $startDate,
             'endDate' => $endDate,
-            'selectedMonth' => $startDate->format('Y-m'),
+            'selectedMonth' => $period['selected_month'],
             'trend' => $trend,
             'charts' => $charts,
+            'isPaid' => $isPaid,
+            'paidAt' => $paymentSummary['paid_at'],
+            'paidByName' => $paymentSummary['paid_by_name'],
+        ]);
+    }
+
+    public function pay(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'month' => 'required|date_format:Y-m',
+        ]);
+
+        $period = $this->payrollService->resolvePeriodDates($validated['month']);
+
+        try {
+            $result = $this->payrollService->payPayroll(
+                $period['start'],
+                $period['end'],
+                (int) auth()->id()
+            );
+        } catch (\RuntimeException $exception) {
+            return redirect()
+                ->route('nomina.index', ['month' => $validated['month']])
+                ->with('error', $exception->getMessage());
+        }
+
+        return redirect()
+            ->route('nomina.index', ['month' => $validated['month']])
+            ->with('success', sprintf(
+                'Nómina pagada correctamente. %d empleados · Neto C$ %s',
+                $result['employees_count'],
+                number_format($result['net_salary'], 2)
+            ));
+    }
+
+    public function ticket(Request $request): View
+    {
+        $validated = $request->validate([
+            'month' => 'required|date_format:Y-m',
+        ]);
+
+        $period = $this->payrollService->resolvePeriodDates($validated['month']);
+        $ticketData = $this->payrollService->getPayrollTicketData($period['start'], $period['end']);
+
+        return view('planilla.nomina-ticket', [
+            'ticketData' => $ticketData,
+            'startDate' => $period['start'],
+            'endDate' => $period['end'],
+            'selectedMonth' => $period['selected_month'],
         ]);
     }
 }

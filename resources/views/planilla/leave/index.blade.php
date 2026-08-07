@@ -54,7 +54,7 @@
             <tbody class="divide-y">
                 @forelse($leaveRequests as $leave)
                 <tr>
-                    <td class="px-6 py-4 font-medium">{{ $leave->employee->name }}</td>
+                    <td class="px-6 py-4 font-medium">{{ $leave->employee?->name ?? 'Empleado no disponible' }}</td>
                     <td class="px-6 py-4">{{ $leave->type_label }}</td>
                     <td class="px-6 py-4">
                         {{ $leave->start_date->format('d/m/Y') }} - {{ $leave->end_date->format('d/m/Y') }}

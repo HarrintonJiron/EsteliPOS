@@ -376,8 +376,14 @@
 </div>
 
 @php
-    $productsJson = $products->map(function($p) {
-        return ['id' => $p->id, 'name' => $p->name, 'code' => $p->code, 'price' => (float)$p->sale_price];
+    $productsJson = $products->map(function ($p) {
+        return [
+            'id' => $p->id,
+            'name' => $p->name,
+            'code' => $p->code,
+            'price' => (float) $p->effectivePrice(),
+            'stock' => (float) $p->stock,
+        ];
     })->values()->toJson();
     $defaultRepairWarrantyJson = json_encode($companyProfile['repair_warranty_text'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 @endphp
@@ -571,7 +577,7 @@ function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part
                 <div class="col-span-2 service-select-field ${itemType === 'service' ? '' : 'hidden'}">
                     <label class="text-xs text-slate-500">Seleccionar Servicio Predefinido</label>
                     <div class="flex gap-2">
-                        <select name="items[${idx}][service_id]" class="select-field text-sm flex-1" onchange="onServiceSelect(this, ${idx})">
+                        <select name="items[${idx}][service_id]" class="select-field text-sm flex-1 item-service-sel" data-idx="${idx}">
                             <option value="">— Manual —</option>
                             ${servicesOpts.map(s => `<option value="${s.id}" data-price="${s.price}" data-description="${s.name}" ${serviceId == s.id ? 'selected' : ''}>${s.name} - C$ ${s.price.toFixed(2)}</option>`).join('')}
                         </select>
@@ -590,18 +596,18 @@ function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part
                 </div>
                 <div class="part-product-field ${itemType === 'part' ? '' : 'hidden'}">
                     <label class="text-xs text-slate-500">Vincular a producto</label>
-                    <select name="items[${idx}][product_id]" class="select-field text-sm part-product-sel" data-idx="${idx}" onchange="onProductSelect(this, ${idx})">
+                    <select name="items[${idx}][product_id]" class="select-field text-sm part-product-sel" data-idx="${idx}">
                         <option value="">— Manual —</option>${opts}
                     </select>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="text-xs text-slate-500">Cant.</label>
-                        <input type="number" name="items[${idx}][quantity]" value="${qty}" min="0.01" step="0.01" required class="input-field text-sm item-qty" data-idx="${idx}" oninput="calcItemSubtotal(${idx})">
+                        <input type="number" name="items[${idx}][quantity]" value="${qty}" min="0.01" step="0.01" required class="input-field text-sm item-qty" data-idx="${idx}">
                     </div>
                     <div>
                         <label class="text-xs text-slate-500">Precio</label>
-                        <input type="number" name="items[${idx}][price]" value="${price}" min="0" step="0.01" required class="input-field text-sm item-price" data-idx="${idx}" oninput="calcItemSubtotal(${idx})">
+                        <input type="number" name="items[${idx}][price]" value="${price}" min="0" step="0.01" required class="input-field text-sm item-price" data-idx="${idx}">
                     </div>
                 </div>
             </div>
@@ -613,7 +619,16 @@ function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part
         </div>
     </div>`;
     document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', html);
-    recalcParts();
+
+    if (productId) {
+        const sel = getItemRow(idx)?.querySelector('.part-product-sel');
+        if (sel) {
+            onProductSelect(sel, idx);
+            return;
+        }
+    }
+
+    syncItemRow(idx);
 }
 
 function toggleItemTypeFields(idx) {
@@ -636,32 +651,91 @@ function toggleItemTypeFields(idx) {
     }
 }
 
-function onServiceSelect(sel, idx) {
-    const opt = sel.options[sel.selectedIndex];
-    if (opt.value) {
-        const descField = document.querySelector(`[name="items[${idx}][description]"]`);
-        const priceField = document.querySelector(`.item-price[data-idx="${idx}"]`);
-        
-        descField.value = opt.dataset.description || opt.text.split(' - ')[0];
-        priceField.value = opt.dataset.price || 0;
-        calcItemSubtotal(idx);
+function getItemRow(idx) {
+    return document.querySelector(`.item-row[data-idx="${idx}"]`);
+}
+
+function findProduct(productId) {
+    return productsData.find(product => String(product.id) === String(productId));
+}
+
+function syncItemRow(idx) {
+    const row = getItemRow(idx);
+    if (!row) {
+        return;
     }
+
+    const qty = parseFloat(row.querySelector('.item-qty')?.value || 0);
+    const price = parseFloat(row.querySelector('.item-price')?.value || 0);
+    const subtotalEl = row.querySelector('.item-subtotal');
+
+    if (subtotalEl) {
+        subtotalEl.textContent = fmt(qty * price);
+    }
+
+    recalcParts();
+}
+
+function onServiceSelect(sel, idx) {
+    const row = getItemRow(idx) || sel.closest('.item-row');
+    if (!row) {
+        return;
+    }
+
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt?.value) {
+        syncItemRow(idx);
+        return;
+    }
+
+    const descField = row.querySelector(`[name="items[${idx}][description]"]`);
+    const priceField = row.querySelector('.item-price');
+    const servicePrice = parseFloat(opt.dataset.price ?? '');
+
+    if (descField) {
+        descField.value = opt.dataset.description || opt.text.split(' - ')[0];
+    }
+
+    if (priceField) {
+        priceField.value = Number.isFinite(servicePrice) ? servicePrice.toFixed(2) : '0.00';
+    }
+
+    syncItemRow(idx);
 }
 
 function onProductSelect(sel, idx) {
-    const opt = sel.options[sel.selectedIndex];
-    if (opt.value) {
-        document.querySelector(`.item-price[data-idx="${idx}"]`).value = opt.dataset.price ?? 0;
-        calcItemSubtotal(idx);
+    const row = getItemRow(idx) || sel.closest('.item-row');
+    if (!row) {
+        return;
     }
+
+    const productId = sel.value;
+    if (!productId) {
+        syncItemRow(idx);
+        return;
+    }
+
+    const product = findProduct(productId);
+    if (!product) {
+        return;
+    }
+
+    const descField = row.querySelector(`[name="items[${idx}][description]"]`);
+    const priceField = row.querySelector('.item-price');
+
+    if (descField) {
+        descField.value = product.code ? `${product.name} (${product.code})` : product.name;
+    }
+
+    if (priceField) {
+        priceField.value = Number(product.price).toFixed(2);
+    }
+
+    syncItemRow(idx);
 }
 
 function calcItemSubtotal(idx) {
-    const qty  = parseFloat(document.querySelector(`.item-qty[data-idx="${idx}"]`)?.value || 0);
-    const prc  = parseFloat(document.querySelector(`.item-price[data-idx="${idx}"]`)?.value || 0);
-    const el   = document.querySelector(`.item-subtotal[data-idx="${idx}"]`);
-    if (el) el.textContent = fmt(qty * prc);
-    recalcParts();
+    syncItemRow(idx);
 }
 
 function removeItem(btn) {
@@ -673,10 +747,9 @@ function removeItem(btn) {
 function recalcParts() {
     partsCost = 0;
     document.querySelectorAll('.item-row').forEach(row => {
-        const idx  = row.dataset.idx;
-        const qty  = parseFloat(document.querySelector(`.item-qty[data-idx="${idx}"]`)?.value || 0);
-        const prc  = parseFloat(document.querySelector(`.item-price[data-idx="${idx}"]`)?.value || 0);
-        partsCost += qty * prc;
+        const qty = parseFloat(row.querySelector('.item-qty')?.value || 0);
+        const price = parseFloat(row.querySelector('.item-price')?.value || 0);
+        partsCost += qty * price;
     });
     document.getElementById('partsCostDisplay').textContent = fmt(partsCost);
     updateTotal();
@@ -795,6 +868,39 @@ async function addNewBrand(buttonEl = null) {
     }
 }
 
+function initRepairItems() {
+    const itemsContainer = document.getElementById('itemsContainer');
+    if (!itemsContainer) {
+        return;
+    }
+
+    itemsContainer.addEventListener('change', (event) => {
+        const row = event.target.closest('.item-row');
+        if (!row) {
+            return;
+        }
+
+        const idx = row.dataset.idx;
+
+        if (event.target.classList.contains('part-product-sel')) {
+            onProductSelect(event.target, idx);
+        } else if (event.target.classList.contains('item-service-sel')) {
+            onServiceSelect(event.target, idx);
+        }
+    });
+
+    itemsContainer.addEventListener('input', (event) => {
+        const row = event.target.closest('.item-row');
+        if (!row) {
+            return;
+        }
+
+        if (event.target.matches('.item-qty, .item-price')) {
+            syncItemRow(row.dataset.idx);
+        }
+    });
+}
+
 // Pre-load existing items
 document.addEventListener('DOMContentLoaded', () => {
     initPatternPad();
@@ -802,6 +908,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleOptionalField('diagnosis');
     toggleOptionalField('repair_notes');
     toggleWarrantyText();
+    initRepairItems();
 
     // Load brands dynamically
     loadBrands();

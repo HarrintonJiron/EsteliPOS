@@ -1,3 +1,5 @@
+. (Join-Path $PSScriptRoot "EsteliPOS-IIS.ps1")
+
 function Get-EsteliPOSProjectRoot {
     return (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 }
@@ -105,11 +107,16 @@ function Write-EsteliPOSNetworkAccessPage {
 function Register-EsteliPOSServerTask {
     param(
         [Parameter(Mandatory = $true)][string]$StartScript,
-        [Parameter(Mandatory = $true)][int]$Port
+        [Parameter(Mandatory = $true)][int]$Port,
+        [ValidateSet("Simple", "IIS")]
+        [string]$ServerProfile = "IIS"
     )
 
     $TaskName = "EsteliPOS - Servidor"
-    $Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$StartScript`" -Port $Port -HostAddress 0.0.0.0"
+    $Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$StartScript`" -Port $Port -ServerProfile $ServerProfile"
+    if ($ServerProfile -eq "Simple") {
+        $Arguments += " -HostAddress 0.0.0.0"
+    }
     $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $Arguments
     $LogonTrigger = New-ScheduledTaskTrigger -AtLogOn
     $BootTrigger = New-ScheduledTaskTrigger -AtStartup

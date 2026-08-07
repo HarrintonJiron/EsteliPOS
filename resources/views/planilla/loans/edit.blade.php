@@ -24,7 +24,7 @@
             <div class="grid grid-cols-2 gap-6">
                 <div class="col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Empleado</label>
-                    <input type="text" disabled value="{{ $loan->employee->name }} - {{ $loan->employee->position }}"
+                    <input type="text" disabled value="{{ ($loan->employee?->name ?? 'Empleado no disponible') }}{{ $loan->employee?->position ? ' - '.$loan->employee->position : '' }}"
                         class="w-full border rounded-lg px-3 py-2 bg-gray-100 text-gray-600">
                 </div>
 

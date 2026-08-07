@@ -8,11 +8,12 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use RuntimeException;
 use Throwable;
 
 class CompanySettingsService
 {
+    public function __construct(private ImageProcessingService $imageProcessing) {}
+
     public const DEFAULT_REPAIR_WARRANTY = 'Garantía de 30 días por mano de obra aplicando términos y condiciones. No cubre daños por mal uso, agua, golpes o manipulación por terceros después de la entrega.';
 
     private const GENERAL_KEYS = [
@@ -85,20 +86,14 @@ class CompanySettingsService
 
         try {
             if ($companyLogo) {
-                $nextCompanyLogo = $companyLogo->store('company', 'public');
-                if (! $nextCompanyLogo) {
-                    throw new RuntimeException('No fue posible guardar el logo principal.');
-                }
+                $nextCompanyLogo = $this->imageProcessing->storePublicImage($companyLogo, 'company', 1200, 1200);
                 $newFiles[] = $nextCompanyLogo;
             } elseif ($data['remove_company_logo'] ?? false) {
                 $nextCompanyLogo = '';
             }
 
             if ($ticketLogo) {
-                $nextTicketLogo = $ticketLogo->store('company', 'public');
-                if (! $nextTicketLogo) {
-                    throw new RuntimeException('No fue posible guardar el logo para tickets.');
-                }
+                $nextTicketLogo = $this->imageProcessing->storePublicImage($ticketLogo, 'company', 800, 800);
                 $newFiles[] = $nextTicketLogo;
             } elseif ($data['remove_ticket_logo'] ?? false) {
                 $nextTicketLogo = '';

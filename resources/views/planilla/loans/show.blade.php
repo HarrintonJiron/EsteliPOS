@@ -20,8 +20,8 @@
         <div class="grid grid-cols-2 gap-6">
             <div>
                 <p class="text-sm text-gray-500">Empleado</p>
-                <p class="font-medium text-lg">{{ $loan->employee->name }}</p>
-                <p class="text-sm text-gray-500">{{ $loan->employee->position }}</p>
+                <p class="font-medium text-lg">{{ $loan->employee?->name ?? 'Empleado no disponible' }}</p>
+                <p class="text-sm text-gray-500">{{ $loan->employee?->position ?? '—' }}</p>
             </div>
 
             <div>

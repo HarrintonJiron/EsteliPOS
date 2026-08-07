@@ -11,6 +11,7 @@
         'purchase' => $purchase,
         'suppliers' => $suppliers,
         'warehouses' => $warehouses,
+        'categories' => $categories,
         'initialItems' => $purchase->details->map(fn ($detail) => [
             'id' => $detail->product_id,
             'name' => $detail->product->name ?? 'Producto',

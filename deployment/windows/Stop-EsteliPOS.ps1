@@ -1,4 +1,20 @@
-$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+[CmdletBinding()]
+param(
+    [ValidateSet("Simple", "IIS", "Auto")]
+    [string]$ServerProfile = "Auto"
+)
+
+$ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "EsteliPOS-Common.ps1")
+
+$ProjectRoot = Get-EsteliPOSProjectRoot
+$ResolvedProfile = Get-EsteliPOSResolvedServerProfile -ServerProfile $ServerProfile
+
+if ($ResolvedProfile -eq "IIS") {
+    Stop-EsteliPOSIISSite
+    exit 0
+}
+
 $PidFile = Join-Path $ProjectRoot "storage\app\estelipos.pid"
 
 if (-not (Test-Path $PidFile)) { exit 0 }

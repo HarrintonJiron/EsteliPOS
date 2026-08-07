@@ -1,0 +1,25 @@
+; Fragmento recomendado para php.ini en produccion EsteliPOS (Windows)
+; Copie estas directivas al php.ini activo (php --ini)
+
+memory_limit = 256M
+max_execution_time = 120
+upload_max_filesize = 16M
+post_max_size = 20M
+date.timezone = America/Managua
+expose_php = Off
+
+extension_dir = "ext"
+extension=ctype
+extension=curl
+extension=dom
+extension=fileinfo
+extension=gd
+extension=mbstring
+extension=openssl
+extension=pdo_sqlite
+extension=sqlite3
+extension=tokenizer
+extension=xml
+extension=zip
+
+; Para IIS use PHP Thread Safe (TS) con php-cgi.exe
