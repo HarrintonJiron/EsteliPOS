@@ -3,15 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventoryAdjustment;
-use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\Warehouse;
 use App\Services\AccountingService;
+use App\Services\InventoryService;
+use App\Services\PosCatalogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AjusteInventarioController extends Controller
 {
-    public function __construct(private AccountingService $accountingService) {}
+    public function __construct(
+        private AccountingService $accountingService,
+        private InventoryService $inventoryService,
+        private PosCatalogService $posCatalog,
+    ) {}
 
     public function index(Request $request)
     {
@@ -50,73 +56,108 @@ class AjusteInventarioController extends Controller
     public function create(Request $request)
     {
         $products = Product::orderBy('name')->get();
+        $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
         $preselectedProduct = null;
 
         if ($request->filled('product_id')) {
             $preselectedProduct = Product::find($request->product_id);
         }
 
-        return view('ajustes.create', compact('products', 'preselectedProduct'));
+        return view('ajustes.create', compact('products', 'preselectedProduct', 'warehouses'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
             'type' => 'required|in:increase,decrease,count',
-            'quantity' => 'required|integer|min:0',
+            'quantity' => 'required|numeric|min:0',
             'reason' => 'required|string|min:5|max:500',
             'reference' => 'nullable|string|max:100',
         ]);
 
+        $warehouseId = $this->posCatalog->resolveWarehouseId($validated['warehouse_id'] ?? null);
+
         try {
-            DB::transaction(function () use ($validated, $request) {
+            DB::transaction(function () use ($validated, $request, $warehouseId) {
                 $product = Product::query()->lockForUpdate()->findOrFail($validated['product_id']);
-                $stockBefore = $product->stock;
-
-                $quantity = $validated['quantity'];
-                $adjustmentQuantity = 0;
-                $stockAfter = $stockBefore;
-
-                switch ($validated['type']) {
-                    case 'increase':
-                        $adjustmentQuantity = $quantity;
-                        $stockAfter = $stockBefore + $quantity;
-                        break;
-                    case 'decrease':
-                        $adjustmentQuantity = -$quantity;
-                        $stockAfter = max(0, $stockBefore - $quantity);
-                        break;
-                    case 'count':
-                        $adjustmentQuantity = $quantity - $stockBefore;
-                        $stockAfter = $quantity;
-                        break;
-                }
-
-                $product->update(['stock' => $stockAfter]);
+                $stockBefore = (float) $product->stock;
+                $quantity = (float) $validated['quantity'];
 
                 $adjustment = InventoryAdjustment::create([
                     'product_id' => $validated['product_id'],
+                    'warehouse_id' => $warehouseId,
                     'user_id' => $request->user()?->id ?? 1,
                     'type' => $validated['type'],
-                    'quantity' => $adjustmentQuantity,
+                    'quantity' => 0,
                     'stock_before' => $stockBefore,
-                    'stock_after' => $stockAfter,
+                    'stock_after' => $stockBefore,
                     'reason' => $validated['reason'],
                     'reference' => $validated['reference'] ?? null,
                 ]);
 
-                InventoryMovement::create([
-                    'product_id' => $validated['product_id'],
-                    'type' => $adjustmentQuantity >= 0 ? 'in' : 'out',
-                    'quantity' => abs($adjustmentQuantity),
-                    'stock_after' => $stockAfter,
-                    'reference' => 'adjustment:'.$adjustment->id,
-                    'note' => 'Ajuste: '.$validated['reason'],
-                    'user_id' => $request->user()?->id ?? 1,
+                $reference = 'adjustment:'.$adjustment->id;
+                $adjustmentQuantity = 0.0;
+
+                switch ($validated['type']) {
+                    case 'increase':
+                        $adjustmentQuantity = $quantity;
+                        $this->inventoryService->stockIn(
+                            $product,
+                            $quantity,
+                            $reference,
+                            $validated['reason'],
+                            $request->user()?->id,
+                            $warehouseId,
+                        );
+                        break;
+                    case 'decrease':
+                        $adjustmentQuantity = -$quantity;
+                        $this->inventoryService->stockOut(
+                            $product,
+                            $quantity,
+                            $reference,
+                            $validated['reason'],
+                            $request->user()?->id,
+                            false,
+                            $warehouseId,
+                        );
+                        break;
+                    case 'count':
+                        $currentWarehouseQty = $product->stockInWarehouse($warehouseId);
+                        $delta = $quantity - $currentWarehouseQty;
+                        $adjustmentQuantity = $delta;
+                        if ($delta > 0) {
+                            $this->inventoryService->stockIn(
+                                $product,
+                                $delta,
+                                $reference,
+                                'Conteo físico: '.$validated['reason'],
+                                $request->user()?->id,
+                                $warehouseId,
+                            );
+                        } elseif ($delta < 0) {
+                            $this->inventoryService->stockOut(
+                                $product,
+                                abs($delta),
+                                $reference,
+                                'Conteo físico: '.$validated['reason'],
+                                $request->user()?->id,
+                                false,
+                                $warehouseId,
+                            );
+                        }
+                        break;
+                }
+
+                $product->refresh();
+                $adjustment->update([
+                    'quantity' => $adjustmentQuantity,
+                    'stock_after' => (float) $product->stock,
                 ]);
 
-                $this->accountingService->recordInventoryAdjustment($adjustment);
+                $this->accountingService->recordInventoryAdjustment($adjustment->fresh());
             });
         } catch (\RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -139,28 +180,40 @@ class AjusteInventarioController extends Controller
         try {
             DB::transaction(function () use ($adjustment) {
                 $product = Product::query()->lockForUpdate()->findOrFail($adjustment->product_id);
+                $warehouseId = $adjustment->warehouse_id ?? $this->posCatalog->resolveWarehouseId(null);
 
-                if ((int) $product->stock !== (int) $adjustment->stock_after) {
+                if (abs((float) $product->stock - (float) $adjustment->stock_after) > 0.0001) {
                     throw new \RuntimeException(
                         'No se puede eliminar este ajuste porque el producto ya tuvo movimientos posteriores.'
                     );
                 }
 
-                $product->update(['stock' => $adjustment->stock_before]);
+                $qty = abs((float) $adjustment->quantity);
+                if ((float) $adjustment->quantity >= 0) {
+                    $this->inventoryService->stockOut(
+                        $product,
+                        $qty,
+                        'adjustment_revert:'.$adjustment->id,
+                        'Reverso de ajuste #'.$adjustment->id,
+                        auth()->id(),
+                        false,
+                        $warehouseId,
+                    );
+                } elseif ($qty > 0) {
+                    $this->inventoryService->stockIn(
+                        $product,
+                        $qty,
+                        'adjustment_revert:'.$adjustment->id,
+                        'Reverso de ajuste #'.$adjustment->id,
+                        auth()->id(),
+                        $warehouseId,
+                    );
+                }
 
-                InventoryMovement::create([
-                    'product_id' => $adjustment->product_id,
-                    'type' => $adjustment->quantity >= 0 ? 'out' : 'in',
-                    'quantity' => abs($adjustment->quantity),
-                    'stock_after' => $adjustment->stock_before,
-                    'reference' => 'adjustment_revert:'.$adjustment->id,
-                    'note' => 'Reverso de ajuste #'.$adjustment->id,
-                    'user_id' => auth()->id() ?? 1,
-                ]);
-
+                $adjustmentId = $adjustment->id;
                 $adjustment->delete();
 
-                $this->accountingService->voidForSource(InventoryAdjustment::class, $adjustment->id, 'Ajuste eliminado');
+                $this->accountingService->voidForSource(InventoryAdjustment::class, $adjustmentId, 'Ajuste eliminado');
             });
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
@@ -171,14 +224,14 @@ class AjusteInventarioController extends Controller
 
     public function getProductInfo($id)
     {
-        $product = Product::findOrFail($id);
+        $product = Product::with('baseUnit')->findOrFail($id);
 
         return response()->json([
             'id' => $product->id,
             'name' => $product->name,
             'code' => $product->code,
             'current_stock' => $product->stock,
-            'unit' => $product->unit,
+            'unit' => $product->baseUnitLabel(),
             'lot' => $product->lot,
             'expiry_date' => $product->expiry_date?->format('d/m/Y'),
             'location' => $product->location,

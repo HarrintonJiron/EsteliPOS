@@ -1,5 +1,7 @@
 <?php
 
+use Tests\TestCase;
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -11,7 +13,7 @@
 |
 */
 
-pest()->extend(Tests\TestCase::class)
+pest()->extend(TestCase::class)
  // ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
     ->in('Feature');
 
@@ -41,7 +43,12 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+function enableDemoSeederData(): void
 {
-    // ..
+    config(['app.seed_demo_data' => true]);
+}
+
+function disableDemoSeederData(): void
+{
+    config(['app.seed_demo_data' => false]);
 }

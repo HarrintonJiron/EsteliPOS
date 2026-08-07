@@ -8,8 +8,11 @@ use App\Models\Purchase;
 use App\Models\PurchaseDetail;
 use App\Models\Supplier;
 use App\Models\Tax;
+use App\Models\Warehouse;
 use App\Services\AccountingService;
 use App\Services\InventoryService;
+use App\Services\PosCatalogService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -18,12 +21,13 @@ class CompraController extends Controller
     public function __construct(
         private AccountingService $accountingService,
         private InventoryService $inventoryService,
+        private PosCatalogService $posCatalog,
     ) {}
 
     public function index(Request $request)
     {
         $perPage = (int) $request->query('per_page', 15);
-        $query = Purchase::with('supplier', 'user');
+        $query = Purchase::with('supplier', 'user', 'warehouse');
 
         if ($request->filled('supplier_id')) {
             $query->where('supplier_id', $request->supplier_id);
@@ -41,45 +45,90 @@ class CompraController extends Controller
             $query->where('status', $request->status);
         }
 
-        $purchases = $query->latest()->paginate($perPage);
+        $purchases = $query->latest()->paginate($perPage)->withQueryString();
         $suppliers = Supplier::orderBy('name')->get();
 
-        return view('compras.index', compact('purchases', 'suppliers'));
+        $monthStart = now()->startOfMonth();
+        $monthEnd = now()->endOfMonth();
+
+        $stats = [
+            'month_total' => (float) Purchase::query()
+                ->where('status', 'completed')
+                ->whereBetween('date', [$monthStart, $monthEnd])
+                ->sum('total'),
+            'completed_count' => Purchase::query()->where('status', 'completed')->count(),
+            'pending_count' => Purchase::query()->where('status', 'pending')->count(),
+            'invested_total' => (float) Purchase::query()
+                ->where('status', 'completed')
+                ->sum('total'),
+        ];
+
+        return view('compras.index', compact('purchases', 'suppliers', 'stats'));
     }
 
-    public function buscarProductos(Request $request, $supplierId)
+    public function searchProducts(Request $request): JsonResponse
     {
-        $search = $request->get('search', '');
+        return response()->json($this->resolvePurchaseProductSearch(
+            trim($request->string('search')->toString()),
+            $request->filled('supplier_id') ? (int) $request->input('supplier_id') : null,
+        ));
+    }
 
-        $products = Product::whereHas('suppliers', function ($query) use ($supplierId) {
-            $query->where('supplier_id', $supplierId);
-        })
+    public function buscarProductos(Request $request, $supplierId): JsonResponse
+    {
+        return response()->json($this->resolvePurchaseProductSearch(
+            trim($request->string('search')->toString()),
+            (int) $supplierId,
+        ));
+    }
+
+    /**
+     * @return list<array{id: int, name: string, code: string, price: float, has_supplier_price: bool}>
+     */
+    private function resolvePurchaseProductSearch(string $search, ?int $supplierId): array
+    {
+        if (strlen($search) < 2) {
+            return [];
+        }
+
+        return Product::query()
+            ->where('status', 'active')
             ->where(function ($query) use ($search) {
                 $query->where('name', 'like', "%{$search}%")
                     ->orWhere('code', 'like', "%{$search}%");
             })
-            ->limit(10)
+            ->orderBy('name')
+            ->limit(15)
             ->get()
-            ->map(function ($product) use ($supplierId) {
+            ->map(function (Product $product) use ($supplierId) {
+                $supplierPrice = null;
 
-                $supplier = $product->suppliers()
-                    ->where('supplier_id', $supplierId)
-                    ->first();
+                if ($supplierId) {
+                    $pivot = $product->suppliers()
+                        ->where('supplier_id', $supplierId)
+                        ->first()
+                        ?->pivot;
+
+                    if ($pivot?->purchase_price !== null) {
+                        $supplierPrice = (float) $pivot->purchase_price;
+                    }
+                }
 
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
                     'code' => $product->code,
-                    'price' => $supplier?->pivot?->purchase_price ?? $product->purchase_price,
+                    'price' => $supplierPrice ?? (float) ($product->purchase_price ?? 0),
+                    'has_supplier_price' => $supplierPrice !== null,
                 ];
-            });
-
-        return response()->json($products);
+            })
+            ->values()
+            ->all();
     }
 
     public function show($id)
     {
-        $purchase = Purchase::with('details.product', 'supplier')->findOrFail($id);
+        $purchase = Purchase::with('details.product', 'supplier', 'warehouse')->findOrFail($id);
 
         return view('compras.show', compact('purchase'));
     }
@@ -88,19 +137,22 @@ class CompraController extends Controller
     {
         $products = Product::orderBy('name')->get();
         $suppliers = Supplier::orderBy('name')->get();
+        $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
 
-        return view('compras.create', compact('products', 'suppliers'));
+        return view('compras.create', compact('products', 'suppliers', 'warehouses'));
     }
 
     public function store(PurchaseRequest $request)
     {
         $data = $request->validated();
+        $warehouseId = $this->posCatalog->resolveWarehouseId($data['warehouse_id'] ?? null);
 
         try {
-            DB::transaction(function () use ($data, $request) {
+            DB::transaction(function () use ($data, $request, $warehouseId) {
                 $purchase = Purchase::create([
                     'supplier_id' => $data['supplier_id'],
                     'user_id' => $request->user()?->id ?? ($data['user_id'] ?? 1),
+                    'warehouse_id' => $warehouseId,
                     'date' => $data['date'],
                     'subtotal' => 0,
                     'tax_total' => 0,
@@ -127,8 +179,14 @@ class CompraController extends Controller
                         'tax_amount' => round($lineTax, 2),
                     ]);
 
-                    $this->inventoryService->stockIn($product, (int) $item['quantity'], 'purchase:'.$purchase->id,
-                        'Entrada por compra #'.$purchase->id, $purchase->user_id);
+                    $this->inventoryService->stockIn(
+                        $product,
+                        (float) $item['quantity'],
+                        'purchase:'.$purchase->id,
+                        'Entrada por compra #'.$purchase->id,
+                        $purchase->user_id,
+                        $warehouseId,
+                    );
 
                     $subtotal += $lineNet;
                     $taxTotal += $lineTax;
@@ -154,8 +212,9 @@ class CompraController extends Controller
         $purchase = Purchase::with('details.product')->findOrFail($id);
         $products = Product::orderBy('name')->get();
         $suppliers = Supplier::orderBy('name')->get();
+        $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
 
-        return view('compras.edit', compact('purchase', 'products', 'suppliers'));
+        return view('compras.edit', compact('purchase', 'products', 'suppliers', 'warehouses'));
     }
 
     public function productosPorProveedor($supplierId)
@@ -189,11 +248,18 @@ class CompraController extends Controller
 
         try {
             DB::transaction(function () use ($purchase, $data) {
-                // revert stock for existing details
+                $warehouseId = $this->posCatalog->resolveWarehouseId($data['warehouse_id'] ?? $purchase->warehouse_id);
+
                 foreach ($purchase->details as $detail) {
-                    $this->inventoryService->stockOut($detail->product, (int) $detail->quantity,
-                        'purchase_update_revert:'.$purchase->id, 'Reverso por edición de compra #'.$purchase->id,
-                        $purchase->user_id);
+                    $this->inventoryService->stockOut(
+                        $detail->product,
+                        (float) $detail->quantity,
+                        'purchase_update_revert:'.$purchase->id,
+                        'Reverso por edición de compra #'.$purchase->id,
+                        $purchase->user_id,
+                        false,
+                        $purchase->warehouse_id,
+                    );
                 }
 
                 // remove old details
@@ -218,8 +284,14 @@ class CompraController extends Controller
                         'tax_amount' => round($lineTax, 2),
                     ]);
 
-                    $this->inventoryService->stockIn($product, (int) $item['quantity'], 'purchase:'.$purchase->id,
-                        'Entrada por compra #'.$purchase->id.' (editada)', $purchase->user_id);
+                    $this->inventoryService->stockIn(
+                        $product,
+                        (float) $item['quantity'],
+                        'purchase:'.$purchase->id,
+                        'Entrada por compra #'.$purchase->id.' (editada)',
+                        $purchase->user_id,
+                        $warehouseId,
+                    );
 
                     $subtotal += $lineNet;
                     $taxTotal += $lineTax;
@@ -227,6 +299,7 @@ class CompraController extends Controller
 
                 $purchase->update([
                     'supplier_id' => $data['supplier_id'],
+                    'warehouse_id' => $warehouseId,
                     'date' => $data['date'],
                     'subtotal' => round($subtotal, 2),
                     'tax_total' => round($taxTotal, 2),
@@ -251,9 +324,15 @@ class CompraController extends Controller
         try {
             DB::transaction(function () use ($purchase) {
                 foreach ($purchase->details as $detail) {
-                    $this->inventoryService->stockOut($detail->product, (int) $detail->quantity,
-                        'purchase_delete:'.$purchase->id, 'Reverso por eliminación de compra #'.$purchase->id,
-                        $purchase->user_id);
+                    $this->inventoryService->stockOut(
+                        $detail->product,
+                        (float) $detail->quantity,
+                        'purchase_delete:'.$purchase->id,
+                        'Reverso por eliminación de compra #'.$purchase->id,
+                        $purchase->user_id,
+                        false,
+                        $purchase->warehouse_id,
+                    );
                 }
 
                 PurchaseDetail::where('purchase_id', $purchase->id)->delete();

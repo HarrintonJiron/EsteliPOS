@@ -11,6 +11,7 @@ class InventoryAdjustment extends Model
 
     protected $fillable = [
         'product_id',
+        'warehouse_id',
         'user_id',
         'type',
         'quantity',
@@ -25,6 +26,11 @@ class InventoryAdjustment extends Model
         return $this->belongsTo(Product::class);
     }
 
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -32,7 +38,7 @@ class InventoryAdjustment extends Model
 
     public function getTypeLabelAttribute(): string
     {
-        return match($this->type) {
+        return match ($this->type) {
             'increase' => 'Aumento',
             'decrease' => 'Disminución',
             'count' => 'Ajuste por Conteo',
@@ -42,7 +48,7 @@ class InventoryAdjustment extends Model
 
     public function getTypeColorAttribute(): string
     {
-        return match($this->type) {
+        return match ($this->type) {
             'increase' => 'green',
             'decrease' => 'red',
             'count' => 'blue',

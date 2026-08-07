@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', 'Nueva Proforma')
 @section('hide-header', 'true')

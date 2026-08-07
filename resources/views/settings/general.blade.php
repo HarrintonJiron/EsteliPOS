@@ -97,9 +97,9 @@
                 <div>
                     <label for="currency" class="mb-1 block text-sm font-medium text-slate-700">Moneda *</label>
                     <select id="currency" name="currency" required class="select-field">
-                        <option value="NIO" @selected(old('currency', $settings['currency']) === 'NIO')>Córdoba nicaragüense (NIO)</option>
-                        <option value="USD" @selected(old('currency', $settings['currency']) === 'USD')>Dólar estadounidense (USD)</option>
-                        <option value="EUR" @selected(old('currency', $settings['currency']) === 'EUR')>Euro (EUR)</option>
+                        <option value="NIO" @selected(old('currency', $settings['currency']) === 'NIO')">Córdoba nicaragüense (NIO)</option>
+                        <option value="USD" @selected(old('currency', $settings['currency']) === 'USD')">Dólar estadounidense (USD)</option>
+                        <option value="EUR" @selected(old('currency', $settings['currency']) === 'EUR')">Euro (EUR)</option>
                     </select>
                     @error('currency')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
@@ -120,24 +120,24 @@
                 <div>
                     <label for="date_format" class="mb-1 block text-sm font-medium text-slate-700">Formato de fecha *</label>
                     <select id="date_format" name="date_format" required class="select-field">
-                        <option value="d/m/Y" @selected(old('date_format', $settings['date_format']) === 'd/m/Y')>DD/MM/AAAA</option>
-                        <option value="Y-m-d" @selected(old('date_format', $settings['date_format']) === 'Y-m-d')>AAAA-MM-DD</option>
-                        <option value="m/d/Y" @selected(old('date_format', $settings['date_format']) === 'm/d/Y')>MM/DD/AAAA</option>
+                        <option value="d/m/Y" @selected(old('date_format', $settings['date_format']) === 'd/m/Y')">DD/MM/AAAA</option>
+                        <option value="Y-m-d" @selected(old('date_format', $settings['date_format']) === 'Y-m-d')">AAAA-MM-DD</option>
+                        <option value="m/d/Y" @selected(old('date_format', $settings['date_format']) === 'm/d/Y')">MM/DD/AAAA</option>
                     </select>
                     @error('date_format')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div>
                     <label for="language" class="mb-1 block text-sm font-medium text-slate-700">Idioma *</label>
                     <select id="language" name="language" required class="select-field">
-                        <option value="es" @selected(old('language', $settings['language']) === 'es')>Español</option>
-                        <option value="en" @selected(old('language', $settings['language']) === 'en')>English</option>
+                        <option value="es" @selected(old('language', $settings['language']) === 'es')">Español</option>
+                        <option value="en" @selected(old('language', $settings['language']) === 'en')">English</option>
                     </select>
                     @error('language')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div class="rounded-xl bg-blue-50 p-4 text-sm text-blue-800 ring-1 ring-blue-600/20">
-                    <p class="font-semibold">Impuestos separados</p>
-                    <p class="mt-1 text-xs leading-5">Las tasas de IVA se administran en el catálogo conectado con ventas y compras.</p>
-                    <a href="{{ route('settings.taxes.index') }}" class="mt-2 inline-block text-xs font-semibold underline">Abrir impuestos</a>
+                    <p class="font-semibold">Tipos de cambio</p>
+                    <p class="mt-1 text-xs leading-5">Configure las tasas de conversión entre monedas.</p>
+                    <a href="{{ route('settings.exchange-rates.index') }}" class="mt-2 inline-block text-xs font-semibold underline">Gestionar tipos de cambio</a>
                 </div>
             </div>
         </section>
@@ -156,7 +156,7 @@
         <section class="card overflow-hidden">
             <div class="border-b border-slate-200 px-5 py-4 sm:px-6">
                 <h2 class="font-semibold text-slate-900">Mensajes de documentos</h2>
-                <p class="mt-1 text-sm text-slate-500">Textos globales que se incorporan a facturas y recibos nuevos.</p>
+                <p class="mt-1 text-sm text-slate-500">Textos globales para facturas, recibos y tickets de reparación.</p>
             </div>
             <div class="grid grid-cols-1 gap-5 p-5 lg:grid-cols-2 sm:p-6">
                 <div>
@@ -168,6 +168,12 @@
                     <label for="receipt_message" class="mb-1 block text-sm font-medium text-slate-700">Mensaje para recibos</label>
                     <textarea id="receipt_message" name="receipt_message" rows="4" maxlength="500" class="input-field">{{ old('receipt_message', $settings['receipt_message']) }}</textarea>
                     @error('receipt_message')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+                </div>
+                <div class="lg:col-span-2">
+                    <label for="repair_warranty_text" class="mb-1 block text-sm font-medium text-slate-700">Garantía predeterminada — reparaciones</label>
+                    <textarea id="repair_warranty_text" name="repair_warranty_text" rows="4" maxlength="2000" class="input-field" placeholder="Texto que aparece en tickets de reparación de celulares…">{{ old('repair_warranty_text', $settings['repair_warranty_text']) }}</textarea>
+                    <p class="mt-1 text-xs text-slate-500">Se carga automáticamente al crear una orden de reparación y se usa en el ticket cuando no hay texto personalizado.</p>
+                    @error('repair_warranty_text')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>
             </div>
         </section>

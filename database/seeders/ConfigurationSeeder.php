@@ -7,6 +7,7 @@ use App\Models\NumberSequence;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Setting;
+use App\Services\CompanySettingsService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Schema;
 
@@ -161,6 +162,7 @@ class ConfigurationSeeder extends Seeder
             ['key' => 'ticket_logo', 'value' => '', 'type' => 'string', 'group' => 'general', 'description' => 'Logo para tickets'],
             ['key' => 'invoice_footer', 'value' => '', 'type' => 'string', 'group' => 'general', 'description' => 'Pie de factura'],
             ['key' => 'receipt_message', 'value' => '¡Gracias por su compra!', 'type' => 'string', 'group' => 'general', 'description' => 'Mensaje para recibos'],
+            ['key' => 'repair_warranty_text', 'value' => CompanySettingsService::DEFAULT_REPAIR_WARRANTY, 'type' => 'string', 'group' => 'general', 'description' => 'Garantía predeterminada en tickets de reparación'],
         ];
 
         foreach ($generalSettings as $setting) {

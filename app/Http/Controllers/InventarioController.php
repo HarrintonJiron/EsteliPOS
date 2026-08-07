@@ -3,20 +3,31 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\PriceList;
 use App\Models\Product;
+use App\Models\ProductUnitConversion;
 use App\Models\Tax;
+use App\Models\Unit;
+use App\Models\Warehouse;
 use App\Services\InventoryService;
+use App\Services\PricingService;
+use App\Services\UnitConversionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Throwable;
 
 class InventarioController extends Controller
 {
-    public function __construct(private InventoryService $inventory) {}
+    public function __construct(
+        private InventoryService $inventory,
+        private PricingService $pricing,
+        private UnitConversionService $units,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -25,7 +36,7 @@ class InventarioController extends Controller
         $periodDays = (int) $request->query('period', 30);
         $salesSub = $this->inventory->salesStatsSubquery($periodDays);
 
-        $query = Product::query()->with('category');
+        $query = Product::query()->with(['category', 'baseUnit']);
 
         if ($q = $request->query('q')) {
             $query->where(function ($sub) use ($q) {
@@ -63,6 +74,17 @@ class InventarioController extends Controller
             $query->where('location', 'like', '%'.$request->location.'%');
         }
 
+        if ($request->filled('warehouse_id')) {
+            $warehouseId = (int) $request->warehouse_id;
+            $query->whereHas('warehouseStocks', fn ($q) => $q
+                ->where('warehouse_id', $warehouseId)
+                ->where('quantity', '>', 0));
+        }
+
+        if ($request->filled('base_unit_id')) {
+            $query->where('base_unit_id', $request->base_unit_id);
+        }
+
         $query->leftJoinSub($salesSub, 'sales_stats', 'sales_stats.product_id', '=', 'products.id')
             ->select('products.*')
             ->selectRaw('COALESCE(sales_stats.sold_qty, 0) as sold_qty')
@@ -83,11 +105,17 @@ class InventarioController extends Controller
         $stats = $this->buildStats();
         $movementStats = $this->inventory->movementStats($periodDays);
         $categories = Category::select('id', 'name')->orderBy('name')->get();
+        $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
+        $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
         $discrepancyCount = count($this->discrepantProductIds());
+
+        if ($request->ajax() || $request->boolean('live')) {
+            return view('inventario.partials.catalog-results', compact('products', 'viewMode'));
+        }
 
         return view('inventario.index', compact(
             'products', 'stats', 'categories', 'viewMode', 'periodDays',
-            'movementStats', 'discrepancyCount'
+            'movementStats', 'discrepancyCount', 'warehouses', 'units'
         ));
     }
 
@@ -146,10 +174,19 @@ class InventarioController extends Controller
         $stats = $this->buildStats();
         $movementStats = $this->inventory->movementStats($periodDays);
         $discrepancies = $this->inventory->reconcileAll(false)['discrepancies'];
+        $warehouseSummary = $this->inventory->warehouseSummary();
+        $priceLists = PriceList::query()->where('is_active', true)->withCount('items')->get();
+        $movementTrend = $this->inventory->movementTrend($periodDays);
+        $stockHealth = $this->inventory->stockHealthBreakdown();
+        $topSellersChart = $topSellers->take(8)->map(fn ($p) => [
+            'label' => Str::limit($p->name, 22),
+            'value' => (int) $p->sold_qty,
+        ])->values();
 
         return view('inventario.dashboard', compact(
             'topSellers', 'lowRotation', 'deadStock', 'valueByCategory',
-            'stats', 'movementStats', 'discrepancies', 'periodDays'
+            'stats', 'movementStats', 'discrepancies', 'periodDays', 'warehouseSummary', 'priceLists',
+            'movementTrend', 'stockHealth', 'topSellersChart'
         ));
     }
 
@@ -257,16 +294,18 @@ class InventarioController extends Controller
     {
         $categories = Category::orderBy('name')->get();
         $taxes = Tax::where('is_active', true)->orderBy('rate')->get();
+        $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
 
-        return view('inventario.create', compact('categories', 'taxes'));
+        return view('inventario.create', compact('categories', 'taxes', 'units'));
     }
 
     public function quick(): View
     {
         $categories = Category::orderBy('name')->get();
         $defaultCategory = $categories->first();
+        $wholesaleList = $this->pricing->wholesaleList();
 
-        return view('inventario.quick', compact('categories', 'defaultCategory'));
+        return view('inventario.quick', compact('categories', 'defaultCategory', 'wholesaleList'));
     }
 
     public function lookupCode(string $code): JsonResponse
@@ -297,6 +336,7 @@ class InventarioController extends Controller
             'code' => 'required|string|max:50|unique:products,code',
             'name' => 'required|string|max:255',
             'sale_price' => 'required|numeric|min:0',
+            'wholesale_price' => 'nullable|numeric|min:0',
             'purchase_price' => 'nullable|numeric|min:0',
             'stock' => 'nullable|integer|min:0',
             'category_id' => 'nullable|exists:categories,id',
@@ -337,6 +377,13 @@ class InventarioController extends Controller
                     $request->user()?->id
                 );
             }
+
+            $product = $product->fresh();
+            $this->pricing->syncProductToDefaultList($product);
+
+            if (! empty($validated['wholesale_price']) && ($wholesaleList = $this->pricing->wholesaleList())) {
+                $this->pricing->syncProductToList($product, $wholesaleList, (float) $validated['wholesale_price']);
+            }
         } catch (Throwable $exception) {
             $this->deleteProductImage($imagePath);
 
@@ -376,8 +423,9 @@ class InventarioController extends Controller
             'purchase_price' => 'required|numeric|min:0',
             'sale_price' => 'required|numeric|min:0',
             'tax_id' => 'nullable|exists:taxes,id',
-            'stock' => 'required|integer|min:0',
+            'stock' => 'required|numeric|min:0',
             'unit' => 'required|string|max:50',
+            'base_unit_id' => 'nullable|exists:units,id',
             'lot' => 'nullable|string|max:100',
             'expiry_date' => 'nullable|date|after:today',
             'location' => 'nullable|string|max:255',
@@ -392,9 +440,13 @@ class InventarioController extends Controller
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
         ]);
 
-        $stock = (int) $validated['stock'];
+        $stock = (float) $validated['stock'];
         $validated['stock'] = 0;
         unset($validated['image']);
+
+        if (empty($validated['base_unit_id']) && ! empty($validated['unit'])) {
+            $validated['base_unit_id'] = Unit::query()->where('abbreviation', $validated['unit'])->value('id');
+        }
 
         $imagePath = $request->file('image')?->store('products', 'public');
         if ($imagePath) {
@@ -413,6 +465,8 @@ class InventarioController extends Controller
                     $request->user()?->id
                 );
             }
+
+            $this->pricing->syncProductToDefaultList($product->fresh());
         } catch (Throwable $exception) {
             $this->deleteProductImage($imagePath);
 
@@ -424,7 +478,14 @@ class InventarioController extends Controller
 
     public function show(int $id): View
     {
-        $product = Product::with(['category', 'inventoryMovements.user'])->findOrFail($id);
+        $product = Product::with([
+            'category',
+            'baseUnit',
+            'unitConversions.unit',
+            'warehouseStocks.warehouse',
+            'inventoryMovements.user',
+            'inventoryMovements.warehouse',
+        ])->findOrFail($id);
 
         $movements = $product->inventoryMovements()
             ->with('user')
@@ -457,7 +518,75 @@ class InventarioController extends Controller
             'last_movement' => $product->inventoryMovements()->latest()->first(),
         ];
 
-        return view('inventario.show', compact('product', 'movements', 'productStats', 'periodDays'));
+        return view('inventario.show', compact('product', 'movements', 'productStats', 'periodDays'))
+            ->with('allUnits', Unit::query()->where('is_active', true)->orderBy('name')->get());
+    }
+
+    public function units(): View
+    {
+        $units = Unit::query()->withCount('products')->orderBy('unit_type')->orderBy('name')->get();
+
+        return view('inventario.units.index', compact('units'));
+    }
+
+    public function storeUnitConversion(Request $request, int $id): RedirectResponse
+    {
+        $product = Product::findOrFail($id);
+
+        $validated = $request->validate([
+            'unit_id' => 'required|exists:units,id',
+            'factor_to_base' => 'required|numeric|min:0.000001',
+            'sale_price' => 'nullable|numeric|min:0',
+            'is_default_sale_unit' => 'boolean',
+        ]);
+
+        if ((int) $validated['unit_id'] === (int) $product->base_unit_id) {
+            return back()->withErrors(['unit_id' => 'La unidad alternativa debe ser diferente a la unidad base.']);
+        }
+
+        if ($request->boolean('is_default_sale_unit')) {
+            $product->unitConversions()->update(['is_default_sale_unit' => false]);
+        }
+
+        ProductUnitConversion::query()->updateOrCreate(
+            ['product_id' => $product->id, 'unit_id' => $validated['unit_id']],
+            [
+                'factor_to_base' => $validated['factor_to_base'],
+                'sale_price' => $validated['sale_price'] ?? null,
+                'is_default_sale_unit' => $request->boolean('is_default_sale_unit'),
+            ]
+        );
+
+        return back()->with('success', 'Conversión de unidad registrada.');
+    }
+
+    public function destroyUnitConversion(int $id, ProductUnitConversion $conversion): RedirectResponse
+    {
+        $product = Product::findOrFail($id);
+        abort_unless($conversion->product_id === $product->id, 404);
+        $conversion->delete();
+
+        return back()->with('success', 'Conversión eliminada.');
+    }
+
+    public function convertUnits(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_id' => 'required|exists:products,id',
+            'quantity' => 'required|numeric|min:0',
+            'from_unit_id' => 'required|exists:units,id',
+            'to_unit_id' => 'required|exists:units,id',
+        ]);
+
+        $product = Product::with('baseUnit', 'unitConversions')->findOrFail($validated['product_id']);
+        $baseQty = $this->units->convertToBase($product, (float) $validated['quantity'], (int) $validated['from_unit_id']);
+        $converted = $this->units->convertFromBase($product, $baseQty, (int) $validated['to_unit_id']);
+
+        return response()->json([
+            'base_quantity' => $baseQty,
+            'converted_quantity' => $converted,
+            'base_unit' => $product->baseUnitLabel(),
+        ]);
     }
 
     public function edit(int $id): View
@@ -465,8 +594,9 @@ class InventarioController extends Controller
         $product = Product::findOrFail($id);
         $categories = Category::orderBy('name')->get();
         $taxes = Tax::where('is_active', true)->orderBy('rate')->get();
+        $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
 
-        return view('inventario.edit', compact('product', 'categories', 'taxes'));
+        return view('inventario.edit', compact('product', 'categories', 'taxes', 'units'));
     }
 
     public function update(Request $request, int $id): RedirectResponse
@@ -482,6 +612,7 @@ class InventarioController extends Controller
             'sale_price' => 'required|numeric|min:0',
             'tax_id' => 'nullable|exists:taxes,id',
             'unit' => 'required|string|max:50',
+            'base_unit_id' => 'nullable|exists:units,id',
             'lot' => 'nullable|string|max:100',
             'expiry_date' => 'nullable|date',
             'location' => 'nullable|string|max:255',
@@ -509,8 +640,13 @@ class InventarioController extends Controller
             $validated['image_url'] = null;
         }
 
+        if (empty($validated['base_unit_id']) && ! empty($validated['unit'])) {
+            $validated['base_unit_id'] = Unit::query()->where('abbreviation', $validated['unit'])->value('id');
+        }
+
         try {
             $product->update($validated);
+            $this->pricing->syncProductToDefaultList($product->fresh());
         } catch (Throwable $exception) {
             $this->deleteProductImage($newImagePath);
 

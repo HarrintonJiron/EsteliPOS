@@ -33,8 +33,7 @@ test('converting a proforma without a client creates a generic client sale', fun
 
     $this->actingAs($user);
 
-    $controller = new ProformaController();
-    $response = $controller->convertToSale(new Request(['payment_type' => 'cash']), $proforma->id);
+    $response = app(ProformaController::class)->convertToSale(new Request(['payment_type' => 'cash']), $proforma->id);
 
     $genericClient = Client::where('code', 'GEN')->first();
 

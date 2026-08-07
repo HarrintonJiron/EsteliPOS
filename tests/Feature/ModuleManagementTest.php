@@ -72,7 +72,7 @@ test('the general dashboard only queries and renders authorized module widgets',
 
     $this->actingAs($user)->get(route('dashboard.general'))
         ->assertOk()
-        ->assertSee('Valor Inventario')
+        ->assertSee('Valor inventario')
         ->assertDontSee('Ventas Hoy')
         ->assertDontSee('Clientes Activos')
         ->assertDontSee('Facturas Pendientes');

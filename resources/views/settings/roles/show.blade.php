@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('hide_back', true)
 @section('title','Detalle del rol')
 @section('content')
 <div class="space-y-6">

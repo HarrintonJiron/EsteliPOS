@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', 'POS - Punto de Venta')
 @section('hide-header', 'true')
@@ -11,8 +12,13 @@
      data-clients='@json($clients)'
      data-categories='@json($categories)'
      data-default-tax-rate="{{ $defaultTaxRate }}"
+     data-warehouses='@json($warehouses)'
+     data-default-warehouse-id="{{ $defaultWarehouseId }}"
      data-product-search-url="{{ route('facturacion.pos-products') }}"
+     data-product-image-url="{{ url('/facturacion/pos/products') }}"
      data-daily-report-url="{{ route('facturacion.pos-daily-report') }}">
+
+    <input type="file" id="posProductImageInput" class="hidden" accept="image/jpeg,image/png,image/webp" capture="environment">
 
     {{-- COLUMNA IZQUIERDA: TICKET --}}
     <div class="w-2/5 bg-white flex flex-col border-r border-slate-200">
@@ -67,6 +73,12 @@
                 <span id="clientDisplay">Cliente General</span>
             </button>
 
+            <button type="button" onclick="openDiscountModal()"
+                class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 rounded-xl px-4 transition-all shadow-md text-sm flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                <span>Descuento Factura</span>
+            </button>
+
             <div id="selectedItemBar" class="hidden bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-xs text-indigo-800">
                 Editando: <span id="selectedItemName" class="font-semibold"></span> · Cant: <span id="selectedItemQty" class="font-bold">0</span>
             </div>
@@ -100,6 +112,11 @@
                 <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F10</b> Corte</span>
             </div>
             <div class="flex gap-2">
+                <select id="warehouseSelect" class="select-field text-sm min-w-[160px]" title="Bodega de salida">
+                    @foreach($warehouses as $wh)
+                        <option value="{{ $wh->id }}" @selected($wh->id == $defaultWarehouseId)>{{ $wh->name }}</option>
+                    @endforeach
+                </select>
                 <input type="text" id="productSearch" placeholder="Buscar por nombre o código de barras..."
                     class="flex-1 px-4 py-2 text-sm border border-slate-300 rounded-xl focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600" autocomplete="off">
                 <button type="button" onclick="applyOrderDiscount()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium" title="Descuento global">% Dto.</button>
@@ -170,9 +187,118 @@
                 </button>
                 <div id="clientsList" class="space-y-2"></div>
             </div>
-            <div class="p-4 border-t border-slate-200">
+            <div class="p-4 border-t border-slate-200 space-y-2">
+                <button type="button" onclick="openQuickClientModal()"
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    Cliente Rápido
+                </button>
                 <button type="button" onclick="document.getElementById('clientModal').classList.add('hidden')"
                     class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    {{-- MODAL: Cliente Rápido --}}
+    <div id="quickClientModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+            <div class="p-5 border-b border-slate-200 flex justify-between items-center">
+                <h2 class="text-lg font-bold text-slate-900">Cliente Rápido</h2>
+                <button type="button" onclick="document.getElementById('quickClientModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <form id="quickClientForm" action="{{ route('clientes.quick-store') }}" method="POST">
+                @csrf
+                <div class="p-4 space-y-3">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Nombre *</label>
+                        <input type="text" name="name" required placeholder="Nombre del cliente" class="input-field">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Teléfono</label>
+                        <input type="text" name="phone" placeholder="Opcional" class="input-field">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Tipo</label>
+                        <select name="client_type" class="input-field">
+                            <option value="natural">Natural</option>
+                            <option value="company">Empresa</option>
+                        </select>
+                    </div>
+                    <div id="cedulaField">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Cédula</label>
+                        <input type="text" name="cedula" placeholder="Opcional" class="input-field">
+                    </div>
+                    <div id="rucField" class="hidden">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">RUC</label>
+                        <input type="text" name="ruc" placeholder="Opcional" class="input-field">
+                    </div>
+                    <div id="businessNameField" class="hidden">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Nombre Empresa</label>
+                        <input type="text" name="business_name" placeholder="Opcional" class="input-field">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Dirección</label>
+                        <input type="text" name="address" placeholder="Opcional" class="input-field">
+                    </div>
+                </div>
+                <div class="p-4 border-t border-slate-200 space-y-2">
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl">Guardar y Seleccionar</button>
+                    <button type="button" onclick="document.getElementById('quickClientModal').classList.add('hidden')"
+                        class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- MODAL: Descuento de Factura --}}
+    <div id="discountModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+            <div class="p-5 border-b border-slate-200 flex justify-between items-center">
+                <h2 class="text-lg font-bold text-slate-900">Descuento de Factura</h2>
+                <button type="button" onclick="document.getElementById('discountModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div class="flex gap-2">
+                    <button type="button" onclick="setDiscountType('percentage')" id="discountTypePercentage"
+                        class="flex-1 py-2 px-4 rounded-xl font-semibold border-2 border-amber-500 bg-amber-50 text-amber-700">
+                        Porcentaje %
+                    </button>
+                    <button type="button" onclick="setDiscountType('fixed')" id="discountTypeFixed"
+                        class="flex-1 py-2 px-4 rounded-xl font-semibold border-2 border-slate-200 text-slate-600 hover:border-slate-300">
+                        Monto Fijo C$
+                    </button>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1" id="discountLabel">Porcentaje de descuento</label>
+                    <input type="number" id="discountValue" step="0.01" min="0" placeholder="0" 
+                        class="w-full px-4 py-3 text-xl font-bold border-2 border-slate-200 rounded-xl focus:border-amber-500 focus:outline-none text-center bg-slate-50">
+                </div>
+                <div class="bg-slate-50 rounded-xl p-4">
+                    <div class="flex justify-between text-sm text-slate-600 mb-2">
+                        <span>Subtotal actual:</span>
+                        <span id="discountSubtotal" class="font-semibold">C$ 0.00</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-slate-600 mb-2">
+                        <span>Descuento:</span>
+                        <span id="discountAmount" class="font-semibold text-red-600">-C$ 0.00</span>
+                    </div>
+                    <div class="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-200 pt-2">
+                        <span>Total con descuento:</span>
+                        <span id="discountTotal">C$ 0.00</span>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-200 space-y-2">
+                <button type="button" onclick="applyInvoiceDiscount()"
+                    class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 rounded-xl">Aplicar Descuento</button>
+                <button type="button" onclick="removeInvoiceDiscount()"
+                    class="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded-xl">Eliminar Descuento</button>
+                <button type="button" onclick="document.getElementById('discountModal').classList.add('hidden')"
+                    class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl">Cancelar</button>
             </div>
         </div>
     </div>
@@ -247,6 +373,7 @@
                     </div>
                 </div>
 
+                <input type="hidden" name="warehouse_id" id="warehouseIdInput">
                 <input type="hidden" name="payment_type" id="paymentTypeInput">
                 <input type="hidden" name="client_id" id="clientIdInput">
                 <input type="hidden" name="items" id="itemsInput" value="[]">
@@ -297,20 +424,34 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const app = document.getElementById('posApp');
-    const normalizeProduct = p => ({
+    const normalizeProduct = p => {
+        const defaultUnit = (p.sale_units || []).find(u => u.is_default) || (p.sale_units || [])[0];
+        return {
         id: p.id,
         code: p.code ?? '',
         name: p.name,
-        price: parseFloat(p.sale_price ?? 0),
+        price: parseFloat(defaultUnit?.price ?? p.sale_price ?? 0),
         discount_pct: parseFloat(p.discount_pct ?? 0),
         discount_label: p.discount_label ?? '',
-        stock: parseInt(p.stock ?? 0),
+        stock: parseFloat(defaultUnit?.stock ?? p.stock ?? 0),
+        unit_id: defaultUnit?.id ?? p.default_unit_id ?? p.base_unit_id ?? null,
+        unit_label: defaultUnit?.abbreviation ?? p.default_unit_label ?? 'und',
+        sale_units: (p.sale_units || []).map(u => ({
+            id: u.id,
+            abbreviation: u.abbreviation,
+            name: u.name,
+            price: parseFloat(u.price ?? 0),
+            stock: parseFloat(u.stock ?? 0),
+            is_default: !!u.is_default,
+        })),
         category_id: p.category_id,
         category_name: p.category?.name ?? 'Sin categoría',
         image_url: p.image_url ?? null,
         tax_rate: parseFloat(p.effective_tax_rate ?? app.dataset.defaultTaxRate ?? 0),
-    });
+    };};
     let products = JSON.parse(app.dataset.products).map(normalizeProduct);
+    const warehousesData = JSON.parse(app.dataset.warehouses || '[]');
+    let selectedWarehouseId = parseInt(app.dataset.defaultWarehouseId || warehousesData[0]?.id || '0', 10);
     const clientsData = JSON.parse(app.dataset.clients)
         .filter(c => c.code !== 'GEN')
         .map(c => ({
@@ -325,6 +466,8 @@ document.addEventListener('DOMContentLoaded', function() {
             credit_enabled: !!c.credit_enabled,
             credit_limit: parseFloat(c.credit_limit ?? 0),
             credit_days: parseInt(c.credit_days ?? 30),
+            price_list_id: c.price_list_id ?? null,
+            price_list_name: c.price_list?.name ?? null,
             balance: parseFloat(c.balance ?? 0),
             available_credit: c.available_credit === null ? null : parseFloat(c.available_credit ?? 0),
             over_limit: !!c.over_limit,
@@ -345,6 +488,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('ticketNumber').textContent = ticketCounter;
 
+    function ticketLineKey(productId, unitId) {
+        return `${productId}:${unitId ?? 'base'}`;
+    }
+
+    function productUnit(product, unitId) {
+        return (product.sale_units || []).find(u => u.id == unitId) || product.sale_units?.[0];
+    }
+
+    async function refreshCatalogPrices() {
+        const params = new URLSearchParams({ search: '', warehouse_id: selectedWarehouseId });
+        if (currentClient) params.set('client_id', currentClient);
+        try {
+            const response = await fetch(`${app.dataset.productSearchUrl}?${params}`, { headers: { Accept: 'application/json' } });
+            if (!response.ok) return;
+            const remoteProducts = (await response.json()).map(normalizeProduct);
+            const known = new Map(products.map(product => [product.id, product]));
+            remoteProducts.forEach(product => known.set(product.id, product));
+            products = [...known.values()];
+            ticket.forEach(item => {
+                const product = products.find(p => p.id == item.product_id);
+                if (!product) return;
+                const unit = productUnit(product, item.unit_id);
+                if (unit) {
+                    item.price = unit.price;
+                    item.max_stock = unit.stock;
+                    item.unit_label = unit.abbreviation;
+                }
+            });
+            renderProducts(document.getElementById('productSearch').value);
+            renderTicket();
+        } catch (error) {
+            console.error('No se pudo actualizar precios', error);
+        }
+    }
+
+    document.getElementById('warehouseSelect')?.addEventListener('change', (e) => {
+        selectedWarehouseId = parseInt(e.target.value, 10);
+        document.getElementById('warehouseIdInput').value = selectedWarehouseId;
+        refreshCatalogPrices();
+    });
+    document.getElementById('warehouseIdInput').value = selectedWarehouseId;
+
     function visibleModal() {
         return modalIds
             .map(id => document.getElementById(id))
@@ -363,6 +548,182 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('clientModal').classList.remove('hidden');
         window.setTimeout(() => document.getElementById('clientSearch')?.focus(), 0);
     };
+
+    window.openQuickClientModal = function() {
+        document.getElementById('clientModal').classList.add('hidden');
+        document.getElementById('quickClientModal').classList.remove('hidden');
+        window.setTimeout(() => document.querySelector('#quickClientForm input[name="name"]')?.focus(), 0);
+    };
+
+    // Variables para descuento de factura
+    let invoiceDiscountType = 'percentage'; // 'percentage' o 'fixed'
+    let invoiceDiscountValue = 0;
+
+    window.openDiscountModal = function() {
+        const { subtotal } = getTotal();
+        if (subtotal === 0) {
+            alert('El ticket está vacío. Agrega productos antes de aplicar descuento.');
+            return;
+        }
+        
+        document.getElementById('clientModal').classList.add('hidden');
+        document.getElementById('discountModal').classList.remove('hidden');
+        
+        // Resetear valores
+        invoiceDiscountValue = 0;
+        document.getElementById('discountValue').value = '';
+        setDiscountType('percentage');
+        updateDiscountPreview();
+        
+        window.setTimeout(() => document.getElementById('discountValue')?.focus(), 0);
+    };
+
+    window.setDiscountType = function(type) {
+        invoiceDiscountType = type;
+        
+        const percentageBtn = document.getElementById('discountTypePercentage');
+        const fixedBtn = document.getElementById('discountTypeFixed');
+        const label = document.getElementById('discountLabel');
+        
+        if (type === 'percentage') {
+            percentageBtn.classList.add('border-amber-500', 'bg-amber-50', 'text-amber-700');
+            percentageBtn.classList.remove('border-slate-200', 'text-slate-600');
+            fixedBtn.classList.remove('border-amber-500', 'bg-amber-50', 'text-amber-700');
+            fixedBtn.classList.add('border-slate-200', 'text-slate-600');
+            label.textContent = 'Porcentaje de descuento';
+        } else {
+            fixedBtn.classList.add('border-amber-500', 'bg-amber-50', 'text-amber-700');
+            fixedBtn.classList.remove('border-slate-200', 'text-slate-600');
+            percentageBtn.classList.remove('border-amber-500', 'bg-amber-50', 'text-amber-700');
+            percentageBtn.classList.add('border-slate-200', 'text-slate-600');
+            label.textContent = 'Monto de descuento (C$)';
+        }
+        
+        updateDiscountPreview();
+    };
+
+    function updateDiscountPreview() {
+        const { subtotal } = getTotal();
+        const value = parseFloat(document.getElementById('discountValue').value) || 0;
+        
+        let discountAmount = 0;
+        if (invoiceDiscountType === 'percentage') {
+            discountAmount = subtotal * (value / 100);
+        } else {
+            discountAmount = Math.min(value, subtotal); // No puede ser mayor al subtotal
+        }
+        
+        const totalWithDiscount = Math.max(0, subtotal - discountAmount);
+        
+        document.getElementById('discountSubtotal').textContent = formatMoney(subtotal);
+        document.getElementById('discountAmount').textContent = '-' + formatMoney(discountAmount);
+        document.getElementById('discountTotal').textContent = formatMoney(totalWithDiscount);
+    }
+
+    document.getElementById('discountValue')?.addEventListener('input', updateDiscountPreview);
+
+    window.applyInvoiceDiscount = function() {
+        const value = parseFloat(document.getElementById('discountValue').value) || 0;
+        
+        if (value <= 0) {
+            alert('Ingresa un valor de descuento válido');
+            return;
+        }
+        
+        const { subtotal } = getTotal();
+        
+        if (invoiceDiscountType === 'percentage') {
+            if (value > 100) {
+                alert('El porcentaje no puede ser mayor a 100%');
+                return;
+            }
+            orderDiscountPct = value;
+        } else {
+            if (value > subtotal) {
+                alert('El descuento no puede ser mayor al subtotal');
+                return;
+            }
+            orderDiscountPct = (value / subtotal) * 100;
+        }
+        
+        updateTotals();
+        document.getElementById('discountModal').classList.add('hidden');
+        
+        alert('Descuento aplicado correctamente');
+    };
+
+    window.removeInvoiceDiscount = function() {
+        orderDiscountPct = 0;
+        updateTotals();
+        document.getElementById('discountModal').classList.add('hidden');
+        alert('Descuento eliminado');
+    };
+
+    // Manejar cambio de tipo de cliente en modal rápido
+    document.querySelector('#quickClientForm select[name="client_type"]')?.addEventListener('change', function(e) {
+        const isCompany = e.target.value === 'company';
+        document.getElementById('cedulaField').classList.toggle('hidden', isCompany);
+        document.getElementById('rucField').classList.toggle('hidden', !isCompany);
+        document.getElementById('businessNameField').classList.toggle('hidden', !isCompany);
+    });
+
+    // Manejar envío del formulario de cliente rápido
+    document.getElementById('quickClientForm')?.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        
+        try {
+            const response = await fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                // Agregar el nuevo cliente a la lista local
+                const newClient = {
+                    id: data.client.id,
+                    name: data.client.name,
+                    business_name: data.client.business_name || '',
+                    client_type: data.client.client_type || 'natural',
+                    cedula: data.client.cedula || '',
+                    ruc: data.client.ruc || '',
+                    document_label: data.client.client_type === 'company' ? 'RUC' : 'Cédula',
+                    document_number: data.client.client_type === 'company' ? (data.client.ruc || '') : (data.client.cedula || ''),
+                    credit_enabled: false,
+                    credit_limit: 0,
+                    credit_days: 30,
+                    balance: 0,
+                    available_credit: 0,
+                    over_limit: false,
+                };
+                clientsData.push(newClient);
+                
+                // Recargar la lista de clientes
+                renderClientsList(document.getElementById('clientSearch').value);
+                
+                // Seleccionar el nuevo cliente
+                selectClient(newClient.id, newClient.name);
+                
+                // Mostrar mensaje de éxito
+                alert('Cliente agregado con éxito: ' + newClient.name);
+                
+                // Cerrar modal y limpiar formulario
+                document.getElementById('quickClientModal').classList.add('hidden');
+                this.reset();
+            } else {
+                alert(data.message || 'Error al crear cliente');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al crear cliente');
+        }
+    });
 
     // Cierre de caja button - abre la pantalla de arqueo
     const closeBtn = document.getElementById('closeCashBtn');
@@ -439,8 +800,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="flex justify-between items-start gap-2">
                     <div class="flex-1 min-w-0">
                         <p class="font-semibold text-slate-900 text-sm truncate">${item.name}</p>
-                        <div class="flex gap-2 text-xs text-slate-600 mt-1">
-                            <span>Cant: <b>${item.quantity}</b></span>
+                        <div class="flex gap-2 text-xs text-slate-600 mt-1 flex-wrap">
+                            <span>Cant: <b>${item.quantity}</b> ${item.unit_label || ''}</span>
                             <span>${formatMoney(item.price)}</span>
                             ${item.discount > 0 ? `<span class="text-red-600">-${item.discount}%</span>` : ''}
                         </div>
@@ -470,20 +831,25 @@ document.addEventListener('DOMContentLoaded', function() {
         renderTicket();
     };
 
-    window.addProductToTicket = function(productId, qty = 1) {
+    window.addProductToTicket = function(productId, qty = 1, unitId = null) {
         const product = products.find(p => p.id == productId);
         if (!product) return;
 
-        if (product.stock <= 0) {
-            alert('Producto sin stock disponible');
+        const unit = productUnit(product, unitId ?? product.unit_id);
+        const resolvedUnitId = unit?.id ?? product.unit_id;
+        const unitStock = parseFloat(unit?.stock ?? product.stock ?? 0);
+        const unitPrice = parseFloat(unit?.price ?? product.price ?? 0);
+
+        if (unitStock <= 0) {
+            alert('Producto sin stock disponible en esta bodega');
             return;
         }
 
-        const existing = ticket.find(item => item.product_id == productId);
+        const existing = ticket.find(item => ticketLineKey(item.product_id, item.unit_id) === ticketLineKey(productId, resolvedUnitId));
         const newQty = (existing ? existing.quantity : 0) + qty;
 
-        if (newQty > product.stock) {
-            alert(`Stock insuficiente. Disponible: ${product.stock}`);
+        if (newQty > unitStock) {
+            alert(`Stock insuficiente. Disponible: ${unitStock} ${unit?.abbreviation || ''}`);
             return;
         }
 
@@ -492,14 +858,30 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             ticket.push({
                 product_id: productId,
+                unit_id: resolvedUnitId,
+                unit_label: unit?.abbreviation ?? product.unit_label,
                 name: product.name,
-                price: product.price,
+                price: unitPrice,
                 quantity: qty,
                 discount: product.discount_pct || 0,
                 tax_rate: product.tax_rate,
-                max_stock: product.stock,
+                max_stock: unitStock,
             });
         }
+        renderTicket();
+    };
+
+    window.changeTicketUnit = function(idx, unitId) {
+        const item = ticket[idx];
+        const product = products.find(p => p.id == item.product_id);
+        if (!product) return;
+        const unit = productUnit(product, parseInt(unitId, 10));
+        if (!unit) return;
+        item.unit_id = unit.id;
+        item.unit_label = unit.abbreviation;
+        item.price = unit.price;
+        item.max_stock = unit.stock;
+        if (item.quantity > unit.stock) item.quantity = unit.stock;
         renderTicket();
     };
 
@@ -587,24 +969,43 @@ document.addEventListener('DOMContentLoaded', function() {
         grid.innerHTML = filtered.map(p => {
             const lowStock = p.stock <= 5;
             const outStock = p.stock <= 0;
+            const safeName = String(p.name).replace(/"/g, '&quot;');
+            const imageBlock = p.image_url
+                ? `<img src="${p.image_url}" alt="${safeName}" class="w-full h-full object-cover" loading="lazy"
+                        onerror="this.classList.add('hidden');this.nextElementSibling.classList.remove('hidden')">
+                   <div class="hidden w-full h-full flex flex-col items-center justify-center gap-1 text-slate-400">
+                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <span class="text-[10px]">Sin imagen</span>
+                   </div>`
+                : `<div class="w-full h-full flex flex-col items-center justify-center gap-1 text-slate-400 group-hover:text-indigo-400 transition-colors">
+                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <span class="text-[10px]">Sin imagen</span>
+                   </div>`;
+
             return `
-            <button type="button" onclick="addProductToTicket(${p.id})" ${outStock ? 'disabled' : ''}
-                class="bg-white border-2 ${outStock ? 'border-slate-100 opacity-50 cursor-not-allowed' : 'border-slate-200 hover:border-indigo-500 hover:shadow-md'} rounded-xl p-3 transition-all group text-left">
-                <div class="w-full h-20 mb-2 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center mx-auto">
-                    ${p.image_url
-                        ? `<img src="${p.image_url}" alt="${p.name}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                           <span style="display:none" class="w-full h-full items-center justify-center"><svg class=\"w-8 h-8 text-slate-400\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4\"></path></svg></span>`
-                        : `<svg class="w-8 h-8 text-slate-400 group-hover:text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>`
-                    }
-                </div>
-                <p class="font-semibold text-slate-800 text-xs line-clamp-2 text-center">${p.name}</p>
-                <p class="text-xs text-slate-400 text-center mt-0.5">${p.code || '—'}</p>
-                <p class="text-base font-bold text-indigo-600 text-center mt-1">${formatMoney(p.price)}</p>
-                ${p.discount_pct > 0 ? `<p class="text-xs text-center font-bold text-amber-600">${p.discount_label || p.discount_pct + '% OFF'} → ${formatMoney(p.price * (1 - p.discount_pct/100))}</p>` : ''}
-                <p class="text-xs text-center mt-1 ${outStock ? 'text-red-600 font-bold' : lowStock ? 'text-amber-600' : 'text-slate-400'}">
-                    ${outStock ? 'Sin stock' : 'Stock: ' + p.stock}
-                </p>
-            </button>`;
+            <div class="relative bg-white border-2 ${outStock ? 'border-slate-100 opacity-60' : 'border-slate-200 hover:border-indigo-500 hover:shadow-md'} rounded-xl overflow-hidden transition-all group">
+                <button type="button" onclick="event.stopPropagation(); pickProductImage(${p.id})"
+                    class="absolute top-2 right-2 z-10 rounded-lg bg-white/95 border border-slate-200 p-1.5 text-slate-600 shadow-sm hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition"
+                    title="${p.image_url ? 'Cambiar imagen' : 'Cargar imagen'}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                </button>
+                <button type="button" onclick="addProductToTicket(${p.id})" ${outStock ? 'disabled' : ''}
+                    class="w-full text-left ${outStock ? 'cursor-not-allowed' : ''}">
+                    <div class="w-full h-32 bg-slate-100 flex items-center justify-center overflow-hidden border-b border-slate-100">
+                        ${imageBlock}
+                    </div>
+                    <div class="p-3">
+                        <p class="font-semibold text-slate-800 text-xs line-clamp-2 min-h-[2rem]">${p.name}</p>
+                        <p class="text-xs text-slate-400 mt-0.5">${p.code || '—'}</p>
+                        <p class="text-base font-bold text-indigo-600 mt-1">${formatMoney(p.price)}</p>
+                        ${p.discount_pct > 0 ? `<p class="text-xs font-bold text-amber-600">${p.discount_label || p.discount_pct + '% OFF'} → ${formatMoney(p.price * (1 - p.discount_pct/100))}</p>` : ''}
+                        <p class="text-xs mt-1 ${outStock ? 'text-red-600 font-bold' : lowStock ? 'text-amber-600' : 'text-slate-400'}">
+                            ${outStock ? 'Sin stock' : 'Stock: ' + p.stock + ' ' + (p.unit_label || '')}
+                        </p>
+                        ${(p.sale_units || []).length > 1 ? `<p class="text-[10px] text-slate-400 mt-1">${p.sale_units.map(u => u.abbreviation).join(' · ')}</p>` : ''}
+                    </div>
+                </button>
+            </div>`;
         }).join('');
     }
 
@@ -623,6 +1024,67 @@ document.addEventListener('DOMContentLoaded', function() {
         renderProducts(document.getElementById('productSearch').value);
     };
 
+    let pendingImageProductId = null;
+    const productImageInput = document.getElementById('posProductImageInput');
+
+    window.pickProductImage = function(productId) {
+        pendingImageProductId = productId;
+        productImageInput.value = '';
+        productImageInput.click();
+    };
+
+    productImageInput?.addEventListener('change', async function () {
+        const file = this.files?.[0];
+        const productId = pendingImageProductId;
+        pendingImageProductId = null;
+
+        if (!file || !productId) return;
+
+        if (file.size > 3 * 1024 * 1024) {
+            alert('La imagen no puede superar 3 MB.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('image', file);
+
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+        const uploadUrl = `${app.dataset.productImageUrl}/${productId}/image`;
+
+        try {
+            const response = await fetch(uploadUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrf || '',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                const message = data.message
+                    || (data.errors?.image ? data.errors.image[0] : null)
+                    || 'No se pudo subir la imagen.';
+                alert(message);
+                return;
+            }
+
+            const index = products.findIndex(p => p.id == productId);
+            if (index >= 0) {
+                products[index].image_url = data.image_url;
+            }
+
+            renderProducts(document.getElementById('productSearch').value);
+        } catch (error) {
+            alert('Error de red al subir la imagen.');
+        } finally {
+            productImageInput.value = '';
+        }
+    });
+
     const searchInput = document.getElementById('productSearch');
     let productSearchTimer = null;
     let productSearchRequest = 0;
@@ -634,7 +1096,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         productSearchTimer = window.setTimeout(async () => {
             const requestId = ++productSearchRequest;
-            const params = new URLSearchParams({ search: query });
+            const params = new URLSearchParams({ search: query, warehouse_id: selectedWarehouseId });
+            if (currentClient) params.set('client_id', currentClient);
             if (currentCategory !== 'all') params.set('category_id', currentCategory);
             try {
                 const response = await fetch(`${app.dataset.productSearchUrl}?${params}`, {
@@ -686,6 +1149,7 @@ document.addEventListener('DOMContentLoaded', function() {
             updatePaymentMethodSelection();
         }
 
+        refreshCatalogPrices();
         document.getElementById('clientModal').classList.add('hidden');
     };
 
@@ -704,6 +1168,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <p class="text-xs text-slate-500 mt-1">${c.document_label}: ${c.document_number || '—'}</p>
                 ${c.credit_enabled ? `<p class="text-xs text-slate-500 mt-1">Límite: C$ ${parseFloat(c.credit_limit || 0).toFixed(0)} · Saldo: C$ ${parseFloat(c.balance || 0).toFixed(2)} · ${c.credit_days}d</p>` : '<p class="text-xs text-slate-400">Solo contado</p>'}
+                ${c.price_list_name ? `<p class="text-xs text-indigo-600 mt-1">Lista: ${c.price_list_name}</p>` : ''}
             </button>
         `).join('');
     }
@@ -793,10 +1258,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.getElementById('itemsInput').value = JSON.stringify(ticket.map(item => ({
             product_id: item.product_id,
+            unit_id: item.unit_id,
             quantity: item.quantity,
             price: item.price,
             discount: item.discount || 0,
         })));
+        document.getElementById('warehouseIdInput').value = selectedWarehouseId;
         document.getElementById('notesInput').value = notes;
         document.getElementById('orderDiscountPctInput').value = orderDiscountPct;
         e.target.submit();

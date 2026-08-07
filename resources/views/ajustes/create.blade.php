@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', 'Nuevo Ajuste de Inventario')
 
@@ -35,6 +36,14 @@
             <h2 class="text-lg font-semibold text-gray-700 mb-4">Producto</h2>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700">Bodega *</label>
+                    <select name="warehouse_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        @foreach($warehouses as $wh)
+                            <option value="{{ $wh->id }}" @selected(old('warehouse_id', $warehouses->firstWhere('is_default', true)?->id) == $wh->id)>{{ $wh->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700">Seleccionar Producto *</label>
                     <select name="product_id" id="product_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">

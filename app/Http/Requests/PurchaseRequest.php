@@ -15,6 +15,7 @@ class PurchaseRequest extends FormRequest
     {
         return [
             'supplier_id' => 'required|exists:suppliers,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
             'date' => 'required|date',
             'status' => 'nullable|in:pending,completed,canceled',
             'items' => 'required|array|min:1',

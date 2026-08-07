@@ -42,6 +42,7 @@ class UpdateCompanySettingsRequest extends FormRequest
             'remove_ticket_logo' => ['boolean'],
             'invoice_footer' => ['nullable', 'string', 'max:1000'],
             'receipt_message' => ['nullable', 'string', 'max:500'],
+            'repair_warranty_text' => ['nullable', 'string', 'max:2000'],
             'system_name' => ['required', 'string', 'max:100'],
         ];
     }

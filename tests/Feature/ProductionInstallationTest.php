@@ -14,6 +14,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+beforeEach(function (): void {
+    disableDemoSeederData();
+});
+
 test('the default seeder creates only production catalogs and no demo operations', function () {
     $this->seed(DatabaseSeeder::class);
 

@@ -1,5 +1,6 @@
 
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', 'Recibo de Abono - ' . ($payment->client->name ?? 'Cliente'))
 

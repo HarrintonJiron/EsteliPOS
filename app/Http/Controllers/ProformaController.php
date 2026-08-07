@@ -10,13 +10,19 @@ use App\Models\ProformaDetail;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
-use App\Models\InventoryMovement;
+use App\Services\InventoryService;
+use App\Services\PosCatalogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class ProformaController extends Controller
 {
+    public function __construct(
+        private InventoryService $inventoryService,
+        private PosCatalogService $posCatalog,
+    ) {}
+
     private const DEFAULT_TAX_RATE = 0.15;
 
     private function defaultTaxRate(): float
@@ -39,7 +45,7 @@ class ProformaController extends Controller
 
         $next = (int) ($maxNumber ?? 0) + 1;
 
-        return 'PRO-' . str_pad((string) $next, 6, '0', STR_PAD_LEFT);
+        return 'PRO-'.str_pad((string) $next, 6, '0', STR_PAD_LEFT);
     }
 
     public function index(Request $request)
@@ -50,8 +56,8 @@ class ProformaController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('proforma_number', 'like', "%{$search}%")
-                  ->orWhere('client_name', 'like', "%{$search}%")
-                  ->orWhereHas('client', fn($q2) => $q2->where('name', 'like', "%{$search}%"));
+                    ->orWhere('client_name', 'like', "%{$search}%")
+                    ->orWhereHas('client', fn ($q2) => $q2->where('name', 'like', "%{$search}%"));
             });
         }
 
@@ -70,10 +76,14 @@ class ProformaController extends Controller
 
     public function pos()
     {
-        $products = Product::with('category')
+        $products = Product::with(['category', 'tax'])
             ->where('status', 'active')
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->each(function (Product $product) {
+                $product->setAttribute('effective_tax_rate', $product->effectiveTaxRate());
+                $product->image_url = $product->getRawOriginal('image_url');
+            });
 
         $clients = Client::orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
@@ -85,9 +95,9 @@ class ProformaController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'client_id'   => 'nullable|exists:clients,id',
-            'items'       => 'required|json',
-            'notes'       => 'nullable|string|max:500',
+            'client_id' => 'nullable|exists:clients,id',
+            'items' => 'required|json',
+            'notes' => 'nullable|string|max:500',
             'expiry_days' => 'nullable|integer|min:1|max:365',
         ]);
 
@@ -101,62 +111,61 @@ class ProformaController extends Controller
         $defaultTaxRate = $this->defaultTaxRate();
 
         DB::transaction(function () use ($validated, $items, &$proforma, $userId, $defaultTaxRate) {
-            $client = $validated['client_id']
-                ? Client::find($validated['client_id'])
-                : null;
+            $clientId = $validated['client_id'] ?? null;
+            $client = $clientId ? Client::find($clientId) : null;
 
             $expiryDays = (int) ($validated['expiry_days'] ?? 15);
 
             $proforma = Proforma::create([
                 'proforma_number' => $this->nextProformaNumber(),
-                'client_id'       => $client?->id,
-                'user_id'         => $userId,
-                'client_name'     => $client?->name ?? 'Cliente General',
-                'client_phone'    => $client?->phone,
-                'client_email'    => $client?->email,
-                'client_address'  => $client?->address,
-                'date'            => now()->toDateString(),
-                'expiry_date'     => now()->addDays($expiryDays)->toDateString(),
-                'tax_rate'        => $defaultTaxRate,
-                'tax_included'    => false,
-                'status'          => 'draft',
-                'notes'           => $validated['notes'] ?? null,
-                'subtotal'        => 0,
-                'tax_total'       => 0,
-                'total'           => 0,
+                'client_id' => $client?->id,
+                'user_id' => $userId,
+                'client_name' => $client?->name ?? 'Cliente General',
+                'client_phone' => $client?->phone,
+                'client_email' => $client?->email,
+                'client_address' => $client?->address,
+                'date' => now()->toDateString(),
+                'expiry_date' => now()->addDays($expiryDays)->toDateString(),
+                'tax_rate' => $defaultTaxRate,
+                'tax_included' => false,
+                'status' => 'draft',
+                'notes' => $validated['notes'] ?? null,
+                'subtotal' => 0,
+                'tax_total' => 0,
+                'total' => 0,
             ]);
 
             $linesTotal = 0;
 
             foreach ($items as $item) {
-                $quantity    = (float) ($item['quantity'] ?? 1);
-                $price       = (float) ($item['price'] ?? 0);
+                $quantity = (float) ($item['quantity'] ?? 1);
+                $price = (float) ($item['price'] ?? 0);
                 $discountPct = (float) ($item['discount'] ?? 0);
-                $subtotal    = $price * $quantity * (1 - $discountPct / 100);
+                $subtotal = $price * $quantity * (1 - $discountPct / 100);
 
                 $product = Product::find($item['product_id'] ?? null);
 
                 ProformaDetail::create([
-                    'proforma_id'  => $proforma->id,
-                    'product_id'   => $product?->id,
+                    'proforma_id' => $proforma->id,
+                    'product_id' => $product?->id,
                     'product_name' => $product?->name ?? ($item['name'] ?? 'Producto'),
-                    'quantity'     => $quantity,
-                    'price'        => $price,
-                    'discount'     => $discountPct,
-                    'subtotal'     => $subtotal,
+                    'quantity' => $quantity,
+                    'price' => $price,
+                    'discount' => $discountPct,
+                    'subtotal' => $subtotal,
                 ]);
 
                 $linesTotal += $subtotal;
             }
 
-            $rate        = $defaultTaxRate;
-            $taxTotal    = $linesTotal * $rate;
-            $grandTotal  = $linesTotal + $taxTotal;
+            $rate = $defaultTaxRate;
+            $taxTotal = $linesTotal * $rate;
+            $grandTotal = $linesTotal + $taxTotal;
 
             $proforma->update([
-                'subtotal'  => round($linesTotal, 2),
+                'subtotal' => round($linesTotal, 2),
                 'tax_total' => round($taxTotal, 2),
-                'total'     => round($grandTotal, 2),
+                'total' => round($grandTotal, 2),
             ]);
         });
 
@@ -250,46 +259,50 @@ class ProformaController extends Controller
 
                 $status = $paymentType === 'credit' ? 'pending' : 'completed';
 
+                $warehouseId = $this->posCatalog->resolveWarehouseId(null);
+
                 $sale = Sale::create([
-                    'invoice_number'        => $invoiceNumber,
-                    'client_id'             => $clientId,
-                    'user_id'               => $userId,
-                    'billing_name'          => $proforma->client_name ?: 'Cliente General',
-                    'billing_phone'         => $proforma->client_phone,
-                    'billing_email'         => $proforma->client_email,
-                    'billing_address'       => $proforma->client_address,
-                    'date'                  => now(),
-                    'payment_type'          => $paymentType,
-                    'tax_included'          => $proforma->tax_included,
-                    'tax_rate'              => $proforma->tax_rate,
-                    'status'                => $status,
-                    'notes'                 => 'Generada desde Proforma ' . $proforma->proforma_number,
-                    'subtotal'              => $proforma->subtotal,
-                    'tax_total'             => $proforma->tax_total,
-                    'total'                 => $proforma->total,
+                    'invoice_number' => $invoiceNumber,
+                    'client_id' => $clientId,
+                    'user_id' => $userId,
+                    'warehouse_id' => $warehouseId,
+                    'billing_name' => $proforma->client_name ?: 'Cliente General',
+                    'billing_phone' => $proforma->client_phone,
+                    'billing_email' => $proforma->client_email,
+                    'billing_address' => $proforma->client_address,
+                    'date' => now(),
+                    'payment_type' => $paymentType,
+                    'tax_included' => $proforma->tax_included,
+                    'tax_rate' => $proforma->tax_rate,
+                    'status' => $status,
+                    'notes' => 'Generada desde Proforma '.$proforma->proforma_number,
+                    'subtotal' => $proforma->subtotal,
+                    'tax_total' => $proforma->tax_total,
+                    'total' => $proforma->total,
                 ]);
 
                 foreach ($proforma->details as $detail) {
                     SaleDetail::create([
-                        'sale_id'    => $sale->id,
+                        'sale_id' => $sale->id,
                         'product_id' => $detail->product_id,
-                        'quantity'   => $detail->quantity,
-                        'price'      => $detail->price,
-                        'subtotal'   => $detail->subtotal,
+                        'quantity' => $detail->quantity,
+                        'price' => $detail->price,
+                        'subtotal' => $detail->subtotal,
                     ]);
 
                     if ($detail->product_id) {
-                        Product::where('id', $detail->product_id)->decrement('stock', $detail->quantity);
                         $product = Product::find($detail->product_id);
-                        InventoryMovement::create([
-                            'product_id'  => $detail->product_id,
-                            'type'        => 'out',
-                            'quantity'    => $detail->quantity,
-                            'stock_after' => $product?->stock,
-                            'reference'   => 'proforma_sale:' . $sale->id,
-                            'note'        => 'Venta desde Proforma ' . $proforma->proforma_number,
-                            'user_id'     => $userId,
-                        ]);
+                        if ($product) {
+                            $this->inventoryService->stockOut(
+                                $product,
+                                (float) $detail->quantity,
+                                'proforma_sale:'.$sale->id,
+                                'Venta desde Proforma '.$proforma->proforma_number,
+                                $userId,
+                                false,
+                                $warehouseId,
+                            );
+                        }
                     }
                 }
 
@@ -301,7 +314,7 @@ class ProformaController extends Controller
                 ->with('success', 'Proforma convertida a factura correctamente.');
         } catch (Throwable $exception) {
             return redirect()->back()
-                ->with('error', 'No se pudo convertir la proforma. ' . $exception->getMessage());
+                ->with('error', 'No se pudo convertir la proforma. '.$exception->getMessage());
         }
     }
 }

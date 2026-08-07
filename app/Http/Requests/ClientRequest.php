@@ -51,6 +51,7 @@ class ClientRequest extends FormRequest
             'department' => 'nullable|string|max:100',
             'municipality' => 'nullable|string|max:100',
             'status' => ['nullable', Rule::in(['active', 'inactive'])],
+            'price_list_id' => 'nullable|exists:price_lists,id',
             'credit_enabled' => 'nullable|boolean',
             'credit_limit' => 'nullable|numeric|min:0',
             'credit_days' => 'nullable|integer|min:1|max:365',

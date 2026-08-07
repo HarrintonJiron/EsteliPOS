@@ -4,17 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\DeviceBrand;
+use App\Models\OperationalExpense;
 use App\Models\Product;
 use App\Models\RepairOrder;
 use App\Models\RepairOrderItem;
 use App\Models\RepairService;
-use App\Models\OperationalExpense;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class ReparacionController extends Controller
 {
@@ -126,6 +127,20 @@ class ReparacionController extends Controller
         }
     }
 
+    private function ensureTimesAndWarrantyFieldsExist()
+    {
+        try {
+            if (! Schema::hasColumn('repair_orders', 'received_time')) {
+                Artisan::call('migrate', [
+                    '--path' => 'database/migrations/2026_08_07_120000_add_times_and_warranty_to_repair_orders_table.php',
+                    '--force' => true,
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Log::error('Failed to add times/warranty columns to repair_orders: '.$e->getMessage());
+        }
+    }
+
     // Reparación methods...
 
     public function getServices()
@@ -151,7 +166,7 @@ class ReparacionController extends Controller
                 'description' => 'nullable|string',
                 'price' => 'required|numeric|min:0',
             ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json([
                 'error' => 'Validación fallida',
                 'errors' => $e->errors(),
@@ -234,33 +249,11 @@ class ReparacionController extends Controller
 
     public function index(Request $request)
     {
-        $query = RepairOrder::with('technician')->latest();
+        $query = RepairOrder::query()->with('technician')->latest();
 
-        if ($request->filled('search')) {
-            $q = $request->search;
-            $query->where(function ($sq) use ($q) {
-                $sq->where('order_number', 'like', "%{$q}%")
-                    ->orWhere('client_name', 'like', "%{$q}%")
-                    ->orWhere('client_phone', 'like', "%{$q}%")
-                    ->orWhere('device_brand', 'like', "%{$q}%")
-                    ->orWhere('device_model', 'like', "%{$q}%")
-                    ->orWhere('device_imei', 'like', "%{$q}%");
-            });
-        }
+        $this->applyRepairIndexFilters($query, $request);
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('priority')) {
-            $query->where('priority', $request->priority);
-        }
-
-        if ($request->filled('date')) {
-            $query->whereDate('received_date', $request->date);
-        }
-
-        $orders = $query->paginate(15)->withQueryString();
+        $orders = $query->paginate(20)->withQueryString();
 
         $stats = [
             'total' => RepairOrder::count(),
@@ -268,6 +261,15 @@ class ReparacionController extends Controller
             'in_repair' => RepairOrder::whereIn('status', ['diagnosing', 'waiting_parts', 'in_repair'])->count(),
             'ready' => RepairOrder::where('status', 'ready')->count(),
             'delivered' => RepairOrder::where('status', 'delivered')->count(),
+            'overdue' => RepairOrder::query()
+                ->whereNotIn('status', ['delivered', 'cancelled'])
+                ->whereNotNull('estimated_date')
+                ->whereDate('estimated_date', '<', now()->toDateString())
+                ->count(),
+            'due_today' => RepairOrder::query()
+                ->whereNotIn('status', ['delivered', 'cancelled'])
+                ->whereDate('estimated_date', now()->toDateString())
+                ->count(),
         ];
 
         $expenseStats = [
@@ -275,7 +277,87 @@ class ReparacionController extends Controller
             'month_total' => (float) OperationalExpense::registered()->whereDate('expense_date', '>=', now()->startOfMonth())->sum('amount'),
         ];
 
-        return view('reparaciones.index', compact('orders', 'stats', 'expenseStats'));
+        $technicians = User::query()->select('id', 'name')->orderBy('name')->get();
+
+        $deviceBrands = RepairOrder::query()
+            ->whereNotNull('device_brand')
+            ->where('device_brand', '!=', '')
+            ->distinct()
+            ->orderBy('device_brand')
+            ->pluck('device_brand');
+
+        $filteredCount = $orders->total();
+
+        return view('reparaciones.index', compact(
+            'orders',
+            'stats',
+            'expenseStats',
+            'technicians',
+            'deviceBrands',
+            'filteredCount',
+        ));
+    }
+
+    private function applyRepairIndexFilters($query, Request $request): void
+    {
+        if ($request->filled('search')) {
+            $q = $request->string('search')->toString();
+            $query->where(function ($sq) use ($q) {
+                $sq->where('order_number', 'like', "%{$q}%")
+                    ->orWhere('client_name', 'like', "%{$q}%")
+                    ->orWhere('client_phone', 'like', "%{$q}%")
+                    ->orWhere('device_brand', 'like', "%{$q}%")
+                    ->orWhere('device_model', 'like', "%{$q}%")
+                    ->orWhere('device_imei', 'like', "%{$q}%")
+                    ->orWhere('problem_description', 'like', "%{$q}%");
+            });
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status')->toString());
+        }
+
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->string('priority')->toString());
+        }
+
+        if ($request->filled('technician_id')) {
+            $query->where('technician_id', $request->integer('technician_id'));
+        }
+
+        if ($request->filled('device_brand')) {
+            $query->where('device_brand', $request->string('device_brand')->toString());
+        }
+
+        if ($request->filled('payment_status')) {
+            $query->where('payment_status', $request->string('payment_status')->toString());
+        }
+
+        if ($request->filled('received_from')) {
+            $query->whereDate('received_date', '>=', $request->string('received_from')->toString());
+        }
+
+        if ($request->filled('received_to')) {
+            $query->whereDate('received_date', '<=', $request->string('received_to')->toString());
+        }
+
+        if ($request->filled('delivery_from')) {
+            $query->whereDate('estimated_date', '>=', $request->string('delivery_from')->toString());
+        }
+
+        if ($request->filled('delivery_to')) {
+            $query->whereDate('estimated_date', '<=', $request->string('delivery_to')->toString());
+        }
+
+        if ($request->boolean('overdue_only')) {
+            $query->whereNotIn('status', ['delivered', 'cancelled'])
+                ->whereNotNull('estimated_date')
+                ->whereDate('estimated_date', '<', now()->toDateString());
+        }
+
+        if ($request->filled('date')) {
+            $query->whereDate('received_date', $request->string('date')->toString());
+        }
     }
 
     public function create()
@@ -283,6 +365,7 @@ class ReparacionController extends Controller
         $this->ensureDeviceBrandsTableExists();
         $this->ensureServiceFieldsExist();
         $this->ensureRepairServicesTableExists();
+        $this->ensureTimesAndWarrantyFieldsExist();
 
         $clients = Client::select('id', 'name', 'phone')->orderBy('name')->get();
         $technicians = User::select('id', 'name')->orderBy('name')->get();
@@ -346,12 +429,16 @@ class ReparacionController extends Controller
             'priority' => 'required|in:low,normal,high,urgent',
             'technician_id' => 'nullable|exists:users,id',
             'received_date' => 'required|date',
+            'received_time' => 'nullable|date_format:H:i',
             'estimated_date' => 'nullable|date',
+            'estimated_delivery_time' => 'nullable|date_format:H:i',
             'labor_cost' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
             'advance_payment' => 'nullable|numeric|min:0',
             'payment_type' => 'required|in:cash,card,transfer',
+            'warranty_enabled' => 'nullable|boolean',
+            'warranty_text' => 'nullable|string|max:2000',
             'items' => 'nullable|array',
             'items.*.description' => 'required_with:items|string|max:200',
             'items.*.quantity' => 'required_with:items|numeric|min:0.01',
@@ -404,7 +491,10 @@ class ReparacionController extends Controller
                 'technician_id' => $validated['technician_id'] ?? null,
                 'user_id' => $request->user()?->id ?? 1,
                 'received_date' => $validated['received_date'],
+                'received_time' => $validated['received_time'] ?? now()->format('H:i'),
                 'estimated_date' => $validated['estimated_date'] ?? null,
+                'estimated_delivery_time' => $validated['estimated_delivery_time'] ?? null,
+                'delivered_time' => $validated['status'] === 'delivered' ? now()->format('H:i') : null,
                 'labor_cost' => $laborCost,
                 'parts_cost' => $partsCost,
                 'total' => $subtotal,
@@ -413,6 +503,8 @@ class ReparacionController extends Controller
                 'advance_payment' => (float) ($validated['advance_payment'] ?? 0),
                 'payment_type' => $validated['payment_type'],
                 'payment_status' => $this->calcPaymentStatus($total, (float) ($validated['advance_payment'] ?? 0)),
+                'warranty_enabled' => $validated['warranty_enabled'] ?? true,
+                'warranty_text' => $validated['warranty_text'] ?? null,
             ]);
 
             foreach ($items as $item) {
@@ -447,6 +539,7 @@ class ReparacionController extends Controller
         $this->ensureDeviceBrandsTableExists();
         $this->ensureServiceFieldsExist();
         $this->ensureRepairServicesTableExists();
+        $this->ensureTimesAndWarrantyFieldsExist();
 
         $order = RepairOrder::with('items.product')->findOrFail($id);
         $clients = Client::select('id', 'name', 'phone')->orderBy('name')->get();
@@ -514,13 +607,18 @@ class ReparacionController extends Controller
             'priority' => 'required|in:low,normal,high,urgent',
             'technician_id' => 'nullable|exists:users,id',
             'received_date' => 'required|date',
+            'received_time' => 'nullable|date_format:H:i',
             'estimated_date' => 'nullable|date',
+            'estimated_delivery_time' => 'nullable|date_format:H:i',
             'delivered_date' => 'nullable|date',
+            'delivered_time' => 'nullable|date_format:H:i',
             'labor_cost' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
             'advance_payment' => 'nullable|numeric|min:0',
             'payment_type' => 'required|in:cash,card,transfer',
+            'warranty_enabled' => 'nullable|boolean',
+            'warranty_text' => 'nullable|string|max:2000',
             'items' => 'nullable|array',
             'items.*.description' => 'required_with:items|string|max:200',
             'items.*.quantity' => 'required_with:items|numeric|min:0.01',
@@ -553,8 +651,14 @@ class ReparacionController extends Controller
 
             // Mark delivered_date automatically
             $deliveredDate = $validated['delivered_date'] ?? null;
-            if ($validated['status'] === 'delivered' && ! $deliveredDate && ! $order->delivered_date) {
-                $deliveredDate = now()->toDateString();
+            $deliveredTime = $validated['delivered_time'] ?? null;
+            if ($validated['status'] === 'delivered') {
+                if (! $deliveredDate && ! $order->delivered_date) {
+                    $deliveredDate = now()->toDateString();
+                }
+                if (! $deliveredTime && ! $order->delivered_time) {
+                    $deliveredTime = now()->format('H:i');
+                }
             }
 
             $order->update([
@@ -576,14 +680,19 @@ class ReparacionController extends Controller
                 'priority' => $validated['priority'],
                 'technician_id' => $validated['technician_id'] ?? null,
                 'received_date' => $validated['received_date'],
+                'received_time' => $validated['received_time'] ?? ($order->received_time ?? now()->format('H:i')),
                 'estimated_date' => $validated['estimated_date'] ?? null,
+                'estimated_delivery_time' => $validated['estimated_delivery_time'] ?? null,
                 'delivered_date' => $deliveredDate,
+                'delivered_time' => $deliveredTime,
                 'labor_cost' => $laborCost,
                 'parts_cost' => $partsCost,
                 'total' => $subtotal,
                 'advance_payment' => $advance,
                 'payment_type' => $validated['payment_type'],
                 'payment_status' => $this->calcPaymentStatus($total, $advance),
+                'warranty_enabled' => $validated['warranty_enabled'] ?? false,
+                'warranty_text' => $validated['warranty_text'] ?? null,
             ]);
 
             // Only update discount fields if they exist in the database
@@ -632,8 +741,13 @@ class ReparacionController extends Controller
         $status = $request->validate(['status' => 'required|in:received,diagnosing,waiting_parts,in_repair,ready,delivered,cancelled'])['status'];
 
         $update = ['status' => $status];
-        if ($status === 'delivered' && ! $order->delivered_date) {
-            $update['delivered_date'] = now()->toDateString();
+        if ($status === 'delivered') {
+            if (! $order->delivered_date) {
+                $update['delivered_date'] = now()->toDateString();
+            }
+            if (! $order->delivered_time) {
+                $update['delivered_time'] = now()->format('H:i');
+            }
         }
 
         $order->update($update);

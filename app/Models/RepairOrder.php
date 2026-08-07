@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CompanySettingsService;
 use Illuminate\Database\Eloquent\Model;
 
 class RepairOrder extends Model
@@ -27,8 +28,11 @@ class RepairOrder extends Model
         'technician_id',
         'user_id',
         'received_date',
+        'received_time',
         'estimated_date',
+        'estimated_delivery_time',
         'delivered_date',
+        'delivered_time',
         'labor_cost',
         'parts_cost',
         'total',
@@ -37,12 +41,15 @@ class RepairOrder extends Model
         'advance_payment',
         'payment_type',
         'payment_status',
+        'warranty_enabled',
+        'warranty_text',
     ];
 
     protected $casts = [
         'received_date' => 'date',
         'estimated_date' => 'date',
         'delivered_date' => 'date',
+        'warranty_enabled' => 'boolean',
     ];
 
     public function client()
@@ -120,5 +127,88 @@ class RepairOrder extends Model
         $totalAfterDiscount = (float) $this->total - (float) ($this->discount_amount ?? 0);
 
         return max(0, $totalAfterDiscount - (float) $this->advance_payment);
+    }
+
+    public function formattedReceivedTime(): ?string
+    {
+        return $this->received_time ? date('h:i A', strtotime($this->received_time)) : null;
+    }
+
+    public function formattedEstimatedDeliveryTime(): ?string
+    {
+        return $this->estimated_delivery_time ? date('h:i A', strtotime($this->estimated_delivery_time)) : null;
+    }
+
+    public function formattedDeliveredTime(): ?string
+    {
+        return $this->delivered_time ? date('h:i A', strtotime($this->delivered_time)) : null;
+    }
+
+    public function estimatedDeliveryDisplay(): string
+    {
+        if (! $this->estimated_date && ! $this->estimated_delivery_time) {
+            return '—';
+        }
+
+        $parts = [];
+
+        if ($this->estimated_date) {
+            $parts[] = $this->estimated_date->format('d/m/Y');
+        }
+
+        if ($this->estimated_delivery_time) {
+            $parts[] = $this->formattedEstimatedDeliveryTime();
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    public function isEstimatedDeliveryOverdue(): bool
+    {
+        if (! $this->estimated_date || in_array($this->status, ['delivered', 'cancelled'], true)) {
+            return false;
+        }
+
+        $deadline = $this->estimated_date->copy();
+
+        if ($this->estimated_delivery_time) {
+            [$hours, $minutes] = array_pad(explode(':', $this->estimated_delivery_time), 2, 0);
+
+            $deadline->setTime((int) $hours, (int) $minutes);
+        } else {
+            $deadline->endOfDay();
+        }
+
+        return now()->greaterThan($deadline);
+    }
+
+    public function isEstimatedDeliveryToday(): bool
+    {
+        if (! $this->estimated_date || in_array($this->status, ['delivered', 'cancelled'], true)) {
+            return false;
+        }
+
+        return $this->estimated_date->isToday();
+    }
+
+    public function paymentStatusLabel(): string
+    {
+        return match ($this->payment_status) {
+            'paid' => 'Pagado',
+            'partial' => 'Parcial',
+            'pending' => 'Pendiente',
+            default => ucfirst((string) $this->payment_status),
+        };
+    }
+
+    public function effectiveWarrantyText(): string
+    {
+        $custom = trim((string) $this->warranty_text);
+        if ($custom !== '') {
+            return $custom;
+        }
+
+        return app(CompanySettingsService::class)->get()['repair_warranty_text']
+            ?: CompanySettingsService::DEFAULT_REPAIR_WARRANTY;
     }
 }

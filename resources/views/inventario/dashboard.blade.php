@@ -4,191 +4,218 @@
 
 @section('content')
 
-<div class="space-y-6">
+<div class="space-y-4">
 
-    <div class="flex flex-wrap justify-between items-start gap-4">
+    @include('inventario._hub-nav')
+
+    <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-            <h2 class="page-title">Análisis Pro de Inventario</h2>
-            <p class="page-subtitle">Rotación, más vendidos, stock muerto y conciliación · Últimos {{ $periodDays }} días</p>
+            <h2 class="text-lg font-bold text-slate-900">Dashboard de inventario</h2>
+            <p class="text-xs text-slate-500">Análisis · últimos {{ $periodDays }} días</p>
         </div>
-        <div class="flex gap-2">
-            <a href="{{ route('inventario.index') }}" class="btn-outline text-sm">Catálogo</a>
-            <a href="{{ route('inventario.bulk') }}" class="btn-secondary text-sm">Carga Masiva</a>
+        <div class="flex gap-1.5">
+            <a href="{{ route('inventario.index') }}" class="btn-outline text-xs py-1.5">Catálogo</a>
             @if(auth()->user()?->isAdmin() && count($discrepancies) > 0)
-            <form action="{{ route('inventario.reconcile') }}" method="POST" onsubmit="return confirm('¿Corregir {{ count($discrepancies) }} discrepancias de stock según el kardex?')">
+            <form action="{{ route('inventario.reconcile') }}" method="POST" onsubmit="return confirm('¿Corregir {{ count($discrepancies) }} discrepancias?')">
                 @csrf
-                <button type="submit" class="btn-primary text-sm">Reconciliar Stock</button>
+                <button type="submit" class="btn-primary text-xs py-1.5">Reconciliar</button>
             </form>
             @endif
         </div>
     </div>
 
     {{-- KPIs --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="card p-5 bg-gradient-to-br from-indigo-600 to-indigo-700 text-white">
-            <p class="text-indigo-200 text-xs uppercase">Valor Inventario</p>
-            <p class="text-2xl font-bold mt-1">C$ {{ number_format($stats['total_inventory_value'], 0) }}</p>
+    <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div class="rounded-lg bg-indigo-600 px-3 py-2.5 text-white">
+            <p class="text-[10px] uppercase opacity-80">Valor inventario</p>
+            <p class="text-lg font-bold">C$ {{ number_format($stats['total_inventory_value'], 0) }}</p>
         </div>
-        <div class="card p-5 bg-gradient-to-br from-emerald-600 to-emerald-700 text-white">
-            <p class="text-emerald-200 text-xs uppercase">Entradas ({{ $periodDays }}d)</p>
-            <p class="text-2xl font-bold mt-1">+{{ number_format($movementStats['entries']) }}</p>
+        <div class="rounded-lg bg-emerald-600 px-3 py-2.5 text-white">
+            <p class="text-[10px] uppercase opacity-80">Entradas</p>
+            <p class="text-lg font-bold">+{{ number_format($movementStats['entries']) }}</p>
         </div>
-        <div class="card p-5 bg-gradient-to-br from-red-500 to-red-600 text-white">
-            <p class="text-red-200 text-xs uppercase">Salidas ({{ $periodDays }}d)</p>
-            <p class="text-2xl font-bold mt-1">-{{ number_format($movementStats['exits']) }}</p>
+        <div class="rounded-lg bg-red-500 px-3 py-2.5 text-white">
+            <p class="text-[10px] uppercase opacity-80">Salidas</p>
+            <p class="text-lg font-bold">−{{ number_format($movementStats['exits']) }}</p>
         </div>
-        <div class="card p-5 bg-gradient-to-br from-slate-600 to-slate-700 text-white">
-            <p class="text-slate-300 text-xs uppercase">Balance Neto</p>
-            <p class="text-2xl font-bold mt-1">{{ $movementStats['entries'] - $movementStats['exits'] >= 0 ? '+' : '' }}{{ number_format($movementStats['entries'] - $movementStats['exits']) }}</p>
+        <div class="rounded-lg bg-slate-700 px-3 py-2.5 text-white">
+            <p class="text-[10px] uppercase opacity-80">Balance neto</p>
+            @php $net = $movementStats['entries'] - $movementStats['exits']; @endphp
+            <p class="text-lg font-bold">{{ $net >= 0 ? '+' : '' }}{{ number_format($net) }}</p>
         </div>
     </div>
 
     @if(count($discrepancies) > 0)
-    <div class="card p-4 border border-amber-200 bg-amber-50">
-        <h3 class="font-semibold text-amber-800 mb-2">Discrepancias de stock detectadas ({{ count($discrepancies) }})</h3>
-        <p class="text-sm text-amber-700 mb-3">El stock registrado no coincide con la suma del kardex (entradas − salidas).</p>
-        <div class="overflow-x-auto">
-            <table class="min-w-full text-sm">
-                <thead><tr class="text-left text-amber-800"><th class="pr-4 py-1">Producto</th><th class="pr-4">Registrado</th><th>Calculado</th><th>Diferencia</th></tr></thead>
-                <tbody>
-                    @foreach(array_slice($discrepancies, 0, 5) as $d)
-                    <tr class="border-t border-amber-200">
-                        <td class="py-2 pr-4">{{ $d['product']->name }}</td>
-                        <td class="pr-4">{{ $d['recorded'] }}</td>
-                        <td class="pr-4">{{ $d['calculated'] }}</td>
-                        <td class="font-bold text-red-600">{{ $d['calculated'] - $d['recorded'] }}</td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <strong>{{ count($discrepancies) }} discrepancias</strong> de stock detectadas — revisa antes de reconciliar.
     </div>
     @endif
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {{-- Más vendidos --}}
-        <div class="card overflow-hidden">
-            <div class="card-header">
-                <h3 class="font-semibold text-slate-800">Top 10 Más Vendidos</h3>
-                <a href="{{ route('inventario.index', ['view' => 'top_sellers']) }}" class="text-indigo-600 text-sm">Ver todos</a>
-            </div>
-            <div class="divide-y divide-slate-100">
-                @forelse($topSellers as $i => $p)
-                <div class="px-4 py-3 flex items-center gap-3 hover:bg-slate-50">
-                    <span class="w-7 h-7 rounded-full {{ $i < 3 ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600' }} flex items-center justify-center text-xs font-bold">{{ $i + 1 }}</span>
-                    <div class="flex-1 min-w-0">
-                        <p class="font-medium text-slate-800 truncate">{{ $p->name }}</p>
-                        <p class="text-xs text-slate-500">Stock: {{ $p->stock }} · {{ $p->category->name ?? '' }}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="font-bold text-emerald-600">{{ (int)$p->sold_qty }} uds</p>
-                        <p class="text-xs text-slate-500">C$ {{ number_format($p->sold_revenue ?? 0, 0) }}</p>
-                    </div>
-                </div>
-                @empty
-                <p class="p-6 text-center text-slate-500">Sin ventas en el período</p>
-                @endforelse
-            </div>
+    {{-- Gráficos --}}
+    <div class="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <div class="card p-3 xl:col-span-2">
+            <h3 class="mb-2 text-sm font-semibold text-slate-800">Movimientos diarios</h3>
+            <div class="h-56"><canvas id="movementTrendChart"></canvas></div>
         </div>
-
-        {{-- Baja rotación --}}
-        <div class="card overflow-hidden">
-            <div class="card-header">
-                <h3 class="font-semibold text-slate-800">Menor Rotación</h3>
-                <a href="{{ route('inventario.index', ['view' => 'low_rotation']) }}" class="text-indigo-600 text-sm">Ver todos</a>
-            </div>
-            <div class="divide-y divide-slate-100">
-                @forelse($lowRotation as $p)
-                <div class="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
-                    <div class="min-w-0">
-                        <p class="font-medium text-slate-800 truncate">{{ $p->name }}</p>
-                        <p class="text-xs text-slate-500">Stock: {{ $p->stock }} · Vendido: {{ (int)($p->sold_qty ?? 0) }}</p>
-                    </div>
-                    <span class="badge-warning">{{ number_format($p->rotation_index ?? 0, 2) }}x</span>
-                </div>
-                @empty
-                <p class="p-6 text-center text-slate-500">Sin datos</p>
-                @endforelse
-            </div>
+        <div class="card p-3">
+            <h3 class="mb-2 text-sm font-semibold text-slate-800">Salud del stock</h3>
+            <div class="h-56"><canvas id="stockHealthChart"></canvas></div>
         </div>
+        <div class="card p-3 xl:col-span-2">
+            <h3 class="mb-2 text-sm font-semibold text-slate-800">Top ventas (unidades)</h3>
+            <div class="h-52"><canvas id="topSellersChart"></canvas></div>
+        </div>
+        <div class="card p-3">
+            <h3 class="mb-2 text-sm font-semibold text-slate-800">Valor por categoría</h3>
+            <div class="h-52"><canvas id="categoryValueChart"></canvas></div>
+        </div>
+    </div>
 
-        {{-- Stock muerto --}}
+    {{-- Resúmenes --}}
+    <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div class="card overflow-hidden">
-            <div class="card-header">
-                <h3 class="font-semibold text-slate-800">Stock Muerto (sin ventas)</h3>
-                <a href="{{ route('inventario.index', ['view' => 'dead_stock']) }}" class="text-indigo-600 text-sm">Ver todos</a>
+            <div class="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+                <h3 class="text-sm font-semibold text-slate-800">Stock por bodega</h3>
+                <a href="{{ route('inventario.warehouses.index') }}" class="text-xs text-indigo-600">Ver</a>
             </div>
-            <div class="divide-y divide-slate-100">
-                @forelse($deadStock as $p)
-                <div class="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
+            <div class="divide-y divide-slate-100 text-xs">
+                @forelse($warehouseSummary ?? [] as $row)
+                <div class="flex items-center justify-between px-3 py-2">
                     <div>
-                        <p class="font-medium text-slate-800">{{ $p->name }}</p>
-                        <p class="text-xs text-slate-500">{{ $p->category->name ?? '' }}</p>
+                        <p class="font-medium text-slate-800">{{ $row['warehouse']->name }}</p>
+                        <p class="text-[10px] text-slate-500">{{ $row['products'] }} productos</p>
                     </div>
                     <div class="text-right">
-                        <p class="font-bold text-red-600">{{ $p->stock }} {{ $p->unit }}</p>
-                        <p class="text-xs text-slate-400">C$ {{ number_format($p->stock * $p->purchase_price, 0) }} inmovilizado</p>
+                        <p class="font-bold text-indigo-700">{{ number_format($row['quantity'], 1) }}</p>
+                        <p class="text-[10px] text-slate-400">C$ {{ number_format($row['value'], 0) }}</p>
                     </div>
                 </div>
                 @empty
-                <p class="p-6 text-center text-slate-500">No hay stock muerto</p>
+                <p class="p-4 text-center text-slate-500">Sin bodegas</p>
                 @endforelse
             </div>
         </div>
 
-        {{-- Valor por categoría --}}
-        <div class="card p-6">
-            <h3 class="font-semibold text-slate-800 mb-4">Valor por Categoría</h3>
-            @php $maxVal = $valueByCategory->max('inventory_value') ?: 1; @endphp
-            <div class="space-y-3">
-                @foreach($valueByCategory as $cat)
-                <div>
-                    <div class="flex justify-between text-sm mb-1">
-                        <span class="text-slate-700">{{ $cat->name }} <span class="text-slate-400">({{ $cat->product_count }})</span></span>
-                        <span class="font-semibold">C$ {{ number_format($cat->inventory_value, 0) }}</span>
-                    </div>
-                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div class="h-full bg-indigo-500 rounded-full" style="width: {{ ($cat->inventory_value / $maxVal) * 100 }}%"></div>
-                    </div>
+        <div class="card overflow-hidden">
+            <div class="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+                <h3 class="text-sm font-semibold text-slate-800">Listas de precios</h3>
+                <a href="{{ route('inventario.price-lists.index') }}" class="text-xs text-indigo-600">Ver</a>
+            </div>
+            <div class="divide-y divide-slate-100 text-xs">
+                @forelse($priceLists ?? [] as $list)
+                <a href="{{ route('inventario.price-lists.show', $list) }}" class="flex items-center justify-between px-3 py-2 hover:bg-slate-50">
+                    <span class="font-medium text-slate-800">{{ $list->name }}</span>
+                    <span class="font-semibold text-emerald-600">{{ $list->items_count }} precios</span>
+                </a>
+                @empty
+                <p class="p-4 text-center text-slate-500">Sin listas</p>
+                @endforelse
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div class="card overflow-hidden">
+            <div class="border-b border-slate-100 px-3 py-2 text-sm font-semibold text-slate-800">Top vendidos</div>
+            <div class="divide-y divide-slate-100 text-xs">
+                @forelse($topSellers->take(8) as $i => $p)
+                <div class="flex items-center gap-2 px-3 py-1.5">
+                    <span class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold">{{ $i + 1 }}</span>
+                    <span class="min-w-0 flex-1 truncate text-slate-800">{{ $p->name }}</span>
+                    <span class="font-bold text-emerald-600">{{ (int)$p->sold_qty }}</span>
+                </div>
+                @empty
+                <p class="p-4 text-center text-slate-500">Sin ventas</p>
+                @endforelse
+            </div>
+        </div>
+
+        <div class="card overflow-hidden">
+            <div class="border-b border-slate-100 px-3 py-2 text-sm font-semibold text-slate-800">Baja rotación / stock muerto</div>
+            <div class="divide-y divide-slate-100 text-xs">
+                @foreach($lowRotation->take(4) as $p)
+                <div class="flex justify-between px-3 py-1.5">
+                    <span class="truncate text-slate-800">{{ $p->name }}</span>
+                    <span class="badge-warning">{{ number_format($p->rotation_index ?? 0, 1) }}x</span>
+                </div>
+                @endforeach
+                @foreach($deadStock->take(4) as $p)
+                <div class="flex justify-between px-3 py-1.5 text-red-700">
+                    <span class="truncate">{{ $p->name }}</span>
+                    <span class="font-bold">{{ $p->stock }} u.</span>
                 </div>
                 @endforeach
             </div>
         </div>
-
     </div>
-
-    {{-- Flujo de inventario --}}
-    <div class="card p-6">
-        <h3 class="font-semibold text-slate-800 mb-4">Flujo de Inventario (cómo se sincroniza)</h3>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-            <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-                <p class="font-semibold text-emerald-800">Entradas (+)</p>
-                <ul class="mt-2 text-emerald-700 space-y-1 text-xs">
-                    <li>• Compras a proveedores</li>
-                    <li>• Carga masiva inicial</li>
-                    <li>• Ajustes de inventario</li>
-                    <li>• Reversos de ventas</li>
-                </ul>
-            </div>
-            <div class="p-4 bg-red-50 rounded-xl border border-red-200">
-                <p class="font-semibold text-red-800">Salidas (−)</p>
-                <ul class="mt-2 text-red-700 space-y-1 text-xs">
-                    <li>• Ventas POS / Facturación</li>
-                    <li>• Ajustes por merma</li>
-                    <li>• Reversos de compras</li>
-                </ul>
-            </div>
-            <div class="p-4 bg-indigo-50 rounded-xl border border-indigo-200">
-                <p class="font-semibold text-indigo-800">Kardex</p>
-                <p class="mt-2 text-indigo-700 text-xs">Cada movimiento registra cantidad, stock resultante, referencia y usuario. El stock siempre es trazable.</p>
-            </div>
-            <div class="p-4 bg-amber-50 rounded-xl border border-amber-200">
-                <p class="font-semibold text-amber-800">Reconciliación</p>
-                <p class="mt-2 text-amber-700 text-xs">Compara stock actual vs. suma del kardex. Corrige automáticamente discrepancias.</p>
-            </div>
-        </div>
-    </div>
-
 </div>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+const movementTrend = @json($movementTrend);
+const stockHealth = @json($stockHealth);
+const topSellersChart = @json($topSellersChart);
+const categoryValues = @json($valueByCategory->take(8)->map(fn ($c) => ['label' => $c->name, 'value' => round($c->inventory_value, 2)])->values());
+
+new Chart(document.getElementById('movementTrendChart'), {
+    type: 'line',
+    data: {
+        labels: movementTrend.labels,
+        datasets: [
+            { label: 'Entradas', data: movementTrend.entries, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 },
+            { label: 'Salidas', data: movementTrend.exits, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.3 },
+        ],
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } },
+        scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } } }, x: { ticks: { maxTicksLimit: 10, font: { size: 10 } } } },
+    },
+});
+
+new Chart(document.getElementById('stockHealthChart'), {
+    type: 'doughnut',
+    data: {
+        labels: stockHealth.labels,
+        datasets: [{ data: stockHealth.values, backgroundColor: stockHealth.colors, borderWidth: 0 }],
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+    },
+});
+
+new Chart(document.getElementById('topSellersChart'), {
+    type: 'bar',
+    data: {
+        labels: topSellersChart.map(i => i.label),
+        datasets: [{ label: 'Unidades', data: topSellersChart.map(i => i.value), backgroundColor: '#6366f1', borderRadius: 4 }],
+    },
+    options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } },
+    },
+});
+
+new Chart(document.getElementById('categoryValueChart'), {
+    type: 'polarArea',
+    data: {
+        labels: categoryValues.map(c => c.label),
+        datasets: [{ data: categoryValues.map(c => c.value), backgroundColor: ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16'] }],
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 9 } } } },
+        scales: { r: { ticks: { display: false } } },
+    },
+});
+</script>
+@endpush
 @endsection

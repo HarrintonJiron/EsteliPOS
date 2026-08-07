@@ -11,7 +11,7 @@ class SaleDetail extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['sale_id', 'product_id', 'quantity', 'price', 'subtotal', 'tax_rate', 'tax_amount'];
+    protected $fillable = ['sale_id', 'product_id', 'unit_id', 'quantity', 'price', 'subtotal', 'tax_rate', 'tax_amount'];
 
     public function sale()
     {
@@ -21,5 +21,10 @@ class SaleDetail extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function unit()
+    {
+        return $this->belongsTo(Unit::class);
     }
 }

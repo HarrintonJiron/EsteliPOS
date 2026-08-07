@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', 'Editar ' . $product->name)
 
@@ -60,12 +61,19 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Unidad de Medida *</label>
                     <select name="unit" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        <option value="kg" {{ old('unit', $product->unit) == 'kg' ? 'selected' : '' }}>Kilogramos (kg)</option>
-                        <option value="lb" {{ old('unit', $product->unit) == 'lb' ? 'selected' : '' }}>Libras (lb)</option>
-                        <option value="lt" {{ old('unit', $product->unit) == 'lt' ? 'selected' : '' }}>Litros (lt)</option>
-                        <option value="gal" {{ old('unit', $product->unit) == 'gal' ? 'selected' : '' }}>Galones (gal)</option>
-                        <option value="unidad" {{ old('unit', $product->unit) == 'unidad' ? 'selected' : '' }}>Unidad</option>
-                        <option value="saco" {{ old('unit', $product->unit) == 'saco' ? 'selected' : '' }}>Saco</option>
+                        @foreach($units ?? [] as $u)
+                            <option value="{{ $u->abbreviation }}" {{ old('unit', $product->unit) == $u->abbreviation ? 'selected' : '' }}>{{ $u->name }} ({{ $u->abbreviation }})</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Unidad base (inventario)</label>
+                    <select name="base_unit_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <option value="">Igual a unidad de medida</option>
+                        @foreach($units ?? [] as $u)
+                            <option value="{{ $u->id }}" {{ old('base_unit_id', $product->base_unit_id) == $u->id ? 'selected' : '' }}>{{ $u->name }} ({{ $u->abbreviation }})</option>
+                        @endforeach
                     </select>
                 </div>
 

@@ -1,105 +1,87 @@
 @extends('layouts.app')
 
+@section('title', 'Compra #' . $purchase->id)
+
 @section('content')
-<div class="space-y-4">
-    <div class="flex justify-between items-center">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-800">Compra #{{ $purchase->id }}</h1>
-            <p class="text-sm text-gray-500">Detalle de compra y entradas a inventario</p>
-        </div>
+@php
+    $statusLabel = match ($purchase->status) {
+        'completed' => 'Completada',
+        'pending' => 'Pendiente',
+        default => 'Anulada',
+    };
+    $statusClass = match ($purchase->status) {
+        'completed' => 'badge-success',
+        'pending' => 'badge-warning',
+        default => 'badge-danger',
+    };
+@endphp
 
-        <div class="flex space-x-2">
-            <a href="{{ route('compras.edit', $purchase->id) }}" class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700">Editar</a>
-            <a href="{{ route('compras.index') }}" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Volver</a>
+<div class="mx-auto max-w-5xl space-y-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Compra #{{ $purchase->id }}</p>
+            <h1 class="page-title">{{ $purchase->supplier->name ?? 'Sin proveedor' }}</h1>
+            <p class="page-subtitle">{{ $purchase->date?->format('d/m/Y') }} · {{ $purchase->details->count() }} productos</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{{ route('compras.edit', $purchase->id) }}" class="btn-outline">Editar</a>
         </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-6 gap-4">
-        <div>
-            <p class="text-sm text-gray-500">Proveedor</p>
-            <p class="font-semibold">{{ $purchase->supplier->name ?? 'N/A' }}</p>
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div class="card p-4">
+            <p class="text-xs text-slate-500">Estado</p>
+            <p class="mt-2"><span class="{{ $statusClass }}">{{ $statusLabel }}</span></p>
         </div>
-        <div>
-            <p class="text-sm text-gray-500">Fecha</p>
-            <p class="font-semibold">{{ $purchase->date ? $purchase->date->format('d/m/Y') : 'N/A' }}</p>
+        <div class="card p-4">
+            <p class="text-xs text-slate-500">Bodega</p>
+            <p class="mt-2 font-semibold text-slate-800">{{ $purchase->warehouse->name ?? '—' }}</p>
         </div>
-        <div>
-            <p class="text-sm text-gray-500">Estado</p>
-            @php
-                $status = $purchase->status;
-                $statusLabel = $status === 'completed' ? 'Completada' : ($status === 'pending' ? 'Pendiente' : 'Anulada');
-                $statusClass = $status === 'completed' ? 'bg-green-100 text-green-700' : ($status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700');
-            @endphp
-            <span class="inline-block px-3 py-1 rounded-full text-xs {{ $statusClass }}">{{ $statusLabel }}</span>
+        <div class="card p-4">
+            <p class="text-xs text-slate-500">Subtotal</p>
+            <p class="mt-2 font-semibold text-slate-800">C$ {{ number_format($purchase->subtotal ?? 0, 2) }}</p>
         </div>
-        <div>
-            <p class="text-sm text-gray-500">Subtotal</p>
-            <p class="font-semibold">C$ {{ number_format($purchase->subtotal ?? 0, 2) }}</p>
-        </div>
-        @if($invoiceTaxDisplay->showsTaxBreakdown())
-            <div>
-                <p class="text-sm text-gray-500">{{ $invoiceTaxDisplay->taxLabel((float) ($purchase->tax_rate ?? 0)) }}</p>
-                <p class="font-semibold">C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) ($purchase->tax_total ?? 0)), 2) }}</p>
-            </div>
-        @endif
-        <div>
-            <p class="text-sm text-gray-500">Total</p>
-            <p class="font-semibold text-blue-700">C$ {{ number_format($purchase->total ?? 0, 2) }}</p>
+        <div class="card p-4">
+            <p class="text-xs text-slate-500">Total</p>
+            <p class="mt-2 text-xl font-bold text-indigo-700">C$ {{ number_format($purchase->total ?? 0, 2) }}</p>
         </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow overflow-hidden">
-        <div class="p-4 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-gray-700">Productos</h2>
-            <span class="text-xs text-gray-500">{{ $purchase->details->count() }} ítems</span>
+    @if($invoiceTaxDisplay->showsTaxBreakdown())
+        <div class="card px-4 py-3 text-sm text-slate-600">
+            {{ $invoiceTaxDisplay->taxLabel((float) ($purchase->tax_rate ?? 0)) }}:
+            <span class="font-semibold text-slate-800">C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) ($purchase->tax_total ?? 0)), 2) }}</span>
         </div>
+    @endif
 
-        <table class="w-full text-sm text-left">
-            <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
-                <tr>
-                    <th class="px-4 py-2">Producto</th>
-                    <th class="px-4 py-2">Cantidad</th>
-                    <th class="px-4 py-2">Costo</th>
-                    <th class="px-4 py-2">Subtotal</th>
-                    @if($invoiceTaxDisplay->showsTaxBreakdown())
-                        <th class="px-4 py-2">{{ $invoiceTaxDisplay->isExemptMode() ? 'Condición fiscal' : 'IVA' }}</th>
-                    @endif
-                </tr>
-            </thead>
-            <tbody class="divide-y">
-                @foreach($purchase->details as $detail)
-                    <tr>
-                        <td class="px-4 py-2 font-medium">{{ $detail->product->name ?? 'N/A' }}</td>
-                        <td class="px-4 py-2">{{ $detail->quantity }}</td>
-                        <td class="px-4 py-2">C$ {{ number_format($detail->price, 2) }}</td>
-                        <td class="px-4 py-2">C$ {{ number_format($detail->subtotal, 2) }}</td>
-                        @if($invoiceTaxDisplay->showsTaxBreakdown())
-                            <td class="px-4 py-2">
-                                @if($invoiceTaxDisplay->isExemptMode())
-                                    Exento de IVA
-                                @else
-                                    C$ {{ number_format($detail->tax_amount ?? 0, 2) }} ({{ number_format(($detail->tax_rate ?? 0) * 100, 2) }}%)
-                                @endif
-                            </td>
-                        @endif
-                    </tr>
-                @endforeach
-            </tbody>
-            <tfoot>
-                <tr class="bg-gray-50">
-                    @if($invoiceTaxDisplay->showsTaxBreakdown())
-                        <td colspan="3" class="px-4 py-3 text-right font-semibold">Subtotal / {{ $invoiceTaxDisplay->isExemptMode() ? 'Exento de IVA' : 'IVA' }} / Total</td>
-                        <td class="px-4 py-3 font-semibold" colspan="2">
-                            C$ {{ number_format($purchase->subtotal ?? 0, 2) }} + C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) ($purchase->tax_total ?? 0)), 2) }} = C$ {{ number_format($purchase->total ?? 0, 2) }}
-                        </td>
-                    @else
-                        <td colspan="3" class="px-4 py-3 text-right font-semibold">Total</td>
-                        <td class="px-4 py-3 font-semibold">C$ {{ number_format($purchase->total ?? 0, 2) }}</td>
-                    @endif
-                </tr>
-            </tfoot>
-        </table>
+    <div class="card overflow-hidden">
+        <div class="border-b border-slate-100 px-4 py-3">
+            <h2 class="font-semibold text-slate-800">Detalle de productos</h2>
+        </div>
+        <div class="divide-y divide-slate-100">
+            @foreach($purchase->details as $detail)
+                <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                    <div class="min-w-0">
+                        <p class="font-medium text-slate-900">{{ $detail->product->name ?? 'N/A' }}</p>
+                        <p class="text-xs text-slate-500">{{ $detail->product->code ?? '' }}</p>
+                    </div>
+                    <div class="flex items-center gap-6 text-sm">
+                        <div class="text-right">
+                            <p class="text-xs text-slate-500">Cantidad</p>
+                            <p class="font-semibold text-slate-800">{{ $detail->quantity }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-slate-500">Costo</p>
+                            <p class="font-semibold text-slate-800">C$ {{ number_format($detail->price, 2) }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-slate-500">Subtotal</p>
+                            <p class="font-bold text-slate-900">C$ {{ number_format($detail->subtotal, 2) }}</p>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
     </div>
 </div>
-
 @endsection

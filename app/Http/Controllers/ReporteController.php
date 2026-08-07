@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Client;
+use App\Models\InventoryMovement;
+use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\Sale;
+use App\Models\Supplier;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
-use App\Models\Sale;
-use App\Models\Purchase;
-use App\Models\Product;
-use App\Models\InventoryMovement;
-use App\Models\Client;
-use App\Models\Supplier;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReporteController extends Controller
@@ -151,6 +151,7 @@ class ReporteController extends Controller
     private function getInventorySummary()
     {
         $today = Carbon::today();
+
         return [
             'total_products' => Product::count(),
             'total_value' => Product::select(DB::raw('SUM(stock * purchase_price) as total'))->value('total'),
@@ -222,7 +223,7 @@ class ReporteController extends Controller
         $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->format('Y-m-d'));
         $endDate = $request->get('end_date', Carbon::now()->format('Y-m-d'));
 
-        $filename = "reporte_{$reportType}_" . Carbon::now()->format('Ymd_His') . '.csv';
+        $filename = "reporte_{$reportType}_".Carbon::now()->format('Ymd_His').'.csv';
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -233,7 +234,7 @@ class ReporteController extends Controller
 
         $callback = function () use ($reportType, $startDate, $endDate, $request) {
             $output = fopen('php://output', 'w');
-            fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM para UTF-8
+            fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM para UTF-8
 
             switch ($reportType) {
                 case 'sales':
@@ -248,6 +249,9 @@ class ReporteController extends Controller
                 case 'kardex':
                     $this->exportKardexCSV($output, $request);
                     break;
+                case 'profit':
+                    $this->exportProfitCSV($output, $startDate, $endDate);
+                    break;
             }
 
             fclose($output);
@@ -258,19 +262,23 @@ class ReporteController extends Controller
 
     private function exportSalesCSV($output, $startDate, $endDate, $request)
     {
-        fputcsv($output, ['REPORTE DE VENTAS - Agroservicio S.A.']);
-        fputcsv($output, ['Periodo:', $startDate . ' al ' . $endDate]);
+        fputcsv($output, ['REPORTE DE VENTAS - EsteliPOS']);
+        fputcsv($output, ['Periodo:', $startDate.' al '.$endDate]);
         fputcsv($output, ['Generado:', Carbon::now()->format('d/m/Y H:i:s')]);
         fputcsv($output, []);
         fputcsv($output, ['FACTURA', 'FECHA', 'CLIENTE', 'TIPO CLIENTE', 'DOCUMENTO', 'CONDICION', 'SUBTOTAL', 'IVA', 'TOTAL', 'ESTADO']);
 
         $query = Sale::with('client')->whereBetween('date', [$startDate, $endDate]);
-        if ($request->filled('client_id')) $query->where('client_id', $request->client_id);
-        if ($request->filled('status')) $query->where('status', $request->status);
+        if ($request->filled('client_id')) {
+            $query->where('client_id', $request->client_id);
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
 
         foreach ($query->cursor() as $sale) {
             fputcsv($output, [
-                $sale->invoice_number ?? '#' . $sale->id,
+                $sale->invoice_number ?? '#'.$sale->id,
                 $sale->date->format('d/m/Y'),
                 $sale->billing_name ?? $sale->client?->name,
                 $sale->client?->isCompany() ? 'Empresa' : 'Persona Natural',
@@ -279,42 +287,46 @@ class ReporteController extends Controller
                 number_format($sale->subtotal, 2),
                 number_format($sale->tax_total, 2),
                 number_format($sale->total, 2),
-                $sale->status === 'completed' ? 'Pagada' : 'Pendiente'
+                $sale->status === 'completed' ? 'Pagada' : 'Pendiente',
             ]);
         }
     }
 
     private function exportPurchasesCSV($output, $startDate, $endDate, $request)
     {
-        fputcsv($output, ['REPORTE DE COMPRAS - Agroservicio S.A.']);
-        fputcsv($output, ['Periodo:', $startDate . ' al ' . $endDate]);
+        fputcsv($output, ['REPORTE DE COMPRAS - EsteliPOS']);
+        fputcsv($output, ['Periodo:', $startDate.' al '.$endDate]);
         fputcsv($output, ['Generado:', Carbon::now()->format('d/m/Y H:i:s')]);
         fputcsv($output, []);
         fputcsv($output, ['COMPRA', 'FECHA', 'PROVEEDOR', 'TOTAL', 'ESTADO']);
 
         $query = Purchase::with('supplier')->whereBetween('date', [$startDate, $endDate]);
-        if ($request->filled('supplier_id')) $query->where('supplier_id', $request->supplier_id);
+        if ($request->filled('supplier_id')) {
+            $query->where('supplier_id', $request->supplier_id);
+        }
 
         foreach ($query->cursor() as $purchase) {
             fputcsv($output, [
-                '#' . $purchase->id,
+                '#'.$purchase->id,
                 $purchase->date->format('d/m/Y'),
                 $purchase->supplier?->name ?? 'N/A',
                 number_format($purchase->total, 2),
-                $purchase->status
+                $purchase->status,
             ]);
         }
     }
 
     private function exportInventoryCSV($output, $request)
     {
-        fputcsv($output, ['REPORTE DE INVENTARIO - Agroservicio S.A.']);
+        fputcsv($output, ['REPORTE DE INVENTARIO - EsteliPOS']);
         fputcsv($output, ['Generado:', Carbon::now()->format('d/m/Y H:i:s')]);
         fputcsv($output, []);
         fputcsv($output, ['CODIGO', 'PRODUCTO', 'CATEGORIA', 'STOCK', 'UNIT', 'PRECIO COMPRA', 'PRECIO VENTA', 'VALOR TOTAL', 'LOTE', 'VENCIMIENTO', 'UBICACION', 'ESTADO']);
 
         $query = Product::with('category');
-        if ($request->filled('product_id')) $query->where('id', $request->product_id);
+        if ($request->filled('product_id')) {
+            $query->where('id', $request->product_id);
+        }
 
         foreach ($query->cursor() as $product) {
             fputcsv($output, [
@@ -329,14 +341,14 @@ class ReporteController extends Controller
                 $product->lot ?? 'N/A',
                 $product->expiry_date?->format('d/m/Y') ?? 'N/A',
                 $product->location ?? 'N/A',
-                $product->status
+                $product->status,
             ]);
         }
     }
 
     private function exportKardexCSV($output, $request)
     {
-        fputcsv($output, ['KARDEX DE MOVIMIENTOS - Agroservicio S.A.']);
+        fputcsv($output, ['KARDEX DE MOVIMIENTOS - EsteliPOS']);
         fputcsv($output, ['Generado:', Carbon::now()->format('d/m/Y H:i:s')]);
         fputcsv($output, []);
         fputcsv($output, ['FECHA', 'PRODUCTO', 'TIPO', 'CANTIDAD', 'STOCK ANTES', 'STOCK DESPUES', 'REFERENCIA', 'NOTA', 'USUARIO']);
@@ -365,7 +377,37 @@ class ReporteController extends Controller
                 $movement->stock_after ?? 'N/A',
                 $movement->reference ?? 'N/A',
                 $movement->note ?? '',
-                $movement->user?->name ?? 'N/A'
+                $movement->user?->name ?? 'N/A',
+            ]);
+        }
+    }
+
+    private function exportProfitCSV($output, $startDate, $endDate): void
+    {
+        fputcsv($output, ['REPORTE DE RENTABILIDAD - EsteliPOS']);
+        fputcsv($output, ['Periodo:', $startDate.' al '.$endDate]);
+        fputcsv($output, ['Generado:', Carbon::now()->format('d/m/Y H:i:s')]);
+        fputcsv($output, []);
+        fputcsv($output, ['FACTURA', 'FECHA', 'TOTAL VENTA', 'COSTO', 'GANANCIA', 'MARGEN %']);
+
+        $sales = Sale::with('details.product')
+            ->whereBetween('date', [$startDate, $endDate])
+            ->where('status', 'completed')
+            ->latest()
+            ->cursor();
+
+        foreach ($sales as $sale) {
+            $cost = $sale->details->sum(fn ($d) => $d->quantity * ($d->product?->purchase_price ?? 0));
+            $profit = $sale->total - $cost;
+            $margin = $sale->total > 0 ? ($profit / $sale->total) * 100 : 0;
+
+            fputcsv($output, [
+                $sale->invoice_number ?? '#'.$sale->id,
+                $sale->date->format('d/m/Y'),
+                number_format($sale->total, 2),
+                number_format($cost, 2),
+                number_format($profit, 2),
+                number_format($margin, 1),
             ]);
         }
     }

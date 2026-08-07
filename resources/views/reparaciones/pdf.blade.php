@@ -30,9 +30,20 @@
             <p class="text-xs font-medium uppercase tracking-widest opacity-70 mb-1">ORDEN DE REPARACIÓN</p>
             <p class="text-2xl font-black">{{ $order->order_number }}</p>
             <div class="text-xs mt-1 space-y-0.5 opacity-90">
-                <p>Recibido: {{ $order->received_date->format('d/m/Y') }}</p>
-                @if($order->estimated_date)
-                <p>Entrega est.: {{ $order->estimated_date->format('d/m/Y') }}</p>
+                <p>Recibido: {{ $order->received_date->format('d/m/Y') }} @if($order->formattedReceivedTime())· {{ $order->formattedReceivedTime() }}@endif</p>
+                @if($order->estimated_date || $order->estimated_delivery_time)
+                <p>Entrega est.:
+                    @if($order->estimated_date){{ $order->estimated_date->format('d/m/Y') }}@endif
+                    @if($order->estimated_date && $order->formattedEstimatedDeliveryTime()) · @endif
+                    @if($order->formattedEstimatedDeliveryTime()){{ $order->formattedEstimatedDeliveryTime() }}@endif
+                </p>
+                @endif
+                @if($order->delivered_date || $order->delivered_time)
+                <p>Entregado:
+                    @if($order->delivered_date){{ $order->delivered_date->format('d/m/Y') }}@endif
+                    @if($order->delivered_date && $order->formattedDeliveredTime()) · @endif
+                    @if($order->formattedDeliveredTime()){{ $order->formattedDeliveredTime() }}@endif
+                </p>
                 @endif
             </div>
         </div>
@@ -72,6 +83,10 @@
         <x-pattern-viewer :pattern="$order->device_password" />
     </div>
     @endif
+
+    {{-- Diagnosis section --}}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div>
             <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Falla reportada por cliente</p>
             <p class="text-xs text-slate-700 bg-slate-50 rounded-xl p-3 whitespace-pre-line">{{ $order->problem_description }}</p>
         </div>
@@ -82,6 +97,14 @@
         </div>
         @endif
     </div>
+
+    {{-- Warranty section --}}
+    @if($order->warranty_enabled)
+    <div class="mb-5 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+        <p class="text-xs font-semibold text-emerald-700 uppercase mb-2">✓ Garantía Incluida</p>
+        <p class="text-xs text-emerald-900 leading-relaxed">{{ $order->effectiveWarrantyText() }}</p>
+    </div>
+    @endif
 
     {{-- Parts table --}}
     @if($order->items->count())

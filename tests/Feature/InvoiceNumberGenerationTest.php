@@ -85,7 +85,7 @@ test('proforma controller generates the next proforma number without regex sql',
         'total' => 0,
     ]);
 
-    $controller = new ProformaController();
+    $controller = app(ProformaController::class);
     $method = new ReflectionMethod($controller, 'nextProformaNumber');
     $method->setAccessible(true);
 

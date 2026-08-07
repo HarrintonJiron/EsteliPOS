@@ -7,20 +7,26 @@ use App\Http\Controllers\AjusteInventarioController;
 use App\Http\Controllers\ArqueoController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BalanceSheetController;
+use App\Http\Controllers\BonusController;
 use App\Http\Controllers\CashFlowController;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\CompraController;
 use App\Http\Controllers\CostCenterController;
 use App\Http\Controllers\CreditController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeductionController;
 use App\Http\Controllers\DeviceBrandController;
 use App\Http\Controllers\DiarioController;
+use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\ExchangeRateController;
 use App\Http\Controllers\FacturacionController;
 use App\Http\Controllers\FiscalPeriodController;
 use App\Http\Controllers\IncomeStatementController;
 use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\LedgerController;
+use App\Http\Controllers\LoanController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\MovimientosController;
 use App\Http\Controllers\NominaController;
@@ -28,6 +34,7 @@ use App\Http\Controllers\OperationalExpenseController;
 use App\Http\Controllers\PasswordChangeController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PlanillaController;
+use App\Http\Controllers\PriceListController;
 use App\Http\Controllers\ProformaController;
 use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\RepairServiceController;
@@ -38,6 +45,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas públicas (sin autenticación)
@@ -68,6 +76,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/facturacion/{id}', [FacturacionController::class, 'show'])->name('facturacion.show');
         });
         Route::middleware('permission:ventas.create')->group(function () {
+            Route::post('/facturacion/pos/products/{product}/image', [FacturacionController::class, 'updateProductImage'])->name('facturacion.pos-product-image')->whereNumber('product');
             Route::post('/facturacion/pos-store', [FacturacionController::class, 'posStore'])->name('facturacion.pos-store');
             Route::post('/facturacion', [FacturacionController::class, 'store'])->name('facturacion.store');
         });
@@ -108,12 +117,30 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/inventario/buscar/{code}', [InventarioController::class, 'lookupCode'])->name('inventario.lookup');
         Route::post('/inventario', [InventarioController::class, 'store'])->name('inventario.store');
         Route::get('/inventario/dashboard', [InventarioController::class, 'dashboard'])->name('inventario.dashboard');
+        Route::get('/inventario/unidades', [InventarioController::class, 'units'])->name('inventario.units.index');
+        Route::post('/inventario/convertir', [InventarioController::class, 'convertUnits'])->name('inventario.convert');
+        Route::get('/inventario/bodegas', [WarehouseController::class, 'index'])->name('inventario.warehouses.index');
+        Route::get('/inventario/bodegas/nueva', [WarehouseController::class, 'create'])->name('inventario.warehouses.create');
+        Route::post('/inventario/bodegas', [WarehouseController::class, 'store'])->name('inventario.warehouses.store');
+        Route::get('/inventario/bodegas/{warehouse}', [WarehouseController::class, 'show'])->name('inventario.warehouses.show');
+        Route::get('/inventario/bodegas/{warehouse}/edit', [WarehouseController::class, 'edit'])->name('inventario.warehouses.edit');
+        Route::put('/inventario/bodegas/{warehouse}', [WarehouseController::class, 'update'])->name('inventario.warehouses.update');
+        Route::get('/inventario/listas-precios', [PriceListController::class, 'index'])->name('inventario.price-lists.index');
+        Route::get('/inventario/listas-precios/nueva', [PriceListController::class, 'create'])->name('inventario.price-lists.create');
+        Route::post('/inventario/listas-precios', [PriceListController::class, 'store'])->name('inventario.price-lists.store');
+        Route::get('/inventario/listas-precios/{priceList}', [PriceListController::class, 'show'])->name('inventario.price-lists.show');
+        Route::get('/inventario/listas-precios/{priceList}/edit', [PriceListController::class, 'edit'])->name('inventario.price-lists.edit');
+        Route::put('/inventario/listas-precios/{priceList}', [PriceListController::class, 'update'])->name('inventario.price-lists.update');
+        Route::post('/inventario/listas-precios/{priceList}/items', [PriceListController::class, 'storeItem'])->name('inventario.price-lists.items.store');
+        Route::delete('/inventario/listas-precios/{priceList}/items/{item}', [PriceListController::class, 'destroyItem'])->name('inventario.price-lists.items.destroy');
         Route::get('/inventario/carga-masiva', [InventarioController::class, 'bulk'])->name('inventario.bulk');
         Route::post('/inventario/carga-masiva', [InventarioController::class, 'bulkStore'])->name('inventario.bulk-store');
         Route::get('/inventario/next-code', [InventarioController::class, 'nextCode'])->name('inventario.next-code');
         Route::post('/inventario/reconciliar', [InventarioController::class, 'reconcile'])->name('inventario.reconcile');
         Route::post('/categorias', [InventarioController::class, 'storeCategory'])->name('categorias.store');
         Route::get('/inventario/export', [InventarioController::class, 'export'])->name('inventario.export');
+        Route::post('/inventario/{id}/conversiones', [InventarioController::class, 'storeUnitConversion'])->name('inventario.conversions.store')->whereNumber('id');
+        Route::delete('/inventario/{id}/conversiones/{conversion}', [InventarioController::class, 'destroyUnitConversion'])->name('inventario.conversions.destroy')->whereNumber('id');
         Route::get('/inventario/{id}', [InventarioController::class, 'show'])->name('inventario.show')->whereNumber('id');
         Route::get('/inventario/{id}/edit', [InventarioController::class, 'edit'])->name('inventario.edit')->whereNumber('id');
         Route::match(['put', 'patch'], '/inventario/{id}', [InventarioController::class, 'update'])->name('inventario.update')->whereNumber('id');
@@ -137,6 +164,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('module:compras')->group(function () {
+        Route::get('/compras/productos/buscar', [CompraController::class, 'searchProducts'])->name('compras.products.search');
         Route::get('/compras', [CompraController::class, 'index'])->name('compras.index');
         Route::get('/compras/create', [CompraController::class, 'create'])->name('compras.create');
         Route::get('/compras/{id}', [CompraController::class, 'show'])->name('compras.show');
@@ -152,12 +180,86 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/clientes/{id}/edit', [ClienteController::class, 'edit'])->name('clientes.edit');
         Route::get('/clientes/{id}', [ClienteController::class, 'show'])->name('clientes.show');
         Route::post('/clientes', [ClienteController::class, 'store'])->name('clientes.store');
+        Route::post('/clientes/quick-store', [ClienteController::class, 'quickStore'])->name('clientes.quick-store');
         Route::match(['put', 'patch'], '/clientes/{id}', [ClienteController::class, 'update'])->name('clientes.update');
         Route::post('/clientes/{id}/toggle-credit', [ClienteController::class, 'toggleCredit'])->name('clientes.toggle_credit');
         Route::delete('/clientes/{id}', [ClienteController::class, 'destroy'])->name('clientes.destroy');
     });
 
     Route::get('/planilla', [PlanillaController::class, 'index'])->middleware('module:planilla')->name('planilla.index');
+
+    // Gestión de Empleados
+    Route::middleware('module:planilla')->group(function () {
+        Route::resource('employees', EmployeeController::class)->names([
+            'index' => 'employees.index',
+            'create' => 'employees.create',
+            'store' => 'employees.store',
+            'show' => 'employees.show',
+            'edit' => 'employees.edit',
+            'update' => 'employees.update',
+            'destroy' => 'employees.destroy',
+        ]);
+    });
+
+    // Gestión de Permisos
+    Route::middleware('module:planilla')->group(function () {
+        Route::resource('leave', LeaveRequestController::class)->names([
+            'index' => 'leave.index',
+            'create' => 'leave.create',
+            'store' => 'leave.store',
+            'show' => 'leave.show',
+            'edit' => 'leave.edit',
+            'update' => 'leave.update',
+            'destroy' => 'leave.destroy',
+        ]);
+        Route::post('/leave/{leaveRequest}/approve', [LeaveRequestController::class, 'approve'])->name('leave.approve');
+        Route::post('/leave/{leaveRequest}/reject', [LeaveRequestController::class, 'reject'])->name('leave.reject');
+    });
+
+    // Gestión de Préstamos
+    Route::middleware('module:planilla')->group(function () {
+        Route::resource('loans', LoanController::class)->names([
+            'index' => 'loans.index',
+            'create' => 'loans.create',
+            'store' => 'loans.store',
+            'show' => 'loans.show',
+            'edit' => 'loans.edit',
+            'update' => 'loans.update',
+            'destroy' => 'loans.destroy',
+        ]);
+        Route::post('/loans/{loan}/approve', [LoanController::class, 'approve'])->name('loans.approve');
+        Route::post('/loans/{loan}/reject', [LoanController::class, 'reject'])->name('loans.reject');
+    });
+
+    // Gestión de Bonos
+    Route::middleware('module:planilla')->group(function () {
+        Route::resource('bonuses', BonusController::class)->names([
+            'index' => 'bonuses.index',
+            'create' => 'bonuses.create',
+            'store' => 'bonuses.store',
+            'show' => 'bonuses.show',
+            'edit' => 'bonuses.edit',
+            'update' => 'bonuses.update',
+            'destroy' => 'bonuses.destroy',
+        ]);
+        Route::post('/bonuses/{bonus}/approve', [BonusController::class, 'approve'])->name('bonuses.approve');
+        Route::post('/bonuses/{bonus}/mark-paid', [BonusController::class, 'markAsPaid'])->name('bonuses.mark-paid');
+    });
+
+    // Gestión de Deducciones
+    Route::middleware('module:planilla')->group(function () {
+        Route::resource('deductions', DeductionController::class)->names([
+            'index' => 'deductions.index',
+            'create' => 'deductions.create',
+            'store' => 'deductions.store',
+            'show' => 'deductions.show',
+            'edit' => 'deductions.edit',
+            'update' => 'deductions.update',
+            'destroy' => 'deductions.destroy',
+        ]);
+        Route::post('/deductions/{deduction}/approve', [DeductionController::class, 'approve'])->name('deductions.approve');
+        Route::post('/deductions/{deduction}/mark-deducted', [DeductionController::class, 'markAsDeducted'])->name('deductions.mark-deducted');
+    });
 
     // Proformas / Cotizaciones
     Route::middleware('module:proformas')->group(function () {
@@ -260,6 +362,14 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/taxes/{tax}/edit', [TaxController::class, 'edit'])->name('taxes.edit');
             Route::match(['put', 'patch'], '/taxes/{tax}', [TaxController::class, 'update'])->name('taxes.update');
             Route::delete('/taxes/{tax}', [TaxController::class, 'destroy'])->name('taxes.destroy');
+        });
+        Route::get('/exchange-rates', [ExchangeRateController::class, 'index'])->name('exchange-rates.index');
+        Route::middleware('permission:configuracion.edit')->group(function () {
+            Route::get('/exchange-rates/create', [ExchangeRateController::class, 'create'])->name('exchange-rates.create');
+            Route::post('/exchange-rates', [ExchangeRateController::class, 'store'])->name('exchange-rates.store');
+            Route::get('/exchange-rates/{exchangeRate}/edit', [ExchangeRateController::class, 'edit'])->name('exchange-rates.edit');
+            Route::match(['put', 'patch'], '/exchange-rates/{exchangeRate}', [ExchangeRateController::class, 'update'])->name('exchange-rates.update');
+            Route::delete('/exchange-rates/{exchangeRate}', [ExchangeRateController::class, 'destroy'])->name('exchange-rates.destroy');
         });
         Route::middleware('permission:configuracion.manage_modules')->group(function () {
             Route::get('/modules', [ModuleController::class, 'index'])->name('modules');

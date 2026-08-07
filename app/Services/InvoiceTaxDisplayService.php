@@ -7,7 +7,9 @@ use App\Models\Setting;
 class InvoiceTaxDisplayService
 {
     public const MODE_GENERAL = 'general';
+
     public const MODE_EXEMPT = 'exempt';
+
     public const MODE_HIDE = 'hide';
 
     public const SETTING_KEY = 'invoice_tax_display_mode';
@@ -45,6 +47,19 @@ class InvoiceTaxDisplayService
     public function showsTaxBreakdown(): bool
     {
         return $this->mode() !== self::MODE_HIDE;
+    }
+
+    public function showsTaxInTotals(float $taxTotal): bool
+    {
+        if ($this->mode() === self::MODE_HIDE) {
+            return false;
+        }
+
+        if ($this->mode() === self::MODE_EXEMPT && $taxTotal == 0) {
+            return false;
+        }
+
+        return true;
     }
 
     public function isExemptMode(): bool

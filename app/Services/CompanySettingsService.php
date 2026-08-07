@@ -13,6 +13,8 @@ use Throwable;
 
 class CompanySettingsService
 {
+    public const DEFAULT_REPAIR_WARRANTY = 'Garantía de 30 días por mano de obra aplicando términos y condiciones. No cubre daños por mal uso, agua, golpes o manipulación por terceros después de la entrega.';
+
     private const GENERAL_KEYS = [
         'company_name',
         'company_legal_name',
@@ -31,6 +33,7 @@ class CompanySettingsService
         'ticket_logo',
         'invoice_footer',
         'receipt_message',
+        'repair_warranty_text',
     ];
 
     private const DEFAULTS = [
@@ -51,6 +54,7 @@ class CompanySettingsService
         'ticket_logo' => '',
         'invoice_footer' => '',
         'receipt_message' => '¡Gracias por su compra!',
+        'repair_warranty_text' => self::DEFAULT_REPAIR_WARRANTY,
         'system_name' => 'EsteliPOS',
     ];
 

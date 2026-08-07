@@ -12,6 +12,7 @@ class Client extends Model
     use HasFactory, SoftDeletes;
 
     public const TYPE_NATURAL = 'natural';
+
     public const TYPE_COMPANY = 'company';
 
     protected $fillable = [
@@ -28,6 +29,7 @@ class Client extends Model
         'department',
         'municipality',
         'status',
+        'price_list_id',
         'credit_enabled',
         'credit_limit',
         'credit_days',
@@ -55,6 +57,11 @@ class Client extends Model
     public function sales()
     {
         return $this->hasMany(Sale::class);
+    }
+
+    public function priceList()
+    {
+        return $this->belongsTo(PriceList::class);
     }
 
     public function creditPayments()

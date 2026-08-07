@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', 'Detalles de Crédito - ' . $client->name)
 
@@ -126,9 +127,13 @@
                                         C$ {{ number_format($sale->total, 2) }}
                                     </td>
                                     <td class="px-4 py-3 text-sm text-center">
-                                        <span class="inline-block px-2 py-1 text-xs rounded {{ $sale->due_date < now() ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700' }}">
-                                            {{ $sale->due_date->format('d/m/Y') }}
-                                        </span>
+                                        @if($sale->due_date)
+                                            <span class="inline-block px-2 py-1 text-xs rounded {{ $sale->due_date->isPast() ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700' }}">
+                                                {{ $sale->due_date->format('d/m/Y') }}
+                                            </span>
+                                        @else
+                                            <span class="text-slate-400 text-xs">—</span>
+                                        @endif
                                     </td>
                                     @if($client->mora_enabled)
                                     @php

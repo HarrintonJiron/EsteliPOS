@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', $product->name)
 
@@ -56,9 +57,9 @@
                 <div class="text-center p-4 bg-gray-50 rounded-lg">
                     <p class="text-sm text-gray-500">Stock Actual</p>
                     <p class="text-4xl font-bold {{ $product->isLowStock() ? 'text-red-600' : 'text-green-600' }}">
-                        {{ $product->stock }}
+                        {{ number_format((float)$product->stock, 2) }}
                     </p>
-                    <p class="text-sm text-gray-500">{{ $product->unit }}</p>
+                    <p class="text-sm text-gray-500">{{ $product->baseUnitLabel() }}</p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -167,6 +168,66 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    {{-- Stock por bodega --}}
+    @if($product->warehouseStocks->isNotEmpty())
+    <div class="card overflow-hidden">
+        <div class="card-header">
+            <h2 class="text-lg font-semibold text-slate-800">Stock por Bodega</h2>
+            <a href="{{ route('inventario.warehouses.index') }}" class="text-indigo-600 text-sm">Ver bodegas</a>
+        </div>
+        <table class="min-w-full table-agro text-sm">
+            <thead><tr><th>Bodega</th><th class="text-right">Cantidad</th><th class="text-right">Reservado</th></tr></thead>
+            <tbody>
+                @foreach($product->warehouseStocks as $ws)
+                <tr>
+                    <td>{{ $ws->warehouse->name ?? '—' }}</td>
+                    <td class="text-right font-semibold">{{ number_format((float)$ws->quantity, 2) }} {{ $product->baseUnitLabel() }}</td>
+                    <td class="text-right text-slate-500">{{ number_format((float)($ws->reserved_quantity ?? 0), 2) }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @endif
+
+    {{-- Conversiones de unidad --}}
+    <div class="card p-5 space-y-4">
+        <div class="flex justify-between items-center">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-800">Unidades alternativas</h2>
+                <p class="text-sm text-slate-500">Ej: 1 saco = 0.04 m³ de arena · venta por saco o por metro</p>
+            </div>
+            <a href="{{ route('inventario.units.index') }}" class="btn-outline text-sm">Conversor</a>
+        </div>
+        @if($product->unitConversions->isNotEmpty())
+        <table class="min-w-full table-agro text-sm">
+            <thead><tr><th>Unidad</th><th class="text-right">Factor a base</th><th class="text-right">Precio venta</th><th></th></tr></thead>
+            <tbody>
+                @foreach($product->unitConversions as $conv)
+                <tr>
+                    <td>{{ $conv->unit->name ?? '—' }} ({{ $conv->unit->abbreviation ?? '' }})</td>
+                    <td class="text-right font-mono">× {{ rtrim(rtrim(number_format((float)$conv->factor_to_base, 6), '0'), '.') }}</td>
+                    <td class="text-right">{{ $conv->sale_price ? 'C$ '.number_format($conv->sale_price, 2) : '—' }}</td>
+                    <td class="text-right">
+                        <form method="POST" action="{{ route('inventario.conversions.destroy', [$product->id, $conv->id]) }}" onsubmit="return confirm('¿Eliminar conversión?')">@csrf @method('DELETE')<button class="text-red-600 text-xs">Quitar</button></form>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+        @else
+        <p class="text-sm text-slate-500">Sin conversiones. Agregue una unidad alternativa (saco, varilla, etc.).</p>
+        @endif
+        <form method="POST" action="{{ route('inventario.conversions.store', $product->id) }}" class="grid md:grid-cols-5 gap-3 items-end border-t pt-4">
+            @csrf
+            <div><label class="form-label">Unidad</label><select name="unit_id" class="select-field" required>@foreach($allUnits ?? [] as $u)<option value="{{ $u->id }}">{{ $u->abbreviation }} — {{ $u->name }}</option>@endforeach</select></div>
+            <div><label class="form-label">Factor a base</label><input type="number" step="0.000001" name="factor_to_base" class="input-field" required placeholder="0.04"></div>
+            <div><label class="form-label">Precio venta (opc.)</label><input type="number" step="0.01" name="sale_price" class="input-field"></div>
+            <div><label class="inline-flex gap-2 text-sm items-center h-10"><input type="checkbox" name="is_default_sale_unit" value="1"> Venta default</label></div>
+            <div><button class="btn-primary w-full text-sm">Agregar</button></div>
+        </form>
     </div>
 
     {{-- Descripción y Observaciones --}}

@@ -34,6 +34,7 @@ class Product extends Model
         'discount_pct',
         'discount_label',
         'tax_id',
+        'base_unit_id',
     ];
 
     public function effectivePrice(): float
@@ -185,6 +186,42 @@ class Product extends Model
             ->withTimestamps();
     }
 
+    public function baseUnit()
+    {
+        return $this->belongsTo(Unit::class, 'base_unit_id');
+    }
+
+    public function unitConversions()
+    {
+        return $this->hasMany(ProductUnitConversion::class);
+    }
+
+    public function warehouseStocks()
+    {
+        return $this->hasMany(WarehouseStock::class);
+    }
+
+    public function priceListItems()
+    {
+        return $this->hasMany(PriceListItem::class);
+    }
+
+    public function baseUnitLabel(): string
+    {
+        return $this->baseUnit?->abbreviation ?? $this->unit ?? 'und';
+    }
+
+    public function stockInWarehouse(?int $warehouseId = null): float
+    {
+        if ($warehouseId === null) {
+            return (float) $this->stock;
+        }
+
+        return (float) ($this->warehouseStocks()
+            ->where('warehouse_id', $warehouseId)
+            ->value('quantity') ?? 0);
+    }
+
     public function getInventoryStatusLabelAttribute(): string
     {
         return match ($this->inventory_status) {
@@ -194,5 +231,16 @@ class Product extends Model
             'normal' => 'Stock Normal',
             default => 'Desconocido',
         };
+    }
+
+    public function toArray(): array
+    {
+        $array = parent::toArray();
+
+        if (array_key_exists('image_url', $this->attributes)) {
+            $array['image_url'] = $this->getImageUrlAttribute($this->attributes['image_url'] ?? null);
+        }
+
+        return $array;
     }
 }

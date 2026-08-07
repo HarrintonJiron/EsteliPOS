@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', 'Editar Orden ' . $order->order_number)
 
@@ -219,18 +220,31 @@
                 </div>
 
                 <div class="card p-5 space-y-4">
-                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Fechas</h2>
+                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Fechas y Horas</h2>
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Fecha de recepción *</label>
                         <input type="date" name="received_date" value="{{ old('received_date', $order->received_date->format('Y-m-d')) }}" required class="input-field">
                     </div>
                     <div>
-                        <label class="block text-sm text-slate-600 mb-1">Entrega estimada</label>
+                        <label class="block text-sm text-slate-600 mb-1">Hora de recepción *</label>
+                        <input type="time" name="received_time" value="{{ old('received_time', $order->received_time ?? date('H:i')) }}" required class="input-field">
+                    </div>
+                    <div class="pt-3 border-t border-slate-100">
+                        <label class="block text-sm text-slate-600 mb-1">Entrega estimada (fecha opcional)</label>
                         <input type="date" name="estimated_date" value="{{ old('estimated_date', $order->estimated_date?->format('Y-m-d')) }}" class="input-field">
+                        <p class="text-xs text-slate-400 mt-1">Si solo quieres indicar la hora, deja este campo en blanco.</p>
                     </div>
                     <div>
+                        <label class="block text-sm text-slate-600 mb-1">Hora estimada de entrega</label>
+                        <input type="time" name="estimated_delivery_time" value="{{ old('estimated_delivery_time', $order->estimated_delivery_time) }}" class="input-field">
+                    </div>
+                    <div class="pt-3 border-t border-slate-100">
                         <label class="block text-sm text-slate-600 mb-1">Fecha real de entrega</label>
                         <input type="date" name="delivered_date" value="{{ old('delivered_date', $order->delivered_date?->format('Y-m-d')) }}" class="input-field">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Hora de entrega</label>
+                        <input type="time" name="delivered_time" value="{{ old('delivered_time', $order->delivered_time) }}" class="input-field">
                     </div>
                 </div>
 
@@ -280,6 +294,28 @@
                                 <option value="{{ $val }}" {{ old('payment_type', $order->payment_type) === $val ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
+                    </div>
+                </div>
+
+                {{-- WARRANTY --}}
+                <div class="card p-5 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h2 class="font-semibold text-slate-800">Garantía en Ticket</h2>
+                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                            <input type="hidden" name="warranty_enabled" value="0">
+                            <input type="checkbox" name="warranty_enabled" id="warrantyEnabled" value="1"
+                                {{ old('warranty_enabled', $order->warranty_enabled ?? true) ? 'checked' : '' }}
+                                onchange="toggleWarrantyText()"
+                                class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-sm text-slate-600">Incluir en ticket</span>
+                        </label>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Texto de la garantía</label>
+                        <textarea id="warrantyTextField" name="warranty_text" rows="4"
+                            class="input-field resize-none text-sm"
+                            placeholder="Texto de garantía a mostrar en el ticket del cliente...">{{ old('warranty_text', $order->warranty_text) }}</textarea>
+                        <button type="button" onclick="loadDefaultWarranty()" class="text-xs text-indigo-600 hover:text-indigo-800 mt-1">Usar texto predeterminado</button>
                     </div>
                 </div>
 
@@ -343,9 +379,11 @@
     $productsJson = $products->map(function($p) {
         return ['id' => $p->id, 'name' => $p->name, 'code' => $p->code, 'price' => (float)$p->sale_price];
     })->values()->toJson();
+    $defaultRepairWarrantyJson = json_encode($companyProfile['repair_warranty_text'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 @endphp
 <script>
 const productsData = {!! $productsJson !!};
+const defaultRepairWarranty = {!! $defaultRepairWarrantyJson !!};
 let itemIndex = 0;
 let partsCost = {{ $order->parts_cost }};
 let patternPoints = [];
@@ -763,10 +801,11 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleLockFields();
     toggleOptionalField('diagnosis');
     toggleOptionalField('repair_notes');
-    
+    toggleWarrantyText();
+
     // Load brands dynamically
     loadBrands();
-    
+
     @foreach($order->items as $item)
         addItem(
             @json($item->description),
@@ -780,6 +819,21 @@ document.addEventListener('DOMContentLoaded', () => {
     @endforeach
     updateTotal();
 });
+
+function toggleWarrantyText() {
+    const checkbox = document.getElementById('warrantyEnabled');
+    const textarea = document.getElementById('warrantyTextField');
+    if (!checkbox || !textarea) return;
+    textarea.disabled = !checkbox.checked;
+    textarea.classList.toggle('opacity-50', !checkbox.checked);
+    textarea.classList.toggle('bg-slate-50', !checkbox.checked);
+}
+
+function loadDefaultWarranty() {
+    const textarea = document.getElementById('warrantyTextField');
+    if (!textarea) return;
+    textarea.value = defaultRepairWarranty;
+}
 
 async function loadBrands() {
     // Check if brands are cached in localStorage

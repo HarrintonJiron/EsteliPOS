@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', 'Crear Producto (Modo Pro)')
 
@@ -64,13 +65,27 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Unidad de Medida *</label>
                     <select name="unit" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        <option value="kg" {{ old('unit') == 'kg' ? 'selected' : '' }}>Kilogramos (kg)</option>
-                        <option value="lb" {{ old('unit') == 'lb' ? 'selected' : '' }}>Libras (lb)</option>
-                        <option value="lt" {{ old('unit') == 'lt' ? 'selected' : '' }}>Litros (lt)</option>
-                        <option value="gal" {{ old('unit') == 'gal' ? 'selected' : '' }}>Galones (gal)</option>
-                        <option value="unidad" {{ old('unit') == 'unidad' ? 'selected' : '' }}>Unidad</option>
-                        <option value="saco" {{ old('unit') == 'saco' ? 'selected' : '' }}>Saco</option>
+                        @foreach($units ?? [] as $u)
+                            <option value="{{ $u->abbreviation }}" {{ old('unit', 'unidad') == $u->abbreviation ? 'selected' : '' }}>{{ $u->name }} ({{ $u->abbreviation }})</option>
+                        @endforeach
+                        @if(empty($units))
+                        <option value="unidad">Unidad</option>
+                        <option value="kg">Kilogramos (kg)</option>
+                        <option value="m3">Metro cúbico (m³)</option>
+                        <option value="saco">Saco</option>
+                        @endif
                     </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Unidad base (inventario)</label>
+                    <select name="base_unit_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <option value="">Igual a unidad de medida</option>
+                        @foreach($units ?? [] as $u)
+                            <option value="{{ $u->id }}" {{ old('base_unit_id') == $u->id ? 'selected' : '' }}>{{ $u->name }} ({{ $u->abbreviation }})</option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Stock y kardex se registran en esta unidad (ej. m³ para arena).</p>
                 </div>
 
                 <div class="md:col-span-2">

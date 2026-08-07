@@ -4,151 +4,128 @@
 
 @section('content')
 
-<div class="max-w-2xl mx-auto space-y-4" id="quickApp" data-lookup-url="{{ url('/inventario/buscar') }}">
+<div class="mx-auto max-w-3xl space-y-3" id="quickApp" data-lookup-url="{{ url('/inventario/buscar') }}">
 
-    <div class="flex justify-between items-center">
+    <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
-            <h2 class="page-title">Registro Rápido</h2>
-            <p class="page-subtitle">Escanea el código de barras y completa en segundos</p>
+            <h2 class="text-lg font-bold text-slate-900">Producto rápido</h2>
+            <p class="text-xs text-slate-500">Escanea, precios y stock en segundos</p>
         </div>
-        <div class="flex gap-2">
-            <a href="{{ route('inventario.create') }}" class="btn-outline text-sm">Modo Pro</a>
-            <a href="{{ route('inventario.bulk') }}" class="btn-outline text-sm">Carga Masiva</a>
+        <div class="flex gap-1.5">
+            <a href="{{ route('inventario.create') }}" class="btn-outline text-xs py-1.5">Modo pro</a>
+            <a href="{{ route('inventario.bulk') }}" class="btn-outline text-xs py-1.5">Masiva</a>
         </div>
     </div>
 
-    <div id="existsAlert" class="hidden card p-4 border border-amber-300 bg-amber-50">
-        <p class="font-semibold text-amber-800">Este código ya existe</p>
-        <p class="text-sm text-amber-700 mt-1" id="existsInfo"></p>
-        <a id="existsLink" href="#" class="text-indigo-600 text-sm font-medium mt-2 inline-block">Ver producto →</a>
+    <div id="existsAlert" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+        <p class="font-semibold text-amber-800">Código duplicado</p>
+        <p class="text-amber-700" id="existsInfo"></p>
+        <a id="existsLink" href="#" class="text-indigo-600 text-xs font-medium">Ver producto →</a>
     </div>
 
-    <form action="{{ route('inventario.quick-store') }}" method="POST" enctype="multipart/form-data" id="quickForm" class="card p-6 space-y-5">
+    <form action="{{ route('inventario.quick-store') }}" method="POST" enctype="multipart/form-data" id="quickForm" class="card p-4 space-y-3">
         @csrf
 
-        <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-2">
-                Código de barras
-                <span class="text-xs font-normal text-slate-400 ml-1">(escáner + Enter)</span>
-            </label>
-            <input type="text" name="code" id="barcodeInput" value="{{ old('code') }}" required autofocus
-                placeholder="Escanear o escribir código..."
-                class="input-field text-xl font-mono py-3 text-center tracking-wider">
-        </div>
-
-        <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-2">Nombre del producto *</label>
-            <input type="text" name="name" id="nameInput" value="{{ old('name') }}" required
-                placeholder="Ej: Arroz 1lb, Coca Cola 600ml..."
-                class="input-field text-lg py-3">
-        </div>
-
-        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div class="flex flex-col sm:flex-row items-center gap-4">
-                <div class="h-28 w-28 shrink-0 rounded-xl border-2 border-dashed border-slate-300 bg-white flex items-center justify-center overflow-hidden">
-                    <div id="quickImagePlaceholder" class="text-center text-slate-400">
-                        <div class="text-3xl">📷</div>
-                        <span class="text-xs">Vista previa</span>
-                    </div>
-                    <img id="quickImagePreview" class="hidden w-full h-full object-contain" alt="Vista previa del producto">
-                </div>
-                <div class="w-full min-w-0">
-                    <label for="quick_product_image" class="block text-sm font-semibold text-slate-700">Imagen del producto</label>
-                    <input id="quick_product_image" type="file" name="image" accept="image/jpeg,image/png,image/webp"
-                           class="mt-2 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-700">
-                    <p class="mt-2 text-xs text-slate-500">JPG, PNG o WebP · máximo 3 MB.</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1.4fr]">
             <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-2">Precio venta (C$) *</label>
-                <input type="number" name="sale_price" id="quick_sale_price" value="{{ old('sale_price') }}" step="0.01" min="0" required
-                    class="input-field text-2xl font-bold text-center py-3 text-indigo-600">
+                <label class="mb-1 block text-xs font-medium text-slate-500">Código · Enter busca</label>
+                <input type="text" name="code" id="barcodeInput" value="{{ old('code') }}" required autofocus
+                    placeholder="Escanear..."
+                    class="input-field py-2 font-mono text-center tracking-wide">
             </div>
             <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-2">Stock inicial</label>
-                <input type="number" name="stock" value="{{ old('stock', 0) }}" min="0"
-                    class="input-field text-2xl font-bold text-center py-3">
+                <label class="mb-1 block text-xs font-medium text-slate-500">Nombre *</label>
+                <input type="text" name="name" id="nameInput" value="{{ old('name') }}" required
+                    placeholder="Nombre del producto"
+                    class="input-field py-2">
             </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
-            <div class="relative">
-                <label class="block text-xs text-slate-500 mb-1">Categoría</label>
-                <div class="flex items-center gap-2 w-full">
-                    <select id="categorySelectQuick" name="category_id" class="select-field flex-1 min-w-0">
+        <div class="grid grid-cols-3 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div>
+                <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Costo</label>
+                <input type="number" name="purchase_price" id="quick_purchase_price" step="0.01" min="0"
+                    value="{{ old('purchase_price') }}" placeholder="0.00" class="input-field py-1.5 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Público *</label>
+                <input type="number" name="sale_price" id="quick_sale_price" step="0.01" min="0" required
+                    value="{{ old('sale_price') }}" placeholder="0.00"
+                    class="input-field py-1.5 text-sm font-bold text-indigo-700">
+            </div>
+            <div>
+                <label class="mb-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                    <span>Mayorista</span>
+                    @if($wholesaleList)
+                        <button type="button" id="applyWholesalePct" class="normal-case text-[10px] text-emerald-600 hover:underline">−10%</button>
+                    @endif
+                </label>
+                <input type="number" name="wholesale_price" id="quick_wholesale_price" step="0.01" min="0"
+                    value="{{ old('wholesale_price') }}" placeholder="Opcional"
+                    class="input-field py-1.5 text-sm font-semibold text-emerald-700">
+            </div>
+        </div>
+
+        @if($wholesaleList)
+            <p class="text-[11px] text-slate-500">Lista mayorista: <strong>{{ $wholesaleList->name }}</strong> — se sincroniza al guardar.</p>
+        @else
+            <p class="text-[11px] text-amber-600">No hay lista MAYOR activa; el precio mayorista no se aplicará en POS.</p>
+        @endif
+
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div>
+                <label class="mb-1 block text-xs text-slate-500">Stock inicial</label>
+                <input type="number" name="stock" value="{{ old('stock', 0) }}" min="0" class="input-field py-1.5 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs text-slate-500">Alerta mín.</label>
+                <input type="number" name="low_stock_threshold" value="{{ old('low_stock_threshold', 5) }}" min="1" class="input-field py-1.5 text-sm">
+            </div>
+            <div class="relative sm:col-span-2">
+                <label class="mb-1 block text-xs text-slate-500">Categoría</label>
+                <div class="flex gap-1">
+                    <select id="categorySelectQuick" name="category_id" class="select-field flex-1 py-1.5 text-sm">
                         @foreach($categories as $category)
-                        <option value="{{ $category->id }}" {{ ($defaultCategory?->id ?? null) == $category->id ? 'selected' : '' }}>
-                            {{ $category->name }}
-                        </option>
+                            <option value="{{ $category->id }}" @selected(old('category_id', $defaultCategory?->id) == $category->id)>{{ $category->name }}</option>
                         @endforeach
                     </select>
-                    <button type="button" onclick="toggleNewCategoryForm('Quick')" class="btn-outline text-sm whitespace-nowrap">+ Nueva</button>
+                    <button type="button" onclick="toggleNewCategoryForm('Quick')" class="btn-outline px-2 py-1.5 text-xs">+</button>
                 </div>
-                <div id="newCategoryFormQuick" class="hidden absolute left-0 right-0 mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-lg">
-                    <div class="grid grid-cols-1 gap-2">
-                        <input id="newCategoryNameQuick" type="text" placeholder="Nombre de categoría" class="input-field" />
-                        <button type="button" onclick="submitNewCategory('Quick')" class="btn-primary">Agregar</button>
-                    </div>
-                    <p id="newCategorySuccessQuick" class="text-xs text-emerald-600 hidden"></p>
-                    <p id="newCategoryErrorQuick" class="text-xs text-red-600 hidden"></p>
+                <div id="newCategoryFormQuick" class="hidden absolute left-0 right-0 z-20 mt-1 rounded-lg border bg-white p-2 shadow-lg">
+                    <input id="newCategoryNameQuick" type="text" placeholder="Nueva categoría" class="input-field py-1.5 text-sm" />
+                    <button type="button" onclick="submitNewCategory('Quick')" class="btn-primary mt-1 w-full py-1.5 text-xs">Agregar</button>
+                    <p id="newCategoryErrorQuick" class="mt-1 text-xs text-red-600 hidden"></p>
                 </div>
-            </div>
-            <div>
-                <label class="block text-xs text-slate-500 mb-1">Unidad</label>
-                <select name="unit" class="select-field">
-                    <option value="unidad">Unidad</option>
-                    <option value="lb">Libra</option>
-                    <option value="kg">Kilogramo</option>
-                    <option value="lt">Litro</option>
-                    <option value="saco">Saco</option>
-                </select>
             </div>
         </div>
 
-        <details class="group" open>
-            <summary class="cursor-pointer text-sm text-indigo-600 font-medium hover:text-indigo-800">
-                Precio de compra + Calculadora de utilidad
-            </summary>
-            <div class="mt-4 space-y-4 pt-4 border-t border-slate-100">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs text-slate-500 mb-1">Precio de compra (C$)</label>
-                        <input type="number" name="purchase_price" id="quick_purchase_price"
-                               step="0.01" min="0" placeholder="Costo del producto"
-                               value="{{ old('purchase_price') }}"
-                               class="input-field">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-slate-500 mb-1">Stock mínimo alerta</label>
-                        <input type="number" name="low_stock_threshold" value="5" min="1" class="input-field">
-                    </div>
-                </div>
+        <div class="grid grid-cols-[auto_1fr] gap-3 items-center rounded-lg border border-dashed border-slate-200 p-2">
+            <div class="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100 flex items-center justify-center">
+                <div id="quickImagePlaceholder" class="text-center text-slate-400 text-lg">📷</div>
+                <img id="quickImagePreview" class="hidden h-full w-full object-contain" alt="">
+            </div>
+            <input id="quick_product_image" type="file" name="image" accept="image/jpeg,image/png,image/webp"
+                class="text-xs text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-slate-800 file:px-2 file:py-1 file:text-xs file:text-white">
+        </div>
 
+        <details class="text-sm">
+            <summary class="cursor-pointer text-xs font-medium text-indigo-600">Calculadora de utilidad</summary>
+            <div class="mt-2 border-t border-slate-100 pt-2">
                 @include('inventario._price_calc', [
                     'purchaseInputId' => 'quick_purchase_price',
-                    'saleInputId'     => 'quick_sale_price',
+                    'saleInputId' => 'quick_sale_price',
                 ])
             </div>
         </details>
 
-        <div class="flex items-center gap-3 pt-2">
-            <label class="flex items-center gap-2 cursor-pointer">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+            <label class="flex items-center gap-2 text-xs text-slate-600">
                 <input type="checkbox" name="add_another" value="1" checked class="rounded border-slate-300 text-indigo-600">
-                <span class="text-sm text-slate-700">Seguir agregando productos</span>
+                Seguir agregando
             </label>
+            <button type="submit" class="btn-primary px-6 py-2">Guardar</button>
         </div>
-
-        <button type="submit" class="w-full btn-primary justify-center py-4 text-lg">
-            Guardar Producto
-        </button>
     </form>
-
-    <p class="text-center text-xs text-slate-400">
-        Atajos: Enter en código → busca · Tab para avanzar · F2 enfoca código
-    </p>
 </div>
 
 @push('scripts')
@@ -156,12 +133,26 @@
 document.addEventListener('DOMContentLoaded', function() {
     const barcode = document.getElementById('barcodeInput');
     const nameInput = document.getElementById('nameInput');
-    const priceInput = document.getElementById('quick_sale_price');
+    const saleInput = document.getElementById('quick_sale_price');
+    const wholesaleInput = document.getElementById('quick_wholesale_price');
+    const purchaseInput = document.getElementById('quick_purchase_price');
     const existsAlert = document.getElementById('existsAlert');
     const imageInput = document.getElementById('quick_product_image');
     const imagePreview = document.getElementById('quickImagePreview');
     const imagePlaceholder = document.getElementById('quickImagePlaceholder');
     const lookupBase = document.getElementById('quickApp').dataset.lookupUrl;
+
+    document.getElementById('applyWholesalePct')?.addEventListener('click', () => {
+        const sale = parseFloat(saleInput.value);
+        if (!sale || sale <= 0) return;
+        wholesaleInput.value = (sale * 0.9).toFixed(2);
+    });
+
+    saleInput?.addEventListener('change', () => {
+        if (!purchaseInput.value && saleInput.value) {
+            purchaseInput.value = (parseFloat(saleInput.value) * 0.85).toFixed(2);
+        }
+    });
 
     async function lookupCode(code) {
         if (!code.trim()) return;
@@ -171,26 +162,22 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.exists) {
                 existsAlert.classList.remove('hidden');
                 document.getElementById('existsInfo').textContent =
-                    data.product.name + ' — Stock: ' + data.product.stock + ' — C$ ' + parseFloat(data.product.sale_price).toFixed(2);
+                    `${data.product.name} · Stock ${data.product.stock} · C$ ${parseFloat(data.product.sale_price).toFixed(2)}`;
                 document.getElementById('existsLink').href = data.product.url;
                 barcode.classList.add('border-amber-400');
             } else {
                 existsAlert.classList.add('hidden');
                 barcode.classList.remove('border-amber-400');
                 nameInput.focus();
-                nameInput.select();
             }
-        } catch (e) { /* ignore */ }
+        } catch (e) {}
     }
 
-    barcode.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            lookupCode(barcode.value);
-        }
+    barcode.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); lookupCode(barcode.value); }
     });
 
-    document.addEventListener('keydown', function(e) {
+    document.addEventListener('keydown', (e) => {
         if (e.key === 'F2') { e.preventDefault(); barcode.focus(); barcode.select(); }
     });
 
@@ -201,72 +188,50 @@ document.addEventListener('DOMContentLoaded', function() {
             imagePlaceholder.classList.remove('hidden');
             return;
         }
-
         imagePreview.src = URL.createObjectURL(file);
         imagePreview.classList.remove('hidden');
         imagePlaceholder.classList.add('hidden');
     });
 
-  barcode.focus();
+    barcode.focus();
 });
 
 function toggleNewCategoryForm(mode) {
-    const form = document.getElementById(`newCategoryForm${mode}`);
-    if (!form) return;
-    form.classList.toggle('hidden');
+    document.getElementById(`newCategoryForm${mode}`)?.classList.toggle('hidden');
 }
 
 function submitNewCategory(mode) {
     const input = document.getElementById(`newCategoryName${mode}`);
     const error = document.getElementById(`newCategoryError${mode}`);
     const select = document.getElementById(`categorySelect${mode}`);
-    if (!input || !select || !error) return;
-
-    const name = input.value.trim();
+    const name = input?.value.trim();
     if (!name) {
-        error.textContent = 'Ingresa un nombre de categoría';
+        error.textContent = 'Ingresa un nombre';
         error.classList.remove('hidden');
         return;
     }
-
     error.classList.add('hidden');
-
     fetch('{{ route('categorias.store') }}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
         },
         body: JSON.stringify({ name })
     })
-    .then(async response => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(data?.errors?.name?.[0] || data.message || 'No se pudo crear la categoría');
-        }
-        return data;
-    })
-    .then((data) => {
-        const success = document.getElementById(`newCategorySuccess${mode}`);
-        const option = document.createElement('option');
-        option.value = data.id;
-        option.textContent = data.name;
-        option.selected = true;
-        select.appendChild(option);
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+        if (!ok) throw new Error(d?.errors?.name?.[0] || 'Error');
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = d.name;
+        opt.selected = true;
+        select.appendChild(opt);
         input.value = '';
-        error.classList.add('hidden');
-        if (success) {
-            success.textContent = 'Categoría guardada correctamente';
-            success.classList.remove('hidden');
-            setTimeout(() => success.classList.add('hidden'), 3500);
-        }
         document.getElementById(`newCategoryForm${mode}`).classList.add('hidden');
     })
-    .catch((err) => {
-        error.textContent = err.message;
-        error.classList.remove('hidden');
-    });
+    .catch(err => { error.textContent = err.message; error.classList.remove('hidden'); });
 }
 </script>
 @endpush

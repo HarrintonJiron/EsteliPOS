@@ -1,414 +1,292 @@
 @extends('layouts.app')
 
+@section('title', 'Nómina Mensual')
+
 @section('content')
+@php
+    $totals = $payrollReport['totals'];
+@endphp
 
-<div class="p-6 space-y-6">
+<div class="space-y-6">
+    @include('planilla._nav')
 
-    <h1 class="text-2xl font-bold text-gray-800">
-        Nómina Mensual
-    </h1>
-
-    <div class="flex justify-between items-center">
-
-    <h1 class="text-2xl font-bold text-gray-800">
-        Nómina Mensual - Febrero 2026
-    </h1>
-
-    <div class="space-x-3">
-        <span id="estadoNomina"
-            class="bg-yellow-100 text-yellow-700 px-4 py-2 rounded-full text-sm">
-            Abierta
-        </span>
-
-        <button onclick="cerrarNomina()"
-            class="bg-red-600 text-white px-4 py-2 rounded-lg">
-            Cerrar Nómina
-        </button>
-    </div>
-
-</div>
-
-
-    <!-- Resumen -->
-    <div class="grid grid-cols-4 gap-6">
-
-        <div class="bg-white p-5 rounded-xl shadow border-l-4 border-blue-600">
-            <p class="text-sm text-gray-500">Período</p>
-            <p class="text-xl font-bold">Febrero 2026</p>
-        </div>
-
-        <div class="bg-white p-5 rounded-xl shadow border-l-4 border-green-600">
-            <p class="text-sm text-gray-500">Total Bruto</p>
-            <p class="text-xl font-bold text-green-700">C$ 85,000</p>
-        </div>
-
-        <div class="bg-white p-5 rounded-xl shadow border-l-4 border-red-600">
-            <p class="text-sm text-gray-500">Total Deducciones</p>
-            <p class="text-xl font-bold text-red-700">C$ 12,000</p>
-        </div>
-
-        <div class="bg-white p-5 rounded-xl shadow border-l-4 border-purple-600">
-            <p class="text-sm text-gray-500">Total Neto</p>
-            <p class="text-xl font-bold text-purple-700">C$ 73,000</p>
-        </div>
-
-    </div>
-    <div class="bg-white p-6 rounded-xl shadow">
-    <h2 class="text-lg font-semibold mb-4">
-        Costo de Nómina Últimos 6 Meses
-    </h2>
-
-    <canvas id="graficoNomina" height="100"></canvas>
-</div>
-
-
-    <!-- Tabla Nómina -->
-    <div class="bg-white rounded-xl shadow overflow-hidden">
-
-        <table class="w-full text-sm text-left">
-
-            <thead class="bg-gray-100 uppercase text-xs text-gray-600">
-                <tr>
-                    <th class="px-6 py-3">Empleado</th>
-                    <th class="px-6 py-3">Salario</th>
-                    <th class="px-6 py-3">Bonos</th>
-                    <th class="px-6 py-3">INSS</th>
-                    <th class="px-6 py-3">IR</th>
-                    <th class="px-6 py-3">Neto</th>
-                    <th class="px-6 py-3">Recibo</th>
-                </tr>
-            </thead>
-
-            <tbody class="divide-y">
-
-                <tr>
-                    <td class="px-6 py-4">Luis García</td>
-                    <td class="px-6 py-4">C$ 12,000</td>
-                    <td class="px-6 py-4">C$ 1,000</td>
-                    <td class="px-6 py-4 text-red-600">C$ 750</td>
-                    <td class="px-6 py-4 text-red-600">C$ 300</td>
-                    <td class="px-6 py-4 font-semibold">C$ 11,950</td>
-                    <td class="px-6 py-4">
-    <button onclick="abrirRecibo('Luis García')" 
-        class="text-indigo-600 hover:underline">
-        Ver Recibo
-    </button>
-
-    <button onclick="verHistorial()"
-    class="bg-gray-700 text-white px-4 py-2 rounded-lg">
-    Historial de Recibos
-</button>
-
-</td>
-
-                </tr>
-
-                 <tr>
-                    <td class="px-6 py-4">Luis García</td>
-                    <td class="px-6 py-4">C$ 12,000</td>
-                    <td class="px-6 py-4">C$ 1,000</td>
-                    <td class="px-6 py-4 text-red-600">C$ 750</td>
-                    <td class="px-6 py-4 text-red-600">C$ 300</td>
-                    <td class="px-6 py-4 font-semibold">C$ 11,950</td>
-                    <td class="px-6 py-4">
-    <button onclick="abrirRecibo('Luis García')" 
-        class="text-indigo-600 hover:underline">
-        Ver Recibo
-    </button>
-    <button onclick="verHistorial()"
-    class="bg-gray-700 text-white px-4 py-2 rounded-lg">
-    Historial de Recibos
-</button>
-
-</td>
-
-                </tr>
-
-                 <tr>
-                    <td class="px-6 py-4">Luis García</td>
-                    <td class="px-6 py-4">C$ 12,000</td>
-                    <td class="px-6 py-4">C$ 1,000</td>
-                    <td class="px-6 py-4 text-red-600">C$ 750</td>
-                    <td class="px-6 py-4 text-red-600">C$ 300</td>
-                    <td class="px-6 py-4 font-semibold">C$ 11,950</td>
-                    <td class="px-6 py-4">
-    <button onclick="abrirRecibo('Luis García')" 
-        class="text-indigo-600 hover:underline">
-        Ver Recibo
-    </button>
-
-    <button onclick="verHistorial()"
-    class="bg-gray-700 text-white px-4 py-2 rounded-lg">
-    Historial de Recibos
-</button>
-
-</td>
-
-                </tr>
-
-                 <tr>
-                    <td class="px-6 py-4">Luis García</td>
-                    <td class="px-6 py-4">C$ 12,000</td>
-                    <td class="px-6 py-4">C$ 1,000</td>
-                    <td class="px-6 py-4 text-red-600">C$ 750</td>
-                    <td class="px-6 py-4 text-red-600">C$ 300</td>
-                    <td class="px-6 py-4 font-semibold">C$ 11,950</td>
-                    <td class="px-6 py-4">
-    <button onclick="abrirRecibo('Luis García')" 
-        class="text-indigo-600 hover:underline">
-        Ver Recibo
-    </button>
-
-    <button onclick="verHistorial()"
-    class="bg-gray-700 text-white px-4 py-2 rounded-lg">
-    Historial de Recibos
-</button>
-
-</td>
-
-                </tr>
-
-            </tbody>
-
-        </table>
-
-        <!-- Modal Recibo -->
-<div id="modalRecibo"
-     class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-
-    <div class="bg-white w-[800px] rounded-xl shadow-2xl p-8 space-y-6">
-
-        <div class="flex justify-between items-center border-b pb-4">
-            <div>
-                <h2 class="text-xl font-bold">AgroCampo</h2>
-                <p class="text-sm text-gray-500">
-                    Recibo de Pago de Nómina
-                </p>
-            </div>
-
-            <p class="text-sm text-gray-600">
-                Período: Febrero 2026
+    <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <h1 class="page-title">Nómina · {{ $startDate->translatedFormat('F Y') }}</h1>
+            <p class="page-subtitle">
+                {{ $startDate->format('d/m/Y') }} – {{ $endDate->format('d/m/Y') }} ·
+                {{ count($payrollReport['employees']) }} empleados
             </p>
         </div>
 
-        <!-- Datos empleado -->
-        <div class="grid grid-cols-2 gap-6 text-sm">
+        <form method="GET" class="flex items-center gap-2">
+            <input type="month" name="month" value="{{ $selectedMonth }}" class="input-field w-auto">
+            <button type="submit" class="btn-primary">Ver período</button>
+        </form>
+    </div>
 
-            <div>
-                <p><strong>Empleado:</strong> <span id="nombreEmpleado"></span></p>
-                <p><strong>Cargo:</strong> Vendedor</p>
-                <p><strong>Fecha Ingreso:</strong> 15/02/2022</p>
+    {{-- Resumen --}}
+    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div class="card p-4 border-t-4 border-slate-400">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Salario base</p>
+            <p class="mt-2 text-lg font-bold text-slate-800">C$ {{ number_format($totals['base_salary'], 2) }}</p>
+        </div>
+        <div class="card p-4 border-t-4 border-emerald-500">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Bonos</p>
+            <p class="mt-2 text-lg font-bold text-emerald-700">C$ {{ number_format($totals['bonuses'], 2) }}</p>
+        </div>
+        <div class="card p-4 border-t-4 border-indigo-500">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Bruto</p>
+            <p class="mt-2 text-lg font-bold text-indigo-700">C$ {{ number_format($totals['gross_salary'], 2) }}</p>
+        </div>
+        <div class="card p-4 border-t-4 border-orange-500">
+            <p class="text-xs uppercase tracking-wide text-slate-500">INSS + IR</p>
+            <p class="mt-2 text-lg font-bold text-orange-700">C$ {{ number_format($totals['inss_deduction'] + $totals['ir_deduction'], 2) }}</p>
+        </div>
+        <div class="card p-4 border-t-4 border-rose-500">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Total deducciones</p>
+            <p class="mt-2 text-lg font-bold text-rose-700">C$ {{ number_format($totals['total_deductions'], 2) }}</p>
+        </div>
+        <div class="card p-4 border-t-4 border-violet-500">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Neto a pagar</p>
+            <p class="mt-2 text-lg font-bold text-violet-700">C$ {{ number_format($totals['net_salary'], 2) }}</p>
+        </div>
+    </div>
+
+    {{-- Gráficos --}}
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div class="card p-5 xl:col-span-2">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                    <h2 class="font-semibold text-slate-800">Comparativo por empleado</h2>
+                    <p class="text-xs text-slate-500">Bruto vs neto del período</p>
+                </div>
+                <div class="flex gap-4 text-xs">
+                    <span class="text-indigo-600">● Bruto</span>
+                    <span class="text-emerald-600">● Neto</span>
+                </div>
             </div>
-
-            <div>
-                <p><strong>Cédula:</strong> 001-120398-1001A</p>
-                <p><strong>Contrato:</strong> Tiempo Completo</p>
-                <p><strong>Días Trabajados:</strong> 30</p>
+            <div class="h-80">
+                <canvas id="employeePayrollChart"></canvas>
             </div>
-
         </div>
 
-        <!-- Detalle -->
-        <div class="border-t pt-4">
+        <div class="card p-5">
+            <div class="mb-4">
+                <h2 class="font-semibold text-slate-800">Desglose de deducciones</h2>
+                <p class="text-xs text-slate-500">Distribución del mes</p>
+            </div>
+            <div class="h-80">
+                <canvas id="nominaDeductionsChart"></canvas>
+            </div>
+        </div>
+    </div>
 
-            <table class="w-full text-sm">
+    <div class="card p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+                <h2 class="font-semibold text-slate-800">Tendencia reciente</h2>
+                <p class="text-xs text-slate-500">Últimos 6 meses de nómina</p>
+            </div>
+            <div class="flex gap-4 text-xs">
+                <span class="text-indigo-600">● Bruto</span>
+                <span class="text-emerald-600">● Neto</span>
+                <span class="text-rose-600">● Deducciones</span>
+            </div>
+        </div>
+        <div class="h-64">
+            <canvas id="nominaTrendChart"></canvas>
+        </div>
+    </div>
 
-                <thead class="bg-gray-100">
+    {{-- Tabla --}}
+    <div class="card overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100">
+            <h2 class="font-semibold text-slate-800">Detalle de nómina</h2>
+            <p class="text-xs text-slate-500">Cálculo individual con bonos, deducciones y préstamos</p>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="table-agro w-full min-w-[1100px]">
+                <thead>
                     <tr>
-                        <th class="px-4 py-2 text-left">Concepto</th>
-                        <th class="px-4 py-2 text-right">Monto</th>
+                        <th>Empleado</th>
+                        <th>Cargo</th>
+                        <th>Base</th>
+                        <th>Bonos</th>
+                        <th>Bruto</th>
+                        <th>INSS</th>
+                        <th>IR</th>
+                        <th>Deducciones</th>
+                        <th>Préstamos</th>
+                        <th>Neto</th>
+                        <th>Días</th>
                     </tr>
                 </thead>
-
-                <tbody class="divide-y">
-
+                <tbody>
+                    @forelse($payrollReport['employees'] as $employee)
                     <tr>
-                        <td class="px-4 py-2">Salario Base</td>
-                        <td class="px-4 py-2 text-right">C$ 12,000</td>
-                    </tr>
-
-                    <tr>
-                        <td class="px-4 py-2">Bonos</td>
-                        <td class="px-4 py-2 text-right text-green-600">C$ 1,000</td>
-                    </tr>
-
-                    <tr>
-                        <td class="px-4 py-2">INSS</td>
-                        <td class="px-4 py-2 text-right text-red-600">- C$ 750</td>
-                    </tr>
-
-                    <tr>
-                        <td class="px-4 py-2">IR</td>
-                        <td class="px-4 py-2 text-right text-red-600">- C$ 300</td>
-                    </tr>
-
-                </tbody>
-
-                <tfoot class="bg-gray-50 font-semibold">
-                    <tr>
-                        <td class="px-4 py-3 text-right">Total Neto</td>
-                        <td class="px-4 py-3 text-right text-lg">
-                            C$ 11,950
+                        <td class="font-medium text-slate-800">{{ $employee['employee_name'] }}</td>
+                        <td>{{ $employee['position'] }}</td>
+                        <td>C$ {{ number_format($employee['base_salary'], 2) }}</td>
+                        <td class="text-emerald-700">
+                            @if($employee['bonuses'] > 0)
+                                + C$ {{ number_format($employee['bonuses'], 2) }}
+                            @else
+                                <span class="text-slate-400">—</span>
+                            @endif
+                        </td>
+                        <td>C$ {{ number_format($employee['gross_salary'], 2) }}</td>
+                        <td class="text-rose-600">- C$ {{ number_format($employee['inss_deduction'], 2) }}</td>
+                        <td class="text-rose-600">- C$ {{ number_format($employee['ir_deduction'], 2) }}</td>
+                        <td class="text-rose-600">
+                            @if($employee['other_deductions'] > 0)
+                                - C$ {{ number_format($employee['other_deductions'], 2) }}
+                            @else
+                                <span class="text-slate-400">—</span>
+                            @endif
+                        </td>
+                        <td class="text-rose-600">
+                            @if($employee['loan_payments'] > 0)
+                                - C$ {{ number_format($employee['loan_payments'], 2) }}
+                            @else
+                                <span class="text-slate-400">—</span>
+                            @endif
+                        </td>
+                        <td class="font-bold text-emerald-700">C$ {{ number_format($employee['net_salary'], 2) }}</td>
+                        <td>
+                            {{ $employee['worked_days'] }}
+                            @if($employee['leave_days'] > 0)
+                                <span class="text-xs text-slate-400">({{ $employee['leave_days'] }} permiso)</span>
+                            @endif
                         </td>
                     </tr>
+                    @empty
+                    <tr>
+                        <td colspan="11" class="!py-10 text-center text-slate-500">
+                            No hay empleados activos en la nómina de este período.
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+                @if(count($payrollReport['employees']) > 0)
+                <tfoot>
+                    <tr class="bg-slate-50 font-semibold">
+                        <td class="px-6 py-3" colspan="2">Totales</td>
+                        <td class="px-6 py-3">C$ {{ number_format($totals['base_salary'], 2) }}</td>
+                        <td class="px-6 py-3 text-emerald-700">C$ {{ number_format($totals['bonuses'], 2) }}</td>
+                        <td class="px-6 py-3">C$ {{ number_format($totals['gross_salary'], 2) }}</td>
+                        <td class="px-6 py-3 text-rose-600">C$ {{ number_format($totals['inss_deduction'], 2) }}</td>
+                        <td class="px-6 py-3 text-rose-600">C$ {{ number_format($totals['ir_deduction'], 2) }}</td>
+                        <td class="px-6 py-3 text-rose-600">C$ {{ number_format($totals['other_deductions'], 2) }}</td>
+                        <td class="px-6 py-3 text-rose-600">C$ {{ number_format($totals['loan_payments'], 2) }}</td>
+                        <td class="px-6 py-3 text-emerald-700">C$ {{ number_format($totals['net_salary'], 2) }}</td>
+                        <td></td>
+                    </tr>
                 </tfoot>
-
+                @endif
             </table>
-
         </div>
+    </div>
 
-        <!-- Firmas -->
-        <div class="grid grid-cols-2 gap-10 pt-10 text-center text-sm">
-
-            <div>
-                <div class="border-t pt-2">Firma Empleado</div>
-            </div>
-
-            <div>
-                <div class="border-t pt-2">Firma Empresa</div>
-            </div>
-
-        </div>
-
-        <div class="flex justify-end pt-6 space-x-4">
-
-            <button onclick="imprimirRecibo()"
-                class="bg-indigo-600 text-white px-4 py-2 rounded-lg">
-                Imprimir
-            </button>
-
-            <button onclick="cerrarRecibo()"
-                class="bg-gray-300 px-4 py-2 rounded-lg">
-                Cerrar
-            </button>
-
-            <button onclick="verHistorial()"
-    class="bg-gray-700 text-white px-4 py-2 rounded-lg">
-    Historial de Recibos
-</button>
-
-<button onclick="exportarPDF()"
-    class="bg-purple-600 text-white px-4 py-2 rounded-lg">
-    Exportar PDF
-</button>
-
-
-
-        </div>
-
+    <div class="card p-5 bg-gradient-to-br from-indigo-50 to-white border-indigo-100">
+        <h3 class="font-semibold text-indigo-900 mb-2">Referencia legal — Nicaragua</h3>
+        <ul class="text-sm text-indigo-800/80 space-y-1">
+            <li>• INSS empleado: 6.25% del salario bruto (incluye bonos aprobados)</li>
+            <li>• IR: tramos con exención anual de C$ 100,000</li>
+            <li>• Bonos, deducciones y cuotas de préstamos activos se incluyen al estar aprobados</li>
+            <li>• Vacaciones: 30 días/año · 13° mes: 1 mes de salario por año trabajado</li>
+        </ul>
     </div>
 </div>
 
-
-    </div>
-
-</div>
-<div id="modalHistorial"
-     class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-
-    <div class="bg-white w-[700px] p-6 rounded-xl shadow-xl space-y-6">
-
-        <h2 class="text-lg font-semibold">
-            Historial de Pagos - Luis García
-        </h2>
-
-        <table class="w-full text-sm">
-
-            <thead class="bg-gray-100">
-                <tr>
-                    <th class="px-4 py-2">Período</th>
-                    <th class="px-4 py-2">Neto Pagado</th>
-                    <th class="px-4 py-2">Estado</th>
-                </tr>
-            </thead>
-
-            <tbody class="divide-y">
-                <tr>
-                    <td class="px-4 py-2">Enero 2026</td>
-                    <td class="px-4 py-2">C$ 11,800</td>
-                    <td class="px-4 py-2 text-green-600">Pagado</td>
-                </tr>
-                <tr>
-                    <td class="px-4 py-2">Diciembre 2025</td>
-                    <td class="px-4 py-2">C$ 11,750</td>
-                    <td class="px-4 py-2 text-green-600">Pagado</td>
-                </tr>
-            </tbody>
-
-        </table>
-
-        <div class="text-right">
-            <button onclick="cerrarHistorial()"
-                class="bg-gray-300 px-4 py-2 rounded-lg">
-                Cerrar
-            </button>
-        </div>
-
-    </div>
-</div>
-
-
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script>
+const money = (v) => 'C$ ' + Number(v).toLocaleString('es-NI', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const salaryByEmployee = @json($charts['salary_by_employee']);
+const deductionBreakdown = @json($charts['deduction_breakdown']);
+const trend = @json($trend);
 
-    function verHistorial() {
-    document.getElementById('modalHistorial').classList.remove('hidden');
-}
+Chart.defaults.font.family = 'Inter, sans-serif';
+Chart.defaults.color = '#64748b';
 
-function cerrarHistorial() {
-    document.getElementById('modalHistorial').classList.add('hidden');
-}
-function exportarPDF() {
-    alert("Recibo exportado en formato PDF");
-}
+new Chart(document.getElementById('employeePayrollChart'), {
+    type: 'bar',
+    data: {
+        labels: salaryByEmployee.map(i => i.name),
+        datasets: [
+            {
+                label: 'Bruto',
+                data: salaryByEmployee.map(i => i.gross),
+                backgroundColor: '#818cf8',
+                borderRadius: 6,
+                maxBarThickness: 28,
+            },
+            {
+                label: 'Neto',
+                data: salaryByEmployee.map(i => i.net),
+                backgroundColor: '#34d399',
+                borderRadius: 6,
+                maxBarThickness: 28,
+            },
+        ],
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${money(ctx.raw)}` } },
+        },
+        scales: {
+            y: { ticks: { callback: money }, grid: { color: 'rgba(148,163,184,0.2)' } },
+            x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 0 } },
+        },
+    },
+});
 
+new Chart(document.getElementById('nominaDeductionsChart'), {
+    type: 'doughnut',
+    data: {
+        labels: deductionBreakdown.map(i => i.label),
+        datasets: [{
+            data: deductionBreakdown.map(i => i.value),
+            backgroundColor: ['#4f46e5', '#f59e0b', '#f43f5e', '#0ea5e9'],
+            borderWidth: 0,
+            hoverOffset: 6,
+        }],
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16 } },
+            tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${money(ctx.raw)}` } },
+        },
+        cutout: '60%',
+    },
+});
 
-
-function abrirRecibo(nombre) {
-    document.getElementById('nombreEmpleado').innerText = nombre;
-    document.getElementById('modalRecibo').classList.remove('hidden');
-}
-
-function cerrarRecibo() {
-    document.getElementById('modalRecibo').classList.add('hidden');
-}
-
-function imprimirRecibo() {
-    window.print();
-}
-
-
-
-</script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<script>
-const ctx = document.getElementById('graficoNomina');
-
-new Chart(ctx, {
+new Chart(document.getElementById('nominaTrendChart'), {
     type: 'line',
     data: {
-        labels: ['Sep', 'Oct', 'Nov', 'Dic', 'Ene', 'Feb'],
-        datasets: [{
-            label: 'Costo Mensual',
-            data: [68000, 70000, 72000, 69000, 71000, 73000],
-            borderColor: 'rgb(37, 99, 235)',
-            backgroundColor: 'rgba(37, 99, 235, 0.2)',
-            tension: 0.3
-        }]
-    }
+        labels: trend.map(i => i.label),
+        datasets: [
+            { label: 'Bruto', data: trend.map(i => i.gross), borderColor: '#4f46e5', tension: 0.35, fill: false },
+            { label: 'Neto', data: trend.map(i => i.net), borderColor: '#059669', tension: 0.35, fill: false },
+            { label: 'Deducciones', data: trend.map(i => i.deductions), borderColor: '#e11d48', tension: 0.35, fill: false },
+        ],
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { ticks: { callback: money }, grid: { color: 'rgba(148,163,184,0.2)' } },
+            x: { grid: { display: false } },
+        },
+    },
 });
 </script>
-
-
-<script>
-function cerrarNomina() {
-    document.getElementById('estadoNomina').innerText = "Cerrada";
-    document.getElementById('estadoNomina').classList =
-        "bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm";
-    alert("Nómina cerrada correctamente");
-}
-</script>
-
-
-
 @endsection

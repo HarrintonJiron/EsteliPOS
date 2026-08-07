@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', 'Editar Cliente')
 
@@ -96,6 +97,19 @@
                     <label class="block text-sm text-slate-600 mb-1">Dirección</label>
                     <textarea name="address" rows="2" class="input-field">{{ old('address', $client->address) }}</textarea>
                 </div>
+            </div>
+        </div>
+
+        <div class="card p-5 space-y-4">
+            <h2 class="font-semibold text-slate-800">Lista de precios</h2>
+            <div>
+                <label class="block text-sm text-slate-600 mb-1">Precios en POS / facturación</label>
+                <select name="price_list_id" class="select-field">
+                    <option value="">Lista general (default)</option>
+                    @foreach($priceLists ?? [] as $list)
+                        <option value="{{ $list->id }}" @selected(old('price_list_id', $client->price_list_id ?? '') == $list->id)>{{ $list->name }} ({{ $list->code }})</option>
+                    @endforeach
+                </select>
             </div>
         </div>
 

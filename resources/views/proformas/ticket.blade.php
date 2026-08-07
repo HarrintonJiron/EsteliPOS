@@ -16,6 +16,7 @@
         .bold { font-weight: bold; }
         .divider { border-top: 1px dashed #000; margin: 0.25cm 0; }
         .company-name { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 2px; }
+        .ticket-logo { display: block; width: auto; max-width: 68mm; max-height: 44mm; object-fit: contain; margin: 0 auto 2.5mm; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
         .proforma-badge {
             background: #000; color: #fff;
             font-size: 10px; font-weight: bold;
@@ -37,9 +38,15 @@
 <body>
 <div class="receipt">
 
-    <div class="company-name">AGROSERVICIO S.A.</div>
-    <p class="center" style="font-size:9px;">SUMINISTROS AGRÍCOLAS Y AGROQUÍMICOS</p>
-    <p class="center" style="font-size:9px;">Tel: +505 2772-0000</p>
+    @php($receiptLogoUrl = $companyProfile['ticket_logo_url'] ?: $companyProfile['company_logo_url'])
+    
+    @if($receiptLogoUrl)
+        <img src="{{ $receiptLogoUrl }}" alt="Logo de {{ $companyProfile['company_name'] }}" class="ticket-logo">
+    @endif
+    
+    <div class="company-name">{{ $companyProfile['company_name'] }}</div>
+    @if($companyProfile['company_legal_name'])<p class="center" style="font-size:9px;">{{ $companyProfile['company_legal_name'] }}</p>@endif
+    @if($companyProfile['company_phone'])<p class="center" style="font-size:9px;">Tel: {{ $companyProfile['company_phone'] }}</p>@endif
 
     <div class="proforma-badge">COTIZACIÓN / PROFORMA</div>
 
@@ -51,12 +58,12 @@
     </div>
     <div class="row">
         <span>Fecha:</span>
-        <span>{{ $proforma->date->format('d/m/Y') }}</span>
+        <span>{{ $proforma->date->format($companyProfile['date_format']) }}</span>
     </div>
     @if($proforma->expiry_date)
     <div class="row">
         <span>Válida hasta:</span>
-        <span class="bold">{{ $proforma->expiry_date->format('d/m/Y') }}</span>
+        <span class="bold">{{ $proforma->expiry_date->format($companyProfile['date_format']) }}</span>
     </div>
     @endif
     <div class="row">
@@ -78,30 +85,35 @@
     <div class="item-row">
         <div class="bold">{{ $detail->product_name }}</div>
         <div style="display:flex; justify-content:space-between;">
-            <span>{{ number_format($detail->quantity, 2) }} x C$ {{ number_format($detail->price, 2) }}
+            <span>{{ number_format($detail->quantity, 0) }} x {{ $companyProfile['currency_symbol'] }} {{ number_format($detail->price, 2) }}
                 @if($detail->discount > 0) (-{{ $detail->discount }}%)@endif
             </span>
-            <span class="bold">C$ {{ number_format($detail->subtotal, 2) }}</span>
+            <span class="bold">{{ $companyProfile['currency_symbol'] }} {{ number_format($detail->subtotal, 2) }}</span>
         </div>
     </div>
     @endforeach
 
     <div class="divider"></div>
 
-    @if($invoiceTaxDisplay->showsTaxBreakdown())
+    <div class="row">
+        <span>TOTAL ARTÍCULOS</span>
+        <span class="bold">{{ $proforma->details->sum('quantity') }}</span>
+    </div>
+    
+    @if($invoiceTaxDisplay->showsTaxInTotals((float) $proforma->tax_total))
         <div class="row">
             <span>Subtotal</span>
-            <span>C$ {{ number_format($proforma->subtotal, 2) }}</span>
+            <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($proforma->subtotal, 2) }}</span>
         </div>
         <div class="row">
-            <span>{{ $invoiceTaxDisplay->taxLabel((float) $proforma->tax_rate) }}</span>
-            <span>C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $proforma->tax_total), 2) }}</span>
+            <span>{{ strtoupper($invoiceTaxDisplay->taxLabel((float) $proforma->tax_rate)) }}</span>
+            <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $proforma->tax_total), 2) }}</span>
         </div>
     @endif
     <div class="divider"></div>
     <div class="total-grand">
-        <span>TOTAL</span>
-        <span>C$ {{ number_format($proforma->total, 2) }}</span>
+        <span>TOTAL A PAGAR</span>
+        <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($proforma->total, 2) }}</span>
     </div>
 
     @if($proforma->notes)
@@ -117,7 +129,7 @@
         Este documento es una cotización.<br>
         No es una factura de venta.<br>
         Elaborado por: {{ $proforma->user?->name ?? 'Sistema' }}<br>
-        {{ now()->format('d/m/Y H:i') }}
+        {{ now()->format($companyProfile['date_format'].' H:i') }}
     </div>
 
 </div>

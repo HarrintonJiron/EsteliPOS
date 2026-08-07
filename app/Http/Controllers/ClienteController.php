@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ClientRequest;
 use App\Models\Client;
+use App\Models\PriceList;
 use App\Services\CreditService;
 use Illuminate\Http\Request;
 
@@ -57,7 +58,9 @@ class ClienteController extends Controller
 
     public function create()
     {
-        return view('clientes.create');
+        $priceLists = PriceList::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
+
+        return view('clientes.create', compact('priceLists'));
     }
 
     public function store(ClientRequest $request)
@@ -72,8 +75,9 @@ class ClienteController extends Controller
     {
         $client = Client::findOrFail($id);
         $creditSummary = $this->credit->clientCreditSummary($client);
+        $priceLists = PriceList::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
 
-        return view('clientes.edit', compact('client', 'creditSummary'));
+        return view('clientes.edit', compact('client', 'creditSummary', 'priceLists'));
     }
 
     public function update(ClientRequest $request, $id)
@@ -114,5 +118,29 @@ class ClienteController extends Controller
         ]);
 
         return redirect()->route('clientes.show', $client->id)->with('success', 'Configuración de crédito actualizada.');
+    }
+
+    /**
+     * Quick store client from POS (AJAX)
+     */
+    public function quickStore(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'client_type' => 'required|in:natural,company',
+            'cedula' => 'nullable|string|max:50',
+            'ruc' => 'nullable|string|max:50',
+            'business_name' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+        ]);
+
+        $client = Client::create($data);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Cliente creado correctamente',
+            'client' => $client,
+        ]);
     }
 }

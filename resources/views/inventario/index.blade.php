@@ -4,274 +4,220 @@
 
 @section('content')
 
-<div class="space-y-6">
+<div class="space-y-3" id="catalogApp" data-search-url="{{ route('inventario.index') }}">
 
-    {{-- Header --}}
-    <div class="flex flex-wrap justify-between items-start gap-4">
+    @include('inventario._hub-nav')
+
+    <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
-            <h2 class="page-title">Centro de Inventario</h2>
-            <p class="page-subtitle">Stock sincronizado con ventas POS, compras y ajustes · Kardex en tiempo real</p>
+            <h2 class="text-lg font-bold text-slate-900">Catálogo de productos</h2>
+            <p class="text-xs text-slate-500">Búsqueda en tiempo real mientras escribes</p>
         </div>
-        <div class="flex flex-wrap gap-2">
-            <a href="{{ route('inventario.dashboard') }}" class="btn-outline text-sm">Análisis Pro</a>
-            <a href="{{ route('movimientos.index') }}" class="btn-outline text-sm">Kardex Global</a>
-            <a href="{{ route('inventario.export') }}" class="btn-outline text-sm">Exportar</a>
-            <a href="{{ route('inventario.bulk') }}" class="btn-secondary text-sm">Carga Masiva</a>
-            <button type="button" onclick="toggleInventoryCategoryForm()" class="btn-outline text-sm">+ Nueva Categoría</button>
-            <a href="{{ route('inventario.quick') }}" class="btn-primary">+ Producto Rápido</a>
-        </div>
-        <div id="newCategoryInventoryForm" class="hidden rounded-xl border border-slate-200 bg-slate-50 p-4 mt-4">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                <div>
-                    <label class="block text-xs text-slate-500 mb-1">Nombre de categoría</label>
-                    <input id="newCategoryNameInventory" type="text" class="input-field" placeholder="Ej: Fertilizantes" />
-                </div>
-                <div class="md:col-span-2 flex gap-2">
-                    <button type="button" onclick="submitInventoryCategory()" class="btn-primary">Crear categoría</button>
-                    <button type="button" onclick="toggleInventoryCategoryForm()" class="btn-outline">Cancelar</button>
-                </div>
-            </div>
-            <p id="newCategoryErrorInventory" class="text-xs text-red-600 hidden mt-2"></p>
+        <div class="flex flex-wrap gap-1.5">
+            <a href="{{ route('inventario.export') }}" class="btn-outline text-xs py-1.5">Exportar</a>
+            <a href="{{ route('inventario.quick') }}" class="btn-primary text-xs py-1.5">+ Rápido</a>
         </div>
     </div>
 
-    {{-- KPIs --}}
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div class="card p-4 border-l-4 border-indigo-500">
-            <p class="text-xs text-slate-500 uppercase">Productos</p>
-            <p class="text-2xl font-bold text-indigo-600">{{ $stats['total_products'] }}</p>
+    {{-- KPIs compactos --}}
+    <div class="grid grid-cols-3 gap-2 lg:grid-cols-6">
+        @foreach([
+            ['Productos', $stats['total_products'], 'text-indigo-600'],
+            ['Bajo', $stats['low_stock_count'], 'text-amber-600'],
+            ['Sin stock', $stats['out_of_stock_count'], 'text-red-600'],
+            ['Por vencer', $stats['expiring_soon_count'], 'text-orange-600'],
+            ['Costo', 'C$ '.number_format($stats['total_inventory_value'], 0), 'text-violet-700'],
+            ['Venta', 'C$ '.number_format($stats['total_sale_value'], 0), 'text-emerald-700'],
+        ] as [$label, $value, $color])
+        <div class="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+            <p class="text-[10px] uppercase tracking-wide text-slate-500">{{ $label }}</p>
+            <p class="text-sm font-bold {{ $color }}">{{ $value }}</p>
         </div>
-        <div class="card p-4 border-l-4 border-amber-500">
-            <p class="text-xs text-slate-500 uppercase">Bajo Stock</p>
-            <p class="text-2xl font-bold text-amber-600">{{ $stats['low_stock_count'] }}</p>
-        </div>
-        <div class="card p-4 border-l-4 border-red-500">
-            <p class="text-xs text-slate-500 uppercase">Sin Stock</p>
-            <p class="text-2xl font-bold text-red-600">{{ $stats['out_of_stock_count'] }}</p>
-        </div>
-        <div class="card p-4 border-l-4 border-orange-500">
-            <p class="text-xs text-slate-500 uppercase">Por Vencer</p>
-            <p class="text-2xl font-bold text-orange-600">{{ $stats['expiring_soon_count'] }}</p>
-        </div>
-        <div class="card p-4 border-l-4 border-violet-500">
-            <p class="text-xs text-slate-500 uppercase">Valor Costo</p>
-            <p class="text-lg font-bold text-violet-700">C$ {{ number_format($stats['total_inventory_value'], 0) }}</p>
-        </div>
-        <div class="card p-4 border-l-4 border-emerald-500">
-            <p class="text-xs text-slate-500 uppercase">Valor Venta</p>
-            <p class="text-lg font-bold text-emerald-700">C$ {{ number_format($stats['total_sale_value'], 0) }}</p>
-        </div>
+        @endforeach
     </div>
 
-    {{-- Movimientos del período --}}
-    <div class="card p-4">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-6 text-sm">
-                <span class="text-slate-600">Últimos <strong>{{ $periodDays }}</strong> días:</span>
-                <span class="flex items-center gap-1 text-emerald-700 font-semibold">
-                    <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                    Entradas: +{{ number_format($movementStats['entries']) }} ({{ $movementStats['entry_count'] }} mov.)
-                </span>
-                <span class="flex items-center gap-1 text-red-600 font-semibold">
-                    <span class="w-2 h-2 bg-red-500 rounded-full"></span>
-                    Salidas: -{{ number_format($movementStats['exits']) }} ({{ $movementStats['exit_count'] }} mov.)
-                </span>
-            </div>
-            @if($discrepancyCount > 0)
-            <a href="{{ route('inventario.index', ['stock_status' => 'discrepancy']) }}" class="badge-danger">
-                {{ $discrepancyCount }} discrepancia(s) de stock
-            </a>
-            @else
-            <span class="badge-success">Stock conciliado</span>
-            @endif
-        </div>
+    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+        <span class="text-slate-500">{{ $periodDays }}d:</span>
+        <span class="font-semibold text-emerald-700">+{{ number_format($movementStats['entries']) }} entradas</span>
+        <span class="font-semibold text-red-600">−{{ number_format($movementStats['exits']) }} salidas</span>
+        @if($discrepancyCount > 0)
+            <a href="{{ route('inventario.index', ['stock_status' => 'discrepancy']) }}" class="badge-danger ml-auto">{{ $discrepancyCount }} discrepancias</a>
+        @else
+            <span class="badge-success ml-auto">Conciliado</span>
+        @endif
     </div>
 
-    {{-- Tabs de vista analítica --}}
-    <div class="flex flex-wrap gap-1 border-b border-slate-200">
-        @php
-            $tabs = [
-                'list' => 'Catálogo',
-                'top_sellers' => 'Más Vendidos',
-                'high_rotation' => 'Alta Rotación',
-                'low_rotation' => 'Baja Rotación',
-                'dead_stock' => 'Stock Muerto',
-            ];
-        @endphp
-        @foreach($tabs as $key => $label)
+    {{-- Tabs --}}
+    <div class="flex flex-wrap gap-1 border-b border-slate-200 pb-0.5">
+        @foreach(['list' => 'Catálogo', 'top_sellers' => 'Top ventas', 'high_rotation' => 'Alta rot.', 'low_rotation' => 'Baja rot.', 'dead_stock' => 'Muerto'] as $key => $label)
         <a href="{{ route('inventario.index', array_merge(request()->except('page'), ['view' => $key])) }}"
-           class="tab-link {{ $viewMode === $key ? 'tab-link-active' : 'tab-link-inactive' }}">
+           data-view-tab="{{ $key }}"
+           class="catalog-view-tab rounded-t px-2.5 py-1.5 text-xs font-medium {{ $viewMode === $key ? 'bg-white text-indigo-700 ring-1 ring-slate-200 ring-b-white -mb-px' : 'text-slate-500 hover:text-slate-700' }}">
             {{ $label }}
         </a>
         @endforeach
     </div>
 
-    {{-- Filtros --}}
-    <div class="card p-4">
-        <form method="GET" class="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
-            <input type="hidden" name="view" value="{{ $viewMode }}">
-            <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-slate-500 mb-1">Búsqueda</label>
-                <input type="text" name="q" value="{{ request('q') }}" placeholder="Código, nombre, lote..." class="input-field">
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-slate-500 mb-1">Categoría</label>
-                <select id="categoryFilterSelect" name="category_id" class="select-field">
-                    <option value="">Todas</option>
+    <form method="GET" id="catalogFilters" class="space-y-2">
+        <input type="hidden" name="view" id="catalogView" value="{{ $viewMode }}">
+
+        <div class="inv-catalog-search">
+            <svg class="inv-catalog-search__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input
+                type="search"
+                name="q"
+                id="catalogSearch"
+                value="{{ request('q') }}"
+                placeholder="Buscar por código, nombre, lote..."
+                class="input-field inv-catalog-search__input py-2 text-sm"
+                autocomplete="off"
+            />
+            <span id="catalogSearchStatus" class="inv-catalog-search__status hidden">Buscando…</span>
+        </div>
+
+        <details class="group card" @if(request()->hasAny(['category_id','warehouse_id','base_unit_id','stock_status','period']) && !request('q')) open @endif>
+            <summary class="cursor-pointer px-3 py-2 text-xs font-medium text-slate-600">Más filtros</summary>
+            <div class="grid grid-cols-2 gap-2 border-t border-slate-100 p-3 md:grid-cols-5 md:items-end">
+                <select name="category_id" class="catalog-filter select-field py-1.5 text-sm">
+                    <option value="">Categoría</option>
                     @foreach($categories as $category)
-                    <option value="{{ $category->id }}" {{ request('category_id') == $category->id ? 'selected' : '' }}>{{ $category->name }}</option>
+                    <option value="{{ $category->id }}" @selected(request('category_id') == $category->id)>{{ $category->name }}</option>
                     @endforeach
                 </select>
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-slate-500 mb-1">Estado Stock</label>
-                <select name="stock_status" class="select-field">
-                    <option value="">Todos</option>
-                    <option value="low" {{ request('stock_status') == 'low' ? 'selected' : '' }}>Bajo Stock</option>
-                    <option value="out_of_stock" {{ request('stock_status') == 'out_of_stock' ? 'selected' : '' }}>Sin Stock</option>
-                    <option value="expiring_soon" {{ request('stock_status') == 'expiring_soon' ? 'selected' : '' }}>Por Vencer</option>
-                    <option value="expired" {{ request('stock_status') == 'expired' ? 'selected' : '' }}>Vencido</option>
-                    <option value="discrepancy" {{ request('stock_status') == 'discrepancy' ? 'selected' : '' }}>Discrepancia</option>
+                <select name="warehouse_id" class="catalog-filter select-field py-1.5 text-sm">
+                    <option value="">Bodega</option>
+                    @foreach($warehouses ?? [] as $wh)
+                    <option value="{{ $wh->id }}" @selected(request('warehouse_id') == $wh->id)>{{ $wh->name }}</option>
+                    @endforeach
                 </select>
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-slate-500 mb-1">Período análisis</label>
-                <select name="period" class="select-field">
+                <select name="stock_status" class="catalog-filter select-field py-1.5 text-sm">
+                    <option value="">Estado stock</option>
+                    <option value="low" @selected(request('stock_status') == 'low')>Bajo stock</option>
+                    <option value="out_of_stock" @selected(request('stock_status') == 'out_of_stock')>Sin stock</option>
+                    <option value="expiring_soon" @selected(request('stock_status') == 'expiring_soon')>Por vencer</option>
+                    <option value="discrepancy" @selected(request('stock_status') == 'discrepancy')>Discrepancia</option>
+                </select>
+                <select name="period" class="catalog-filter select-field py-1.5 text-sm">
                     @foreach([7, 30, 60, 90] as $d)
-                    <option value="{{ $d }}" {{ $periodDays == $d ? 'selected' : '' }}>{{ $d }} días</option>
+                    <option value="{{ $d }}" @selected($periodDays == $d)>Análisis {{ $d }}d</option>
                     @endforeach
                 </select>
+                <a href="{{ route('inventario.index') }}" class="btn-outline py-1.5 text-center text-xs">Limpiar</a>
             </div>
-            <div class="flex gap-2">
-                <button type="submit" class="btn-primary text-sm">Filtrar</button>
-                <a href="{{ route('inventario.index') }}" class="btn-outline text-sm">Limpiar</a>
-            </div>
-        </form>
-    </div>
+        </details>
+    </form>
 
-    {{-- Tabla --}}
-    <div class="card overflow-hidden">
-        <table class="min-w-full table-agro">
-            <thead>
-                <tr>
-                    <th>Código</th>
-                    <th>Producto</th>
-                    <th>Categoría</th>
-                    <th>Stock</th>
-                    @if($viewMode !== 'list')
-                    <th class="text-right">Vendido ({{ $periodDays }}d)</th>
-                    <th class="text-right">Rotación</th>
-                    @endif
-                    <th>P. Venta</th>
-                    <th>Estado</th>
-                    <th class="text-center">Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($products as $product)
-                <tr class="{{ $product->isExpired() ? 'bg-red-50' : ($product->expiresSoon(30) ? 'bg-orange-50/50' : ($product->isLowStock() ? 'bg-amber-50/50' : '')) }}">
-                    <td class="font-mono font-semibold text-indigo-600">{{ $product->code }}</td>
-                    <td>
-                        <p class="font-medium text-slate-800">{{ $product->name }}</p>
-                        @if($product->location)<p class="text-xs text-slate-400">{{ $product->location }}</p>@endif
-                    </td>
-                    <td>{{ $product->category->name ?? '—' }}</td>
-                    <td>
-                        <span class="font-bold {{ $product->stock <= 0 ? 'text-red-600' : ($product->isLowStock() ? 'text-amber-600' : 'text-emerald-600') }}">
-                            {{ $product->stock }} {{ $product->unit }}
-                        </span>
-                        <p class="text-xs text-slate-400">mín. {{ $product->low_stock_threshold ?? 10 }}</p>
-                    </td>
-                    @if($viewMode !== 'list')
-                    <td class="text-right font-semibold">{{ (int)($product->sold_qty ?? 0) }}</td>
-                    <td class="text-right">
-                        @php $rot = (float)($product->rotation_index ?? 0); @endphp
-                        <span class="{{ $rot >= 1 ? 'text-emerald-600 font-bold' : ($rot > 0 ? 'text-amber-600' : 'text-red-600') }}">
-                            {{ number_format($rot, 2) }}x
-                        </span>
-                    </td>
-                    @endif
-                    <td>
-                        C$ {{ number_format($product->sale_price, 2) }}
-                        @if((float)$product->discount_pct > 0)
-                            <span class="ml-1 inline-block bg-amber-100 text-amber-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
-                                -{{ $product->discount_pct }}%
-                            </span>
-                            <span class="block text-xs text-amber-700 font-semibold">C$ {{ number_format($product->effectivePrice(), 2) }}</span>
-                        @endif
-                    </td>
-                    <td><span class="badge-{{ match($product->inventory_status) { 'expired' => 'danger', 'expiring_soon', 'low_stock' => 'warning', default => 'success' } }}">{{ $product->inventory_status_label }}</span></td>
-                    <td class="text-center space-x-2">
-                        <a href="{{ route('inventario.show', $product->id) }}" class="text-indigo-600 text-sm font-medium">Kardex</a>
-                        @if(auth()->user()?->isAdmin())
-                        <a href="{{ route('inventario.edit', $product->id) }}" class="text-slate-500 text-sm">Editar</a>
-                        @endif
-                    </td>
-                </tr>
-                @empty
-                <tr><td colspan="{{ $viewMode !== 'list' ? 9 : 7 }}" class="text-center py-10 text-slate-500">No se encontraron productos</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-        <div class="px-4 py-3 border-t border-slate-100">{{ $products->links() }}</div>
+    <div class="card overflow-hidden" id="catalogResults">
+        @include('inventario.partials.catalog-results')
     </div>
-
 </div>
 
 @push('scripts')
 <script>
-function toggleInventoryCategoryForm() {
-    const form = document.getElementById('newCategoryInventoryForm');
-    if (!form) return;
-    form.classList.toggle('hidden');
-}
+(() => {
+    const app = document.getElementById('catalogApp');
+    const form = document.getElementById('catalogFilters');
+    const searchInput = document.getElementById('catalogSearch');
+    const statusEl = document.getElementById('catalogSearchStatus');
+    const resultsEl = document.getElementById('catalogResults');
+    const viewInput = document.getElementById('catalogView');
+    const baseUrl = app.dataset.searchUrl;
+    let debounceTimer = null;
+    let activeController = null;
 
-function submitInventoryCategory() {
-    const input = document.getElementById('newCategoryNameInventory');
-    const error = document.getElementById('newCategoryErrorInventory');
-    const select = document.getElementById('categoryFilterSelect');
-    if (!input || !select || !error) return;
+    async function fetchCatalog(url = null) {
+        const params = new URLSearchParams(new FormData(form));
+        params.set('live', '1');
 
-    const name = input.value.trim();
-    if (!name) {
-        error.textContent = 'Ingresa un nombre de categoría';
-        error.classList.remove('hidden');
-        return;
+        const targetUrl = url ?? `${baseUrl}?${params.toString()}`;
+
+        if (activeController) {
+            activeController.abort();
+        }
+
+        activeController = new AbortController();
+        statusEl.classList.remove('hidden');
+
+        try {
+            const response = await fetch(targetUrl, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'text/html',
+                },
+                signal: activeController.signal,
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al buscar');
+            }
+
+            resultsEl.innerHTML = await response.text();
+
+            if (!url) {
+                const browserParams = new URLSearchParams(new FormData(form));
+                history.replaceState({}, '', `${baseUrl}?${browserParams.toString()}`);
+            }
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                statusEl.textContent = 'Error';
+            }
+        } finally {
+            statusEl.classList.add('hidden');
+            statusEl.textContent = 'Buscando…';
+            activeController = null;
+        }
     }
 
-    error.classList.add('hidden');
+    function scheduleSearch() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => fetchCatalog(), 280);
+    }
 
-    fetch('{{ route('categorias.store') }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-        },
-        body: JSON.stringify({ name })
-    })
-    .then(async response => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(data?.errors?.name?.[0] || data.message || 'No se pudo crear la categoría');
-        }
-        return data;
-    })
-    .then((data) => {
-        const option = document.createElement('option');
-        option.value = data.id;
-        option.textContent = data.name;
-        option.selected = true;
-        select.appendChild(option);
-        input.value = '';
-        document.getElementById('newCategoryInventoryForm').classList.add('hidden');
-    })
-    .catch((err) => {
-        error.textContent = err.message;
-        error.classList.remove('hidden');
+    searchInput?.addEventListener('input', scheduleSearch);
+
+    form.querySelectorAll('.catalog-filter').forEach((field) => {
+        field.addEventListener('change', () => fetchCatalog());
     });
-}
+
+    document.querySelectorAll('.catalog-view-tab').forEach((tab) => {
+        tab.addEventListener('click', (event) => {
+            event.preventDefault();
+            viewInput.value = tab.dataset.viewTab;
+            document.querySelectorAll('.catalog-view-tab').forEach((el) => {
+                el.classList.remove('bg-white', 'text-indigo-700', 'ring-1', 'ring-slate-200', 'ring-b-white', '-mb-px');
+                el.classList.add('text-slate-500');
+            });
+            tab.classList.add('bg-white', 'text-indigo-700', 'ring-1', 'ring-slate-200', 'ring-b-white', '-mb-px');
+            tab.classList.remove('text-slate-500');
+            fetchCatalog();
+        });
+    });
+
+    resultsEl.addEventListener('click', (event) => {
+        const link = event.target.closest('a');
+        if (!link || !link.href) {
+            return;
+        }
+
+        if (link.closest('nav[role="navigation"]')) {
+            event.preventDefault();
+            fetchCatalog(link.href);
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === '/' && document.activeElement !== searchInput) {
+            const tag = document.activeElement?.tagName?.toLowerCase();
+            if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') {
+                event.preventDefault();
+                searchInput?.focus();
+                searchInput?.select();
+            }
+        }
+    });
+})();
 </script>
 @endpush
-
 @endsection

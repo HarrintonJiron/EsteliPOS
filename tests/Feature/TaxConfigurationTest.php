@@ -89,7 +89,7 @@ test('pos preview receives the effective product tax instead of a fixed fifteen 
         ->assertSee("e.key === 'F9'", false)
         ->assertSee('requestSubmit()', false)
         ->assertDontSee('const TAX_RATE = 0.15', false);
-    expect((float) $response->viewData('products')->first()->effective_tax_rate)->toBe(0.0);
+    expect((float) collect($response->viewData('products'))->first()['effective_tax_rate'])->toBe(0.0);
 });
 
 test('the legacy new sale url redirects to the point of sale', function () {

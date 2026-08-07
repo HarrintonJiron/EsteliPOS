@@ -31,7 +31,7 @@
         .strong { font-weight: 700; }
         .separator { border-top: 1px dashed #000; margin: 2.5mm 0; }
         .company-name { font-size: 13pt; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
-        .ticket-logo { display: block; width: auto; max-width: 68mm; max-height: 44mm; object-fit: contain; margin: 0 auto 2.5mm; }
+        .ticket-logo { display: block; width: auto; max-width: 68mm; max-height: 44mm; object-fit: contain; margin: 0 auto 2.5mm; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
         .company-line { margin-top: .8mm; font-size: 8.5pt; overflow-wrap: anywhere; }
 
         .info { display: grid; gap: 1mm; }
@@ -159,11 +159,12 @@
         <div class="separator"></div>
 
         <section class="totals" aria-label="Totales">
-            @if($invoiceTaxDisplay->showsTaxBreakdown())
+            <div class="total-row"><span>TOTAL ARTÍCULOS</span><span>{{ $sale->details->sum('quantity') }}</span></div>
+            @if($invoiceTaxDisplay->showsTaxInTotals((float) $sale->tax_total))
                 <div class="total-row"><span>SUBTOTAL</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->subtotal, 2) }}</span></div>
                 <div class="total-row"><span>{{ strtoupper($invoiceTaxDisplay->taxLabel((float) $sale->tax_rate)) }}</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $sale->tax_total), 2) }}</span></div>
             @endif
-            <div class="total-row grand-total"><span>TOTAL</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->total, 2) }}</span></div>
+            <div class="total-row grand-total"><span>TOTAL A PAGAR</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->total, 2) }}</span></div>
         </section>
 
         <div class="separator"></div>
@@ -178,8 +179,13 @@
                 @else {{ mb_strtoupper($sale->payment_type) }}
                 @endif
             </div>
-            @if($sale->payment_type === 'cash' && ($changeAmount ?? 0) > 0)
-                <div class="total-row" style="margin-top: 2mm;"><strong>CAMBIO</strong><strong>{{ $companyProfile['currency_symbol'] }} {{ number_format($changeAmount, 2) }}</strong></div>
+            @if($sale->payment_type === 'cash')
+                @if($sale->amount_paid > 0)
+                    <div class="total-row" style="margin-top: 2mm;"><strong>PAGADO</strong><strong>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->amount_paid, 2) }}</strong></div>
+                @endif
+                @if($sale->change_amount > 0)
+                    <div class="total-row" style="margin-top: 1mm;"><strong>CAMBIO</strong><strong>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->change_amount, 2) }}</strong></div>
+                @endif
             @endif
         </section>
 

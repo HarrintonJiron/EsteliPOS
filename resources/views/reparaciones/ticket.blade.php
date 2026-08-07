@@ -11,6 +11,7 @@
         .bold { font-weight: bold; }
         .divider { border-top: 1px dashed #000; margin: 0.25cm 0; }
         .shop-name { font-size: 15px; font-weight: bold; text-align: center; }
+        .ticket-logo { display: block; width: auto; max-width: 68mm; max-height: 44mm; object-fit: contain; margin: 0 auto 2.5mm; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
         .badge { background: #000; color: #fff; font-size: 10px; font-weight: bold; text-align: center; padding: 2px 0; margin: 4px 0; letter-spacing: 2px; }
         .row { display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 10px; }
         .status-box { border: 1px solid #000; padding: 4px 8px; display: inline-block; font-size: 11px; font-weight: bold; margin: 4px auto; }
@@ -25,17 +26,41 @@
 <body>
 <div class="receipt">
 
-    <div class="shop-name">AGROSERVICIO S.A.</div>
-    <div class="center" style="font-size:9px;">Taller de Reparaciones · Tel: +505 2772-0000</div>
+    @php($receiptLogoUrl = $companyProfile['ticket_logo_url'] ?: $companyProfile['company_logo_url'])
+    
+    @if($receiptLogoUrl)
+        <img src="{{ $receiptLogoUrl }}" alt="Logo de {{ $companyProfile['company_name'] }}" class="ticket-logo">
+    @endif
+    
+    <div class="shop-name">{{ $companyProfile['company_name'] }}</div>
+    @if($companyProfile['company_legal_name'])<div class="center" style="font-size:9px;">{{ $companyProfile['company_legal_name'] }}</div>@endif
+    @if($companyProfile['company_phone'])<div class="center" style="font-size:9px;">Tel: {{ $companyProfile['company_phone'] }}</div>@endif
 
     <div class="badge">ORDEN DE SERVICIO</div>
 
     <div class="divider"></div>
 
     <div class="row"><span>Orden:</span><span class="bold">{{ $order->order_number }}</span></div>
-    <div class="row"><span>Fecha:</span><span>{{ $order->received_date->format('d/m/Y') }}</span></div>
-    @if($order->estimated_date)
-    <div class="row"><span>Entrega est.:</span><span class="bold">{{ $order->estimated_date->format('d/m/Y') }}</span></div>
+    <div class="row"><span>Recepción:</span><span>{{ $order->received_date->format($companyProfile['date_format']) }} @if($order->formattedReceivedTime())<span class="bold">· {{ $order->formattedReceivedTime() }}</span>@endif</span></div>
+    @if($order->estimated_date || $order->estimated_delivery_time)
+    <div class="row">
+        <span>Entrega est.:</span>
+        <span class="bold">
+            @if($order->estimated_date){{ $order->estimated_date->format($companyProfile['date_format']) }}@endif
+            @if($order->estimated_date && $order->formattedEstimatedDeliveryTime()) · @endif
+            @if($order->formattedEstimatedDeliveryTime()){{ $order->formattedEstimatedDeliveryTime() }}@endif
+        </span>
+    </div>
+    @endif
+    @if($order->delivered_date || $order->delivered_time)
+    <div class="row">
+        <span>Entregado:</span>
+        <span class="bold">
+            @if($order->delivered_date){{ $order->delivered_date->format($companyProfile['date_format']) }}@endif
+            @if($order->delivered_date && $order->formattedDeliveredTime()) · @endif
+            @if($order->formattedDeliveredTime()){{ $order->formattedDeliveredTime() }}@endif
+        </span>
+    </div>
     @endif
 
     <div class="divider"></div>
@@ -86,8 +111,8 @@
         <div style="font-size:9px; color:#666;">Marca: {{ $item->device_brand }}</div>
         @endif
         <div style="display:flex; justify-content:space-between;">
-            <span>{{ number_format($item->quantity,2) }} x C$ {{ number_format($item->price,2) }}</span>
-            <span class="bold">C$ {{ number_format($item->subtotal,2) }}</span>
+            <span>{{ number_format($item->quantity,0) }} x {{ $companyProfile['currency_symbol'] }} {{ number_format($item->price,2) }}</span>
+            <span class="bold">{{ $companyProfile['currency_symbol'] }} {{ number_format($item->subtotal,2) }}</span>
         </div>
     </div>
     @endforeach
@@ -95,15 +120,18 @@
 
     <div class="divider"></div>
 
-    @if($order->parts_cost > 0)
-    <div class="row"><span>Repuestos</span><span>C$ {{ number_format($order->parts_cost,2) }}</span></div>
+    @if($order->items->count())
+    <div class="row"><span>TOTAL ÍTEMS</span><span class="bold">{{ $order->items->sum('quantity') }}</span></div>
     @endif
-    <div class="row"><span>Mano de obra</span><span>C$ {{ number_format($order->labor_cost,2) }}</span></div>
+    @if($order->parts_cost > 0)
+    <div class="row"><span>Repuestos</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($order->parts_cost,2) }}</span></div>
+    @endif
+    <div class="row"><span>Mano de obra</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($order->labor_cost,2) }}</span></div>
     <div class="divider"></div>
-    <div class="total-row"><span>TOTAL</span><span>C$ {{ number_format($order->total,2) }}</span></div>
+    <div class="total-row"><span>TOTAL</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($order->total,2) }}</span></div>
     @if($order->advance_payment > 0)
-    <div class="row" style="margin-top:3px;"><span>Anticipo</span><span>-C$ {{ number_format($order->advance_payment,2) }}</span></div>
-    <div class="row"><span class="bold">SALDO</span><span class="bold">C$ {{ number_format($order->balance(),2) }}</span></div>
+    <div class="row" style="margin-top:3px;"><span>Anticipo</span><span>-{{ $companyProfile['currency_symbol'] }} {{ number_format($order->advance_payment,2) }}</span></div>
+    <div class="row"><span class="bold">SALDO</span><span class="bold">{{ $companyProfile['currency_symbol'] }} {{ number_format($order->balance(),2) }}</span></div>
     @endif
 
     <div class="divider"></div>
@@ -116,10 +144,18 @@
     <div class="row" style="margin-top:4px;"><span>Técnico:</span><span>{{ $order->technician->name }}</span></div>
     @endif
 
+    @if($order->warranty_enabled)
+    <div class="divider"></div>
+    <div style="font-size:9px; line-height:1.45; margin-top:2px;">
+        <div class="bold" style="font-size:10px; margin-bottom:2px;">✓ GARANTÍA</div>
+        <div>{{ $order->effectiveWarrantyText() }}</div>
+    </div>
+    @endif
+
     <div class="footer">
         Gracias por su confianza.<br>
         Conserve este comprobante para retirar su equipo.<br>
-        {{ now()->format('d/m/Y H:i') }}
+        {{ now()->format($companyProfile['date_format'].' H:i') }}
     </div>
 </div>
 

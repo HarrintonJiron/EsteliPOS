@@ -14,6 +14,7 @@ class ProductionSeeder extends Seeder
         $this->call([
             ConfigurationSeeder::class,
             AccountingSeeder::class,
+            InventoryCatalogSeeder::class,
             EnsureAdminFullAccessSeeder::class,
         ]);
     }

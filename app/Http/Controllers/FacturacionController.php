@@ -10,12 +10,17 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
+use App\Models\Warehouse;
 use App\Services\AccountingService;
 use App\Services\CreditService;
 use App\Services\InventoryService;
+use App\Services\PosCatalogService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Throwable;
 
 class FacturacionController extends Controller
 {
@@ -23,6 +28,7 @@ class FacturacionController extends Controller
         private AccountingService $accountingService,
         private InventoryService $inventoryService,
         private CreditService $creditService,
+        private PosCatalogService $posCatalog,
     ) {}
 
     private function nextInvoiceNumber(): string
@@ -88,6 +94,7 @@ class FacturacionController extends Controller
                     'invoice_number' => $invoiceNumber,
                     'client_id' => $data['client_id'],
                     'user_id' => $data['user_id'],
+                    'warehouse_id' => $this->posCatalog->resolveWarehouseId($data['warehouse_id'] ?? null),
                     'billing_name' => $data['billing_name'],
                     'billing_business_name' => $data['billing_business_name'] ?? null,
                     'billing_document_type' => $billingDocumentType,
@@ -128,6 +135,7 @@ class FacturacionController extends Controller
                     SaleDetail::create([
                         'sale_id' => $sale->id,
                         'product_id' => $item['product_id'],
+                        'unit_id' => $item['unit_id'] ?? null,
                         'quantity' => $item['quantity'],
                         'price' => $item['price'],
                         'subtotal' => $lineGross,
@@ -137,10 +145,12 @@ class FacturacionController extends Controller
 
                     $this->inventoryService->stockOut(
                         $product,
-                        (int) $item['quantity'],
+                        (float) ($item['base_quantity'] ?? $item['quantity']),
                         'sale:'.$sale->id,
                         'Salida por factura #'.($sale->invoice_number ?? $sale->id),
                         $sale->user_id,
+                        false,
+                        $sale->warehouse_id,
                     );
 
                     $linesTotal += $lineGross;
@@ -222,9 +232,14 @@ class FacturacionController extends Controller
 
                 // Revert previous stock changes
                 foreach ($sale->details as $detail) {
-                    $this->inventoryService->stockIn($detail->product, (int) $detail->quantity,
+                    $this->inventoryService->stockIn(
+                        $detail->product,
+                        $this->posCatalog->saleDetailBaseQuantity($detail),
                         'sale_update_revert:'.$sale->id,
-                        'Reverso por edición de factura #'.($sale->invoice_number ?? $sale->id), $sale->user_id);
+                        'Reverso por edición de factura #'.($sale->invoice_number ?? $sale->id),
+                        $sale->user_id,
+                        $sale->warehouse_id,
+                    );
                 }
 
                 // Delete old details
@@ -234,6 +249,7 @@ class FacturacionController extends Controller
                 $sale->update([
                     'invoice_number' => $data['invoice_number'] ?? $sale->invoice_number,
                     'client_id' => $data['client_id'],
+                    'warehouse_id' => $this->posCatalog->resolveWarehouseId($data['warehouse_id'] ?? $sale->warehouse_id),
                     'billing_name' => $data['billing_name'],
                     'billing_business_name' => $data['billing_business_name'] ?? null,
                     'billing_document_type' => $billingDocumentType,
@@ -271,6 +287,7 @@ class FacturacionController extends Controller
                     SaleDetail::create([
                         'sale_id' => $sale->id,
                         'product_id' => $item['product_id'],
+                        'unit_id' => $item['unit_id'] ?? null,
                         'quantity' => $item['quantity'],
                         'price' => $item['price'],
                         'subtotal' => $lineGross,
@@ -278,8 +295,15 @@ class FacturacionController extends Controller
                         'tax_amount' => round($lineTax, 2),
                     ]);
 
-                    $this->inventoryService->stockOut($product, (int) $item['quantity'], 'sale:'.$sale->id,
-                        'Salida por factura #'.($sale->invoice_number ?? $sale->id).' (editada)', $sale->user_id);
+                    $this->inventoryService->stockOut(
+                        $product,
+                        (float) ($item['base_quantity'] ?? $item['quantity']),
+                        'sale:'.$sale->id,
+                        'Salida por factura #'.($sale->invoice_number ?? $sale->id).' (editada)',
+                        $sale->user_id,
+                        false,
+                        $sale->warehouse_id,
+                    );
 
                     $linesTotal += $lineGross;
                     $subtotalExcl += $lineNet;
@@ -311,8 +335,14 @@ class FacturacionController extends Controller
             DB::transaction(function () use ($sale) {
                 // Revert stock changes
                 foreach ($sale->details as $detail) {
-                    $this->inventoryService->stockIn($detail->product, (int) $detail->quantity, 'sale_delete:'.$sale->id,
-                        'Reverso por eliminación de factura #'.($sale->invoice_number ?? $sale->id), $sale->user_id);
+                    $this->inventoryService->stockIn(
+                        $detail->product,
+                        $this->posCatalog->saleDetailBaseQuantity($detail),
+                        'sale_delete:'.$sale->id,
+                        'Reverso por eliminación de factura #'.($sale->invoice_number ?? $sale->id),
+                        $sale->user_id,
+                        $sale->warehouse_id,
+                    );
                 }
 
                 $sale->details()->delete();
@@ -332,17 +362,24 @@ class FacturacionController extends Controller
      */
     public function pos()
     {
-        // Una carga inicial acotada evita que el POS crezca en memoria junto con todo el catálogo.
-        $products = $this->productsWithEffectiveTax(300);
+        $defaultWarehouseId = $this->posCatalog->resolveWarehouseId(null);
+        $products = Product::with(['category', 'tax', 'baseUnit', 'unitConversions.unit'])
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->limit(300)
+            ->get()
+            ->map(fn (Product $product) => $this->posCatalog->serializeProduct($product, $defaultWarehouseId));
+
         Client::firstOrCreate(
             ['code' => 'GEN'],
             ['name' => 'Cliente genérico', 'phone' => 'N/A', 'email' => null, 'address' => null]
         );
-        $clients = Client::orderBy('name')->get();
+        $clients = Client::with('priceList:id,name,code')->orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
+        $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'code', 'is_default']);
         $defaultTaxRate = Tax::defaultRate();
 
-        return view('facturacion.pos', compact('products', 'clients', 'categories', 'defaultTaxRate'));
+        return view('facturacion.pos', compact('products', 'clients', 'categories', 'warehouses', 'defaultWarehouseId', 'defaultTaxRate'));
     }
 
     public function posProducts(Request $request)
@@ -350,11 +387,16 @@ class FacturacionController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
+            'client_id' => ['nullable', 'integer', 'exists:clients,id'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
+        $warehouseId = $this->posCatalog->resolveWarehouseId($validated['warehouse_id'] ?? null);
+        $priceListId = $this->posCatalog->resolvePriceListId($validated['client_id'] ?? null);
+
         $query = Product::query()
-            ->with(['category:id,name', 'tax:id,rate,is_active'])
+            ->with(['category:id,name', 'tax:id,rate,is_active', 'baseUnit', 'unitConversions.unit'])
             ->where('status', 'active')
             ->when(isset($validated['category_id']), fn ($q) => $q->where('category_id', $validated['category_id']))
             ->when($search !== '', function ($q) use ($search) {
@@ -369,9 +411,44 @@ class FacturacionController extends Controller
             ->limit(50)
             ->get();
 
-        return response()->json($query->each(
-            fn (Product $product) => $product->setAttribute('effective_tax_rate', $product->effectiveTaxRate())
-        ));
+        return response()->json(
+            $query->map(fn (Product $product) => $this->posCatalog->serializeProduct($product, $warehouseId, $priceListId))
+        );
+    }
+
+    public function updateProductImage(Request $request, int $product): JsonResponse
+    {
+        $productModel = Product::where('status', 'active')->findOrFail($product);
+
+        $validated = $request->validate([
+            'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
+        ]);
+
+        $oldImagePath = $productModel->getRawOriginal('image_url');
+        $newImagePath = $validated['image']->store('products', 'public');
+
+        try {
+            $productModel->update(['image_url' => $newImagePath]);
+        } catch (Throwable $exception) {
+            if ($newImagePath && str_starts_with($newImagePath, 'products/')) {
+                Storage::disk('public')->delete($newImagePath);
+            }
+
+            throw $exception;
+        }
+
+        if ($oldImagePath && $oldImagePath !== $newImagePath && str_starts_with($oldImagePath, 'products/')) {
+            Storage::disk('public')->delete($oldImagePath);
+        }
+
+        $productModel->refresh();
+
+        return response()->json([
+            'success' => true,
+            'product_id' => $productModel->id,
+            'image_url' => $productModel->image_url,
+            'message' => 'Imagen actualizada correctamente.',
+        ]);
     }
 
     public function posDailyReport(Request $request)
@@ -418,7 +495,10 @@ class FacturacionController extends Controller
             ->orderBy('name')
             ->when($limit, fn ($query) => $query->limit($limit))
             ->get()
-            ->each(fn (Product $product) => $product->setAttribute('effective_tax_rate', $product->effectiveTaxRate()));
+            ->each(function (Product $product) {
+                $product->setAttribute('effective_tax_rate', $product->effectiveTaxRate());
+                $product->image_url = $product->getRawOriginal('image_url');
+            });
     }
 
     /**
@@ -429,6 +509,7 @@ class FacturacionController extends Controller
         $validated = $request->validate([
             'payment_type' => 'required|in:cash,card,transfer,credit',
             'client_id' => 'nullable|exists:clients,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
             'items' => 'required|json',
             'notes' => 'nullable|string',
             'reference_number' => 'nullable|string|max:100',
@@ -439,11 +520,11 @@ class FacturacionController extends Controller
         $items = json_decode($validated['items'], true);
         $itemsValidator = Validator::make(['items' => $items], [
             'items' => ['required', 'array', 'min:1', 'max:200'],
-            'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100000'],
+            'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.0001', 'max:100000'],
+            'items.*.unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'items.*.discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ], [
-            'items.*.product_id.distinct' => 'Un producto no puede aparecer repetido en el ticket.',
             'items.*.product_id.exists' => 'Uno de los productos ya no existe.',
         ]);
 
@@ -481,10 +562,14 @@ class FacturacionController extends Controller
                     );
                 }
 
+                $warehouseId = $this->posCatalog->resolveWarehouseId($validated['warehouse_id'] ?? null);
+                $priceListId = $client->price_list_id;
+
                 $sale = Sale::create([
                     'invoice_number' => $invoiceNumber,
                     'client_id' => $client->id,
                     'user_id' => $userId,
+                    'warehouse_id' => $warehouseId,
                     'billing_name' => $client->name,
                     'billing_business_name' => $client->business_name ?? null,
                     'billing_document_type' => $client->isCompany() ? 'ruc' : ($client->cedula ? 'cedula' : null),
@@ -495,6 +580,8 @@ class FacturacionController extends Controller
                     'date' => now(),
                     'due_date' => $storedPaymentType === 'credit' ? $this->creditService->dueDateForClient($client) : null,
                     'payment_type' => $storedPaymentType,
+                    'amount_paid' => $storedPaymentType === 'cash' ? ($validated['amount_received'] ?? 0) : 0,
+                    'change_amount' => 0,
                     'tax_included' => false,
                     'tax_rate' => Tax::defaultRate(),
                     'status' => $status,
@@ -509,13 +596,17 @@ class FacturacionController extends Controller
                 $taxTotal = 0;
 
                 foreach ($items as $item) {
-                    $quantity = (int) $item['quantity'];
-                    $product = Product::query()->findOrFail($item['product_id']);
-                    // El navegador nunca es fuente de verdad para el precio base.
-                    $price = (float) $product->sale_price;
+                    $product = Product::query()->with(['baseUnit', 'unitConversions'])->findOrFail($item['product_id']);
+                    $line = $this->posCatalog->resolveSaleLine(
+                        $product,
+                        (float) $item['quantity'],
+                        isset($item['unit_id']) ? (int) $item['unit_id'] : null,
+                        $priceListId,
+                    );
+
                     $discountPct = min(100, max(0, (float) ($item['discount'] ?? 0)));
                     $orderDiscountPct = (float) ($validated['order_discount_pct'] ?? 0);
-                    $lineNet = ($price * $quantity)
+                    $lineNet = ($line['price'] * $line['quantity'])
                         * (1 - $discountPct / 100)
                         * (1 - $orderDiscountPct / 100);
 
@@ -525,15 +616,23 @@ class FacturacionController extends Controller
                     SaleDetail::create([
                         'sale_id' => $sale->id,
                         'product_id' => $item['product_id'],
-                        'quantity' => $quantity,
-                        'price' => $price,
+                        'unit_id' => $line['unit_id'],
+                        'quantity' => $line['quantity'],
+                        'price' => $line['price'],
                         'subtotal' => $lineNet,
                         'tax_rate' => $rate,
                         'tax_amount' => round($lineTax, 2),
                     ]);
 
-                    $this->inventoryService->stockOut($product, $quantity, 'pos_sale:'.$sale->id,
-                        'Venta POS #'.$invoiceNumber, $userId);
+                    $this->inventoryService->stockOut(
+                        $product,
+                        $line['base_quantity'],
+                        'pos_sale:'.$sale->id,
+                        'Venta POS #'.$invoiceNumber,
+                        $userId,
+                        false,
+                        $warehouseId,
+                    );
 
                     $linesTotal += $lineNet;
                     $subtotalExcl += $lineNet;
@@ -545,6 +644,9 @@ class FacturacionController extends Controller
                     'subtotal' => round($subtotalExcl, 2),
                     'tax_total' => round($taxTotal, 2),
                     'total' => round($subtotalExcl + $taxTotal, 2),
+                    'change_amount' => $storedPaymentType === 'cash'
+                        ? max(0, ($validated['amount_received'] ?? round($subtotalExcl + $taxTotal, 2)) - round($subtotalExcl + $taxTotal, 2))
+                        : 0,
                 ]);
 
                 if ($storedPaymentType === 'cash'
@@ -596,8 +698,7 @@ class FacturacionController extends Controller
     public function receipt($saleId)
     {
         $sale = Sale::with('details.product', 'user')->findOrFail($saleId);
-        $changeAmount = request()->query('change', 0);
 
-        return view('facturacion.receipt', compact('sale', 'changeAmount'));
+        return view('facturacion.receipt', compact('sale'));
     }
 }

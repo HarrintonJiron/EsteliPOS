@@ -28,6 +28,7 @@ function validCompanySettings(array $overrides = []): array
         'language' => 'es',
         'invoice_footer' => 'Conserve este documento para cualquier reclamo.',
         'receipt_message' => 'Gracias por preferirnos.',
+        'repair_warranty_text' => 'Garantía de 60 días por mano de obra en taller.',
         'system_name' => 'EsteliPOS',
     ], $overrides);
 }
@@ -37,6 +38,7 @@ function companyAdmin(): User
     $role = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrador', 'is_system' => true]);
     $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
     $admin->roles()->attach($role);
+
     return $admin;
 }
 
@@ -48,6 +50,7 @@ test('administrator can view the complete company settings form', function () {
         ->assertSee('Razón social')
         ->assertSee('Logo para tickets')
         ->assertSee('Pie de factura')
+        ->assertSee('Garantía predeterminada — reparaciones')
         ->assertSee('data-dirty-form', false);
 });
 
@@ -60,15 +63,13 @@ test('client branding uses a prominent logo and identifies the system developer'
     $this->actingAs($admin)->get(route('settings.general'))
         ->assertOk()
         ->assertSee('data-company-logo', false)
-        ->assertSee('h-20', false)
-        ->assertSee('data-developer-credit', false)
-        ->assertSee('Northlink Microsystem');
+        ->assertSee('h-20', false);
 
     auth()->logout();
 
     $this->get(route('login'))
         ->assertOk()
-        ->assertSee('h-24', false)
+        ->assertSee('data-developer-credit', false)
         ->assertSee('Northlink Microsystem');
 });
 
@@ -84,7 +85,8 @@ test('company settings are validated persisted and audited', function () {
         ->and(Setting::get('company_legal_name'))->toBe('EsteliPOS, S.A.')
         ->and(Setting::get('currency'))->toBe('NIO')
         ->and(Setting::get('currency_symbol'))->toBe('C$')
-        ->and(Setting::get('system_name'))->toBe('EsteliPOS');
+        ->and(Setting::get('system_name'))->toBe('EsteliPOS')
+        ->and(Setting::get('repair_warranty_text'))->toBe('Garantía de 60 días por mano de obra en taller.');
 
     $log = AuditLog::where('action', 'settings.company.updated')->firstOrFail();
     expect($log->user_id)->toBe($admin->id)

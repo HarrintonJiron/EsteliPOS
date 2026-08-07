@@ -13,6 +13,7 @@ class Sale extends Model
         'invoice_number',
         'client_id',
         'user_id',
+        'warehouse_id',
         'billing_name',
         'billing_business_name',
         'billing_document_type',
@@ -28,6 +29,8 @@ class Sale extends Model
         'discount_percentage',
         'total',
         'payment_type',
+        'amount_paid',
+        'change_amount',
         'tax_included',
         'tax_rate',
         'status',
@@ -49,6 +52,11 @@ class Sale extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
     }
 
     public function details()

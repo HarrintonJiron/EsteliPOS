@@ -1,4 +1,5 @@
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', 'Orden ' . $order->order_number)
 
@@ -18,7 +19,21 @@
                     <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold {{ $order->priorityColor() }}">{{ $order->priorityLabel() }}</span>
                 </div>
                 <p class="text-sm text-slate-500 mt-0.5">Recibido: {{ $order->received_date->format('d/m/Y') }}
-                    @if($order->estimated_date) · Entrega est.: <span class="{{ $order->estimated_date->isPast() && $order->status !== 'delivered' ? 'text-red-600 font-semibold' : '' }}">{{ $order->estimated_date->format('d/m/Y') }}</span>@endif
+                    @if($order->formattedReceivedTime()) <span class="font-medium">· {{ $order->formattedReceivedTime() }}</span>@endif
+                    @if($order->estimated_date || $order->estimated_delivery_time) · Entrega est.:
+                        <span class="{{ $order->estimated_date && $order->estimated_date->isPast() && $order->status !== 'delivered' ? 'text-red-600 font-semibold' : '' }}">
+                            @if($order->estimated_date){{ $order->estimated_date->format('d/m/Y') }}@endif
+                            @if($order->estimated_date && $order->formattedEstimatedDeliveryTime()) · @endif
+                            @if($order->formattedEstimatedDeliveryTime()){{ $order->formattedEstimatedDeliveryTime() }}@endif
+                        </span>
+                    @endif
+                    @if($order->delivered_date || $order->delivered_time) · Entregado:
+                        <span class="text-emerald-700 font-medium">
+                            @if($order->delivered_date){{ $order->delivered_date->format('d/m/Y') }}@endif
+                            @if($order->delivered_date && $order->formattedDeliveredTime()) · @endif
+                            @if($order->formattedDeliveredTime()){{ $order->formattedDeliveredTime() }}@endif
+                        </span>
+                    @endif
                 </p>
             </div>
         </div>
@@ -148,6 +163,21 @@
                 </form>
             </div>
 
+            {{-- Warranty --}}
+            <div class="card p-5 {{ $order->warranty_enabled ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 border border-slate-200' }}">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="font-semibold {{ $order->warranty_enabled ? 'text-emerald-800' : 'text-slate-700' }}">Garantía</h2>
+                    <span class="text-xs px-2 py-0.5 rounded-full {{ $order->warranty_enabled ? 'bg-emerald-200 text-emerald-800 font-semibold' : 'bg-slate-200 text-slate-600' }}">
+                        {{ $order->warranty_enabled ? 'INCLUIDA' : 'NO INCLUIDA' }}
+                    </span>
+                </div>
+                @if($order->warranty_enabled)
+                <p class="text-xs leading-relaxed {{ $order->warranty_enabled ? 'text-emerald-900' : 'text-slate-700' }} whitespace-pre-line">{{ $order->effectiveWarrantyText() }}</p>
+                @else
+                <p class="text-xs text-slate-500 italic">La garantía no fue incluida en el ticket para esta orden.</p>
+                @endif
+            </div>
+
             {{-- Payment summary --}}
             <div class="card p-5 bg-indigo-50 border border-indigo-100">
                 <h2 class="font-semibold text-indigo-800 mb-3">Pagos</h2>
@@ -183,12 +213,32 @@
                 @if($order->user)
                 <div class="flex justify-between"><span class="text-slate-500">Atendido por</span><span class="font-medium">{{ $order->user->name }}</span></div>
                 @endif
-                <div class="flex justify-between"><span class="text-slate-500">Recepción</span><span>{{ $order->received_date->format('d/m/Y') }}</span></div>
-                @if($order->estimated_date)
-                <div class="flex justify-between"><span class="text-slate-500">Est. entrega</span><span>{{ $order->estimated_date->format('d/m/Y') }}</span></div>
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-500">Recepción</span>
+                    <span class="text-right">
+                        <span>{{ $order->received_date->format('d/m/Y') }}</span>
+                        @if($order->formattedReceivedTime())<br><span class="font-medium">{{ $order->formattedReceivedTime() }}</span>@endif
+                    </span>
+                </div>
+                @if($order->estimated_date || $order->estimated_delivery_time)
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-500">Est. entrega</span>
+                    <span class="text-right">
+                        @if($order->estimated_date)<span>{{ $order->estimated_date->format('d/m/Y') }}</span>@endif
+                        @if($order->estimated_date && $order->formattedEstimatedDeliveryTime())<br>@endif
+                        @if($order->formattedEstimatedDeliveryTime())<span class="font-medium">{{ $order->formattedEstimatedDeliveryTime() }}</span>@endif
+                    </span>
+                </div>
                 @endif
-                @if($order->delivered_date)
-                <div class="flex justify-between"><span class="text-slate-500">Entregado</span><span>{{ $order->delivered_date->format('d/m/Y') }}</span></div>
+                @if($order->delivered_date || $order->delivered_time)
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-500">Entregado</span>
+                    <span class="text-right text-emerald-700">
+                        @if($order->delivered_date)<span>{{ $order->delivered_date->format('d/m/Y') }}</span>@endif
+                        @if($order->delivered_date && $order->formattedDeliveredTime())<br>@endif
+                        @if($order->formattedDeliveredTime())<span class="font-medium">{{ $order->formattedDeliveredTime() }}</span>@endif
+                    </span>
+                </div>
                 @endif
                 @php
                     $lockType = $order->lock_type ?? ($order->device_password ? (preg_match('/^[1-9](?:-[1-9])*$/', $order->device_password) ? 'pattern' : 'password') : 'none');

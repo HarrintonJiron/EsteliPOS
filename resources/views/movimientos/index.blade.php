@@ -11,27 +11,22 @@
 
 <div class="space-y-4">
 
-    {{-- Encabezado --}}
-    <div class="flex justify-between items-center">
-        <h2 class="text-2xl font-bold text-gray-700">
-    Movimientos de Inventario
-    @if($productoActual)
-        – {{ $productoActual }}
-    @endif
-</h2>
+    @include('inventario._hub-nav')
 
-<p class="text-sm text-gray-500">
-    @if($productoActual)
-        Historial de entradas y salidas del producto seleccionado
-    @else
-        Registro general de entradas y salidas
-    @endif
-</p>
-
-
-        <div class="text-xs text-gray-500">
-            Los movimientos se generan automáticamente desde Compras, Facturación y Ajustes.
-        </div>
+    <div>
+        <h2 class="text-xl font-bold text-slate-800">
+            Movimientos de inventario
+            @if($productoActual)
+                – {{ $productoActual }}
+            @endif
+        </h2>
+        <p class="text-sm text-slate-500">
+            @if($productoActual)
+                Historial de entradas y salidas del producto seleccionado
+            @else
+                Kardex global · se genera desde compras, ventas y ajustes
+            @endif
+        </p>
     </div>
 
     {{-- Tabla --}}

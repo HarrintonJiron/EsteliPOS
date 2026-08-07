@@ -9,7 +9,7 @@ class Purchase extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['supplier_id', 'user_id', 'date', 'subtotal', 'tax_total', 'total', 'status'];
+    protected $fillable = ['supplier_id', 'user_id', 'warehouse_id', 'date', 'subtotal', 'tax_total', 'total', 'status'];
 
     protected $casts = [
         'date' => 'datetime',
@@ -23,6 +23,11 @@ class Purchase extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
     }
 
     public function details()
