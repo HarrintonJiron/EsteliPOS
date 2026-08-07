@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Orden de Reparación {{ $order->order_number }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    @vite(['resources/css/app.css'])
     <style>
         @media print {
             body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }

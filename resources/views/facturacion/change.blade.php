@@ -75,7 +75,7 @@
         {{-- Botones de acción --}}
         <div class="space-y-3">
             <a 
-                href="{{ route('facturacion.receipt', $sale->id) }}?change={{ $changeAmount }}"
+                href="{{ route('facturacion.receipt', $sale->id) }}?autoprint=1"
                 target="_blank"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors block text-center">
                 🖨️ Imprimir Recibo Térmico

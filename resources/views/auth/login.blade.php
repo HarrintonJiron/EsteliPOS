@@ -9,8 +9,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar sesión — {{ $systemName }}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('css/app-ui.css') }}">
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         :root {
             --login-primary: #0d9488;

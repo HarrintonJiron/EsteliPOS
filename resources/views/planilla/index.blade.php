@@ -204,7 +204,7 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+@push('scripts')
 <script>
 const money = (v) => 'C$ ' + Number(v).toLocaleString('es-NI', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const trend = @json($dashboard['trend']);
@@ -320,4 +320,5 @@ new Chart(document.getElementById('contractChart'), {
     },
 });
 </script>
+@endpush
 @endsection

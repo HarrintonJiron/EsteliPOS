@@ -2,6 +2,8 @@
 
 use App\Models\Category;
 use App\Models\Client;
+use App\Models\InventoryAdjustment;
+use App\Models\InventoryMovement;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
@@ -13,6 +15,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AccountingService;
 use App\Services\UnitConversionService;
+use Database\Seeders\ConfigurationSeeder;
 use Database\Seeders\InventoryCatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -235,4 +238,45 @@ test('pos sale deducts stock from default warehouse for legacy products', functi
     ])->assertRedirect();
 
     expect((float) $product->fresh()->stock)->toBe(47.0);
+});
+
+test('deleting a zero quantity inventory adjustment succeeds without stock movement errors', function () {
+    $this->seed(ConfigurationSeeder::class);
+
+    $admin = inventoryAdmin();
+    $category = Category::firstOrCreate(['name' => 'Ajustes']);
+
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto conteo exacto',
+        'code' => 'CNT-'.str()->random(6),
+        'purchase_price' => 10,
+        'sale_price' => 20,
+        'stock' => 10,
+        'unit' => 'und',
+        'status' => 'active',
+    ]);
+
+    $adjustment = InventoryAdjustment::query()->create([
+        'product_id' => $product->id,
+        'user_id' => $admin->id,
+        'type' => 'count',
+        'quantity' => 0,
+        'stock_before' => 10,
+        'stock_after' => 10,
+        'reason' => 'Conteo físico sin diferencia',
+    ]);
+
+    $accounting = Mockery::mock(AccountingService::class);
+    $accounting->shouldReceive('voidForSource')->once();
+    app()->instance(AccountingService::class, $accounting);
+
+    $this->actingAs($admin)
+        ->delete(route('ajustes.destroy', $adjustment->id))
+        ->assertRedirect(route('ajustes.index'))
+        ->assertSessionHas('success');
+
+    expect(InventoryAdjustment::count())->toBe(0)
+        ->and(InventoryMovement::count())->toBe(0)
+        ->and((float) $product->fresh()->stock)->toBe(10.0);
 });

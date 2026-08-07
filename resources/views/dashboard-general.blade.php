@@ -338,7 +338,7 @@
 </div>
 
 @if($hasVentas || $hasCompras || $hasInventario || $hasClientes)
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+@push('scripts')
 <script>
 Chart.defaults.font.family = 'Inter, sans-serif';
 Chart.defaults.color = '#64748b';
@@ -450,5 +450,6 @@ if (document.getElementById('topClientsChart') && topClients.length) {
 }
 @endif
 </script>
+@endpush
 @endif
 @endsection

@@ -196,8 +196,11 @@
         </footer>
     </main>
 
+    @if(request()->boolean('autoprint'))
     <script>
         window.addEventListener('load', () => window.print());
+        window.addEventListener('afterprint', () => window.close());
     </script>
+    @endif
 </body>
 </html>

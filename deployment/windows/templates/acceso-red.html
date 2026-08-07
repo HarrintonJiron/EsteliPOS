@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EsteliPOS - Acceso en red</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; padding: 24px; }
+        .card { max-width: 720px; margin: 0 auto; background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 10px 30px rgba(15,23,42,.08); }
+        h1 { margin: 0 0 8px; font-size: 1.8rem; }
+        .url { font-size: 1.35rem; font-weight: 700; color: #4338ca; word-break: break-all; margin: 16px 0; }
+        .grid { display: grid; gap: 12px; margin: 20px 0; }
+        .row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 14px; background: #f8fafc; border-radius: 10px; }
+        .row strong { min-width: 140px; }
+        button { border: 0; border-radius: 10px; padding: 12px 18px; font-weight: 700; cursor: pointer; background: #4338ca; color: #fff; }
+        button.secondary { background: #475569; }
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+        #qrcode { margin: 20px auto; width: 220px; height: 220px; }
+        ol { line-height: 1.7; padding-left: 20px; }
+        .note { background: #eef2ff; border-left: 4px solid #4338ca; padding: 12px 14px; border-radius: 8px; margin-top: 20px; }
+        .footer { margin-top: 24px; font-size: .9rem; color: #64748b; }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <h1>EsteliPOS en la red local</h1>
+        <p>Usa esta direccion en tablets, celulares u otras PCs conectadas a la misma Wi-Fi.</p>
+
+        <div class="url" id="appUrl">__APP_URL__</div>
+
+        <div class="actions">
+            <button type="button" onclick="copyUrl()">Copiar enlace</button>
+            <button type="button" class="secondary" onclick="window.print()">Imprimir hoja</button>
+        </div>
+
+        <div id="qrcode" aria-label="Codigo QR de acceso"></div>
+
+        <div class="grid">
+            <div class="row"><strong>IP del servidor</strong><span>__LAN_ADDRESS__</span></div>
+            <div class="row"><strong>Puerto</strong><span>__PORT__</span></div>
+            <div class="row"><strong>MAC (router)</strong><span>__MAC_ADDRESS__</span></div>
+            <div class="row"><strong>Equipo</strong><span>__COMPUTER_NAME__</span></div>
+        </div>
+
+        <h2>Para que la IP no cambie</h2>
+        <ol>
+            <li>Entra al router de la ferreteria (normalmente 192.168.1.1 o 192.168.0.1).</li>
+            <li>Busca la seccion <strong>Reserva DHCP</strong>, <strong>IP estatica</strong> o <strong>Address reservation</strong>.</li>
+            <li>Reserva la IP <strong>__LAN_ADDRESS__</strong> para la MAC <strong>__MAC_ADDRESS__</strong>.</li>
+            <li>Guarda cambios y reinicia el router si lo pide.</li>
+            <li>En cada tablet, guarda esta pagina o escanea el QR para acceder rapido.</li>
+        </ol>
+
+        <div class="note">
+            Mantén encendida la PC servidor. Si cambias de red Wi-Fi, vuelve a ejecutar el instalador o abre
+            <code>Diagnose-EsteliPOS.ps1</code> para ver la nueva direccion.
+        </div>
+
+        <p class="footer">Generado el __GENERATED_AT__ · Northlink Microsystem</p>
+    </main>
+
+    <script src="assets/qrcode.min.js"></script>
+    <script>
+        const appUrl = document.getElementById('appUrl').textContent.trim();
+        new QRCode(document.getElementById('qrcode'), {
+            text: appUrl,
+            width: 220,
+            height: 220,
+            correctLevel: QRCode.CorrectLevel.M
+        });
+
+        function copyUrl() {
+            navigator.clipboard.writeText(appUrl).then(() => alert('Enlace copiado: ' + appUrl));
+        }
+    </script>
+</body>
+</html>

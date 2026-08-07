@@ -200,7 +200,7 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+@push('scripts')
 <script>
 const money = (v) => 'C$ ' + Number(v).toLocaleString('es-NI', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const salaryByEmployee = @json($charts['salary_by_employee']);
@@ -289,4 +289,5 @@ new Chart(document.getElementById('nominaTrendChart'), {
     },
 });
 </script>
+@endpush
 @endsection

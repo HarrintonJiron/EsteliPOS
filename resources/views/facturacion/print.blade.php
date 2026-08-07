@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Factura {{ $sale?->invoice_number ?? ($sale ? str_pad((string)$sale->id, 6, '0', STR_PAD_LEFT) : '') }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    @vite(['resources/css/app.css'])
     <style>
         @media print {
             body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }

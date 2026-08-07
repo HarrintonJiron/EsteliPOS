@@ -189,25 +189,27 @@ class AjusteInventarioController extends Controller
                 }
 
                 $qty = abs((float) $adjustment->quantity);
-                if ((float) $adjustment->quantity >= 0) {
-                    $this->inventoryService->stockOut(
-                        $product,
-                        $qty,
-                        'adjustment_revert:'.$adjustment->id,
-                        'Reverso de ajuste #'.$adjustment->id,
-                        auth()->id(),
-                        false,
-                        $warehouseId,
-                    );
-                } elseif ($qty > 0) {
-                    $this->inventoryService->stockIn(
-                        $product,
-                        $qty,
-                        'adjustment_revert:'.$adjustment->id,
-                        'Reverso de ajuste #'.$adjustment->id,
-                        auth()->id(),
-                        $warehouseId,
-                    );
+                if ($qty > 0.0001) {
+                    if ((float) $adjustment->quantity > 0) {
+                        $this->inventoryService->stockOut(
+                            $product,
+                            $qty,
+                            'adjustment_revert:'.$adjustment->id,
+                            'Reverso de ajuste #'.$adjustment->id,
+                            auth()->id(),
+                            false,
+                            $warehouseId,
+                        );
+                    } else {
+                        $this->inventoryService->stockIn(
+                            $product,
+                            $qty,
+                            'adjustment_revert:'.$adjustment->id,
+                            'Reverso de ajuste #'.$adjustment->id,
+                            auth()->id(),
+                            $warehouseId,
+                        );
+                    }
                 }
 
                 $adjustmentId = $adjustment->id;

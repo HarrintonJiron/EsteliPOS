@@ -47,6 +47,51 @@ beforeEach(function () {
     )->update(['is_default' => true, 'is_active' => true]);
 });
 
+test('the pos rejects duplicate products in the same ticket', function () {
+    $user = productionSalesUser();
+    $product = productionSalesProduct();
+
+    $this->actingAs($user)->from(route('facturacion.pos'))->post(route('facturacion.pos-store'), [
+        'payment_type' => 'cash',
+        'items' => json_encode([
+            ['product_id' => $product->id, 'quantity' => 1, 'discount' => 0],
+            ['product_id' => $product->id, 'quantity' => 2, 'discount' => 0],
+        ]),
+        'amount_received' => 500,
+    ])->assertRedirect(route('facturacion.pos'))
+        ->assertSessionHasErrors('items.1.product_id');
+
+    expect(Sale::count())->toBe(0)
+        ->and($product->fresh()->stock)->toBe(10);
+});
+
+test('receipt displays change amount from the persisted sale record', function () {
+    $user = productionSalesUser();
+    $product = productionSalesProduct(stock: 10, price: 100);
+    $accounting = Mockery::mock(AccountingService::class);
+    $accounting->shouldReceive('recordSale')->once();
+    app()->instance(AccountingService::class, $accounting);
+
+    $this->actingAs($user)->post(route('facturacion.pos-store'), [
+        'payment_type' => 'cash',
+        'items' => json_encode([[
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'discount' => 0,
+        ]]),
+        'amount_received' => 150,
+    ])->assertRedirect();
+
+    $sale = Sale::latest('id')->firstOrFail();
+
+    expect((float) $sale->change_amount)->toBe(50.0);
+
+    $this->actingAs($user)->get(route('facturacion.receipt', $sale->id))
+        ->assertOk()
+        ->assertSee('CAMBIO', false)
+        ->assertSee('50.00', false);
+});
+
 test('the pos uses the server price and ignores a manipulated browser price', function () {
     $user = productionSalesUser();
     $product = productionSalesProduct(stock: 10, price: 125);

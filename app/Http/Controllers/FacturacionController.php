@@ -520,12 +520,13 @@ class FacturacionController extends Controller
         $items = json_decode($validated['items'], true);
         $itemsValidator = Validator::make(['items' => $items], [
             'items' => ['required', 'array', 'min:1', 'max:200'],
-            'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.0001', 'max:100000'],
             'items.*.unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'items.*.discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ], [
             'items.*.product_id.exists' => 'Uno de los productos ya no existe.',
+            'items.*.product_id.distinct' => 'Un producto no puede aparecer repetido en el ticket.',
         ]);
 
         if ($itemsValidator->fails()) {

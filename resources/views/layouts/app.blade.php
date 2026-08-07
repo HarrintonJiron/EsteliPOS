@@ -26,39 +26,7 @@
     <title>@yield('title', $systemName)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="{{ asset('css/app-ui.css') }}">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
-                    colors: {
-                        brand: {
-                            50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc',
-                            400: '#818cf8', 500: '{{ $primaryColor }}', 600: '#4f46e5', 700: '#4338ca',
-                            800: '#3730a3', 900: '#312e81',
-                        },
-                        primary: {
-                            DEFAULT: '{{ $primaryColor }}',
-                            50: '{{ $primaryColor }}0d',
-                            100: '{{ $primaryColor }}1a',
-                            200: '{{ $primaryColor }}33',
-                            300: '{{ $primaryColor }}4d',
-                            400: '{{ $primaryColor }}66',
-                            500: '{{ $primaryColor }}',
-                            600: '{{ $primaryColor }}b3',
-                            700: '{{ $primaryColor }}cc',
-                            800: '{{ $primaryColor }}e6',
-                            900: '{{ $primaryColor }}f2',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
         :root {
@@ -66,7 +34,7 @@
             --ui-primary-hover: {{ $primaryColor }};
             --ui-primary-dark: #0f766e;
         }
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
 
         /* ── Sidebar (layout-specific) ── */
         #app-sidebar {
