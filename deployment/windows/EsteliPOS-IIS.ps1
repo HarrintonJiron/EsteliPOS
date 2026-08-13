@@ -54,6 +54,53 @@ function Wait-EsteliPOSUrlRewriteModule {
     return $false
 }
 
+function Test-EsteliPOSUrlRewriteInstaller {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string]$ExpectedSha256 = ""
+    )
+
+    if (-not (Test-Path $Path)) {
+        return $false
+    }
+
+    if ([string]::IsNullOrWhiteSpace($ExpectedSha256)) {
+        return $true
+    }
+
+    $ActualSha256 = (Get-FileHash -Path $Path -Algorithm SHA256).Hash
+
+    return $ActualSha256 -eq $ExpectedSha256
+}
+
+function Invoke-EsteliPOSUrlRewriteInstaller {
+    param([Parameter(Mandatory = $true)][string]$InstallerPath)
+
+    Write-Host "Instalando IIS URL Rewrite desde: $InstallerPath"
+
+    if ([IO.Path]::GetExtension($InstallerPath) -eq ".msi") {
+        $Process = Start-Process -FilePath "msiexec.exe" `
+            -ArgumentList "/i", "`"$InstallerPath`"", "/qn", "/norestart" `
+            -PassThru `
+            -Wait
+    } else {
+        $Process = Start-Process -FilePath $InstallerPath `
+            -ArgumentList "/install", "/quiet", "/norestart" `
+            -PassThru `
+            -Wait
+    }
+
+    if ($Process.ExitCode -notin @(0, 1641, 3010)) {
+        throw "El instalador de IIS URL Rewrite devolvio codigo $($Process.ExitCode)."
+    }
+
+    if ($Process.ExitCode -in @(1641, 3010)) {
+        Write-Warning "URL Rewrite solicito reiniciar Windows (codigo $($Process.ExitCode))."
+    }
+
+    Restart-EsteliPOSIIS
+}
+
 function Install-EsteliPOSUrlRewriteModule {
     if (Test-EsteliPOSUrlRewriteModule) {
         Write-Host "IIS URL Rewrite ya esta instalado."
@@ -61,52 +108,62 @@ function Install-EsteliPOSUrlRewriteModule {
         return
     }
 
-    $BundledInstaller = Join-Path $PSScriptRoot "assets\urlrewrite2.exe"
-    $InstallerPath = $BundledInstaller
+    $ExpectedSha256 = "37342FF2F585F263F34F48E9DE59EB1051D61015A8E967DBDE4075716230A32A"
+    $BundledMsi = Join-Path $PSScriptRoot "assets\rewrite_amd64_en-US.msi"
+    $BundledExe = Join-Path $PSScriptRoot "assets\urlrewrite2.exe"
     $Installed = $false
 
-    if (Test-Path $InstallerPath) {
-        Write-Host "Instalando IIS URL Rewrite desde paquete local..."
-        $Process = Start-Process -FilePath $InstallerPath -ArgumentList "/install", "/quiet", "/norestart" -PassThru -Wait
-        if ($Process.ExitCode -ne 0) {
-            Write-Warning "urlrewrite2.exe devolvio codigo $($Process.ExitCode)."
+    foreach ($InstallerPath in @($BundledMsi, $BundledExe)) {
+        $ExpectedHash = if ($InstallerPath -eq $BundledMsi) { $ExpectedSha256 } else { "" }
+        if (-not (Test-EsteliPOSUrlRewriteInstaller -Path $InstallerPath -ExpectedSha256 $ExpectedHash)) {
+            continue
         }
 
-        Restart-EsteliPOSIIS
-        $Installed = Wait-EsteliPOSUrlRewriteModule
+        try {
+            Invoke-EsteliPOSUrlRewriteInstaller -InstallerPath $InstallerPath
+            $Installed = Wait-EsteliPOSUrlRewriteModule -MaxAttempts 10
+        } catch {
+            Write-Warning "No se pudo instalar URL Rewrite desde el paquete local: $($_.Exception.Message)"
+        }
+
+        if ($Installed) {
+            break
+        }
     }
 
     if (-not $Installed) {
-        $InstallerPath = Join-Path $env:TEMP "urlrewrite2.exe"
+        $InstallerPath = Join-Path $env:TEMP "rewrite_amd64_en-US.msi"
         try {
-            if (-not (Test-Path $InstallerPath)) {
-                Write-Host "Descargando IIS URL Rewrite..."
+            if (-not (Test-EsteliPOSUrlRewriteInstaller -Path $InstallerPath -ExpectedSha256 $ExpectedSha256)) {
+                Remove-Item $InstallerPath -Force -ErrorAction SilentlyContinue
+                Write-Host "Descargando IIS URL Rewrite 2.1 x64 desde Microsoft..."
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
                 Invoke-WebRequest `
-                    -Uri "https://download.microsoft.com/download/1/2/8/128E2E0C-1125-48B4-AB5E-829F25AC6235/urlrewrite2.exe" `
+                    -Uri "https://download.microsoft.com/download/1/2/8/128E2E22-C1B9-44A4-BE2A-5859ED1D4592/rewrite_amd64_en-US.msi" `
                     -OutFile $InstallerPath `
                     -UseBasicParsing
             }
 
-            $Process = Start-Process -FilePath $InstallerPath -ArgumentList "/install", "/quiet", "/norestart" -PassThru -Wait
-            if ($Process.ExitCode -ne 0) {
-                Write-Warning "urlrewrite2.exe devolvio codigo $($Process.ExitCode)."
+            if (-not (Test-EsteliPOSUrlRewriteInstaller -Path $InstallerPath -ExpectedSha256 $ExpectedSha256)) {
+                throw "La verificacion SHA-256 del instalador descargado no coincide."
             }
 
-            Restart-EsteliPOSIIS
-            $Installed = Wait-EsteliPOSUrlRewriteModule
+            Invoke-EsteliPOSUrlRewriteInstaller -InstallerPath $InstallerPath
+            $Installed = Wait-EsteliPOSUrlRewriteModule -MaxAttempts 10
         } catch {
-            Write-Warning "No se pudo descargar URL Rewrite: $($_.Exception.Message)"
+            Write-Warning "No se pudo descargar o instalar URL Rewrite: $($_.Exception.Message)"
         }
     }
 
     if (-not $Installed) {
         throw @"
-No se pudo instalar IIS URL Rewrite (requerido por public\web.config).
+No se pudo activar IIS URL Rewrite (requerido por public\web.config).
+El paquete incluye rewrite_amd64_en-US.msi verificado para instalacion offline.
 Opciones:
-1. Copie urlrewrite2.exe en deployment\windows\assets\ e instale de nuevo.
-2. Descarguelo desde https://www.iis.net/downloads/microsoft/url-rewrite
-3. Instale el .exe manualmente como administrador y reinicie IIS (iisreset /restart).
-4. Vuelva a ejecutar Instalar-EsteliPOS.bat opcion 1.
+1. Reinicie Windows si IIS o URL Rewrite solicitaron reinicio.
+2. Ejecute deployment\windows\assets\rewrite_amd64_en-US.msi como administrador.
+3. Ejecute iisreset /restart y vuelva a abrir Instalar-EsteliPOS.bat opcion 1.
+4. Si Windows es Home, use la opcion 2 (Servidor Simple).
 "@
     }
 }
@@ -128,12 +185,6 @@ function Test-EsteliPOSIISRoleEnabled {
 }
 
 function Enable-EsteliPOSIISFeatures {
-    if (Test-EsteliPOSIISRoleEnabled) {
-        Write-Host "IIS ya esta instalado en Windows."
-
-        return
-    }
-
     Write-Host "Activando rol IIS y componentes necesarios (puede tardar varios minutos)..."
 
     $Features = @(
@@ -151,39 +202,36 @@ function Enable-EsteliPOSIISFeatures {
         "IIS-RequestFiltering",
         "IIS-Performance",
         "IIS-HttpCompressionStatic",
-        "IIS-ManagementConsole"
+        "IIS-WebServerManagementTools",
+        "IIS-ManagementConsole",
+        "IIS-ManagementScriptingTools"
     )
 
-    $DismOutput = & dism.exe /online /enable-feature /featurename:IIS-WebServerRole /all /NoRestart 2>&1
-    foreach ($Line in $DismOutput) {
-        if ($Line -match "Error|failed|denegado|denied") {
-            Write-Warning $Line
+    foreach ($Feature in $Features) {
+        $State = Get-WindowsOptionalFeature -Online -FeatureName $Feature -ErrorAction SilentlyContinue
+        if (-not $State) {
+            throw "Windows no reconoce el componente requerido: $Feature"
+        }
+        if ($State.State -ne "Enabled") {
+            Write-Host "Activando $Feature..."
+            Enable-WindowsOptionalFeature -Online -FeatureName $Feature -All -NoRestart -ErrorAction Stop | Out-Null
         }
     }
 
-    if (-not (Test-EsteliPOSIISRoleEnabled)) {
-        foreach ($Feature in $Features) {
-            $State = Get-WindowsOptionalFeature -Online -FeatureName $Feature -ErrorAction SilentlyContinue
-            if ($State -and $State.State -ne "Enabled") {
-                Write-Host "Activando $Feature..."
-                Enable-WindowsOptionalFeature -Online -FeatureName $Feature -All -NoRestart | Out-Null
-            }
-        }
-    }
-
-    if (-not (Test-EsteliPOSIISRoleEnabled)) {
+    $MissingFeatures = @($Features | Where-Object {
+            $State = Get-WindowsOptionalFeature -Online -FeatureName $_ -ErrorAction SilentlyContinue
+            -not $State -or $State.State -ne "Enabled"
+        })
+    if ($MissingFeatures.Count -gt 0) {
         throw @"
-No se pudo instalar IIS automaticamente.
+No se pudieron activar todos los componentes de IIS: $($MissingFeatures -join ', ').
 Verifique que Windows sea Pro, Enterprise o Education (IIS no esta en Windows Home).
 Si acaba de activar IIS, reinicie el PC y ejecute el instalador de nuevo.
 Alternativa: use la opcion 2 (Simple) del instalador.
 "@
     }
 
-    $Role = Get-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole -ErrorAction SilentlyContinue
-    if ($Role.RestartNeeded) {
-        Write-Warning "Windows puede requerir reinicio para completar IIS. Si la instalacion falla despues, reinicie y vuelva a ejecutar."
-    }
+    Write-Host "Todos los componentes requeridos de IIS estan activos." -ForegroundColor Green
 }
 
 function Start-EsteliPOSIISService {
@@ -202,6 +250,75 @@ function Start-EsteliPOSIISService {
     }
 }
 
+function Import-EsteliPOSWebAdministration {
+    $Candidates = @(
+        (Join-Path $env:windir "System32\WindowsPowerShell\v1.0\Modules\WebAdministration\WebAdministration.psd1"),
+        "WebAdministration"
+    )
+
+    Remove-Module WebAdministration -Force -ErrorAction SilentlyContinue
+
+    foreach ($Candidate in $Candidates) {
+        if ($Candidate -ne "WebAdministration" -and -not (Test-Path $Candidate)) {
+            continue
+        }
+
+        try {
+            Import-Module $Candidate -Force -ErrorAction Stop | Out-Null
+        } catch {
+            continue
+        }
+
+        if (Get-Command New-Website -ErrorAction SilentlyContinue) {
+            return
+        }
+    }
+
+    throw @"
+No se pudo cargar el modulo WebAdministration (cmdlets IIS).
+Active 'IIS Management Scripts and Tools' (IIS-ManagementScriptingTools),
+reinicie PowerShell como administrador y vuelva a instalar.
+"@
+}
+
+function Register-EsteliPOSPhpHandler {
+    param(
+        [Parameter(Mandatory = $true)][string]$SiteName,
+        [Parameter(Mandatory = $true)][string]$PhpCgiPath
+    )
+
+    # Usar appcmd siempre: en varias PCs Windows Add-WebHandler no existe
+    # aunque WebAdministration cargue (New-Website/Remove-WebHandler si pueden).
+    $ResolvedPhpCgiPath = (Resolve-Path $PhpCgiPath).Path
+    $HandlerName = "EsteliPOS-PHP"
+
+    Write-Host "Registrando handler PHP con appcmd..."
+
+    $ExistingHandlers = (& (Join-Path $env:windir "system32\inetsrv\appcmd.exe") `
+        "list", "config", $SiteName, "-section:system.webServer/handlers") | Out-String
+
+    if ($ExistingHandlers -match [regex]::Escape("name=`"$HandlerName`"") -or
+        $ExistingHandlers -match [regex]::Escape("name='$HandlerName'")) {
+        try {
+            Invoke-EsteliPOSAppCmd @(
+                "set", "config", $SiteName,
+                "-section:system.webServer/handlers",
+                "/-`"[name='$HandlerName']`"",
+                "/commit:apphost"
+            ) | Out-Null
+        } catch {
+            # Continuar e intentar crear el handler.
+        }
+    }
+
+    Invoke-EsteliPOSAppCmd @(
+        "set", "config", $SiteName,
+        "-section:system.webServer/handlers",
+        "/+`"[name='$HandlerName',path='*.php',verb='*',modules='FastCgiModule',scriptProcessor='$ResolvedPhpCgiPath',resourceType='Either',requireAccess='Script']`"",
+        "/commit:apphost"
+    ) | Out-Null
+}
+
 function Install-EsteliPOSIISPlatform {
     if (-not (Test-EsteliPOSIISSupported)) {
         throw @"
@@ -215,7 +332,7 @@ Use la opcion 2 (Simple) del instalador o actualice a Windows Pro/Enterprise.
     Enable-EsteliPOSIISFeatures
     Start-EsteliPOSIISService
 
-    Import-Module WebAdministration -ErrorAction Stop | Out-Null
+    Import-EsteliPOSWebAdministration
     Write-Host "IIS instalado y servicio W3SVC en ejecucion." -ForegroundColor Green
     Write-Host ""
 }
@@ -241,7 +358,7 @@ function Resolve-EsteliPOSIISPortBinding {
         [Parameter(Mandatory = $true)][string]$SiteName
     )
 
-    Import-Module WebAdministration -ErrorAction Stop
+    Import-EsteliPOSWebAdministration
 
     foreach ($Site in Get-Website) {
         foreach ($Binding in Get-WebBinding -Name $Site.Name) {
@@ -253,8 +370,7 @@ function Resolve-EsteliPOSIISPortBinding {
                 continue
             }
 
-            Write-Host "Liberando puerto $Port del sitio IIS '$($Site.Name)'..."
-            Remove-WebBinding -Name $Site.Name -BindingInformation $Binding.bindingInformation -Protocol $Binding.protocol -ErrorAction Stop
+            throw "El puerto $Port ya pertenece al sitio IIS '$($Site.Name)'. Seleccione otro puerto o quite esa vinculacion manualmente."
         }
     }
 }
@@ -275,14 +391,16 @@ function Register-EsteliPOSPhpFastCgi {
     )
 
     $PhpCgiPath = (Resolve-Path $PhpCgiPath).Path
+    $EnvironmentVariables = $null
     if (-not (Test-Path $PhpCgiPath)) {
         throw "No existe php-cgi.exe en: $PhpCgiPath"
     }
 
     $PhpDir = Split-Path $PhpCgiPath -Parent
-    $Existing = Invoke-EsteliPOSAppCmd @(
-        "list", "config", "-section:system.webServer/fastCgi", "/text:fullPath"
-    ) | Where-Object { $_ -eq $PhpCgiPath }
+    $FastCgiConfiguration = Invoke-EsteliPOSAppCmd @(
+        "list", "config", "-section:system.webServer/fastCgi"
+    ) | Out-String
+    $Existing = $FastCgiConfiguration -match [regex]::Escape($PhpCgiPath)
 
     if (-not $Existing) {
         Invoke-EsteliPOSAppCmd @(
@@ -298,11 +416,10 @@ function Register-EsteliPOSPhpFastCgi {
         ) | Out-Null
     }
 
-    if (-not $EnvironmentVariables) {
-        $AppCmd = Join-Path $env:windir "system32\inetsrv\appcmd.exe"
-        $EnvironmentVariables = & $AppCmd list config -section:system.webServer/fastCgi `
-            "/`"[fullPath='$PhpCgiPath'].environmentVariables.[name='PHPRC']`"" /text:value 2>$null
-    }
+    $FastCgiConfiguration = Invoke-EsteliPOSAppCmd @(
+        "list", "config", "-section:system.webServer/fastCgi"
+    ) | Out-String
+    $EnvironmentVariables = $FastCgiConfiguration -match "PHPRC"
 
     if (-not $EnvironmentVariables) {
         Invoke-EsteliPOSAppCmd @(
@@ -354,7 +471,7 @@ function Install-EsteliPOSIISSite {
     if (-not $SkipPlatformInstall) {
         Install-EsteliPOSIISPlatform
     } else {
-        Import-Module WebAdministration -ErrorAction Stop
+        Import-EsteliPOSWebAdministration
     }
 
     try {
@@ -422,22 +539,7 @@ Cierre el programa que lo usa o ejecute: netstat -ano | findstr :$Port
 
     try {
         Write-Host "Paso 5/6: Handler PHP..."
-        $SitePath = "IIS:\Sites\$SiteName"
-        $ResolvedPhpCgiPath = (Resolve-Path $PhpCgiPath).Path
-
-        Clear-WebConfiguration -Filter "system.webServer/handlers" -PSPath $SitePath -ErrorAction SilentlyContinue
-        Remove-WebHandler -Name "EsteliPOS-PHP" -PSPath $SitePath -ErrorAction SilentlyContinue
-
-        Add-WebHandler `
-            -Name "EsteliPOS-PHP" `
-            -Path "*.php" `
-            -Verb "*" `
-            -Modules "FastCgiModule" `
-            -ScriptProcessor $ResolvedPhpCgiPath `
-            -ResourceType "Either" `
-            -PSPath $SitePath `
-            -ErrorAction Stop
-
+        Register-EsteliPOSPhpHandler -SiteName $SiteName -PhpCgiPath $PhpCgiPath
         Set-EsteliPOSIISPermissions -ProjectRoot $ProjectRoot
     } catch {
         throw "Handler PHP: $($_.Exception.Message)"
@@ -460,7 +562,7 @@ function Start-EsteliPOSIISSite {
     $SiteName = Get-EsteliPOSIISSiteName
     $PoolName = Get-EsteliPOSIISAppPoolName
 
-    Import-Module WebAdministration -ErrorAction Stop
+    Import-EsteliPOSWebAdministration
 
     $Service = Get-Service W3SVC -ErrorAction SilentlyContinue
     if ($Service -and $Service.Status -ne "Running") {

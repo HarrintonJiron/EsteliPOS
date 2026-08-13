@@ -8,6 +8,7 @@ return new class extends Migration
     public function up(): void
     {
         $catalog = [
+            'dashboard' => ['view'],
             'inventario' => ['view', 'create', 'edit', 'delete', 'export', 'adjust'],
             'compras' => ['view', 'create', 'edit', 'delete', 'export', 'approve'],
             'ventas' => ['view', 'create', 'edit', 'delete', 'export'],
@@ -44,12 +45,14 @@ return new class extends Migration
             'compras' => ['compras.view', 'compras.create', 'compras.edit', 'compras.export', 'proveedores.view', 'proveedores.create', 'proveedores.edit', 'inventario.view'],
             'contabilidad' => ['contabilidad.view', 'contabilidad.create', 'contabilidad.edit', 'contabilidad.export', 'contabilidad.close_period', 'reportes.view', 'reportes.export', 'compras.view', 'compras.export', 'ventas.view', 'ventas.export'],
             'contable' => ['contabilidad.view', 'contabilidad.create', 'contabilidad.edit', 'contabilidad.export', 'contabilidad.close_period', 'reportes.view', 'reportes.export'],
-            'supervisor' => ['ventas.view', 'ventas.edit', 'ventas.export', 'compras.view', 'compras.approve', 'compras.export', 'inventario.view', 'inventario.adjust', 'clientes.view', 'proveedores.view', 'caja.view', 'reportes.view', 'reportes.export', 'creditos.view', 'proformas.view', 'reparaciones.view', 'planilla.view', 'contabilidad.view'],
+            'supervisor' => ['dashboard.view', 'ventas.view', 'ventas.edit', 'ventas.export', 'compras.view', 'compras.approve', 'compras.export', 'inventario.view', 'inventario.adjust', 'clientes.view', 'proveedores.view', 'caja.view', 'reportes.view', 'reportes.export', 'creditos.view', 'proformas.view', 'reparaciones.view', 'planilla.view', 'contabilidad.view'],
         ];
 
         foreach ($profiles as $roleSlug => $permissionSlugs) {
             $roleId = DB::table('roles')->where('slug', $roleSlug)->value('id');
-            if (! $roleId) continue;
+            if (! $roleId) {
+                continue;
+            }
             foreach (DB::table('permissions')->whereIn('slug', $permissionSlugs)->pluck('id') as $permissionId) {
                 DB::table('permission_role')->insertOrIgnore(['role_id' => $roleId, 'permission_id' => $permissionId]);
             }

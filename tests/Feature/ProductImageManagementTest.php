@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Role;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -19,8 +20,18 @@ function productImageAdmin(): User
     return $user;
 }
 
+function productImageUnit(): Unit
+{
+    return Unit::query()->firstOrCreate(
+        ['abbreviation' => 'und'],
+        ['name' => 'Unidad', 'unit_type' => 'count', 'is_active' => true],
+    );
+}
+
 function productImagePayload(Category $category, string $code): array
 {
+    $unit = productImageUnit();
+
     return [
         'category_id' => $category->id,
         'name' => 'Producto con imagen',
@@ -28,7 +39,8 @@ function productImagePayload(Category $category, string $code): array
         'purchase_price' => 75,
         'sale_price' => 100,
         'stock' => 0,
-        'unit' => 'unidad',
+        'unit' => $unit->abbreviation,
+        'base_unit_id' => $unit->id,
         'status' => 'active',
     ];
 }

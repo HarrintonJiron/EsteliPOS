@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ChangeOwnPasswordRequest;
 use App\Models\AuditLog;
+use App\Services\ModuleAccessService;
 use App\Support\PasswordPolicy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -25,6 +26,8 @@ class PasswordChangeController extends Controller
         ]);
         AuditLog::log('user.password_changed', 'El usuario cambió su contraseña', $user);
 
-        return redirect()->route('dashboard.general')->with('success', 'Contraseña actualizada correctamente.');
+        $destination = app(ModuleAccessService::class)->defaultHomeUrl($request->user());
+
+        return redirect()->to($destination)->with('success', 'Contraseña actualizada correctamente.');
     }
 }

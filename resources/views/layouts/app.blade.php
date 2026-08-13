@@ -307,11 +307,16 @@
                         'compras.index' => 'compras', 'clientes.index' => 'clientes',
                         'creditos.index' => 'creditos', 'planilla.index' => 'planilla',
                     ];
+                    $canViewDashboard = auth()->user()?->isAdmin() || auth()->user()?->hasPermission('dashboard.view');
                 @endphp
 
                 @foreach($navSections as $section)
                     @php
-                        $visibleItems = collect($section['items'])->filter(function ($item) use ($moduleByRoute, $accessibleModuleSlugs) {
+                        $visibleItems = collect($section['items'])->filter(function ($item) use ($moduleByRoute, $accessibleModuleSlugs, $canViewDashboard) {
+                            if ($item['route'] === 'dashboard.general') {
+                                return (bool) $canViewDashboard;
+                            }
+
                             if (! isset($moduleByRoute[$item['route']])) {
                                 return true;
                             }

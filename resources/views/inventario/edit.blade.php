@@ -59,22 +59,15 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Unidad de Medida *</label>
-                    <select name="unit" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <label class="block text-sm font-medium text-gray-700">Unidad de medida *</label>
+                    <select name="base_unit_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                         @foreach($units ?? [] as $u)
-                            <option value="{{ $u->abbreviation }}" {{ old('unit', $product->unit) == $u->abbreviation ? 'selected' : '' }}>{{ $u->name }} ({{ $u->abbreviation }})</option>
+                            <option value="{{ $u->id }}" @selected(old('base_unit_id', $product->base_unit_id) == $u->id)>
+                                {{ $u->name }} ({{ $u->abbreviation }})
+                            </option>
                         @endforeach
                     </select>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Unidad base (inventario)</label>
-                    <select name="base_unit_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        <option value="">Igual a unidad de medida</option>
-                        @foreach($units ?? [] as $u)
-                            <option value="{{ $u->id }}" {{ old('base_unit_id', $product->base_unit_id) == $u->id ? 'selected' : '' }}>{{ $u->name }} ({{ $u->abbreviation }})</option>
-                        @endforeach
-                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Las unidades alternativas se configuran en la ficha del producto.</p>
                 </div>
 
                 <div class="md:col-span-2">
@@ -162,6 +155,13 @@
                         @endforeach
                     </select>
                 </div>
+
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700">Ubicación en bodega</label>
+                    <input type="text" name="location" value="{{ old('location', $product->location) }}"
+                           placeholder="Ej: Estante A-3 (opcional)"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
             </div>
 
             {{-- Calculadora de precio de venta --}}
@@ -208,48 +208,54 @@
             </div>
         </div>
 
-        {{-- Información de Trazabilidad --}}
-        <div class="bg-white p-4 rounded-xl shadow">
-            <h2 class="text-lg font-semibold text-gray-700 mb-4">Trazabilidad (Agroquímicos)</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        @php
+            $showAgro = filled(old('lot', $product->lot))
+                || filled(old('expiry_date', $product->expiry_date))
+                || filled(old('registration_number', $product->registration_number))
+                || filled(old('active_ingredient', $product->active_ingredient))
+                || filled(old('concentration', $product->concentration));
+        @endphp
+        <details class="bg-white rounded-xl shadow group" @if($showAgro) open @endif>
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Número de Lote</label>
+                    <h2 class="text-lg font-semibold text-gray-700">Lote, vencimiento y agroquímicos</h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Opcional — solo si el producto lo requiere</p>
+                </div>
+                <span class="shrink-0 text-xs font-medium text-slate-500 group-open:hidden">Mostrar</span>
+                <span class="shrink-0 text-xs font-medium text-slate-500 hidden group-open:inline">Ocultar</span>
+            </summary>
+            <div class="border-t border-gray-100 px-4 pb-4 pt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Número de lote</label>
                     <input type="text" name="lot" value="{{ old('lot', $product->lot) }}"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Fecha de Vencimiento</label>
+                    <label class="block text-sm font-medium text-gray-700">Fecha de vencimiento</label>
                     <input type="date" name="expiry_date" value="{{ old('expiry_date', $product->expiry_date?->format('Y-m-d')) }}"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Número de Registro Sanitario</label>
+                    <label class="block text-sm font-medium text-gray-700">Registro sanitario</label>
                     <input type="text" name="registration_number" value="{{ old('registration_number', $product->registration_number) }}"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Ingrediente Activo</label>
+                    <label class="block text-sm font-medium text-gray-700">Ingrediente activo</label>
                     <input type="text" name="active_ingredient" value="{{ old('active_ingredient', $product->active_ingredient) }}"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
-                <div>
+                <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700">Concentración</label>
                     <input type="text" name="concentration" value="{{ old('concentration', $product->concentration) }}"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Ubicación en Bodega</label>
-                    <input type="text" name="location" value="{{ old('location', $product->location) }}"
-                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                </div>
             </div>
-        </div>
+        </details>
 
         {{-- Observaciones --}}
         <div class="bg-white p-4 rounded-xl shadow">

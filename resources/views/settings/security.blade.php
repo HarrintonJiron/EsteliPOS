@@ -63,8 +63,8 @@
         <div>
             <h3 class="font-semibold text-slate-900 mb-4">Autenticación de Dos Factores</h3>
             <div class="flex items-center gap-2">
-                <input type="checkbox" name="two_factor_enabled" value="1" {{ ($settings['two_factor_enabled'] ?? false) ? 'checked' : '' }} class="rounded border-slate-300 text-indigo-600">
-                <label class="text-sm text-slate-700">Habilitar 2FA (estructura preparada)</label>
+                <input type="checkbox" disabled class="rounded border-slate-300 text-indigo-600">
+                <label class="text-sm text-slate-700">Habilitar 2FA <span class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Próximamente</span></label>
             </div>
             <p class="text-xs text-slate-400 mt-1">La implementación completa de 2FA requiere configuración adicional</p>
         </div>

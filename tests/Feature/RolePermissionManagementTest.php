@@ -36,8 +36,12 @@ test('rbac permissions protect configuration areas independently', function () {
     ]);
 
     $this->actingAs($user)->get(route('settings.roles'))->assertOk();
-    $this->actingAs($user)->get(route('settings.users'))->assertForbidden();
-    $this->actingAs($user)->get(route('settings.permissions'))->assertForbidden();
+    $this->actingAs($user)->get(route('settings.users'))
+        ->assertRedirect(route('settings.index'))
+        ->assertSessionHas('error');
+    $this->actingAs($user)->get(route('settings.permissions'))
+        ->assertRedirect(route('settings.index'))
+        ->assertSessionHas('error');
 });
 
 test('system role identity is protected while its permission matrix can change', function () {

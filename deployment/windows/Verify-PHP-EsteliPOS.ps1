@@ -7,17 +7,17 @@ param(
 $ErrorActionPreference = "Continue"
 . (Join-Path $PSScriptRoot "EsteliPOS-Common.ps1")
 
-$RequiredExtensions = @("ctype", "dom", "fileinfo", "gd", "mbstring", "openssl", "pdo_sqlite", "sqlite3", "tokenizer", "xml", "zip")
+$RequiredExtensions = @("ctype", "curl", "dom", "fileinfo", "gd", "mbstring", "openssl", "pdo_sqlite", "sqlite3", "tokenizer", "xml", "zip")
 $Failures = @()
 $Warnings = @()
 
 function Add-Failure([string]$Message) {
-    script:Failures += $Message
+    $script:Failures += $Message
     Write-Host "FALLO: $Message" -ForegroundColor Red
 }
 
 function Add-Warning([string]$Message) {
-    script:Warnings += $Message
+    $script:Warnings += $Message
     Write-Host "AVISO: $Message" -ForegroundColor Yellow
 }
 

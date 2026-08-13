@@ -9,14 +9,17 @@ use App\Models\Purchase;
 use App\Models\PurchaseDetail;
 use App\Models\Supplier;
 use App\Models\Tax;
+use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Services\AccountingService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
 use App\Services\PricingService;
+use App\Services\PurchaseCostingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class CompraController extends Controller
 {
@@ -25,6 +28,7 @@ class CompraController extends Controller
         private InventoryService $inventoryService,
         private PosCatalogService $posCatalog,
         private PricingService $pricing,
+        private PurchaseCostingService $purchaseCosting,
     ) {}
 
     public function index(Request $request)
@@ -66,7 +70,16 @@ class CompraController extends Controller
                 ->sum('total'),
         ];
 
-        return view('compras.index', compact('purchases', 'suppliers', 'stats'));
+        return view('compras.index', [
+            'purchases' => $purchases,
+            'suppliers' => $suppliers,
+            'stats' => $stats,
+            'companyCurrency' => $this->purchaseCosting->companyCurrency(),
+            'companySymbol' => $this->purchaseCosting->companySymbol(),
+            'equivalenceCurrency' => $this->purchaseCosting->equivalenceCurrency(),
+            'equivalenceSymbol' => $this->purchaseCosting->currencySymbol($this->purchaseCosting->equivalenceCurrency()),
+            'purchaseCosting' => $this->purchaseCosting,
+        ]);
     }
 
     public function searchProducts(Request $request): JsonResponse
@@ -86,7 +99,7 @@ class CompraController extends Controller
     }
 
     /**
-     * @return list<array{id: int, name: string, code: string, price: float, has_supplier_price: bool}>
+     * @return list<array<string, mixed>>
      */
     private function resolvePurchaseProductSearch(string $search, ?int $supplierId): array
     {
@@ -95,6 +108,7 @@ class CompraController extends Controller
         }
 
         return Product::query()
+            ->with(['baseUnit', 'unitConversions.unit'])
             ->where('status', 'active')
             ->where(function ($query) use ($search) {
                 $query->where('name', 'like', "%{$search}%")
@@ -117,12 +131,17 @@ class CompraController extends Controller
                     }
                 }
 
+                $units = $this->purchaseCosting->purchaseUnitsFor($product);
+
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
                     'code' => $product->code,
                     'price' => $supplierPrice ?? (float) ($product->purchase_price ?? 0),
                     'has_supplier_price' => $supplierPrice !== null,
+                    'base_unit_id' => $product->base_unit_id,
+                    'base_unit' => $product->baseUnit?->abbreviation ?? $product->unit,
+                    'units' => $units,
                 ];
             })
             ->values()
@@ -145,6 +164,7 @@ class CompraController extends Controller
             'sale_price' => 'nullable|numeric|min:0',
             'category_id' => 'nullable|exists:categories,id',
             'supplier_id' => 'nullable|exists:suppliers,id',
+            'base_unit_id' => 'nullable|exists:units,id',
         ], [
             'name.required' => 'El nombre del producto es obligatorio.',
             'purchase_price.required' => 'Indica el costo de compra.',
@@ -166,8 +186,11 @@ class CompraController extends Controller
             : round($purchasePrice / 0.85, 2);
         $code = $validated['code'] ?? $this->inventoryService->nextProductCode();
         $supplierId = isset($validated['supplier_id']) ? (int) $validated['supplier_id'] : null;
+        $baseUnit = isset($validated['base_unit_id'])
+            ? Unit::query()->find($validated['base_unit_id'])
+            : Unit::query()->where('abbreviation', 'und')->first();
 
-        $product = DB::transaction(function () use ($categoryId, $validated, $purchasePrice, $salePrice, $code, $supplierId) {
+        $product = DB::transaction(function () use ($categoryId, $validated, $purchasePrice, $salePrice, $code, $supplierId, $baseUnit) {
             $product = Product::create([
                 'category_id' => $categoryId,
                 'name' => $validated['name'],
@@ -175,7 +198,8 @@ class CompraController extends Controller
                 'purchase_price' => $purchasePrice,
                 'sale_price' => $salePrice,
                 'stock' => 0,
-                'unit' => 'unidad',
+                'unit' => $baseUnit?->abbreviation ?? 'und',
+                'base_unit_id' => $baseUnit?->id,
                 'low_stock_threshold' => 5,
                 'status' => 'active',
             ]);
@@ -188,7 +212,7 @@ class CompraController extends Controller
                 ]);
             }
 
-            return $product;
+            return $product->load(['baseUnit', 'unitConversions.unit']);
         });
 
         return response()->json([
@@ -200,24 +224,27 @@ class CompraController extends Controller
                 'code' => $product->code,
                 'price' => $purchasePrice,
                 'has_supplier_price' => $supplierId !== null,
+                'base_unit_id' => $product->base_unit_id,
+                'base_unit' => $product->baseUnit?->abbreviation ?? $product->unit,
+                'units' => $this->purchaseCosting->purchaseUnitsFor($product),
             ],
         ]);
     }
 
     public function show($id)
     {
-        $purchase = Purchase::with('details.product', 'supplier', 'warehouse')->findOrFail($id);
+        $purchase = Purchase::with('details.product.baseUnit', 'details.unit', 'supplier', 'warehouse')->findOrFail($id);
 
-        return view('compras.show', compact('purchase'));
+        return view('compras.show', [
+            'purchase' => $purchase,
+            'purchaseTotals' => $this->purchaseCosting->presentTotals($purchase),
+            'purchaseCosting' => $this->purchaseCosting,
+        ]);
     }
 
     public function create()
     {
-        $suppliers = Supplier::orderBy('name')->get();
-        $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
-        $categories = Category::orderBy('name')->get();
-
-        return view('compras.create', compact('suppliers', 'warehouses', 'categories'));
+        return view('compras.create', $this->purchaseFormData());
     }
 
     public function store(PurchaseRequest $request)
@@ -227,6 +254,11 @@ class CompraController extends Controller
 
         try {
             DB::transaction(function () use ($data, $request, $warehouseId) {
+                $exchangeRate = $this->purchaseCosting->resolveExchangeRate(
+                    $data['currency'],
+                    isset($data['exchange_rate']) ? (float) $data['exchange_rate'] : null,
+                );
+
                 $purchase = Purchase::create([
                     'supplier_id' => $data['supplier_id'],
                     'user_id' => $request->user()?->id ?? ($data['user_id'] ?? 1),
@@ -236,49 +268,23 @@ class CompraController extends Controller
                     'tax_total' => 0,
                     'total' => 0,
                     'status' => $data['status'] ?? 'completed',
+                    'currency' => $data['currency'],
+                    'exchange_rate' => $exchangeRate,
+                    'foreign_subtotal' => 0,
+                    'foreign_tax_total' => 0,
+                    'foreign_total' => 0,
                 ]);
 
-                $subtotal = 0;
-                $taxTotal = 0;
-
-                foreach ($data['items'] as $item) {
-                    $lineNet = $item['quantity'] * $item['price'];
-                    $product = Product::find($item['product_id']);
-                    $rate = $product?->effectiveTaxRate() ?? Tax::defaultRate();
-                    $lineTax = $lineNet * $rate;
-
-                    PurchaseDetail::create([
-                        'purchase_id' => $purchase->id,
-                        'product_id' => $item['product_id'],
-                        'quantity' => $item['quantity'],
-                        'price' => $item['price'],
-                        'subtotal' => $lineNet,
-                        'tax_rate' => $rate,
-                        'tax_amount' => round($lineTax, 2),
-                    ]);
-
-                    $this->inventoryService->stockIn(
-                        $product,
-                        (float) $item['quantity'],
-                        'purchase:'.$purchase->id,
-                        'Entrada por compra #'.$purchase->id,
-                        $purchase->user_id,
-                        $warehouseId,
-                    );
-
-                    $subtotal += $lineNet;
-                    $taxTotal += $lineTax;
-                }
-
-                $purchase->update([
-                    'subtotal' => round($subtotal, 2),
-                    'tax_total' => round($taxTotal, 2),
-                    'total' => round($subtotal + $taxTotal, 2),
-                ]);
-
+                $this->syncPurchaseLines(
+                    $purchase,
+                    $data['items'],
+                    $warehouseId,
+                    $exchangeRate,
+                    $purchase->status === 'completed',
+                );
                 $this->accountingService->recordPurchase($purchase->fresh());
             });
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException|\InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
 
@@ -287,12 +293,9 @@ class CompraController extends Controller
 
     public function edit($id)
     {
-        $purchase = Purchase::with('details.product')->findOrFail($id);
-        $suppliers = Supplier::orderBy('name')->get();
-        $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
-        $categories = Category::orderBy('name')->get();
+        $purchase = Purchase::with('details.product.baseUnit', 'details.product.unitConversions.unit', 'details.unit')->findOrFail($id);
 
-        return view('compras.edit', compact('purchase', 'suppliers', 'warehouses', 'categories'));
+        return view('compras.edit', array_merge($this->purchaseFormData(), compact('purchase')));
     }
 
     public function productosPorProveedor($supplierId)
@@ -307,7 +310,6 @@ class CompraController extends Controller
             )
             ->get()
             ->map(function ($product) {
-
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
@@ -327,68 +329,47 @@ class CompraController extends Controller
         try {
             DB::transaction(function () use ($purchase, $data) {
                 $warehouseId = $this->posCatalog->resolveWarehouseId($data['warehouse_id'] ?? $purchase->warehouse_id);
+                $exchangeRate = $this->purchaseCosting->resolveExchangeRate(
+                    $data['currency'],
+                    isset($data['exchange_rate']) ? (float) $data['exchange_rate'] : null,
+                );
 
-                foreach ($purchase->details as $detail) {
-                    $this->inventoryService->stockOut(
-                        $detail->product,
-                        (float) $detail->quantity,
-                        'purchase_update_revert:'.$purchase->id,
-                        'Reverso por edición de compra #'.$purchase->id,
-                        $purchase->user_id,
-                        false,
-                        $purchase->warehouse_id,
-                    );
+                if ($purchase->status === 'completed') {
+                    foreach ($purchase->details as $detail) {
+                        $this->inventoryService->stockOut(
+                            $detail->product,
+                            $detail->inventoryQuantity(),
+                            'purchase_update_revert:'.$purchase->id,
+                            'Reverso por edición de compra #'.$purchase->id,
+                            $purchase->user_id,
+                            false,
+                            $purchase->warehouse_id,
+                        );
+                    }
                 }
 
-                // remove old details
                 PurchaseDetail::where('purchase_id', $purchase->id)->delete();
-
-                // create new details and update stock
-                $subtotal = 0;
-                $taxTotal = 0;
-                foreach ($data['items'] as $item) {
-                    $lineNet = $item['quantity'] * $item['price'];
-                    $product = Product::find($item['product_id']);
-                    $rate = $product?->effectiveTaxRate() ?? Tax::defaultRate();
-                    $lineTax = $lineNet * $rate;
-
-                    PurchaseDetail::create([
-                        'purchase_id' => $purchase->id,
-                        'product_id' => $item['product_id'],
-                        'quantity' => $item['quantity'],
-                        'price' => $item['price'],
-                        'subtotal' => $lineNet,
-                        'tax_rate' => $rate,
-                        'tax_amount' => round($lineTax, 2),
-                    ]);
-
-                    $this->inventoryService->stockIn(
-                        $product,
-                        (float) $item['quantity'],
-                        'purchase:'.$purchase->id,
-                        'Entrada por compra #'.$purchase->id.' (editada)',
-                        $purchase->user_id,
-                        $warehouseId,
-                    );
-
-                    $subtotal += $lineNet;
-                    $taxTotal += $lineTax;
-                }
 
                 $purchase->update([
                     'supplier_id' => $data['supplier_id'],
                     'warehouse_id' => $warehouseId,
                     'date' => $data['date'],
-                    'subtotal' => round($subtotal, 2),
-                    'tax_total' => round($taxTotal, 2),
-                    'total' => round($subtotal + $taxTotal, 2),
                     'status' => $data['status'] ?? $purchase->status,
+                    'currency' => $data['currency'],
+                    'exchange_rate' => $exchangeRate,
                 ]);
 
+                $this->syncPurchaseLines(
+                    $purchase->fresh(),
+                    $data['items'],
+                    $warehouseId,
+                    $exchangeRate,
+                    $purchase->status === 'completed',
+                );
                 $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra editada');
                 $this->accountingService->recordPurchase($purchase->fresh());
             });
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException|\InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
 
@@ -401,16 +382,18 @@ class CompraController extends Controller
 
         try {
             DB::transaction(function () use ($purchase) {
-                foreach ($purchase->details as $detail) {
-                    $this->inventoryService->stockOut(
-                        $detail->product,
-                        (float) $detail->quantity,
-                        'purchase_delete:'.$purchase->id,
-                        'Reverso por eliminación de compra #'.$purchase->id,
-                        $purchase->user_id,
-                        false,
-                        $purchase->warehouse_id,
-                    );
+                if ($purchase->status === 'completed') {
+                    foreach ($purchase->details as $detail) {
+                        $this->inventoryService->stockOut(
+                            $detail->product,
+                            $detail->inventoryQuantity(),
+                            'purchase_delete:'.$purchase->id,
+                            'Reverso por eliminación de compra #'.$purchase->id,
+                            $purchase->user_id,
+                            false,
+                            $purchase->warehouse_id,
+                        );
+                    }
                 }
 
                 PurchaseDetail::where('purchase_id', $purchase->id)->delete();
@@ -418,10 +401,103 @@ class CompraController extends Controller
 
                 $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra eliminada');
             });
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
         return redirect()->route('compras.index')->with('success', 'Compra eliminada correctamente.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function purchaseFormData(): array
+    {
+        return [
+            'suppliers' => Supplier::orderBy('name')->get(),
+            'warehouses' => Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(),
+            'categories' => Category::orderBy('name')->get(),
+            'units' => Unit::query()->where('is_active', true)->orderBy('name')->get(),
+            'currencies' => $this->purchaseCosting->supportedCurrencies(),
+            'companyCurrency' => $this->purchaseCosting->companyCurrency(),
+            'companySymbol' => $this->purchaseCosting->companySymbol(),
+            'exchangeRates' => $this->purchaseCosting->currentRatesToCompany(),
+        ];
+    }
+
+    /**
+     * @param  list<array{product_id: int, quantity: float|int|string, price: float|int|string, unit_id?: int|null}>  $items
+     */
+    private function syncPurchaseLines(
+        Purchase $purchase,
+        array $items,
+        int $warehouseId,
+        float $exchangeRate,
+        bool $affectInventory,
+    ): void {
+        $foreignSubtotal = 0.0;
+        $foreignTaxTotal = 0.0;
+        $companySubtotal = 0.0;
+        $companyTaxTotal = 0.0;
+
+        foreach ($items as $item) {
+            $product = Product::query()->with(['baseUnit', 'unitConversions'])->findOrFail($item['product_id']);
+            $quantity = (float) $item['quantity'];
+            $unitPriceForeign = (float) $item['price'];
+            $resolved = $this->purchaseCosting->resolveLineQuantity(
+                $product,
+                $quantity,
+                isset($item['unit_id']) ? (int) $item['unit_id'] : null,
+            );
+
+            $lineNetForeign = round($resolved['quantity'] * $unitPriceForeign, 2);
+            $taxRate = $product->effectiveTaxRate() ?? Tax::defaultRate();
+            $lineTaxForeign = round($lineNetForeign * $taxRate, 2);
+            $lineNetCompany = $this->purchaseCosting->toCompanyAmount($lineNetForeign, $exchangeRate);
+            $lineTaxCompany = $this->purchaseCosting->toCompanyAmount($lineTaxForeign, $exchangeRate);
+
+            PurchaseDetail::create([
+                'purchase_id' => $purchase->id,
+                'product_id' => $product->id,
+                'unit_id' => $resolved['unit_id'],
+                'quantity' => $resolved['quantity'],
+                'base_quantity' => $resolved['base_quantity'],
+                'price' => $unitPriceForeign,
+                'subtotal' => $lineNetForeign,
+                'tax_rate' => $taxRate,
+                'tax_amount' => $lineTaxForeign,
+            ]);
+
+            if ($affectInventory) {
+                $this->inventoryService->stockIn(
+                    $product,
+                    $resolved['base_quantity'],
+                    'purchase:'.$purchase->id,
+                    'Entrada por compra #'.$purchase->id,
+                    $purchase->user_id,
+                    $warehouseId,
+                );
+            }
+
+            if ($affectInventory && $resolved['base_quantity'] > 0) {
+                $unitCostCompany = round($lineNetCompany / $resolved['base_quantity'], 4);
+                $product->update(['purchase_price' => $unitCostCompany]);
+            }
+
+            $foreignSubtotal += $lineNetForeign;
+            $foreignTaxTotal += $lineTaxForeign;
+            $companySubtotal += $lineNetCompany;
+            $companyTaxTotal += $lineTaxCompany;
+        }
+
+        $purchase->update([
+            'subtotal' => round($companySubtotal, 2),
+            'tax_total' => round($companyTaxTotal, 2),
+            'total' => round($companySubtotal + $companyTaxTotal, 2),
+            'foreign_subtotal' => round($foreignSubtotal, 2),
+            'foreign_tax_total' => round($foreignTaxTotal, 2),
+            'foreign_total' => round($foreignSubtotal + $foreignTaxTotal, 2),
+            'exchange_rate' => $exchangeRate,
+        ]);
     }
 }

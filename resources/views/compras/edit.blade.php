@@ -12,13 +12,27 @@
         'suppliers' => $suppliers,
         'warehouses' => $warehouses,
         'categories' => $categories,
-        'initialItems' => $purchase->details->map(fn ($detail) => [
-            'id' => $detail->product_id,
-            'name' => $detail->product->name ?? 'Producto',
-            'code' => $detail->product->code ?? '',
-            'quantity' => (int) $detail->quantity,
-            'price' => (float) $detail->price,
-        ])->values(),
+        'units' => $units,
+        'currencies' => $currencies,
+        'companyCurrency' => $companyCurrency,
+        'companySymbol' => $companySymbol,
+        'exchangeRates' => $exchangeRates,
+        'initialItems' => $purchase->details->map(function ($detail) {
+            $product = $detail->product;
+            $availableUnits = $product
+                ? app(\App\Services\PurchaseCostingService::class)->purchaseUnitsFor($product)
+                : [];
+
+            return [
+                'id' => $detail->product_id,
+                'name' => $product->name ?? 'Producto',
+                'code' => $product->code ?? '',
+                'quantity' => (float) $detail->quantity,
+                'price' => (float) $detail->price,
+                'unit_id' => $detail->unit_id ?? $product?->base_unit_id,
+                'units' => $availableUnits,
+            ];
+        })->values(),
         'title' => 'Actualizar mercadería',
         'submitLabel' => 'Guardar cambios',
     ])

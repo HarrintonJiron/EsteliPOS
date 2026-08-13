@@ -11,6 +11,13 @@ class Product extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected function casts(): array
+    {
+        return [
+            'expiry_date' => 'date:Y-m-d',
+        ];
+    }
+
     protected $fillable = [
         'category_id',
         'name',
@@ -98,17 +105,17 @@ class Product extends Model
         return $this->hasMany(InventoryMovement::class);
     }
 
-    public function calculatedStock(): int
+    public function calculatedStock(): float
     {
-        $in = (int) $this->inventoryMovements()->where('type', 'in')->sum('quantity');
-        $out = (int) $this->inventoryMovements()->where('type', 'out')->sum('quantity');
+        $in = (float) $this->inventoryMovements()->where('type', 'in')->sum('quantity');
+        $out = (float) $this->inventoryMovements()->where('type', 'out')->sum('quantity');
 
-        return $in - $out;
+        return round($in - $out, 4);
     }
 
     public function hasStockDiscrepancy(): bool
     {
-        return $this->stock !== $this->calculatedStock();
+        return abs((float) $this->stock - $this->calculatedStock()) > 0.0001;
     }
 
     public function rotationIndex(int $soldQty): float

@@ -78,9 +78,19 @@ class CreditController extends Controller
 
         try {
             $payment = DB::transaction(function () use ($validated, $request) {
+                $client = Client::query()->lockForUpdate()->findOrFail($validated['client_id']);
+                $balance = $this->credit->pendingDebt($client);
+                $amount = round((float) $validated['amount'], 2);
+
+                if ($amount > $balance + 0.00001) {
+                    throw new \RuntimeException(
+                        'El abono no puede superar el saldo pendiente de '.number_format($balance, 2).'.'
+                    );
+                }
+
                 $payment = CreditPayment::create([
                     'client_id' => $validated['client_id'],
-                    'amount' => $validated['amount'],
+                    'amount' => $amount,
                     'payment_type' => $validated['payment_type'],
                     'reference_number' => $validated['reference_number'],
                     'notes' => $validated['notes'],
@@ -113,7 +123,7 @@ class CreditController extends Controller
         $q = $request->query('q');
 
         $clients = Client::query()
-            ->when($q, fn($qb) => $qb->where(function ($searchQ) use ($q) {
+            ->when($q, fn ($qb) => $qb->where(function ($searchQ) use ($q) {
                 $searchQ->where('name', 'like', "%{$q}%")
                     ->orWhere('business_name', 'like', "%{$q}%")
                     ->orWhere('cedula', 'like', "%{$q}%")
@@ -204,10 +214,10 @@ class CreditController extends Controller
 
         $overdueCredits->getCollection()->transform(function ($sale) {
             $sale->days_overdue = now()->startOfDay()->diffInDays($sale->due_date, false) * -1;
-            $sale->balance = max(0, (float) $sale->total);
+            $sale->balance = $this->credit->outstandingBalanceForSale($sale);
 
             return $sale;
-        });
+        })->filter(fn ($sale) => $sale->balance > 0)->values();
 
         return view('creditos.overdue', compact('overdueCredits'));
     }

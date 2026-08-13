@@ -15,7 +15,7 @@
     <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <div class="card p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Este mes</p>
-            <p class="mt-1 text-2xl font-bold text-slate-900">C$ {{ number_format($stats['month_total'], 2) }}</p>
+            <p class="mt-1 text-2xl font-bold text-slate-900">{{ $companySymbol }} {{ number_format($stats['month_total'], 2) }}</p>
         </div>
         <div class="card p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Completadas</p>
@@ -27,7 +27,7 @@
         </div>
         <div class="card p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Total invertido</p>
-            <p class="mt-1 text-2xl font-bold text-indigo-600">C$ {{ number_format($stats['invested_total'], 2) }}</p>
+            <p class="mt-1 text-2xl font-bold text-indigo-600">{{ $companySymbol }} {{ number_format($stats['invested_total'], 2) }}</p>
         </div>
     </div>
 
@@ -75,7 +75,8 @@
                         <th class="px-4 py-3 font-semibold">Proveedor</th>
                         <th class="px-4 py-3 font-semibold">Fecha</th>
                         <th class="px-4 py-3 font-semibold">Bodega</th>
-                        <th class="px-4 py-3 font-semibold text-right">Total</th>
+                        <th class="px-4 py-3 font-semibold text-right">Costo</th>
+                        <th class="px-4 py-3 font-semibold text-right">Equivalencia</th>
                         <th class="px-4 py-3 font-semibold">Estado</th>
                         <th class="px-4 py-3 font-semibold text-right">Acciones</th>
                     </tr>
@@ -93,15 +94,29 @@
                                 'pending' => 'badge-warning',
                                 default => 'badge-danger',
                             };
+                            $totals = $purchaseCosting->presentTotals($purchase);
                         @endphp
                         <tr class="hover:bg-slate-50/80">
                             <td class="px-4 py-3 font-medium text-slate-800">
                                 {{ $purchase->document_number ?? 'COMP-' . str_pad($purchase->id, 4, '0', STR_PAD_LEFT) }}
+                                <p class="mt-0.5 text-[11px] font-normal text-slate-400">{{ $totals['document_currency'] }}</p>
                             </td>
                             <td class="px-4 py-3 text-slate-700">{{ $purchase->supplier->name ?? '—' }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $purchase->date?->format('d/m/Y') }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $purchase->warehouse->name ?? '—' }}</td>
-                            <td class="px-4 py-3 text-right font-semibold text-slate-800">C$ {{ number_format($purchase->total, 2) }}</td>
+                            <td class="px-4 py-3 text-right font-semibold text-slate-800">
+                                {{ $totals['document_symbol'] }} {{ number_format($totals['document_total'], 2) }}
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                @if($totals['equivalence_total'] !== null)
+                                    <p class="font-semibold text-slate-700">
+                                        {{ $totals['equivalence_symbol'] }} {{ number_format($totals['equivalence_total'], 2) }}
+                                    </p>
+                                    <p class="text-[11px] font-normal text-slate-400">{{ $totals['equivalence_currency'] }}</p>
+                                @else
+                                    <span class="text-xs font-normal text-slate-400">Sin T.C. {{ $equivalenceCurrency }}</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3"><span class="{{ $statusClass }}">{{ $statusLabel }}</span></td>
                             <td class="px-4 py-3">
                                 <div class="flex justify-end gap-2">
@@ -117,7 +132,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-4 py-10 text-center text-slate-500">No hay compras registradas con estos filtros.</td>
+                            <td colspan="8" class="px-4 py-10 text-center text-slate-500">No hay compras registradas con estos filtros.</td>
                         </tr>
                     @endforelse
                 </tbody>

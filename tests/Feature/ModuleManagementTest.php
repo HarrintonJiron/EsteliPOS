@@ -2,6 +2,7 @@
 
 use App\Models\AuditLog;
 use App\Models\Module;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\ModuleAccessService;
@@ -56,7 +57,9 @@ test('a non administrator needs an assigned role to access an active module', fu
     $module = Module::where('slug', 'inventario')->firstOrFail();
 
     expect(app(ModuleAccessService::class)->canAccessSlug('inventario', $user))->toBeFalse();
-    $this->actingAs($user)->get(route('inventario.index'))->assertForbidden();
+    $this->actingAs($user)->get(route('inventario.index'))
+        ->assertRedirect(route('access.unavailable'))
+        ->assertSessionHas('error');
 
     $module->roles()->attach($role);
     Module::flushModuleCache();
@@ -68,6 +71,10 @@ test('the general dashboard only queries and renders authorized module widgets',
     $role = Role::create(['name' => 'Solo inventario', 'slug' => 'solo_inventario']);
     $user->roles()->attach($role);
     Module::where('slug', 'inventario')->firstOrFail()->roles()->attach($role);
+    $dashboardPermission = Permission::firstOrCreate(['slug' => 'dashboard.view'], [
+        'name' => 'Dashboard View', 'module' => 'dashboard', 'action' => 'view',
+    ]);
+    $user->directPermissions()->attach($dashboardPermission);
     Module::flushModuleCache();
 
     $this->actingAs($user)->get(route('dashboard.general'))

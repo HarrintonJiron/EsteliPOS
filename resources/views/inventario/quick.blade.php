@@ -72,14 +72,36 @@
             <p class="text-[11px] text-amber-600">No hay lista MAYOR activa; el precio mayorista no se aplicará en POS.</p>
         @endif
 
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <div>
                 <label class="mb-1 block text-xs text-slate-500">Stock inicial</label>
                 <input type="number" name="stock" value="{{ old('stock', 0) }}" min="0" class="input-field py-1.5 text-sm">
             </div>
             <div>
+                <label class="mb-1 block text-xs text-slate-500">Bodega</label>
+                <select name="warehouse_id" class="select-field py-1.5 text-sm" required>
+                    @forelse($warehouses ?? [] as $warehouse)
+                        <option value="{{ $warehouse->id }}" @selected(old('warehouse_id', $warehouses->firstWhere('is_default', true)?->id ?? $warehouses->first()?->id) == $warehouse->id)>
+                            {{ $warehouse->name }}
+                        </option>
+                    @empty
+                        <option value="">Sin bodegas</option>
+                    @endforelse
+                </select>
+            </div>
+            <div>
                 <label class="mb-1 block text-xs text-slate-500">Alerta mín.</label>
                 <input type="number" name="low_stock_threshold" value="{{ old('low_stock_threshold', 5) }}" min="1" class="input-field py-1.5 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-xs text-slate-500">Unidad</label>
+                <select name="base_unit_id" class="select-field py-1.5 text-sm">
+                    @foreach($units ?? [] as $unit)
+                        <option value="{{ $unit->id }}" @selected(old('base_unit_id', $units->firstWhere('abbreviation', 'und')?->id) == $unit->id)>
+                            {{ $unit->abbreviation }}
+                        </option>
+                    @endforeach
+                </select>
             </div>
             <div class="relative sm:col-span-2">
                 <label class="mb-1 block text-xs text-slate-500">Categoría</label>

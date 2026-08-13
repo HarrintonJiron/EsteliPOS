@@ -17,9 +17,11 @@
             padding: 0;
             background: #eef2f7;
             color: #000;
-            font-family: "Courier New", Courier, monospace;
-            font-size: 9.5pt;
-            line-height: 1.25;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 10pt;
+            font-weight: 600;
+            line-height: 1.28;
+            text-rendering: optimizeLegibility;
         }
 
         .receipt {
@@ -32,11 +34,11 @@
         }
 
         .center { text-align: center; }
-        .strong { font-weight: 700; }
-        .separator { border-top: 1px dashed #000; margin: 2.5mm 0; }
-        .company-name { font-size: 13pt; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
+        .strong { font-weight: 900; }
+        .separator { border-top: 2px dashed #000; margin: 2.5mm 0; }
+        .company-name { font-size: 14pt; font-weight: 900; line-height: 1.1; overflow-wrap: anywhere; }
         .ticket-logo { display: block; width: auto; max-width: 68mm; max-height: 44mm; object-fit: contain; margin: 0 auto 2.5mm; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-        .company-line { margin-top: .8mm; font-size: 8.5pt; overflow-wrap: anywhere; }
+        .company-line { margin-top: .8mm; font-size: 9.5pt; font-weight: 700; overflow-wrap: anywhere; }
 
         .info { display: grid; gap: 1mm; }
         .info-row { display: grid; grid-template-columns: 20mm minmax(0, 1fr); gap: 2mm; align-items: start; }
@@ -50,27 +52,27 @@
             gap: 1.5mm;
             align-items: start;
         }
-        .items-header { padding-bottom: 1mm; border-bottom: 1px solid #000; font-size: 8.5pt; font-weight: 700; }
+        .items-header { padding-bottom: 1mm; border-bottom: 2px solid #000; font-size: 9pt; font-weight: 900; }
         .items-footer {
             margin-top: 1.5mm;
             padding-top: 1.5mm;
-            border-top: 1.5px solid #000;
-            font-size: 11pt;
-            font-weight: 700;
+            border-top: 2px solid #000;
+            font-size: 12pt;
+            font-weight: 900;
         }
-        .item { padding: 1.5mm 0; border-bottom: 1px dotted #777; break-inside: avoid; page-break-inside: avoid; }
+        .item { padding: 1.5mm 0; border-bottom: 1.5px dotted #000; break-inside: avoid; page-break-inside: avoid; }
         .item:last-child { border-bottom: 0; }
-        .item-name { font-weight: 700; overflow-wrap: anywhere; }
+        .item-name { font-weight: 900; overflow-wrap: anywhere; }
         .item-qty { text-align: center; }
         .item-amount { text-align: right; white-space: nowrap; }
-        .item-meta { margin-top: .7mm; font-size: 8pt; }
+        .item-meta { margin-top: .7mm; font-size: 9pt; font-weight: 700; }
 
         .totals { display: grid; gap: 1mm; }
         .total-row { display: flex; justify-content: space-between; gap: 3mm; }
         .total-row span:last-child { white-space: nowrap; }
-        .payment { font-size: 9pt; }
-        .payment-method { margin-top: 1mm; font-size: 10pt; font-weight: 700; }
-        .footer { margin-top: 3mm; text-align: center; font-size: 8.5pt; }
+        .payment { font-size: 9.5pt; font-weight: 700; }
+        .payment-method { margin-top: 1mm; font-size: 10.5pt; font-weight: 900; }
+        .footer { margin-top: 3mm; text-align: center; font-size: 9.5pt; font-weight: 700; }
         .footer p { margin: 1mm 0; overflow-wrap: anywhere; }
 
         .screen-actions {
@@ -106,19 +108,27 @@
         }
 
         @media print {
+            *, *::before, *::after {
+                color: #000 !important;
+                opacity: 1 !important;
+                text-shadow: none !important;
+                filter: none !important;
+                -webkit-font-smoothing: none;
+            }
             html, body {
                 width: 80mm !important;
                 max-width: 80mm !important;
                 min-width: 80mm !important;
                 height: auto !important;
                 background: #fff !important;
+                font-weight: 700 !important;
             }
             .screen-only { display: none !important; }
             .receipt {
                 width: 72mm !important;
                 max-width: 72mm !important;
                 margin: 0 auto !important;
-                padding: 2mm 4mm 4mm !important;
+                padding: 2mm 2mm 4mm !important;
                 box-shadow: none !important;
                 print-color-adjust: exact;
                 -webkit-print-color-adjust: exact;

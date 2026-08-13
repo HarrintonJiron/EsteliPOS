@@ -38,6 +38,7 @@ class ConfigurationSeeder extends Seeder
 
         // Crear permisos por módulo
         $modulePermissions = [
+            'dashboard' => ['view'],
             'inventario' => ['view', 'create', 'edit', 'delete', 'export', 'adjust'],
             'compras' => ['view', 'create', 'edit', 'delete', 'export', 'approve'],
             'ventas' => ['view', 'create', 'edit', 'delete', 'export'],
@@ -47,7 +48,7 @@ class ConfigurationSeeder extends Seeder
             'creditos' => ['view', 'create', 'export'],
             'proformas' => ['view', 'create', 'edit', 'delete', 'export', 'convert'],
             'reparaciones' => ['view', 'create', 'edit', 'delete', 'export', 'view_expenses', 'create_expenses', 'edit_expenses', 'delete_expenses'],
-            'planilla' => ['view', 'create', 'edit', 'export'],
+            'planilla' => ['view', 'create', 'edit', 'delete', 'approve', 'pay', 'export'],
             'reportes' => ['view', 'export'],
             'contabilidad' => ['view', 'create', 'edit', 'delete', 'export', 'close_period'],
             'configuracion' => ['view', 'edit', 'manage_users', 'manage_roles', 'manage_permissions', 'manage_modules'],
@@ -133,6 +134,8 @@ class ConfigurationSeeder extends Seeder
             ['type' => 'factura', 'prefix' => 'FAC-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
             ['type' => 'compra', 'prefix' => 'COM-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
             ['type' => 'cotizacion', 'prefix' => 'COT-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
+            ['type' => 'proforma', 'prefix' => 'PRO-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
+            ['type' => 'reparacion', 'prefix' => 'REP-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
             ['type' => 'recibo', 'prefix' => 'REC-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
             ['type' => 'ajuste', 'prefix' => 'AJU-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
             ['type' => 'asiento', 'prefix' => 'POL-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],

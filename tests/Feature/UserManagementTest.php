@@ -95,12 +95,12 @@ test('a forced user must change the temporary password before using the system',
         'force_password_change' => true,
     ]);
 
-    $this->actingAs($user)->get(route('dashboard.general'))->assertRedirect(route('password.change'));
+    $this->actingAs($user)->get(route('facturacion.pos'))->assertRedirect(route('password.change'));
     $this->actingAs($user)->put(route('password.update'), [
         'current_password' => 'Temporary123!',
         'password' => 'Permanent123!',
         'password_confirmation' => 'Permanent123!',
-    ])->assertRedirect(route('dashboard.general'));
+    ])->assertRedirect(route('access.unavailable'));
 
     expect($user->fresh()->force_password_change)->toBeFalse()
         ->and(Hash::check('Permanent123!', $user->fresh()->password))->toBeTrue();
@@ -110,7 +110,7 @@ test('an active user can sign in with username', function () {
     $user = User::factory()->create(['username' => 'cajero01', 'password' => 'Password123!', 'is_active' => true]);
 
     $this->post(route('login'), ['login' => 'cajero01', 'password' => 'Password123!'])
-        ->assertRedirect(route('dashboard.general'));
+        ->assertRedirect(route('access.unavailable'));
     $this->assertAuthenticatedAs($user);
     expect($user->fresh()->last_login_at)->not->toBeNull();
 });

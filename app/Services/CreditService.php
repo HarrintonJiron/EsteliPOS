@@ -20,27 +20,26 @@ class CreditService
             return 0;
         }
 
-        $today      = now()->startOfDay();
+        $today = now()->startOfDay();
         $ratePerDay = (float) $client->mora_rate / 100;
-        $graceDays  = (int) ($client->mora_grace_days ?? 0);
-        $maxPct     = (float) ($client->mora_max_pct ?? 0);
-        $totalMora  = 0.0;
+        $graceDays = (int) ($client->mora_grace_days ?? 0);
+        $maxPct = (float) ($client->mora_max_pct ?? 0);
+        $totalMora = 0.0;
 
-        $overdueSales = Sale::query()
-            ->where('client_id', $client->id)
-            ->where('payment_type', 'credit')
-            ->where('status', 'pending')
-            ->whereNotNull('due_date')
-            ->where('due_date', '<', now()->toDateString())
-            ->get(['total', 'due_date']);
+        foreach ($this->outstandingSales($client) as $row) {
+            $sale = $row['sale'];
+            if (! $sale->due_date || ! $sale->due_date->isBefore($today)) {
+                continue;
+            }
 
-        foreach ($overdueSales as $sale) {
             $daysLate = (int) $today->diffInDays($sale->due_date->startOfDay(), false) * -1;
             $billableDays = max(0, $daysLate - $graceDays);
-            if ($billableDays <= 0) continue;
+            if ($billableDays <= 0) {
+                continue;
+            }
 
-            $principal   = (float) $sale->total;
-            $saleMora    = $principal * $ratePerDay * $billableDays;
+            $principal = $row['balance'];
+            $saleMora = $principal * $ratePerDay * $billableDays;
 
             if ($maxPct > 0) {
                 $saleMora = min($saleMora, $principal * $maxPct / 100);
@@ -61,25 +60,22 @@ class CreditService
             return [];
         }
 
-        $today      = now()->startOfDay();
+        $today = now()->startOfDay();
         $ratePerDay = (float) $client->mora_rate / 100;
-        $graceDays  = (int) ($client->mora_grace_days ?? 0);
-        $maxPct     = (float) ($client->mora_max_pct ?? 0);
-        $breakdown  = [];
+        $graceDays = (int) ($client->mora_grace_days ?? 0);
+        $maxPct = (float) ($client->mora_max_pct ?? 0);
+        $breakdown = [];
 
-        $overdueSales = Sale::query()
-            ->where('client_id', $client->id)
-            ->where('payment_type', 'credit')
-            ->where('status', 'pending')
-            ->whereNotNull('due_date')
-            ->where('due_date', '<', now()->toDateString())
-            ->get(['id', 'invoice_number', 'total', 'due_date']);
+        foreach ($this->outstandingSales($client) as $row) {
+            $sale = $row['sale'];
+            if (! $sale->due_date || ! $sale->due_date->isBefore($today)) {
+                continue;
+            }
 
-        foreach ($overdueSales as $sale) {
-            $daysLate     = (int) $today->diffInDays($sale->due_date->startOfDay(), false) * -1;
+            $daysLate = (int) $today->diffInDays($sale->due_date->startOfDay(), false) * -1;
             $billableDays = max(0, $daysLate - $graceDays);
-            $principal    = (float) $sale->total;
-            $mora         = $principal * $ratePerDay * $billableDays;
+            $principal = $row['balance'];
+            $mora = $principal * $ratePerDay * $billableDays;
 
             if ($maxPct > 0) {
                 $mora = min($mora, $principal * $maxPct / 100);
@@ -87,10 +83,10 @@ class CreditService
 
             $breakdown[] = [
                 'invoice_number' => $sale->invoice_number,
-                'principal'      => $principal,
-                'days_late'      => $daysLate,
-                'billable_days'  => $billableDays,
-                'mora'           => round($mora, 2),
+                'principal' => $principal,
+                'days_late' => $daysLate,
+                'billable_days' => $billableDays,
+                'mora' => round($mora, 2),
             ];
         }
 
@@ -99,17 +95,52 @@ class CreditService
 
     public function pendingDebt(Client $client): float
     {
-        $totalSales = (float) Sale::query()
+        return round($this->outstandingSales($client)->sum('balance'), 2);
+    }
+
+    /**
+     * Applies payments to pending invoices deterministically: payments linked to a
+     * sale are applied there first and unassigned payments are applied FIFO.
+     *
+     * @return Collection<int, array{sale: Sale, balance: float}>
+     */
+    public function outstandingSales(Client $client): Collection
+    {
+        $sales = Sale::query()
             ->where('client_id', $client->id)
             ->where('payment_type', 'credit')
             ->where('status', 'pending')
-            ->sum('total');
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get();
 
-        $totalPaid = (float) CreditPayment::query()
+        $payments = CreditPayment::query()
             ->where('client_id', $client->id)
-            ->sum('amount');
+            ->orderBy('payment_date')
+            ->orderBy('id')
+            ->get(['sale_id', 'amount']);
 
-        return max(0, round($totalSales - $totalPaid, 2));
+        $assigned = $payments->whereNotNull('sale_id')
+            ->groupBy('sale_id')
+            ->map(fn (Collection $rows): float => (float) $rows->sum('amount'));
+        $unassigned = (float) $payments->whereNull('sale_id')->sum('amount');
+
+        return $sales->map(function (Sale $sale) use ($assigned, &$unassigned): array {
+            $balance = max(0, (float) $sale->total - (float) ($assigned[$sale->id] ?? 0));
+            $applied = min($balance, $unassigned);
+            $balance = round($balance - $applied, 2);
+            $unassigned = round($unassigned - $applied, 2);
+
+            return ['sale' => $sale, 'balance' => $balance];
+        })->filter(fn (array $row): bool => $row['balance'] > 0.00001)->values();
+    }
+
+    public function outstandingBalanceForSale(Sale $sale): float
+    {
+        $client = $sale->client ?? Client::query()->findOrFail($sale->client_id);
+
+        return (float) ($this->outstandingSales($client)
+            ->first(fn (array $row): bool => $row['sale']->is($sale))['balance'] ?? 0);
     }
 
     public function availableCredit(Client $client): float
@@ -209,27 +240,33 @@ class CreditService
     {
         $today = now()->startOfDay();
 
-        $pending = Sale::query()
+        $clientIds = Sale::query()
             ->where('payment_type', 'credit')
             ->where('status', 'pending')
-            ->whereNotNull('due_date')
-            ->get(['id', 'client_id', 'total', 'due_date']);
+            ->distinct()
+            ->pluck('client_id');
 
         $buckets = ['current' => 0, 'days_1_30' => 0, 'days_31_60' => 0, 'days_60_plus' => 0];
 
-        foreach ($pending as $sale) {
-            $daysOverdue = $today->diffInDays($sale->due_date, false);
-            $paid = (float) CreditPayment::where('client_id', $sale->client_id)->sum('amount');
-            $amount = max(0, (float) $sale->total);
+        foreach (Client::query()->whereKey($clientIds)->get() as $client) {
+            foreach ($this->outstandingSales($client) as $row) {
+                $sale = $row['sale'];
+                if (! $sale->due_date) {
+                    continue;
+                }
 
-            if ($daysOverdue >= 0) {
-                $buckets['current'] += $amount;
-            } elseif ($daysOverdue >= -30) {
-                $buckets['days_1_30'] += $amount;
-            } elseif ($daysOverdue >= -60) {
-                $buckets['days_31_60'] += $amount;
-            } else {
-                $buckets['days_60_plus'] += $amount;
+                $daysOverdue = $today->diffInDays($sale->due_date, false);
+                $amount = $row['balance'];
+
+                if ($daysOverdue >= 0) {
+                    $buckets['current'] += $amount;
+                } elseif ($daysOverdue >= -30) {
+                    $buckets['days_1_30'] += $amount;
+                } elseif ($daysOverdue >= -60) {
+                    $buckets['days_31_60'] += $amount;
+                } else {
+                    $buckets['days_60_plus'] += $amount;
+                }
             }
         }
 
@@ -248,11 +285,20 @@ class CreditService
 
         $paymentsTotal = (float) CreditPayment::query()->sum('amount');
 
-        $overdueTotal = (float) Sale::query()
-            ->where('payment_type', 'credit')
-            ->where('status', 'pending')
-            ->where('due_date', '<', now())
-            ->sum('total');
+        $overdueTotal = 0.0;
+        $clientsWithPendingSales = Client::query()
+            ->whereHas('sales', fn ($query) => $query
+                ->where('payment_type', 'credit')
+                ->where('status', 'pending'))
+            ->get();
+
+        foreach ($clientsWithPendingSales as $client) {
+            foreach ($this->outstandingSales($client) as $row) {
+                if ($row['sale']->due_date?->isPast()) {
+                    $overdueTotal += $row['balance'];
+                }
+            }
+        }
 
         $clientsWithCredit = Client::where('credit_enabled', true)->count();
         $overLimitCount = Client::where('credit_enabled', true)

@@ -10,7 +10,7 @@
     <div class="flex justify-between items-center">
         <div>
             <h1 class="page-title">Modo Pro — Producto Completo</h1>
-            <p class="page-subtitle">Trazabilidad, lotes, agroquímicos y todos los campos</p>
+            <p class="page-subtitle">Datos generales del producto. Lote y vencimiento son opcionales (agroquímicos).</p>
         </div>
         <div class="flex gap-2">
             <a href="{{ route('inventario.quick') }}" class="btn-primary text-sm">← Registro Rápido</a>
@@ -63,29 +63,16 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Unidad de Medida *</label>
-                    <select name="unit" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <label class="block text-sm font-medium text-gray-700">Unidad de medida *</label>
+                    <select name="base_unit_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <option value="">Seleccione...</option>
                         @foreach($units ?? [] as $u)
-                            <option value="{{ $u->abbreviation }}" {{ old('unit', 'unidad') == $u->abbreviation ? 'selected' : '' }}>{{ $u->name }} ({{ $u->abbreviation }})</option>
-                        @endforeach
-                        @if(empty($units))
-                        <option value="unidad">Unidad</option>
-                        <option value="kg">Kilogramos (kg)</option>
-                        <option value="m3">Metro cúbico (m³)</option>
-                        <option value="saco">Saco</option>
-                        @endif
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Unidad base (inventario)</label>
-                    <select name="base_unit_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        <option value="">Igual a unidad de medida</option>
-                        @foreach($units ?? [] as $u)
-                            <option value="{{ $u->id }}" {{ old('base_unit_id') == $u->id ? 'selected' : '' }}>{{ $u->name }} ({{ $u->abbreviation }})</option>
+                            <option value="{{ $u->id }}" @selected(old('base_unit_id', $units->firstWhere('abbreviation', 'und')?->id) == $u->id)>
+                                {{ $u->name }} ({{ $u->abbreviation }})
+                            </option>
                         @endforeach
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">Stock y kardex se registran en esta unidad (ej. m³ para arena).</p>
+                    <p class="text-xs text-gray-500 mt-1">Stock y kardex usan esta unidad. Crea más en Inventario → Unidades.</p>
                 </div>
 
                 <div class="md:col-span-2">
@@ -145,6 +132,20 @@
                 </div>
 
                 <div>
+                    <label class="block text-sm font-medium text-gray-700">Bodega del stock inicial *</label>
+                    <select name="warehouse_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        @forelse($warehouses ?? [] as $warehouse)
+                            <option value="{{ $warehouse->id }}" @selected(old('warehouse_id', $warehouses->firstWhere('is_default', true)?->id ?? $warehouses->first()?->id) == $warehouse->id)>
+                                {{ $warehouse->name }}@if($warehouse->is_default) (principal)@endif
+                            </option>
+                        @empty
+                            <option value="">Sin bodegas activas</option>
+                        @endforelse
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">El stock inicial se registra en esta bodega.</p>
+                </div>
+
+                <div>
                     <label class="block text-sm font-medium text-gray-700">Stock Mínimo (alerta)</label>
                     <input type="number" name="low_stock_threshold" value="{{ old('low_stock_threshold', 10) }}" min="1"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
@@ -169,6 +170,13 @@
                             </option>
                         @endforeach
                     </select>
+                </div>
+
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-gray-700">Ubicación en bodega</label>
+                    <input type="text" name="location" value="{{ old('location') }}"
+                           placeholder="Ej: Estante A-3 (opcional)"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
             </div>
 
@@ -209,53 +217,59 @@
             </div>
         </div>
 
-        {{-- Información de Trazabilidad (Agroquímicos) --}}
-        <div class="bg-white p-4 rounded-xl shadow">
-            <h2 class="text-lg font-semibold text-gray-700 mb-4">Trazabilidad (Agroquímicos)</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {{-- Opcional: solo agroquímicos / productos con vencimiento --}}
+        @php
+            $showAgro = filled(old('lot'))
+                || filled(old('expiry_date'))
+                || filled(old('registration_number'))
+                || filled(old('active_ingredient'))
+                || filled(old('concentration'));
+        @endphp
+        <details class="bg-white rounded-xl shadow group" @if($showAgro) open @endif>
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Número de Lote</label>
+                    <h2 class="text-lg font-semibold text-gray-700">Lote, vencimiento y agroquímicos</h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Opcional — úsalo solo si el producto lo requiere (agroquímicos, medicamentos, etc.)</p>
+                </div>
+                <span class="shrink-0 text-xs font-medium text-slate-500 group-open:hidden">Mostrar</span>
+                <span class="shrink-0 text-xs font-medium text-slate-500 hidden group-open:inline">Ocultar</span>
+            </summary>
+            <div class="border-t border-gray-100 px-4 pb-4 pt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Número de lote</label>
                     <input type="text" name="lot" value="{{ old('lot') }}"
                            placeholder="Ej: LOT-2024-001"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Fecha de Vencimiento</label>
+                    <label class="block text-sm font-medium text-gray-700">Fecha de vencimiento</label>
                     <input type="date" name="expiry_date" value="{{ old('expiry_date') }}"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Número de Registro Sanitario</label>
+                    <label class="block text-sm font-medium text-gray-700">Registro sanitario</label>
                     <input type="text" name="registration_number" value="{{ old('registration_number') }}"
                            placeholder="Ej: AG-12345-2024"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Ingrediente Activo</label>
+                    <label class="block text-sm font-medium text-gray-700">Ingrediente activo</label>
                     <input type="text" name="active_ingredient" value="{{ old('active_ingredient') }}"
                            placeholder="Ej: Glifosato"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
-                <div>
+                <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700">Concentración</label>
                     <input type="text" name="concentration" value="{{ old('concentration') }}"
                            placeholder="Ej: 48% SL"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Ubicación en Bodega</label>
-                    <input type="text" name="location" value="{{ old('location') }}"
-                           placeholder="Ej: Estante A-3, Sección Norte"
-                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                </div>
             </div>
-        </div>
+        </details>
 
         {{-- Observaciones --}}
         <div class="bg-white p-4 rounded-xl shadow">

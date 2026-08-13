@@ -17,7 +17,7 @@
 
     <div class="card p-4">
         <h3 class="font-semibold text-slate-800 mb-3">Valores por defecto</h3>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
                 <label class="block text-xs text-slate-500 mb-1">Categoría</label>
                 <div class="space-y-2">
@@ -41,11 +41,21 @@
             <div>
                 <label class="block text-xs text-slate-500 mb-1">Unidad</label>
                 <select id="defaultUnit" class="select-field">
-                    <option value="unidad">Unidad</option>
-                    <option value="kg">Kilogramos</option>
-                    <option value="lt">Litros</option>
-                    <option value="saco">Saco</option>
-                    <option value="gal">Galones</option>
+                    @forelse($units ?? [] as $unit)
+                        <option value="{{ $unit->abbreviation }}" @selected($unit->abbreviation === 'und')>{{ $unit->name }} ({{ $unit->abbreviation }})</option>
+                    @empty
+                        <option value="und">Unidad (und)</option>
+                    @endforelse
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-slate-500 mb-1">Bodega stock inicial</label>
+                <select id="defaultWarehouse" class="select-field">
+                    @forelse($warehouses ?? [] as $warehouse)
+                        <option value="{{ $warehouse->id }}" @selected($warehouse->is_default)>{{ $warehouse->name }}</option>
+                    @empty
+                        <option value="">Sin bodegas</option>
+                    @endforelse
                 </select>
             </div>
             <div>
@@ -65,6 +75,7 @@
         @csrf
         <input type="hidden" name="default_category_id" id="hiddenCategory">
         <input type="hidden" name="default_unit" id="hiddenUnit">
+        <input type="hidden" name="default_warehouse_id" id="hiddenWarehouse">
         <input type="hidden" name="default_low_stock" id="hiddenLowStock">
         <input type="hidden" name="products" id="productsJson">
 
@@ -241,6 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         document.getElementById('hiddenCategory').value = document.getElementById('defaultCategory').value;
         document.getElementById('hiddenUnit').value = document.getElementById('defaultUnit').value;
+        document.getElementById('hiddenWarehouse').value = document.getElementById('defaultWarehouse').value;
         document.getElementById('hiddenLowStock').value = document.getElementById('defaultLowStock').value;
 
         const products = [];

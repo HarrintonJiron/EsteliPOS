@@ -28,6 +28,7 @@ class InventoryCatalogSeeder extends Seeder
             ['name' => 'Metro cuadrado', 'abbreviation' => 'm2', 'unit_type' => 'area'],
             ['name' => 'Saco', 'abbreviation' => 'saco', 'unit_type' => 'package'],
             ['name' => 'Bolsa', 'abbreviation' => 'bolsa', 'unit_type' => 'package'],
+            ['name' => 'Carga', 'abbreviation' => 'carga', 'unit_type' => 'package'],
             ['name' => 'Varilla', 'abbreviation' => 'var', 'unit_type' => 'length'],
             ['name' => 'Plancha', 'abbreviation' => 'pln', 'unit_type' => 'count'],
             ['name' => 'Caja', 'abbreviation' => 'caja', 'unit_type' => 'package'],

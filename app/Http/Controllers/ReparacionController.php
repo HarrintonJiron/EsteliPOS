@@ -4,203 +4,30 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\DeviceBrand;
+use App\Models\NumberSequence;
 use App\Models\OperationalExpense;
 use App\Models\Product;
 use App\Models\RepairOrder;
 use App\Models\RepairOrderItem;
 use App\Models\RepairService;
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Validation\ValidationException;
 
 class ReparacionController extends Controller
 {
-    private function ensureDeviceBrandsTableExists()
-    {
-        if (! Schema::hasTable('device_brands')) {
-            try {
-                Artisan::call('migrate', [
-                    '--path' => 'database/migrations/2026_08_01_090123_create_device_brands_table.php',
-                    '--force' => true,
-                ]);
-
-                // Run seeder after migration
-                Artisan::call('db:seed', [
-                    '--class' => 'DeviceBrandSeeder',
-                    '--force' => true,
-                ]);
-            } catch (\Exception $e) {
-                // Log error but continue
-                \Log::error('Failed to create device_brands table: '.$e->getMessage());
-            }
-        }
-    }
-
-    private function ensureDiscountColumnsExist()
-    {
-        if (! Schema::hasColumn('repair_orders', 'discount_percentage')) {
-            try {
-                Artisan::call('migrate', [
-                    '--path' => 'database/migrations/2026_08_01_083937_add_fixed_discount_to_repair_orders_table.php',
-                    '--force' => true,
-                ]);
-            } catch (\Exception $e) {
-                \Log::error('Failed to add discount columns to repair_orders: '.$e->getMessage());
-            }
-        }
-    }
-
-    private function ensureRepairServicesTableExists()
-    {
-        if (! Schema::hasTable('repair_services')) {
-            try {
-                Schema::create('repair_services', function (Blueprint $table) {
-                    $table->id();
-                    $table->string('name')->unique();
-                    $table->text('description')->nullable();
-                    $table->decimal('price', 10, 2)->default(0);
-                    $table->boolean('is_active')->default(true);
-                    $table->timestamps();
-                });
-
-                // Seed default services
-                $services = [
-                    ['name' => 'Cambio de Pantalla', 'description' => 'Reemplazo de pantalla LCD/AMOLED', 'price' => 800.00],
-                    ['name' => 'Cambio de Batería', 'description' => 'Reemplazo de batería interna', 'price' => 400.00],
-                    ['name' => 'Formateo de Software', 'description' => 'Restauración de fábrica y configuración', 'price' => 300.00],
-                    ['name' => 'Limpieza de Puertos de Carga', 'description' => 'Limpieza y reparación de puerto de carga', 'price' => 250.00],
-                    ['name' => 'Cambio de Conector de Carga', 'description' => 'Reemplazo completo del conector', 'price' => 350.00],
-                    ['name' => 'Reparación de Altavoz', 'description' => 'Reemplazo o reparación de altavoz', 'price' => 250.00],
-                    ['name' => 'Cambio de Micrófono', 'description' => 'Reemplazo de micrófono', 'price' => 300.00],
-                    ['name' => 'Reparación de Cámara', 'description' => 'Reemplazo de cámara frontal o trasera', 'price' => 500.00],
-                    ['name' => 'Diagnóstico Técnico', 'description' => 'Inspección completa del equipo', 'price' => 100.00],
-                    ['name' => 'Desbloqueo de Contraseña', 'description' => 'Eliminación de contraseña/patrón', 'price' => 200.00],
-                    ['name' => 'Cambio de Sensor de Huella', 'description' => 'Reemplazo de sensor de huella dactilar', 'price' => 400.00],
-                    ['name' => 'Cambio de Face ID', 'description' => 'Reemplazo de módulo Face ID', 'price' => 600.00],
-                ];
-
-                foreach ($services as $service) {
-                    RepairService::firstOrCreate(
-                        ['name' => $service['name']],
-                        [
-                            'description' => $service['description'],
-                            'price' => $service['price'],
-                            'is_active' => true,
-                        ]
-                    );
-                }
-            } catch (\Exception $e) {
-                \Log::error('Failed to create repair_services table: '.$e->getMessage());
-            }
-        }
-    }
-
-    private function ensureServiceFieldsExist()
-    {
-        try {
-            if (! Schema::hasColumn('repair_order_items', 'item_type')) {
-                Schema::table('repair_order_items', function (Blueprint $table) {
-                    $table->string('item_type')->default('part')->after('product_id')->comment('part=repuesto, service=servicio');
-                });
-                \Log::info('Added item_type column to repair_order_items');
-            }
-
-            if (! Schema::hasColumn('repair_order_items', 'device_brand')) {
-                Schema::table('repair_order_items', function (Blueprint $table) {
-                    $table->string('device_brand')->nullable()->after('description')->comment('Marca para servicios específicos');
-                });
-                \Log::info('Added device_brand column to repair_order_items');
-            }
-
-            if (! Schema::hasColumn('repair_order_items', 'service_id')) {
-                Schema::table('repair_order_items', function (Blueprint $table) {
-                    $table->unsignedBigInteger('service_id')->nullable()->after('product_id')->comment('ID del servicio predefinido');
-                });
-                \Log::info('Added service_id column to repair_order_items');
-            }
-        } catch (\Exception $e) {
-            \Log::error('Failed to add service fields to repair_order_items: '.$e->getMessage());
-        }
-    }
-
-    private function ensureTimesAndWarrantyFieldsExist()
-    {
-        try {
-            if (! Schema::hasColumn('repair_orders', 'received_time')) {
-                Artisan::call('migrate', [
-                    '--path' => 'database/migrations/2026_08_07_120000_add_times_and_warranty_to_repair_orders_table.php',
-                    '--force' => true,
-                ]);
-            }
-        } catch (\Exception $e) {
-            \Log::error('Failed to add times/warranty columns to repair_orders: '.$e->getMessage());
-        }
-    }
-
-    // Reparación methods...
-
-    public function getServices()
-    {
-        $this->ensureRepairServicesTableExists();
-
-        try {
-            $services = RepairService::active()->orderBy('name')->get(['id', 'name', 'description', 'price']);
-
-            return response()->json($services);
-        } catch (\Exception $e) {
-            return response()->json([]);
-        }
-    }
-
-    public function storeService(Request $request)
-    {
-        $this->ensureRepairServicesTableExists();
-
-        try {
-            $validated = $request->validate([
-                'name' => 'required|string|max:200|unique:repair_services,name',
-                'description' => 'nullable|string',
-                'price' => 'required|numeric|min:0',
-            ]);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'error' => 'Validación fallida',
-                'errors' => $e->errors(),
-            ], 422);
-        }
-
-        try {
-            $service = RepairService::create([
-                'name' => $validated['name'],
-                'description' => $validated['description'] ?? null,
-                'price' => $validated['price'],
-                'is_active' => true,
-            ]);
-
-            return response()->json($service, 201);
-        } catch (\Exception $e) {
-            \Log::error('Error creating repair service: '.$e->getMessage());
-
-            return response()->json([
-                'error' => 'Error al crear el servicio en la base de datos',
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
     private function nextOrderNumber(): string
     {
-        $max = (int) RepairOrder::query()
+        $minimum = RepairOrder::query()
             ->whereNotNull('order_number')
-            ->where('order_number', 'like', 'REP-%')
-            ->selectRaw('MAX(CAST(SUBSTRING(order_number, 5) AS UNSIGNED)) as max_num')
-            ->value('max_num');
+            ->pluck('order_number')
+            ->reduce(function (int $max, mixed $value): int {
+                return is_string($value) && preg_match('/^REP-([0-9]+)$/', $value, $matches) === 1
+                    ? max($max, (int) $matches[1])
+                    : $max;
+            }, 0) + 1;
 
-        return 'REP-'.str_pad((string) ($max + 1), 6, '0', STR_PAD_LEFT);
+        return NumberSequence::getNextAtLeast('reparacion', $minimum);
     }
 
     private function resolveLockType(Request $request, ?RepairOrder $order = null): string
@@ -362,11 +189,6 @@ class ReparacionController extends Controller
 
     public function create()
     {
-        $this->ensureDeviceBrandsTableExists();
-        $this->ensureServiceFieldsExist();
-        $this->ensureRepairServicesTableExists();
-        $this->ensureTimesAndWarrantyFieldsExist();
-
         $clients = Client::select('id', 'name', 'phone')->orderBy('name')->get();
         $technicians = User::select('id', 'name')->orderBy('name')->get();
         $products = Product::select('id', 'name', 'code', 'sale_price', 'stock')
@@ -374,42 +196,14 @@ class ReparacionController extends Controller
             ->orderBy('name')
             ->get();
 
-        // Try to get brands from database, fallback to default list if table doesn't exist
-        try {
-            $brands = DeviceBrand::select('id', 'name')->active()->orderBy('name')->get();
-        } catch (\Exception $e) {
-            // Fallback to default brands if table doesn't exist
-            $brands = collect([
-                (object) ['id' => 1, 'name' => 'Samsung'],
-                (object) ['id' => 2, 'name' => 'Apple'],
-                (object) ['id' => 3, 'name' => 'Xiaomi'],
-                (object) ['id' => 4, 'name' => 'Huawei'],
-                (object) ['id' => 5, 'name' => 'Motorola'],
-                (object) ['id' => 6, 'name' => 'LG'],
-                (object) ['id' => 7, 'name' => 'Sony'],
-                (object) ['id' => 8, 'name' => 'Nokia'],
-                (object) ['id' => 9, 'name' => 'OPPO'],
-                (object) ['id' => 10, 'name' => 'Realme'],
-                (object) ['id' => 11, 'name' => 'OnePlus'],
-                (object) ['id' => 12, 'name' => 'Tecno'],
-                (object) ['id' => 13, 'name' => 'ZTE'],
-            ]);
-        }
-
-        // Try to get services from database
-        try {
-            $services = RepairService::active()->orderBy('name')->get();
-        } catch (\Exception $e) {
-            $services = collect();
-        }
+        $brands = DeviceBrand::select('id', 'name')->active()->orderBy('name')->get();
+        $services = RepairService::active()->orderBy('name')->get();
 
         return view('reparaciones.create', compact('clients', 'technicians', 'products', 'brands', 'services'));
     }
 
     public function store(Request $request)
     {
-        $this->ensureServiceFieldsExist();
-
         $validated = $request->validate([
             'client_id' => 'nullable|exists:clients,id',
             'client_name' => 'required|string|max:150',
@@ -470,6 +264,10 @@ class ReparacionController extends Controller
             $totalDiscount = $percentageDiscount + $discountFixed;
             $total = $subtotal - $totalDiscount;
 
+            if ($total < 0) {
+                throw new \RuntimeException('El descuento total no puede superar el subtotal de la reparación.');
+            }
+
             $order = RepairOrder::create([
                 'order_number' => $this->nextOrderNumber(),
                 'client_id' => $validated['client_id'] ?? null,
@@ -497,7 +295,7 @@ class ReparacionController extends Controller
                 'delivered_time' => $validated['status'] === 'delivered' ? now()->format('H:i') : null,
                 'labor_cost' => $laborCost,
                 'parts_cost' => $partsCost,
-                'total' => $subtotal,
+                'total' => round($total, 2),
                 'discount_percentage' => $discountPct,
                 'discount_amount' => $discountFixed,
                 'advance_payment' => (float) ($validated['advance_payment'] ?? 0),
@@ -536,11 +334,6 @@ class ReparacionController extends Controller
 
     public function edit($id)
     {
-        $this->ensureDeviceBrandsTableExists();
-        $this->ensureServiceFieldsExist();
-        $this->ensureRepairServicesTableExists();
-        $this->ensureTimesAndWarrantyFieldsExist();
-
         $order = RepairOrder::with('items.product')->findOrFail($id);
         $clients = Client::select('id', 'name', 'phone')->orderBy('name')->get();
         $technicians = User::select('id', 'name')->orderBy('name')->get();
@@ -549,43 +342,14 @@ class ReparacionController extends Controller
             ->orderBy('name')
             ->get();
 
-        // Try to get brands from database, fallback to default list if table doesn't exist
-        try {
-            $brands = DeviceBrand::select('id', 'name')->active()->orderBy('name')->get();
-        } catch (\Exception $e) {
-            // Fallback to default brands if table doesn't exist
-            $brands = collect([
-                (object) ['id' => 1, 'name' => 'Samsung'],
-                (object) ['id' => 2, 'name' => 'Apple'],
-                (object) ['id' => 3, 'name' => 'Xiaomi'],
-                (object) ['id' => 4, 'name' => 'Huawei'],
-                (object) ['id' => 5, 'name' => 'Motorola'],
-                (object) ['id' => 6, 'name' => 'LG'],
-                (object) ['id' => 7, 'name' => 'Sony'],
-                (object) ['id' => 8, 'name' => 'Nokia'],
-                (object) ['id' => 9, 'name' => 'OPPO'],
-                (object) ['id' => 10, 'name' => 'Realme'],
-                (object) ['id' => 11, 'name' => 'OnePlus'],
-                (object) ['id' => 12, 'name' => 'Tecno'],
-                (object) ['id' => 13, 'name' => 'ZTE'],
-            ]);
-        }
-
-        // Try to get services from database
-        try {
-            $services = RepairService::active()->orderBy('name')->get();
-        } catch (\Exception $e) {
-            $services = collect();
-        }
+        $brands = DeviceBrand::select('id', 'name')->active()->orderBy('name')->get();
+        $services = RepairService::active()->orderBy('name')->get();
 
         return view('reparaciones.edit', compact('order', 'clients', 'technicians', 'products', 'brands', 'services'));
     }
 
     public function update(Request $request, $id)
     {
-        $this->ensureDiscountColumnsExist();
-        $this->ensureServiceFieldsExist();
-
         $order = RepairOrder::findOrFail($id);
 
         $validated = $request->validate([
@@ -649,6 +413,10 @@ class ReparacionController extends Controller
             $totalDiscount = $percentageDiscount + $discountFixed;
             $total = $subtotal - $totalDiscount;
 
+            if ($total < 0) {
+                throw new \RuntimeException('El descuento total no puede superar el subtotal de la reparación.');
+            }
+
             // Mark delivered_date automatically
             $deliveredDate = $validated['delivered_date'] ?? null;
             $deliveredTime = $validated['delivered_time'] ?? null;
@@ -687,7 +455,7 @@ class ReparacionController extends Controller
                 'delivered_time' => $deliveredTime,
                 'labor_cost' => $laborCost,
                 'parts_cost' => $partsCost,
-                'total' => $subtotal,
+                'total' => round($total, 2),
                 'advance_payment' => $advance,
                 'payment_type' => $validated['payment_type'],
                 'payment_status' => $this->calcPaymentStatus($total, $advance),
@@ -695,13 +463,10 @@ class ReparacionController extends Controller
                 'warranty_text' => $validated['warranty_text'] ?? null,
             ]);
 
-            // Only update discount fields if they exist in the database
-            if (Schema::hasColumn('repair_orders', 'discount_percentage')) {
-                $order->update([
-                    'discount_percentage' => $discountPct,
-                    'discount_amount' => $discountFixed,
-                ]);
-            }
+            $order->update([
+                'discount_percentage' => $discountPct,
+                'discount_amount' => $discountFixed,
+            ]);
 
             $order->items()->delete();
 

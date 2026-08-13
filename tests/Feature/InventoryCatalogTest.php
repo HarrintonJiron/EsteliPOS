@@ -108,6 +108,56 @@ test('catalog search updates results while typing', function () {
         ->assertDontSee('Destornillador plano');
 });
 
+test('product conversion can express one carga equals two quintales', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+
+    $qq = Unit::query()->where('abbreviation', 'qq')->firstOrFail();
+    $carga = Unit::query()->where('abbreviation', 'carga')->firstOrFail();
+    $category = Category::firstOrCreate(['name' => 'Granos']);
+
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Maíz seco',
+        'code' => 'MAIZ-QQ-1',
+        'purchase_price' => 1200,
+        'sale_price' => 1500,
+        'stock' => 0,
+        'unit' => 'qq',
+        'base_unit_id' => $qq->id,
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($admin)->post(route('inventario.conversions.store', $product->id), [
+        'unit_id' => $carga->id,
+        'equals_base_qty' => 2,
+        'sale_price' => 2900,
+        'is_default_sale_unit' => 1,
+    ])->assertRedirect()
+        ->assertSessionHas('success');
+
+    $conversion = ProductUnitConversion::query()
+        ->where('product_id', $product->id)
+        ->where('unit_id', $carga->id)
+        ->firstOrFail();
+
+    expect((float) $conversion->factor_to_base)->toBe(2.0)
+        ->and((bool) $conversion->is_default_sale_unit)->toBeTrue();
+
+    $service = app(UnitConversionService::class);
+
+    expect($service->convertToBase($product, 3, $carga->id))->toBe(6.0)
+        ->and($service->convertFromBase($product, 6, $carga->id))->toBe(3.0);
+
+    $this->actingAs($admin)
+        ->get(route('inventario.show', $product->id))
+        ->assertOk()
+        ->assertSee('Unidades y conversiones')
+        ->assertSee('Opcional')
+        ->assertSee('1 carga')
+        ->assertSee('2 qq');
+});
+
 test('unit conversion converts sand from cubic meters to sacks', function () {
     $this->seed(InventoryCatalogSeeder::class);
 

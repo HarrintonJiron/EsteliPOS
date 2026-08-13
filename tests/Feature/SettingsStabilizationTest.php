@@ -4,9 +4,11 @@ use App\Models\Module;
 use App\Models\Role;
 use App\Models\Setting;
 use App\Models\User;
+use App\Support\PasswordPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 
 uses(RefreshDatabase::class);
 
@@ -123,4 +125,45 @@ test('settings dashboard exposes searchable sections and honest availability sta
             ->and($sections[$id]['metric'])->toBe('Versión 2.0')
             ->and($sections[$id]['url'])->toBeNull();
     }
+});
+
+test('configured login attempt limit is enforced', function () {
+    Setting::set('max_login_attempts', 2, 'integer', 'security');
+    $user = User::factory()->create([
+        'is_active' => true,
+        'password' => Hash::make('Password-correcta-1'),
+    ]);
+
+    foreach (range(1, 2) as $attempt) {
+        $this->post(route('login'), [
+            'login' => $user->email,
+            'password' => 'incorrecta',
+        ])->assertSessionHasErrors('login');
+    }
+
+    $response = $this->post(route('login'), [
+        'login' => $user->email,
+        'password' => 'Password-correcta-1',
+    ])->assertSessionHasErrors('login');
+
+    expect($response->getSession()->get('errors')->first('login'))->toContain('Demasiados intentos');
+
+    $this->assertGuest();
+});
+
+test('lowercase password policy and session timeout settings are effective', function () {
+    Setting::set('password_min_length', 6, 'integer', 'security');
+    Setting::set('password_require_uppercase', false, 'boolean', 'security');
+    Setting::set('password_require_lowercase', true, 'boolean', 'security');
+    Setting::set('session_timeout', 17, 'integer', 'security');
+
+    expect(Validator::make(['password' => '123456'], [
+        'password' => [PasswordPolicy::rule()],
+    ])->fails())->toBeTrue()
+        ->and(Validator::make(['password' => 'abc123'], [
+            'password' => [PasswordPolicy::rule()],
+        ])->passes())->toBeTrue();
+
+    $this->get(route('login'))->assertOk();
+    expect(config('session.lifetime'))->toBe(17);
 });

@@ -1,165 +1,153 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="p-3 sm:p-6">
-    <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <h2 class="text-lg font-bold">Arqueo #{{ $arqueo->id ?? '—' }}</h2>
-            <div class="text-sm text-slate-500">Fecha: {{ $date->format('d/m/Y') }} · Sesión: {{ optional($arqueo->caja_session_id) ? 'Sí' : 'Manual' }}</div>
-        </div>
-        <div class="flex flex-wrap gap-2">
-            <button onclick="window.print()" class="btn-outline">Imprimir</button>
-            <a href="{{ route('arqueo.index') }}" class="btn-primary">Nuevo</a>
-        </div>
-    </div>
-
-    <div class="mb-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-        <div class="p-3 bg-white rounded shadow">
-            <div class="text-xs text-slate-500">Ventas</div>
-            <div class="text-lg font-semibold">{{ number_format($totalSalesAmount, 2) }}</div>
-            <div class="text-xs text-slate-400">{{ $totalSalesCount }} tickets</div>
-        </div>
-        <div class="p-3 bg-white rounded shadow">
-            <div class="text-xs text-slate-500">Abonos</div>
-            <div class="text-lg font-semibold">{{ number_format($creditPaymentsTotal, 2) }}</div>
-            <div class="text-xs text-slate-400">{{ $creditPayments->count() }} registros</div>
-        </div>
-        <div class="p-3 bg-white rounded shadow">
-            <div class="text-xs text-slate-500">Efectivo neto (sistema)</div>
-            <div class="text-lg font-semibold">{{ number_format(($byType['cash']['total'] ?? 0) - ($operationalExpensesCashTotal ?? 0), 2) }}</div>
-            <div class="text-xs text-slate-400">Ventas en efectivo menos gastos operativos</div>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 text-sm">
-        <div class="p-3 bg-white rounded shadow">
-            <div class="text-xs text-slate-500">Gastos operativos en efectivo</div>
-            <div class="text-lg font-semibold text-red-600">{{ number_format($operationalExpensesCashTotal ?? 0, 2) }}</div>
-            <div class="text-xs text-slate-400">{{ $operationalExpenses->count() }} egresos</div>
-        </div>
-        <div class="p-3 bg-white rounded shadow">
-            <div class="text-xs text-slate-500">Diferencia vs sistema</div>
-            <div class="text-lg font-semibold {{ (($physicalTotal ?? 0) - (($byType['cash']['total'] ?? 0) - ($operationalExpensesCashTotal ?? 0))) < 0 ? 'text-red-600' : 'text-emerald-600' }}">
-                {{ number_format(($physicalTotal ?? 0) - (($byType['cash']['total'] ?? 0) - ($operationalExpensesCashTotal ?? 0)), 2) }}
+@php
+    $difference = (float) (($physicalTotal ?? 0) - ($expectedCashTotal ?? 0));
+@endphp
+<div class="p-3 sm:p-4">
+    <div class="mx-auto w-full max-w-4xl space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h2 class="text-lg font-bold">Arqueo #{{ $arqueo->id ?? '—' }}</h2>
+                <p class="text-xs text-slate-500">{{ $date->format('d/m/Y') }} · Caja {{ optional($arqueo->caja_session_id) ? 'cerrada' : 'manual' }}</p>
             </div>
-            <div class="text-xs text-slate-400">Incluye egresos operativos del día</div>
-        </div>
-    </div>
-
-    <div class="mb-3">
-        <div class="p-3 bg-white rounded shadow text-sm">
-            <div class="flex justify-between items-center">
-                <div>
-                    <div class="text-xs text-slate-500">Conteo físico</div>
-                    <div class="text-lg font-semibold">{{ number_format($physicalTotal ?? 0,2) }}</div>
-                </div>
-                <div class="text-right">
-                    <div class="text-xs text-slate-500">Diferencia</div>
-                    <div class="text-lg font-semibold {{ (($physicalTotal ?? 0) - (($byType['cash']['total'] ?? 0) - ($operationalExpensesCashTotal ?? 0))) < 0 ? 'text-red-600' : 'text-emerald-600' }}">{{ number_format(($physicalTotal ?? 0) - (($byType['cash']['total'] ?? 0) - ($operationalExpensesCashTotal ?? 0)), 2) }}</div>
-                </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="window.print()" class="btn-outline text-sm">Imprimir</button>
+                <a href="{{ route('facturacion.pos') }}" class="btn-outline text-sm">POS</a>
+                <a href="{{ route('arqueo.index') }}" class="btn-primary text-sm">Caja</a>
             </div>
         </div>
-    </div>
 
-    <div class="bg-white rounded shadow p-3 mb-4 text-sm">
-        <h3 class="font-semibold mb-2">Desglose por tipo de pago</h3>
-        <table class="w-full">
-            <thead>
-                <tr class="text-left text-slate-600 text-xs">
-                    <th>Tipo</th>
-                    <th class="text-right">Cantidad</th>
-                    <th class="text-right">Importe</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($byType as $type => $row)
-                    <tr>
-                        <td class="py-1">{{ $type }}</td>
-                        <td class="py-1 text-right">{{ $row['count'] }}</td>
-                        <td class="py-1 text-right">{{ number_format($row['total'],2) }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
+        <div class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
+            <div class="rounded-xl border border-slate-200 bg-white p-3">
+                <div class="text-[10px] font-semibold uppercase text-slate-500">Fondo</div>
+                <div class="mt-1 font-bold tabular-nums">C$ {{ number_format($openingAmount ?? 0, 2) }}</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-3">
+                <div class="text-[10px] font-semibold uppercase text-slate-500">Ventas</div>
+                <div class="mt-1 font-bold tabular-nums">C$ {{ number_format($totalSalesAmount, 2) }}</div>
+                <div class="text-[11px] text-slate-400">{{ $totalSalesCount }} tickets</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-3">
+                <div class="text-[10px] font-semibold uppercase text-slate-500">Abonos</div>
+                <div class="mt-1 font-bold tabular-nums">C$ {{ number_format($creditPaymentsTotal, 2) }}</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-3">
+                <div class="text-[10px] font-semibold uppercase text-slate-500">Gastos</div>
+                <div class="mt-1 font-bold tabular-nums text-red-600">C$ {{ number_format($operationalExpensesCashTotal ?? 0, 2) }}</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-3">
+                <div class="text-[10px] font-semibold uppercase text-slate-500">Esperado</div>
+                <div class="mt-1 font-bold tabular-nums text-indigo-700">C$ {{ number_format($expectedCashTotal ?? 0, 2) }}</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-3">
+                <div class="text-[10px] font-semibold uppercase text-slate-500">Diferencia</div>
+                <div class="mt-1 font-bold tabular-nums {{ $difference < 0 ? 'text-red-600' : 'text-emerald-600' }}">C$ {{ number_format($difference, 2) }}</div>
+                <div class="text-[11px] text-slate-400">Contado C$ {{ number_format($physicalTotal ?? 0, 2) }}</div>
+            </div>
+        </div>
 
-    <div class="bg-white rounded shadow p-4 mb-6">
-        <h3 class="font-semibold mb-2">Ventas del día (detallado)</h3>
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="text-left text-slate-600">
-                    <th>Factura</th>
-                    <th>Cliente</th>
-                    <th>Items</th>
-                    <th class="text-right">Total</th>
-                    <th>Pago</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($sales as $s)
-                <tr class="border-t">
-                    <td class="py-2">{{ $s->invoice_number }}</td>
-                    <td class="py-2">{{ optional($s->client)->billing_business_name ?? optional($s->client)->billing_name ?? 'Consumidor' }}</td>
-                    <td class="py-2">{{ $s->details->count() }}</td>
-                    <td class="py-2 text-right">{{ number_format($s->total,2) }}</td>
-                    <td class="py-2">{{ $s->payment_type }}</td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
+        <div class="grid gap-3 lg:grid-cols-2">
+            <div class="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                <h3 class="mb-2 font-semibold">Pagos</h3>
+                <table class="w-full">
+                    <thead>
+                        <tr class="text-left text-[11px] uppercase text-slate-500">
+                            <th class="pb-1">Tipo</th>
+                            <th class="pb-1 text-right">Cant.</th>
+                            <th class="pb-1 text-right">Importe</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($byType as $type => $row)
+                            <tr class="border-t border-slate-100">
+                                <td class="py-1.5">{{ $type }}</td>
+                                <td class="py-1.5 text-right">{{ $row['count'] }}</td>
+                                <td class="py-1.5 text-right tabular-nums">{{ number_format($row['total'], 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="3" class="py-3 text-center text-slate-400">Sin ventas</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
 
-    <div class="bg-white rounded shadow p-4 mb-6">
-        <h3 class="font-semibold mb-2">Gastos operativos del día</h3>
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="text-left text-slate-600">
-                    <th>Descripción</th>
-                    <th>Caja</th>
-                    <th>Usuario</th>
-                    <th>Método</th>
-                    <th class="text-right">Monto</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($operationalExpenses as $expense)
-                    <tr class="border-t">
-                        <td class="py-2">{{ $expense->description }}</td>
-                        <td class="py-2">{{ $expense->cajaSession ? 'Caja #' . $expense->cajaSession->id : '—' }}</td>
-                        <td class="py-2">{{ $expense->user?->name ?? '—' }}</td>
-                        <td class="py-2">{{ $expense->payment_method_label }}</td>
-                        <td class="py-2 text-right text-red-600">{{ number_format($expense->amount, 2) }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="5" class="py-4 text-center text-slate-400">No se registraron gastos operativos en efectivo.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                <h3 class="mb-2 font-semibold">Gastos operativos</h3>
+                <table class="w-full">
+                    <thead>
+                        <tr class="text-left text-[11px] uppercase text-slate-500">
+                            <th class="pb-1">Descripción</th>
+                            <th class="pb-1 text-right">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($operationalExpenses as $expense)
+                            <tr class="border-t border-slate-100">
+                                <td class="py-1.5">{{ $expense->description }}</td>
+                                <td class="py-1.5 text-right tabular-nums text-red-600">{{ number_format($expense->amount, 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="2" class="py-3 text-center text-slate-400">Sin gastos en efectivo</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-    <div class="bg-white rounded shadow p-4">
-        <h3 class="font-semibold mb-2">Abonos registrados hoy</h3>
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="text-left text-slate-600">
-                    <th>Id</th>
-                    <th>Cliente</th>
-                    <th class="text-right">Importe</th>
-                    <th>Usuario</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($creditPayments as $p)
-                <tr class="border-t">
-                    <td class="py-2">{{ $p->id }}</td>
-                    <td class="py-2">{{ optional($p->client)->billing_business_name ?? optional($p->client)->billing_name ?? 'Cliente' }}</td>
-                    <td class="py-2 text-right">{{ number_format($p->amount,2) }}</td>
-                    <td class="py-2">{{ optional($p->user)->name ?? '—' }}</td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
+        <details class="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+            <summary class="cursor-pointer font-semibold">Ventas del día ({{ $totalSalesCount }})</summary>
+            <div class="mt-2 overflow-x-auto">
+                <table class="w-full min-w-[480px]">
+                    <thead>
+                        <tr class="text-left text-[11px] uppercase text-slate-500">
+                            <th class="pb-1">Factura</th>
+                            <th class="pb-1">Cliente</th>
+                            <th class="pb-1 text-right">Total</th>
+                            <th class="pb-1">Pago</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($sales as $s)
+                            <tr class="border-t border-slate-100">
+                                <td class="py-1.5">{{ $s->invoice_number }}</td>
+                                <td class="py-1.5">{{ optional($s->client)->billing_business_name ?? optional($s->client)->billing_name ?? 'Consumidor' }}</td>
+                                <td class="py-1.5 text-right tabular-nums">{{ number_format($s->total, 2) }}</td>
+                                <td class="py-1.5">{{ $s->payment_type }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </details>
 
+        <details class="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+            <summary class="cursor-pointer font-semibold">Abonos ({{ $creditPayments->count() }})</summary>
+            <div class="mt-2 overflow-x-auto">
+                <table class="w-full min-w-[420px]">
+                    <thead>
+                        <tr class="text-left text-[11px] uppercase text-slate-500">
+                            <th class="pb-1">Id</th>
+                            <th class="pb-1">Cliente</th>
+                            <th class="pb-1 text-right">Importe</th>
+                            <th class="pb-1">Usuario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($creditPayments as $p)
+                            <tr class="border-t border-slate-100">
+                                <td class="py-1.5">{{ $p->id }}</td>
+                                <td class="py-1.5">{{ optional($p->client)->billing_business_name ?? optional($p->client)->billing_name ?? 'Cliente' }}</td>
+                                <td class="py-1.5 text-right tabular-nums">{{ number_format($p->amount, 2) }}</td>
+                                <td class="py-1.5">{{ optional($p->user)->name ?? '—' }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4" class="py-3 text-center text-slate-400">Sin abonos</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </div>
 </div>
 @endsection

@@ -38,7 +38,10 @@ if (Test-Path (Join-Path $ProjectRoot ".env")) {
     $EnvContent = Get-Content (Join-Path $ProjectRoot ".env") -Raw
     Set-Result "app_debug_off" ($EnvContent -match "APP_DEBUG=false") "APP_DEBUG debe ser false"
     Set-Result "app_env_production" ($EnvContent -match "APP_ENV=production") "APP_ENV debe ser production"
+    Set-Result "app_key" ($EnvContent -match "(?m)^APP_KEY=base64:\S+") "APP_KEY no esta configurada"
     Set-Result "sqlite_configured" ($EnvContent -match "DB_CONNECTION=sqlite") "DB_CONNECTION debe ser sqlite"
+    Set-Result "sqlite_busy_timeout" ($EnvContent -match "DB_BUSY_TIMEOUT=5000") "DB_BUSY_TIMEOUT debe ser 5000"
+    Set-Result "sqlite_wal" ($EnvContent -match "DB_JOURNAL_MODE=WAL") "DB_JOURNAL_MODE debe ser WAL"
 }
 
 $DatabasePath = Join-Path $ProjectRoot "database\database.sqlite"
@@ -50,6 +53,8 @@ if (Test-Path $DatabasePath) {
 Set-Result "vendor" (Test-Path (Join-Path $ProjectRoot "vendor\autoload.php")) "Falta vendor"
 Set-Result "frontend_assets" (Test-EsteliPOSFrontendAssets -ProjectRoot $ProjectRoot) "Faltan assets compilados"
 Set-Result "web_config" (Test-Path (Join-Path $ProjectRoot "public\web.config")) "Falta web.config"
+Set-Result "deployment_config" (Test-Path (Join-Path $ProjectRoot "storage\app\deployment.json")) "Falta deployment.json"
+Set-Result "network_access_page" (Test-Path (Join-Path $ProjectRoot "storage\app\deployment\acceso-red.html")) "Falta la hoja de acceso LAN"
 
 $StorageProbe = Join-Path $ProjectRoot "storage\app\install-probe.tmp"
 try {
@@ -88,6 +93,22 @@ if ($Php) {
     $About = & $Php.Source artisan about --only=environment 2>&1 | Out-String
     Pop-Location
     Set-Result "artisan_about" ($About -match "production") "artisan about fallo"
+} else {
+    Set-Result "php_available" $false "php.exe no esta disponible en PATH"
+}
+
+$FirewallName = "EsteliPOS LAN - Puerto $Port"
+Set-Result "firewall_rule" ([bool](Get-NetFirewallRule -DisplayName $FirewallName -ErrorAction SilentlyContinue)) "Falta regla de firewall $FirewallName"
+Set-Result "server_task" ([bool](Get-ScheduledTask -TaskName "EsteliPOS - Servidor" -ErrorAction SilentlyContinue)) "Falta tarea de arranque"
+Set-Result "backup_task" ([bool](Get-ScheduledTask -TaskName "EsteliPOS - Respaldo diario" -ErrorAction SilentlyContinue)) "Falta tarea de respaldo"
+
+if ($DeploymentConfig -and $DeploymentConfig.lan_address) {
+    try {
+        $LanResponse = Invoke-WebRequest -Uri "http://$($DeploymentConfig.lan_address):$Port/login" -UseBasicParsing -TimeoutSec 10
+        Set-Result "http_lan" ($LanResponse.StatusCode -eq 200) "HTTP LAN $($LanResponse.StatusCode)"
+    } catch {
+        Set-Result "http_lan" $false $_.Exception.Message
+    }
 }
 
 foreach ($Entry in $Results.GetEnumerator()) {

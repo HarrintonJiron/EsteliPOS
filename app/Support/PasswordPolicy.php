@@ -11,8 +11,15 @@ final class PasswordPolicy
     {
         $rule = Password::min(max(6, (int) Setting::get('password_min_length', 8)));
 
-        if (Setting::get('password_require_uppercase', false)) {
+        $requireUppercase = (bool) Setting::get('password_require_uppercase', false);
+        $requireLowercase = (bool) Setting::get('password_require_lowercase', false);
+
+        if ($requireUppercase && $requireLowercase) {
             $rule->mixedCase();
+        } elseif ($requireUppercase) {
+            $rule->rules(['regex:/[A-Z]/']);
+        } elseif ($requireLowercase) {
+            $rule->rules(['regex:/[a-z]/']);
         }
         if (Setting::get('password_require_numbers', false)) {
             $rule->numbers();
@@ -27,9 +34,21 @@ final class PasswordPolicy
     public static function summary(): string
     {
         $parts = ['mínimo '.max(6, (int) Setting::get('password_min_length', 8)).' caracteres'];
-        if (Setting::get('password_require_uppercase', false)) $parts[] = 'mayúsculas y minúsculas';
-        if (Setting::get('password_require_numbers', false)) $parts[] = 'números';
-        if (Setting::get('password_require_special_chars', false)) $parts[] = 'símbolos';
+        $requireUppercase = (bool) Setting::get('password_require_uppercase', false);
+        $requireLowercase = (bool) Setting::get('password_require_lowercase', false);
+        if ($requireUppercase && $requireLowercase) {
+            $parts[] = 'mayúsculas y minúsculas';
+        } elseif ($requireUppercase) {
+            $parts[] = 'mayúsculas';
+        } elseif ($requireLowercase) {
+            $parts[] = 'minúsculas';
+        }
+        if (Setting::get('password_require_numbers', false)) {
+            $parts[] = 'números';
+        }
+        if (Setting::get('password_require_special_chars', false)) {
+            $parts[] = 'símbolos';
+        }
 
         return implode(', ', $parts);
     }

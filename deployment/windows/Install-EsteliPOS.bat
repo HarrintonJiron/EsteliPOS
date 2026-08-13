@@ -10,11 +10,13 @@ title EsteliPOS - Instalador Northlink
 
 set "SCRIPT_DIR=%~dp0"
 set "PROJECT_ROOT=%SCRIPT_DIR%..\.."
+set "ORIGINAL_ARGS=%*"
 cd /d "%PROJECT_ROOT%"
 
 if /i "%~1"=="IIS" goto :profile_iis
 if /i "%~1"=="Simple" goto :profile_simple
 if /i "%~1"=="SIMPLE" goto :profile_simple
+if /i "%~1"=="Verify" goto :verify_only
 if not "%~1"=="" goto :bad_arg
 
 goto :menu
@@ -35,20 +37,27 @@ echo    ESTELIPOS - INSTALADOR DE PRODUCCION (Windows)
 echo    Northlink Microsystem
 echo  ============================================================
 echo.
+echo   Carpeta: %CD%
+echo.
 echo   Seleccione el tipo de instalacion:
 echo.
-echo   [1] IIS + PHP FastCGI  ^(RECOMENDADO - instala IIS y PHP automaticamente^)
-echo   [2] Simple ^(php artisan serve - 1 caja, pruebas^)
+echo   [1] IIS + PHP  ^(RECOMENDADO - ferreteria / varias cajas^)
+echo       Instala IIS, PHP, URL Rewrite y abre puerto 8080
+echo   [2] Simple ^(1 caja o prueba rapida^)
 echo   [3] Solo verificar PHP y paquete ^(sin instalar^)
 echo   [Q] Salir
 echo.
-choice /c 123Q /n /m "Opcion: "
+echo   Tip: si solo quiere actualizar una PC ya instalada,
+echo   use Actualizar-EsteliPOS.bat con parche1.0.zip
+echo.
+choice /c 123Q /n /m "Opcion [Enter=1]: "
 if errorlevel 4 exit /b 0
 if errorlevel 3 goto :verify_only
 if errorlevel 2 goto :profile_simple
 goto :profile_iis
 
 :verify_only
+set "ORIGINAL_ARGS=Verify"
 call :ensure_admin
 if errorlevel 1 exit /b 1
 echo.
@@ -65,10 +74,12 @@ exit /b %EC%
 
 :profile_iis
 set "SERVER_PROFILE=IIS"
+set "ORIGINAL_ARGS=IIS"
 goto :run_install
 
 :profile_simple
 set "SERVER_PROFILE=Simple"
+set "ORIGINAL_ARGS=Simple"
 goto :run_install
 
 :run_install
@@ -118,8 +129,8 @@ echo  [AVISO] Se requieren permisos de administrador.
 echo  Solicitando elevacion UAC...
 echo.
 
-powershell.exe -NoProfile -Command "Start-Process -FilePath '%~f0' -ArgumentList '%*' -Verb RunAs"
-exit /b 0
+powershell.exe -NoProfile -Command "Start-Process -FilePath '%~f0' -ArgumentList '%ORIGINAL_ARGS%' -Verb RunAs"
+exit /b 1
 
 :print_header
 cls

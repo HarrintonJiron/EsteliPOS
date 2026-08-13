@@ -180,8 +180,14 @@ class BackNavigationService
             'settings.roles.clone.form' => 'settings.roles.show',
             'settings.roles.delete.form' => 'settings.roles.show',
             'settings.users.reset-password.form' => 'settings.users.show',
-            'password.change' => 'dashboard.general',
         ];
+
+        if ($routeName === 'password.change') {
+            return [
+                'href' => app(ModuleAccessService::class)->defaultHomeUrl(auth()->user()),
+                'label' => 'Regresar',
+            ];
+        }
 
         if (! array_key_exists($routeName, $overrides)) {
             if ($routeName === 'creditos.create' && $route?->parameter('clientId')) {

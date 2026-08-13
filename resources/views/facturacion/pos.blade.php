@@ -17,7 +17,12 @@
      data-default-warehouse-id="{{ $defaultWarehouseId }}"
      data-product-search-url="{{ route('facturacion.pos-products') }}"
      data-product-image-url="{{ url('/facturacion/pos/products') }}"
-     data-daily-report-url="{{ route('facturacion.pos-daily-report') }}">
+     data-daily-report-url="{{ route('facturacion.pos-daily-report') }}"
+     data-company-currency="{{ $posReferenceFx['company_currency'] }}"
+     data-company-symbol="{{ $posReferenceFx['company_symbol'] }}"
+     data-reference-currency="{{ $posReferenceFx['reference_currency'] }}"
+     data-reference-symbol="{{ $posReferenceFx['reference_symbol'] }}"
+     data-reference-rate="{{ $posReferenceFx['reference_rate'] ?? '' }}">
 
     <input type="file" id="posProductImageInput" class="hidden" accept="image/jpeg,image/png,image/webp" capture="environment">
 
@@ -60,9 +65,12 @@
                     <span id="taxLabel">IVA ({{ number_format($defaultTaxRate * 100, 2) }}%)</span>
                     <span id="taxDisplay" class="font-medium">C$ 0.00</span>
                 </div>
-                <div class="border-t border-slate-300 pt-2 flex justify-between">
+                <div class="border-t border-slate-300 pt-2 flex justify-between items-end gap-2">
                     <span class="text-sm font-semibold text-slate-700">Total</span>
-                    <span id="totalDisplay" class="text-3xl font-bold text-slate-900">C$ 0.00</span>
+                    <div class="text-right">
+                        <span id="totalDisplay" class="block text-3xl font-bold text-slate-900">C$ 0.00</span>
+                        <span id="totalReferenceDisplay" class="hidden text-xs font-semibold text-slate-500"></span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -763,12 +771,43 @@ document.addEventListener('DOMContentLoaded', function() {
     if (closeBtn) {
         closeBtn.addEventListener('click', function(){
             // Abrir en la misma pestaña la vista de apertura/cierre
-            window.location.href = '{{ route('arqueo.index') }}';
+            window.location.href = '{{ route('arqueo.index', ['cerrar' => 1]) }}';
         });
     }
 
+    const companySymbol = app.dataset.companySymbol || 'C$';
+    const referenceSymbol = app.dataset.referenceSymbol || 'US$';
+    const referenceCurrency = app.dataset.referenceCurrency || 'USD';
+    const referenceRate = parseFloat(app.dataset.referenceRate || '0');
+
     function formatMoney(v) {
-        return 'C$ ' + parseFloat(v || 0).toFixed(2);
+        return companySymbol + ' ' + parseFloat(v || 0).toFixed(2);
+    }
+
+    function toReferenceAmount(v) {
+        if (!(referenceRate > 0)) {
+            return null;
+        }
+
+        return Math.round((parseFloat(v || 0) * referenceRate) * 100) / 100;
+    }
+
+    function formatReference(v) {
+        const amount = toReferenceAmount(v);
+        if (amount === null) {
+            return '';
+        }
+
+        return referenceSymbol + ' ' + amount.toFixed(2);
+    }
+
+    function referenceLineHtml(v, className = 'text-[10px] font-medium text-slate-500') {
+        const label = formatReference(v);
+        if (!label) {
+            return '';
+        }
+
+        return `<p class="${className}">${label} <span class="font-normal text-slate-400">${referenceCurrency}</span></p>`;
     }
 
     function lineSubtotal(item) {
@@ -797,6 +836,18 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('totalDisplay').textContent = formatMoney(total);
         document.getElementById('paymentTotalDisplay').textContent = formatMoney(total);
         document.getElementById('payBtnAmount').textContent = formatMoney(total);
+
+        const totalReference = document.getElementById('totalReferenceDisplay');
+        const referenceLabel = formatReference(total);
+        if (totalReference) {
+            if (referenceLabel) {
+                totalReference.textContent = referenceLabel + ' ref.';
+                totalReference.classList.remove('hidden');
+            } else {
+                totalReference.textContent = '';
+                totalReference.classList.add('hidden');
+            }
+        }
 
         const rates = [...new Set(ticket.map(item => itemTaxRate(item).toFixed(4)))];
         const labelRate = rates.length === 1 ? `${(parseFloat(rates[0]) * 100).toFixed(2)}%` : (rates.length > 1 ? 'mixto' : `${(parseFloat(app.dataset.defaultTaxRate || 0) * 100).toFixed(2)}%`);
@@ -842,6 +893,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div class="text-right shrink-0">
                         <p class="font-bold text-slate-900 text-sm">${formatMoney(lineSubtotal(item))}</p>
+                        ${referenceLineHtml(lineSubtotal(item), 'text-[10px] font-medium text-slate-500')}
                         <div class="flex gap-2 mt-1 justify-end">
                             <button type="button" onclick="event.stopPropagation(); applyDiscount(${idx})" class="text-xs text-indigo-600 hover:text-indigo-800">Dto.</button>
                             <button type="button" onclick="event.stopPropagation(); removeTicketItem(${idx})" class="text-xs text-red-600 hover:text-red-800">Quitar</button>
@@ -1050,7 +1102,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p class="min-h-[2rem] line-clamp-2 text-xs font-semibold leading-4 text-slate-800">${p.name}</p>
                         <p class="mt-0.5 truncate text-[10px] text-slate-400">${p.code || '—'}</p>
                         <p class="mt-0.5 text-sm font-bold text-indigo-600">${formatMoney(p.price)}</p>
-                        ${p.discount_pct > 0 ? `<p class="text-[10px] font-bold text-amber-600">${p.discount_label || p.discount_pct + '% OFF'} → ${formatMoney(p.price * (1 - p.discount_pct/100))}</p>` : ''}
+                        ${referenceLineHtml(p.price, 'text-[10px] font-semibold text-emerald-700')}
+                        ${p.discount_pct > 0 ? `<p class="text-[10px] font-bold text-amber-600">${p.discount_label || p.discount_pct + '% OFF'} → ${formatMoney(p.price * (1 - p.discount_pct/100))}${formatReference(p.price * (1 - p.discount_pct/100)) ? ` · ${formatReference(p.price * (1 - p.discount_pct/100))}` : ''}</p>` : ''}
                         <p class="mt-0.5 text-[10px] ${outStock ? 'text-red-600 font-bold' : lowStock ? 'text-amber-600' : 'text-slate-500'}">
                             ${outStock
                                 ? 'Sin stock'

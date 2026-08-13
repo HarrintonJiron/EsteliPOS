@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\Product;
 use App\Models\Proforma;
 use App\Models\ProformaDetail;
+use App\Models\NumberSequence;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
@@ -34,18 +35,16 @@ class ProformaController extends Controller
 
     private function nextProformaNumber(): string
     {
-        $maxNumber = Proforma::query()
+        $minimum = Proforma::query()
             ->whereNotNull('proforma_number')
             ->pluck('proforma_number')
-            ->filter(fn ($value) => is_string($value) && preg_match('/^PRO-[0-9]+$/', $value) === 1)
-            ->map(function ($value) {
-                return (int) substr($value, 4);
-            })
-            ->max();
+            ->reduce(function (int $max, mixed $value): int {
+                return is_string($value) && preg_match('/^PRO-([0-9]+)$/', $value, $matches) === 1
+                    ? max($max, (int) $matches[1])
+                    : $max;
+            }, 0) + 1;
 
-        $next = (int) ($maxNumber ?? 0) + 1;
-
-        return 'PRO-'.str_pad((string) $next, 6, '0', STR_PAD_LEFT);
+        return NumberSequence::getNextAtLeast('proforma', $minimum);
     }
 
     public function index(Request $request)
@@ -247,14 +246,7 @@ class ProformaController extends Controller
                     $clientId = $genericClient->id;
                 }
 
-                // Determine next invoice number
-                $maxNum = Sale::query()
-                    ->whereNotNull('invoice_number')
-                    ->pluck('invoice_number')
-                    ->filter(fn ($value) => is_string($value) && preg_match('/^\d+$/', $value) === 1)
-                    ->map(fn ($value) => (int) $value)
-                    ->max();
-                $invoiceNumber = str_pad((string) ((int) ($maxNum ?? 0) + 1), 6, '0', STR_PAD_LEFT);
+                $invoiceNumber = NumberSequence::getNext('factura');
 
                 $status = $paymentType === 'credit' ? 'pending' : 'completed';
 

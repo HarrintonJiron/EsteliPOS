@@ -20,6 +20,16 @@
 /storage/pail
 /vendor
 /agroservicio
+/.playwright/
+/coverage/
+/playwright-report/
+/test-results/
+/storage/browser-qa/
+/deployment/parche*.zip
+/deployment/parche*.zip.sha256
+/deployment/produccion*.zip
+/deployment/EsteliPOSProduccion*.zip
+/deployment/EsteliPOSProduccion*.zip.sha256
 Homestead.json
 Homestead.yaml
 Thumbs.db

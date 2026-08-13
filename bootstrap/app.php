@@ -6,9 +6,13 @@ use App\Http\Middleware\CheckModule;
 use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\CheckRole;
 use App\Http\Middleware\EnsurePasswordIsChanged;
+use App\Services\ModuleAccessService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -20,10 +24,8 @@ return Application::configure(basePath: dirname(__DIR__))
         InstallProductionCommand::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->web(append: [
-            ApplySystemSettings::class,
-            EnsurePasswordIsChanged::class,
-        ]);
+        $middleware->web(prepend: [ApplySystemSettings::class]);
+        $middleware->web(append: [EnsurePasswordIsChanged::class]);
 
         $middleware->alias([
             'role' => CheckRole::class,
@@ -32,5 +34,31 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $redirectForbiddenRequest = function (Request $request) {
+            if ($request->expectsJson() || ! $request->user()) {
+                return null;
+            }
+
+            $destination = app(ModuleAccessService::class)->defaultHomeUrl($request->user());
+            if (rtrim($request->url(), '/') === rtrim($destination, '/')) {
+                $destination = route('access.unavailable');
+            }
+
+            return redirect()->to($destination)->with(
+                'error',
+                'No tienes permisos para realizar esa acción. Solo se muestran las funciones habilitadas para tu usuario.'
+            );
+        };
+
+        $exceptions->render(function (AuthorizationException $exception, Request $request) use ($redirectForbiddenRequest) {
+            return $redirectForbiddenRequest($request);
+        });
+
+        $exceptions->render(function (HttpExceptionInterface $exception, Request $request) use ($redirectForbiddenRequest) {
+            if ($exception->getStatusCode() !== 403) {
+                return null;
+            }
+
+            return $redirectForbiddenRequest($request);
+        });
     })->create();

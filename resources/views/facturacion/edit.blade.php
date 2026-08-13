@@ -270,7 +270,7 @@
                     </select>
                 </td>
                 <td class="px-4 py-2"><input type="number" name="items[${i}][quantity]" value="${item.quantity||1}" min="1" class="w-20"/></td>
-                <td class="px-4 py-2"><input type="number" step="0.01" name="items[${i}][price]" value="${item.price ?? (products[0]?.price ?? 0)}" class="w-28"/></td>
+                <td class="px-4 py-2"><input type="number" step="0.01" name="items[${i}][price]" value="${item.price ?? (products[0]?.price ?? 0)}" class="w-28 bg-slate-100" readonly title="El precio se valida con el catálogo del sistema"/></td>
                 <td class="px-4 py-2 row-subtotal">${formatMoney((item.quantity||1)*(item.price||0))}</td>
                 <td class="px-4 py-2 text-center"><button type="button" class="remove-row bg-red-500 text-white px-2 py-1 rounded text-xs">Eliminar</button></td>
             `;

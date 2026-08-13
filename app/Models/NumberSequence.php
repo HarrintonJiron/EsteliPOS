@@ -46,6 +46,8 @@ class NumberSequence extends Model
                 'factura' => ['prefix' => 'FAC-', 'padding' => 6],
                 'compra' => ['prefix' => 'COM-', 'padding' => 6],
                 'cotizacion' => ['prefix' => 'COT-', 'padding' => 6],
+                'proforma' => ['prefix' => 'PRO-', 'padding' => 6],
+                'reparacion' => ['prefix' => 'REP-', 'padding' => 6],
                 'recibo' => ['prefix' => 'REC-', 'padding' => 6],
                 'ajuste' => ['prefix' => 'AJU-', 'padding' => 6],
                 'asiento' => ['prefix' => 'POL-', 'padding' => 6],
@@ -61,6 +63,28 @@ class NumberSequence extends Model
             $sequence = static::byType($type)->active()->lockForUpdate()->first();
             if (! $sequence) {
                 throw new \RuntimeException("No existe una secuencia activa para: {$type}");
+            }
+
+            return $sequence->incrementNumber();
+        });
+    }
+
+    public static function getNextAtLeast(string $type, int $minimum): string
+    {
+        return DB::transaction(function () use ($type, $minimum): string {
+            $defaults = match ($type) {
+                'proforma' => ['prefix' => 'PRO-', 'padding' => 6],
+                'reparacion' => ['prefix' => 'REP-', 'padding' => 6],
+                default => throw new \InvalidArgumentException("Secuencia sin valores predeterminados: {$type}"),
+            };
+            static::firstOrCreate(['type' => $type], $defaults + [
+                'current_number' => 1,
+                'is_active' => true,
+            ]);
+            $sequence = static::byType($type)->active()->lockForUpdate()->firstOrFail();
+
+            if ($sequence->current_number < $minimum) {
+                $sequence->update(['current_number' => $minimum]);
             }
 
             return $sequence->incrementNumber();

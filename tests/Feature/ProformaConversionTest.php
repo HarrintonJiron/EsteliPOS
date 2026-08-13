@@ -41,6 +41,6 @@ test('converting a proforma without a client creates a generic client sale', fun
     expect($response->getTargetUrl())->toContain('/facturacion/');
     $this->assertDatabaseHas('sales', [
         'client_id' => $genericClient->id,
-        'invoice_number' => '000001',
+        'invoice_number' => 'FAC-000001',
     ]);
 });

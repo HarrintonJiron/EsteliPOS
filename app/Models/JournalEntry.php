@@ -10,12 +10,14 @@ class JournalEntry extends Model
     use HasFactory;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_POSTED = 'posted';
+
     public const STATUS_VOIDED = 'voided';
 
     protected $fillable = [
         'number', 'date', 'concept', 'reference', 'status',
-        'total_debit', 'total_credit', 'source_type', 'source_id',
+        'total_debit', 'total_credit', 'source_type', 'source_id', 'active_source_key',
         'user_id', 'posted_at', 'voided_at', 'notes',
     ];
 

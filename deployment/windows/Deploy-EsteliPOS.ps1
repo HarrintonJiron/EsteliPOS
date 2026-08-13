@@ -3,7 +3,7 @@ param(
     [int]$Port = 8080,
     [ValidateSet("Simple", "IIS")]
     [string]$ServerProfile = "IIS",
-    [int]$FastCgiMaxInstances = 4,
+    [int]$FastCgiMaxInstances = 2,
     [string]$AdminName = "Administrador",
     [string]$AdminEmail = "",
     [string]$ExternalBackupPath = "",
@@ -17,6 +17,7 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "EsteliPOS-InstallErrors.ps1")
 $ProjectRoot = Get-EsteliPOSProjectRoot
 $PhpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
+$PhpPath = if ($PhpCommand) { $PhpCommand.Source } else { "" }
 $InstallLogPath = Get-EsteliPOSInstallLogPath
 
 function Write-Step([string]$Message) {
@@ -64,7 +65,7 @@ try {
             . (Join-Path $PSScriptRoot "EsteliPOS-PHP.ps1")
             $PhpStatus = Ensure-EsteliPOSPhp -ServerProfile $ServerProfile -InstallDirectory $PhpInstallDirectory
             Write-InstallLogLine -LogPath $InstallLogPath -Line "PHP: $($PhpStatus.Version) en $($PhpStatus.PhpPath)"
-            $PhpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
+            $PhpPath = $PhpStatus.PhpPath
         } catch {
             Stop-WithError $_.Exception.Message -ExitCode 19
         }
@@ -76,17 +77,16 @@ try {
         Stop-WithError "La verificacion previa detecto problemas. Revise los mensajes FALLO arriba." -ExitCode 2
     }
 
-    if (-not $PhpCommand) {
+    if ([string]::IsNullOrWhiteSpace($PhpPath) -or -not (Test-Path $PhpPath)) {
         Stop-WithError "php.exe no esta en el PATH del sistema." -ExitCode 3
     }
 
-    $PhpPath = $PhpCommand.Source
     $PhpVersion = & $PhpPath -r "echo PHP_VERSION;"
     if ([version]$PhpVersion -lt [version]"8.4.1") {
         Stop-WithError "Version encontrada: $PhpVersion" -ExitCode 4
     }
 
-    $RequiredExtensions = @("ctype", "dom", "fileinfo", "gd", "mbstring", "openssl", "pdo_sqlite", "sqlite3", "tokenizer", "xml", "zip")
+    $RequiredExtensions = @("ctype", "curl", "dom", "fileinfo", "gd", "mbstring", "openssl", "pdo_sqlite", "sqlite3", "tokenizer", "xml", "zip")
     $LoadedExtensions = @(& $PhpPath -m | ForEach-Object { $_.Trim().ToLowerInvariant() })
     $MissingExtensions = @($RequiredExtensions | Where-Object { $LoadedExtensions -notcontains $_ })
     if ($MissingExtensions.Count -gt 0) {
@@ -112,6 +112,19 @@ try {
     }
     if ($Port -lt 1024 -or $Port -gt 65535) {
         Stop-WithError "Puerto indicado: $Port" -ExitCode 10
+    }
+
+    if ($ServerProfile -eq "Simple") {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Stop-EsteliPOS.ps1") -ServerProfile Simple
+        $RequestedPort = $Port
+        $Port = Get-EsteliPOSAvailablePort -PreferredPort $RequestedPort
+        if ($Port -eq 0) {
+            Stop-WithError "Windows bloqueo los puertos $RequestedPort a $($RequestedPort + 19)." -ExitCode 10
+        }
+        if ($Port -ne $RequestedPort) {
+            Write-Warning "Windows no permite usar el puerto $RequestedPort. EsteliPOS utilizara automaticamente el puerto $Port."
+            Write-InstallLogLine -LogPath $InstallLogPath -Line "Puerto $RequestedPort no enlazable; se selecciono $Port."
+        }
     }
 
     $LanAddress = Get-EsteliPOSLanAddress -PreferredAddress $LanAddress
@@ -165,8 +178,14 @@ try {
     New-Item -ItemType Directory -Force -Path (Join-Path $ProjectRoot "storage\logs") | Out-Null
     New-Item -ItemType Directory -Force -Path (Join-Path $ProjectRoot "storage\app\backups") | Out-Null
 
-    & $PhpPath artisan key:generate --force
-    if ($LASTEXITCODE -ne 0) { Stop-WithError "artisan key:generate devolvio codigo $LASTEXITCODE." -ExitCode 12 }
+    $AppKeyLine = Get-Content $EnvPath | Where-Object { $_ -match "^APP_KEY=" } | Select-Object -First 1
+    $ExistingAppKey = if ($AppKeyLine) { ($AppKeyLine -split "=", 2)[1].Trim() } else { "" }
+    if ([string]::IsNullOrWhiteSpace($ExistingAppKey)) {
+        & $PhpPath artisan key:generate --force
+        if ($LASTEXITCODE -ne 0) { Stop-WithError "artisan key:generate devolvio codigo $LASTEXITCODE." -ExitCode 12 }
+    } else {
+        Write-Host "Se conserva la clave APP_KEY existente."
+    }
 
     if ([string]::IsNullOrWhiteSpace($AdminEmail)) {
         $AdminEmail = Read-Host "Correo del administrador"
@@ -256,7 +275,7 @@ try {
     $FirewallName = "EsteliPOS LAN - Puerto $Port"
     if (-not (Get-NetFirewallRule -DisplayName $FirewallName -ErrorAction SilentlyContinue)) {
         New-NetFirewallRule -DisplayName $FirewallName -Direction Inbound -Action Allow -Protocol TCP `
-            -LocalPort $Port -Profile Private -RemoteAddress LocalSubnet | Out-Null
+            -LocalPort $Port -Profile Private,Domain -RemoteAddress LocalSubnet | Out-Null
     }
 
     $BrowserCandidates = @(

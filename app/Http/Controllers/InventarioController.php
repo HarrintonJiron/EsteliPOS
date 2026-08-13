@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreUnitRequest;
+use App\Http\Requests\UpdateUnitRequest;
 use App\Models\Category;
 use App\Models\PriceList;
 use App\Models\Product;
@@ -12,6 +14,7 @@ use App\Models\Warehouse;
 use App\Services\InventoryService;
 use App\Services\PricingService;
 use App\Services\UnitConversionService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -193,9 +196,11 @@ class InventarioController extends Controller
     public function bulk(): View
     {
         $categories = Category::orderBy('name')->get();
+        $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
+        $warehouses = $this->activeWarehouses();
         $suggestedCode = $this->inventory->nextProductCode();
 
-        return view('inventario.bulk', compact('categories', 'suggestedCode'));
+        return view('inventario.bulk', compact('categories', 'units', 'warehouses', 'suggestedCode'));
     }
 
     public function bulkStore(Request $request): RedirectResponse
@@ -203,6 +208,7 @@ class InventarioController extends Controller
         $validated = $request->validate([
             'default_category_id' => 'required|exists:categories,id',
             'default_unit' => 'required|string|max:50',
+            'default_warehouse_id' => 'nullable|exists:warehouses,id',
             'default_low_stock' => 'nullable|integer|min:1',
             'products' => 'required|json',
         ]);
@@ -215,8 +221,9 @@ class InventarioController extends Controller
         $created = 0;
         $errors = [];
         $userId = $request->user()?->id;
+        $warehouseId = isset($validated['default_warehouse_id']) ? (int) $validated['default_warehouse_id'] : null;
 
-        DB::transaction(function () use ($rows, $validated, &$created, &$errors, $userId) {
+        DB::transaction(function () use ($rows, $validated, &$created, &$errors, $userId, $warehouseId) {
             foreach ($rows as $index => $row) {
                 $line = $index + 1;
                 $name = trim($row['name'] ?? '');
@@ -232,6 +239,8 @@ class InventarioController extends Controller
                 }
 
                 $stock = max(0, (int) ($row['stock'] ?? 0));
+                $unitAbbreviation = $row['unit'] ?? $validated['default_unit'];
+                $baseUnit = Unit::query()->where('abbreviation', $unitAbbreviation)->first();
                 $product = Product::create([
                     'category_id' => (int) ($row['category_id'] ?? $validated['default_category_id']),
                     'name' => $name,
@@ -239,7 +248,8 @@ class InventarioController extends Controller
                     'purchase_price' => (float) ($row['purchase_price'] ?? 0),
                     'sale_price' => (float) ($row['sale_price'] ?? 0),
                     'stock' => 0,
-                    'unit' => $row['unit'] ?? $validated['default_unit'],
+                    'unit' => $baseUnit?->abbreviation ?? $unitAbbreviation,
+                    'base_unit_id' => $baseUnit?->id,
                     'low_stock_threshold' => (int) ($row['low_stock_threshold'] ?? $validated['default_low_stock'] ?? 10),
                     'location' => $row['location'] ?? null,
                     'status' => 'active',
@@ -251,7 +261,8 @@ class InventarioController extends Controller
                         $stock,
                         'bulk_import',
                         'Stock inicial — carga masiva',
-                        $userId
+                        $userId,
+                        $warehouseId,
                     );
                 }
 
@@ -295,8 +306,9 @@ class InventarioController extends Controller
         $categories = Category::orderBy('name')->get();
         $taxes = Tax::where('is_active', true)->orderBy('rate')->get();
         $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
+        $warehouses = $this->activeWarehouses();
 
-        return view('inventario.create', compact('categories', 'taxes', 'units'));
+        return view('inventario.create', compact('categories', 'taxes', 'units', 'warehouses'));
     }
 
     public function quick(): View
@@ -304,8 +316,10 @@ class InventarioController extends Controller
         $categories = Category::orderBy('name')->get();
         $defaultCategory = $categories->first();
         $wholesaleList = $this->pricing->wholesaleList();
+        $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
+        $warehouses = $this->activeWarehouses();
 
-        return view('inventario.quick', compact('categories', 'defaultCategory', 'wholesaleList'));
+        return view('inventario.quick', compact('categories', 'defaultCategory', 'wholesaleList', 'units', 'warehouses'));
     }
 
     public function lookupCode(string $code): JsonResponse
@@ -341,6 +355,8 @@ class InventarioController extends Controller
             'stock' => 'nullable|integer|min:0',
             'category_id' => 'nullable|exists:categories,id',
             'unit' => 'nullable|string|max:50',
+            'base_unit_id' => 'nullable|exists:units,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
             'low_stock_threshold' => 'nullable|integer|min:1',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
         ]);
@@ -353,6 +369,8 @@ class InventarioController extends Controller
         $purchasePrice = $validated['purchase_price'] ?? round($validated['sale_price'] * 0.85, 2);
         $stock = (int) ($validated['stock'] ?? 0);
         $imagePath = $request->file('image')?->store('products', 'public');
+        $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
+        $warehouseId = isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null;
 
         try {
             $product = Product::create([
@@ -362,7 +380,8 @@ class InventarioController extends Controller
                 'purchase_price' => $purchasePrice,
                 'sale_price' => $validated['sale_price'],
                 'stock' => 0,
-                'unit' => $validated['unit'] ?? 'unidad',
+                'unit' => $baseUnit?->abbreviation ?? ($validated['unit'] ?? 'und'),
+                'base_unit_id' => $baseUnit?->id,
                 'low_stock_threshold' => $validated['low_stock_threshold'] ?? 5,
                 'status' => 'active',
                 'image_url' => $imagePath,
@@ -374,7 +393,8 @@ class InventarioController extends Controller
                     $stock,
                     'quick_entry',
                     'Stock inicial — registro rápido',
-                    $request->user()?->id
+                    $request->user()?->id,
+                    $warehouseId,
                 );
             }
 
@@ -424,10 +444,11 @@ class InventarioController extends Controller
             'sale_price' => 'required|numeric|min:0',
             'tax_id' => 'nullable|exists:taxes,id',
             'stock' => 'required|numeric|min:0',
-            'unit' => 'required|string|max:50',
-            'base_unit_id' => 'nullable|exists:units,id',
+            'unit' => 'nullable|string|max:50',
+            'base_unit_id' => 'required|exists:units,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
             'lot' => 'nullable|string|max:100',
-            'expiry_date' => 'nullable|date|after:today',
+            'expiry_date' => 'nullable|date',
             'location' => 'nullable|string|max:255',
             'low_stock_threshold' => 'nullable|integer|min:1',
             'registration_number' => 'nullable|string|max:100',
@@ -441,12 +462,14 @@ class InventarioController extends Controller
         ]);
 
         $stock = (float) $validated['stock'];
+        $warehouseId = isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null;
         $validated['stock'] = 0;
-        unset($validated['image']);
+        unset($validated['image'], $validated['warehouse_id']);
+        $validated['expiry_date'] = $validated['expiry_date'] ?? null;
 
-        if (empty($validated['base_unit_id']) && ! empty($validated['unit'])) {
-            $validated['base_unit_id'] = Unit::query()->where('abbreviation', $validated['unit'])->value('id');
-        }
+        $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
+        $validated['base_unit_id'] = $baseUnit?->id;
+        $validated['unit'] = $baseUnit?->abbreviation ?? ($validated['unit'] ?? 'und');
 
         $imagePath = $request->file('image')?->store('products', 'public');
         if ($imagePath) {
@@ -462,7 +485,8 @@ class InventarioController extends Controller
                     $stock,
                     'initial_stock',
                     'Stock inicial al crear producto',
-                    $request->user()?->id
+                    $request->user()?->id,
+                    $warehouseId,
                 );
             }
 
@@ -486,6 +510,17 @@ class InventarioController extends Controller
             'inventoryMovements.user',
             'inventoryMovements.warehouse',
         ])->findOrFail($id);
+
+        if (! $product->base_unit_id) {
+            $resolvedUnitId = $this->resolveBaseUnit(null, $product->unit)?->id;
+            if ($resolvedUnitId) {
+                $product->forceFill([
+                    'base_unit_id' => $resolvedUnitId,
+                    'unit' => Unit::query()->whereKey($resolvedUnitId)->value('abbreviation') ?? $product->unit,
+                ])->saveQuietly();
+                $product->load('baseUnit');
+            }
+        }
 
         $movements = $product->inventoryMovements()
             ->with('user')
@@ -524,25 +559,61 @@ class InventarioController extends Controller
 
     public function units(): View
     {
-        $units = Unit::query()->withCount('products')->orderBy('unit_type')->orderBy('name')->get();
+        $units = Unit::query()->withCount(['products', 'conversions'])->orderBy('unit_type')->orderBy('name')->get();
+        $unitTypes = Unit::typeOptions();
 
-        return view('inventario.units.index', compact('units'));
+        return view('inventario.units.index', compact('units', 'unitTypes'));
+    }
+
+    public function storeUnit(StoreUnitRequest $request): RedirectResponse
+    {
+        Unit::query()->create($request->validated());
+
+        return redirect()->route('inventario.units.index')->with('success', 'Unidad de medida creada.');
+    }
+
+    public function updateUnit(UpdateUnitRequest $request, Unit $unit): RedirectResponse
+    {
+        $unit->update($request->validated());
+
+        return redirect()->route('inventario.units.index')->with('success', 'Unidad de medida actualizada.');
     }
 
     public function storeUnitConversion(Request $request, int $id): RedirectResponse
     {
-        $product = Product::findOrFail($id);
+        $product = Product::with('baseUnit')->findOrFail($id);
+
+        if (! $product->base_unit_id) {
+            return back()->withErrors([
+                'unit_id' => 'Define primero la unidad base del producto (ej. quintal) antes de agregar conversiones.',
+            ]);
+        }
 
         $validated = $request->validate([
             'unit_id' => 'required|exists:units,id',
-            'factor_to_base' => 'required|numeric|min:0.000001',
+            // 1 unidad alternativa = N unidades base (ej. 1 carga = 2 qq)
+            'equals_base_qty' => 'nullable|numeric|min:0.000001',
+            'factor_to_base' => 'nullable|numeric|min:0.000001',
             'sale_price' => 'nullable|numeric|min:0',
             'is_default_sale_unit' => 'boolean',
+        ], [
+            'unit_id.required' => 'Selecciona la unidad alternativa (ej. carga).',
+            'equals_base_qty.min' => 'Indica cuántas unidades base equivalen a 1 de la unidad elegida.',
         ]);
+
+        $factorToBase = (float) ($validated['equals_base_qty'] ?? $validated['factor_to_base'] ?? 0);
+
+        if ($factorToBase <= 0) {
+            return back()->withErrors([
+                'equals_base_qty' => 'Ejemplo: si 1 carga = 2 quintales, escribe 2.',
+            ])->withInput();
+        }
 
         if ((int) $validated['unit_id'] === (int) $product->base_unit_id) {
             return back()->withErrors(['unit_id' => 'La unidad alternativa debe ser diferente a la unidad base.']);
         }
+
+        $altUnit = Unit::query()->find($validated['unit_id']);
 
         if ($request->boolean('is_default_sale_unit')) {
             $product->unitConversions()->update(['is_default_sale_unit' => false]);
@@ -551,13 +622,19 @@ class InventarioController extends Controller
         ProductUnitConversion::query()->updateOrCreate(
             ['product_id' => $product->id, 'unit_id' => $validated['unit_id']],
             [
-                'factor_to_base' => $validated['factor_to_base'],
+                'factor_to_base' => $factorToBase,
                 'sale_price' => $validated['sale_price'] ?? null,
                 'is_default_sale_unit' => $request->boolean('is_default_sale_unit'),
             ]
         );
 
-        return back()->with('success', 'Conversión de unidad registrada.');
+        $baseLabel = $product->baseUnitLabel();
+        $altLabel = $altUnit?->abbreviation ?? 'und';
+
+        return back()->with(
+            'success',
+            "Conversión guardada: 1 {$altLabel} = {$factorToBase} {$baseLabel}."
+        );
     }
 
     public function destroyUnitConversion(int $id, ProductUnitConversion $conversion): RedirectResponse
@@ -611,8 +688,8 @@ class InventarioController extends Controller
             'purchase_price' => 'required|numeric|min:0',
             'sale_price' => 'required|numeric|min:0',
             'tax_id' => 'nullable|exists:taxes,id',
-            'unit' => 'required|string|max:50',
-            'base_unit_id' => 'nullable|exists:units,id',
+            'unit' => 'nullable|string|max:50',
+            'base_unit_id' => 'required|exists:units,id',
             'lot' => 'nullable|string|max:100',
             'expiry_date' => 'nullable|date',
             'location' => 'nullable|string|max:255',
@@ -640,9 +717,9 @@ class InventarioController extends Controller
             $validated['image_url'] = null;
         }
 
-        if (empty($validated['base_unit_id']) && ! empty($validated['unit'])) {
-            $validated['base_unit_id'] = Unit::query()->where('abbreviation', $validated['unit'])->value('id');
-        }
+        $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
+        $validated['base_unit_id'] = $baseUnit?->id;
+        $validated['unit'] = $baseUnit?->abbreviation ?? ($validated['unit'] ?? $product->unit);
 
         try {
             $product->update($validated);
@@ -730,6 +807,38 @@ class InventarioController extends Controller
             ->pluck('products.id')
             ->map(fn ($id) => (int) $id)
             ->all();
+    }
+
+    /**
+     * @return Collection<int, Warehouse>
+     */
+    private function activeWarehouses()
+    {
+        return Warehouse::query()
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function resolveBaseUnit(mixed $baseUnitId, ?string $abbreviation = null): ?Unit
+    {
+        if ($baseUnitId) {
+            return Unit::query()->find((int) $baseUnitId);
+        }
+
+        if ($abbreviation) {
+            $normalized = strtolower(trim($abbreviation));
+            $aliases = ['unidad' => 'und', 'unid' => 'und', 'u' => 'und'];
+            $candidates = array_values(array_unique([
+                $aliases[$normalized] ?? $normalized,
+                $normalized,
+            ]));
+
+            return Unit::query()->whereIn('abbreviation', $candidates)->first();
+        }
+
+        return Unit::query()->where('abbreviation', 'und')->first();
     }
 
     private function buildStats(): array

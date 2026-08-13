@@ -42,4 +42,24 @@ class Unit extends Model
             default => 'Unidad',
         };
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function typeOptions(): array
+    {
+        return [
+            'count' => 'Unidad / conteo',
+            'weight' => 'Peso',
+            'volume' => 'Volumen',
+            'length' => 'Longitud',
+            'area' => 'Área',
+            'package' => 'Empaque',
+        ];
+    }
+
+    public function displayLabel(): string
+    {
+        return "{$this->name} ({$this->abbreviation})";
+    }
 }

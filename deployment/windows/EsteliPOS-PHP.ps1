@@ -1,5 +1,5 @@
 $Script:EsteliPOSRequiredPhpExtensions = @(
-    "ctype", "dom", "fileinfo", "gd", "mbstring", "openssl", "pdo_sqlite", "sqlite3", "tokenizer", "xml", "zip"
+    "ctype", "curl", "dom", "fileinfo", "gd", "mbstring", "openssl", "pdo_sqlite", "sqlite3", "tokenizer", "xml", "zip"
 )
 
 $Script:EsteliPOSMinimumPhpVersion = [version]"8.4.1"
@@ -7,6 +7,10 @@ $Script:EsteliPOSDefaultPhpDirectory = "C:\EsteliPOS\PHP"
 $Script:EsteliPOSPhpReleasesJsonUrl = "https://windows.php.net/downloads/releases/releases.json"
 $Script:EsteliPOSPhpDownloadBaseUrl = "https://windows.php.net/downloads/releases/"
 $Script:EsteliPOSVcRedistUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+$Script:EsteliPOSBundledPhpSha256 = "7b57fc9840273ab153834d0e2bd06e0bcf4fead36e381182b4b8fe9cedff3174"
+$Script:EsteliPOSBundledVcRedistSha256 = "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b"
+
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 function Get-EsteliPOSBundledPhpZipPath {
     $AssetsDirectory = Join-Path $PSScriptRoot "assets"
@@ -86,18 +90,33 @@ function Get-EsteliPOSPhpDownloadCandidate {
 
 function Install-EsteliPOSVcRedistributable {
     $Bundled = Join-Path $PSScriptRoot "assets\vc_redist.x64.exe"
-    $InstallerPath = if (Test-Path $Bundled) { $Bundled } else { Join-Path $env:TEMP "vc_redist.x64.exe" }
+    $UsesBundledInstaller = Test-Path $Bundled
+    $InstallerPath = if ($UsesBundledInstaller) { $Bundled } else { Join-Path $env:TEMP "vc_redist.x64.exe" }
 
-    if (-not (Test-Path $InstallerPath)) {
+    if ($UsesBundledInstaller) {
+        $Hash = (Get-FileHash -Path $InstallerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($Hash -ne $Script:EsteliPOSBundledVcRedistSha256) {
+            throw "El instalador incluido de Visual C++ no coincide con el SHA256 esperado."
+        }
+        Write-Host "Instalando Microsoft Visual C++ Redistributable incluido..."
+    } elseif (-not (Test-Path $InstallerPath)) {
         Write-Host "Descargando Microsoft Visual C++ Redistributable (requerido por PHP)..."
         Invoke-WebRequest -Uri $Script:EsteliPOSVcRedistUrl -OutFile $InstallerPath -UseBasicParsing
     } else {
         Write-Host "Instalando Microsoft Visual C++ Redistributable..."
     }
 
+    $Signature = Get-AuthenticodeSignature -FilePath $InstallerPath
+    if ($Signature.Status -ne "Valid" -or $Signature.SignerCertificate.Subject -notmatch "Microsoft Corporation") {
+        throw "El instalador de Visual C++ no tiene una firma digital valida de Microsoft."
+    }
+
     $Process = Start-Process -FilePath $InstallerPath -ArgumentList "/install", "/quiet", "/norestart" -PassThru -Wait
-    if ($Process.ExitCode -gt 3010) {
-        Write-Warning "vc_redist.x64.exe termino con codigo $($Process.ExitCode). Si PHP falla al iniciar, instale VC++ manualmente."
+    if ($Process.ExitCode -notin @(0, 1638, 1641, 3010)) {
+        throw "Visual C++ Redistributable termino con codigo $($Process.ExitCode)."
+    }
+    if ($Process.ExitCode -in @(1641, 3010)) {
+        Write-Warning "Visual C++ Redistributable requiere reiniciar Windows. Termine la instalacion y reinicie el equipo."
     }
 }
 
@@ -128,6 +147,15 @@ function Set-EsteliPOSPhpIni {
         $Name = ($SnippetLine -split "=", 2)[0].Trim()
         if ($Name -eq "extension_dir") {
             $Replacement = "extension_dir = `"$ExtDirectory`""
+        } elseif ($Name -eq "extension") {
+            $ExtensionName = ($SnippetLine -split "=", 2)[1].Trim().Trim('"')
+            $ExtensionPattern = "^\s*;?\s*extension\s*=\s*`"?(?:php_)?$([regex]::Escape($ExtensionName))(?:\.dll)?`"?\s*$"
+            if ($Lines -match $ExtensionPattern) {
+                $Lines = $Lines -replace $ExtensionPattern, "extension=$ExtensionName"
+            } else {
+                $Lines += "extension=$ExtensionName"
+            }
+            continue
         } else {
             $Replacement = $SnippetLine
         }
@@ -139,13 +167,26 @@ function Set-EsteliPOSPhpIni {
         }
     }
 
-    [System.IO.File]::WriteAllLines($IniPath, $Lines, (New-Object System.Text.UTF8Encoding($false)))
+    $SeenExtensions = @{}
+    $NormalizedLines = foreach ($Line in $Lines) {
+        if ($Line -match "^\s*extension\s*=\s*`"?([^`"]+)`"?\s*$") {
+            $ExtensionKey = $Matches[1].Trim().ToLowerInvariant()
+            if ($SeenExtensions.ContainsKey($ExtensionKey)) {
+                continue
+            }
+            $SeenExtensions[$ExtensionKey] = $true
+        }
+        $Line
+    }
+
+    [System.IO.File]::WriteAllLines($IniPath, $NormalizedLines, (New-Object System.Text.UTF8Encoding($false)))
 }
 
 function Test-EsteliPOSPhpInstallation {
     param(
         [ValidateSet("Simple", "IIS")]
-        [string]$ServerProfile = "IIS"
+        [string]$ServerProfile = "IIS",
+        [string]$PhpPath = ""
     )
 
     $Result = [ordered]@{
@@ -157,32 +198,47 @@ function Test-EsteliPOSPhpInstallation {
         MissingExtensions = @()
     }
 
-    $Php = Get-Command php.exe -ErrorAction SilentlyContinue
-    if (-not $Php) {
+    if ([string]::IsNullOrWhiteSpace($PhpPath)) {
+        $PhpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
+        $PhpPath = if ($PhpCommand) { $PhpCommand.Source } else { "" }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($PhpPath) -or -not (Test-Path $PhpPath)) {
         $Result.Issues.Add("PHP no esta en el PATH.")
         return [pscustomobject]$Result
     }
 
-    $Result.PhpPath = $Php.Source
+    $Result.PhpPath = $PhpPath
     try {
-        $Result.Version = & $Php.Source -r "echo PHP_VERSION;"
+        $VersionOutput = @(& $PhpPath -n -r "echo PHP_VERSION;" 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            throw "php.exe termino con codigo $LASTEXITCODE`: $($VersionOutput -join ' ')"
+        }
+        $Result.Version = ($VersionOutput | Select-Object -Last 1).ToString().Trim()
     } catch {
         $Result.Issues.Add("PHP no pudo ejecutarse: $($_.Exception.Message)")
         return [pscustomobject]$Result
     }
 
-    if ([version]$Result.Version -lt $Script:EsteliPOSMinimumPhpVersion) {
+    try {
+        $DetectedVersion = [version]$Result.Version
+    } catch {
+        $Result.Issues.Add("PHP devolvio una version no valida: '$($Result.Version)'.")
+        return [pscustomobject]$Result
+    }
+
+    if ($DetectedVersion -lt $Script:EsteliPOSMinimumPhpVersion) {
         $Result.Issues.Add("Se requiere PHP $($Script:EsteliPOSMinimumPhpVersion) o superior. Version actual: $($Result.Version).")
     }
 
-    $Loaded = @(& $Php.Source -m | ForEach-Object { $_.Trim().ToLowerInvariant() })
+    $Loaded = @(& $PhpPath -m 2>$null | ForEach-Object { $_.Trim().ToLowerInvariant() })
     $Result.MissingExtensions = @($Script:EsteliPOSRequiredPhpExtensions | Where-Object { $Loaded -notcontains $_ })
     foreach ($Extension in $Result.MissingExtensions) {
         $Result.Issues.Add("Falta extension PHP: $Extension")
     }
 
     if ($ServerProfile -eq "IIS") {
-        $PhpCgiPath = Join-Path (Split-Path $Php.Source -Parent) "php-cgi.exe"
+        $PhpCgiPath = Join-Path (Split-Path $PhpPath -Parent) "php-cgi.exe"
         if (Test-Path $PhpCgiPath) {
             $Result.PhpCgiPath = $PhpCgiPath
         } else {
@@ -234,6 +290,10 @@ function Install-EsteliPOSPhpThreadSafe {
 
     if ($BundledZip) {
         Write-Host "Usando PHP Thread Safe incluido en el paquete: $BundledZip"
+        $BundledHash = (Get-FileHash -Path $BundledZip -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($BundledHash -ne $Script:EsteliPOSBundledPhpSha256) {
+            throw "El paquete PHP incluido no coincide con el SHA256 esperado."
+        }
         $ArchivePath = $BundledZip
     } else {
         $Candidate = Get-EsteliPOSPhpDownloadCandidate
@@ -272,7 +332,16 @@ function Install-EsteliPOSPhpThreadSafe {
     Set-EsteliPOSPhpIni -PhpDirectory $InstallDirectory -ProjectRoot $ProjectRoot
     Add-EsteliPOSDirectoryToMachinePath -Directory $InstallDirectory
 
-    $Version = & (Join-Path $InstallDirectory "php.exe") -r "echo PHP_VERSION;"
+    $InstalledPhpPath = Join-Path $InstallDirectory "php.exe"
+    $VersionOutput = @(& $InstalledPhpPath -n -r "echo PHP_VERSION;" 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw @"
+PHP fue extraido, pero php.exe no pudo iniciar (codigo $LASTEXITCODE).
+Detalle: $($VersionOutput -join ' ')
+Reinicie Windows y vuelva a ejecutar el instalador. Si persiste, reinstale Microsoft Visual C++ Redistributable x64.
+"@
+    }
+    $Version = ($VersionOutput | Select-Object -Last 1).ToString().Trim()
     Write-Host "PHP Thread Safe $Version instalado en $InstallDirectory" -ForegroundColor Green
 
     return [pscustomobject]@{
@@ -300,12 +369,21 @@ function Ensure-EsteliPOSPhp {
         return $Status
     }
 
+    $HasSupportedVersion = $false
+    if (-not [string]::IsNullOrWhiteSpace($Status.Version)) {
+        try {
+            $HasSupportedVersion = [version]$Status.Version -ge $Script:EsteliPOSMinimumPhpVersion
+        } catch {
+            $HasSupportedVersion = $false
+        }
+    }
+
     $NeedsThreadSafe = $ServerProfile -eq "IIS" -and (
         -not $Status.PhpPath -or
         ($Status.Issues | Where-Object { $_ -match "php-cgi" })
     )
     $NeedsInstall = -not $Status.PhpPath -or
-        ([version]$Status.Version -lt $Script:EsteliPOSMinimumPhpVersion) -or
+        (-not $HasSupportedVersion) -or
         ($Status.MissingExtensions.Count -gt 0) -or
         $NeedsThreadSafe -or
         $ForceReinstall
@@ -314,7 +392,7 @@ function Ensure-EsteliPOSPhp {
         return $Status
     }
 
-    if ($ServerProfile -eq "Simple" -and $Status.PhpPath -and -not $NeedsThreadSafe -and $Status.MissingExtensions.Count -eq 0 -and [version]$Status.Version -ge $Script:EsteliPOSMinimumPhpVersion) {
+    if ($ServerProfile -eq "Simple" -and $Status.PhpPath -and -not $NeedsThreadSafe -and $Status.MissingExtensions.Count -eq 0 -and $HasSupportedVersion) {
         Write-Host "PHP actual es suficiente para perfil Simple." -ForegroundColor Green
         return $Status
     }
@@ -332,7 +410,8 @@ function Ensure-EsteliPOSPhp {
         Write-Host "Reconfigurando php.ini en $InstallDirectory ..."
         Set-EsteliPOSPhpIni -PhpDirectory $InstallDirectory -ProjectRoot $ProjectRoot
         Add-EsteliPOSDirectoryToMachinePath -Directory $InstallDirectory
-        $Status = Test-EsteliPOSPhpInstallation -ServerProfile $ServerProfile
+        $ManagedPhpPath = Join-Path $InstallDirectory "php.exe"
+        $Status = Test-EsteliPOSPhpInstallation -ServerProfile $ServerProfile -PhpPath $ManagedPhpPath
         if ($Status.Ready) {
             return $Status
         }
@@ -340,7 +419,8 @@ function Ensure-EsteliPOSPhp {
 
     Install-EsteliPOSPhpThreadSafe -InstallDirectory $InstallDirectory -ProjectRoot $ProjectRoot | Out-Null
 
-    $FinalStatus = Test-EsteliPOSPhpInstallation -ServerProfile $ServerProfile
+    $ManagedPhpPath = Join-Path $InstallDirectory "php.exe"
+    $FinalStatus = Test-EsteliPOSPhpInstallation -ServerProfile $ServerProfile -PhpPath $ManagedPhpPath
     if (-not $FinalStatus.Ready) {
         throw "PHP se instalo pero la verificacion sigue fallando:`n- $($FinalStatus.Issues -join "`n- ")"
     }

@@ -1,7 +1,62 @@
 . (Join-Path $PSScriptRoot "EsteliPOS-IIS.ps1")
 
+function Test-EsteliPOSProjectRoot([string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        return $false
+    }
+
+    return (Test-Path -LiteralPath (Join-Path $Path "artisan")) -and (
+        (Test-Path -LiteralPath (Join-Path $Path "composer.json")) -or
+        (Test-Path -LiteralPath (Join-Path $Path ".env")) -or
+        (Test-Path -LiteralPath (Join-Path $Path "database"))
+    )
+}
+
 function Get-EsteliPOSProjectRoot {
-    return (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+    $candidates = @(
+        (Join-Path $PSScriptRoot "..\.."),
+        $PSScriptRoot,
+        (Join-Path $PSScriptRoot ".."),
+        (Get-Location).Path
+    )
+
+    foreach ($candidate in $candidates) {
+        try {
+            $resolved = (Resolve-Path -LiteralPath $candidate -ErrorAction Stop).Path
+        } catch {
+            continue
+        }
+
+        if (Test-EsteliPOSProjectRoot $resolved) {
+            return $resolved
+        }
+    }
+
+    $cursor = $PSScriptRoot
+    for ($i = 0; $i -lt 6; $i++) {
+        if (Test-EsteliPOSProjectRoot $cursor) {
+            return (Resolve-Path -LiteralPath $cursor).Path
+        }
+        $parent = Split-Path -Parent $cursor
+        if ([string]::IsNullOrWhiteSpace($parent) -or $parent -eq $cursor) {
+            break
+        }
+        $cursor = $parent
+    }
+
+    throw "No se encontro la carpeta de instalacion de EsteliPOS (artisan/composer.json). Ejecute el actualizador desde C:\Northlink\EsteliPOS."
+}
+
+function Get-EsteliPOSWindowsScriptsDir {
+    $projectRoot = Get-EsteliPOSProjectRoot
+    $preferred = Join-Path $projectRoot "deployment\windows"
+    if (Test-Path -LiteralPath (Join-Path $preferred "EsteliPOS-Common.ps1")) {
+        return $preferred
+    }
+    if (Test-Path -LiteralPath (Join-Path $PSScriptRoot "EsteliPOS-Common.ps1")) {
+        return $PSScriptRoot
+    }
+    throw "No se encontro deployment\windows\EsteliPOS-Common.ps1 dentro de la instalacion."
 }
 
 function Get-EsteliPOSDeploymentConfigPath {
@@ -65,10 +120,44 @@ function Get-EsteliPOSMacAddress {
     return (Get-NetAdapter -InterfaceIndex $Interface.InterfaceIndex -ErrorAction SilentlyContinue).MacAddress
 }
 
+function Test-EsteliPOSPortBindable {
+    param([Parameter(Mandatory = $true)][int]$Port)
+
+    $Listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Any, $Port)
+    try {
+        $Listener.Start()
+
+        return $true
+    } catch {
+        return $false
+    } finally {
+        $Listener.Stop()
+    }
+}
+
+function Get-EsteliPOSAvailablePort {
+    param(
+        [Parameter(Mandatory = $true)][int]$PreferredPort,
+        [int]$MaximumAttempts = 20
+    )
+
+    for ($Offset = 0; $Offset -lt $MaximumAttempts; $Offset++) {
+        $Candidate = $PreferredPort + $Offset
+        if ($Candidate -gt 65535) {
+            break
+        }
+        if (Test-EsteliPOSPortBindable -Port $Candidate) {
+            return $Candidate
+        }
+    }
+
+    return 0
+}
+
 function Test-EsteliPOSFrontendAssets {
     param([string]$ProjectRoot)
 
-    return (Test-Path (Join-Path $ProjectRoot "public\build\manifest.json")) -or
+    return (Test-Path (Join-Path $ProjectRoot "public\build\manifest.json")) -and
         (Test-Path (Join-Path $ProjectRoot "public\css\app-ui.css"))
 }
 
@@ -127,7 +216,7 @@ function Register-EsteliPOSServerTask {
         -StartWhenAvailable `
         -RestartCount 3 `
         -RestartInterval (New-TimeSpan -Minutes 1)
-    $Principal = New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Highest
+    $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 
     Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger @($LogonTrigger, $BootTrigger) -Settings $Settings -Principal $Principal -Description "Inicia el servidor local de EsteliPOS para acceso LAN" -Force | Out-Null
 }

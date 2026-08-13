@@ -133,8 +133,10 @@ $Script:EsteliPOSInstallErrorCatalog = @{
         Solutions = @(
             "IIS ya se instalo (codigo 20 es otra fase). El error 15 falla al crear el sitio o modulos."
             "Revise storage\logs\install-*.log: el mensaje dira 'URL Rewrite', 'FastCGI', 'Puerto' o 'Handler PHP'."
-            "Causa mas comun: falta IIS URL Rewrite. Coloque urlrewrite2.exe en deployment\windows\assets\ y reinstale."
-            "Sin internet: descargue urlrewrite2.exe en otro PC, copielo a assets\ y ejecute como administrador."
+            "Si el error menciona Add-WebHandler: active IIS-ManagementScriptingTools (Scripts and Tools) y vuelva a instalar. El instalador actual tambien usa appcmd como respaldo."
+            "Como administrador: Enable-WindowsOptionalFeature -Online -FeatureName IIS-ManagementScriptingTools -All"
+            "El paquete incluye IIS URL Rewrite 2.1 x64. Ejecute deployment\windows\assets\rewrite_amd64_en-US.msi como administrador si fallo la instalacion automatica."
+            "Si IIS se activo en esta misma ejecucion, reinicie Windows y vuelva a instalar para completar el registro del modulo."
             "Despues de instalar URL Rewrite ejecute: iisreset /restart"
             "Si dice puerto ocupado: netstat -ano | findstr :8080 y cierre el proceso indicado."
             "Si Windows pidio reinicio tras instalar IIS, reinicie el PC antes de volver a instalar."

@@ -15,6 +15,7 @@ use App\Services\AccountingService;
 use App\Services\CreditService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
+use App\Services\PurchaseCostingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,7 @@ class FacturacionController extends Controller
         private InventoryService $inventoryService,
         private CreditService $creditService,
         private PosCatalogService $posCatalog,
+        private PurchaseCostingService $purchaseCosting,
     ) {}
 
     private function nextInvoiceNumber(): string
@@ -118,11 +120,20 @@ class FacturacionController extends Controller
                 $subtotalExcl = 0;
                 $taxTotal = 0;
                 $taxIncluded = (bool) $sale->tax_included;
+                $priceListId = $client?->price_list_id;
 
                 foreach ($data['items'] as $item) {
-                    $product = Product::find($item['product_id']);
-                    $rate = $product?->effectiveTaxRate() ?? Tax::defaultRate();
-                    $lineGross = $item['quantity'] * $item['price'];
+                    $product = Product::query()
+                        ->with(['baseUnit', 'unitConversions'])
+                        ->findOrFail($item['product_id']);
+                    $line = $this->posCatalog->resolveSaleLine(
+                        $product,
+                        (float) $item['quantity'],
+                        isset($item['unit_id']) ? (int) $item['unit_id'] : null,
+                        $priceListId,
+                    );
+                    $rate = $product->effectiveTaxRate();
+                    $lineGross = $line['quantity'] * $line['price'];
 
                     if ($taxIncluded) {
                         $lineNet = $rate > 0 ? ($lineGross / (1 + $rate)) : $lineGross;
@@ -135,9 +146,9 @@ class FacturacionController extends Controller
                     SaleDetail::create([
                         'sale_id' => $sale->id,
                         'product_id' => $item['product_id'],
-                        'unit_id' => $item['unit_id'] ?? null,
-                        'quantity' => $item['quantity'],
-                        'price' => $item['price'],
+                        'unit_id' => $line['unit_id'],
+                        'quantity' => $line['quantity'],
+                        'price' => $line['price'],
                         'subtotal' => $lineGross,
                         'tax_rate' => $rate,
                         'tax_amount' => round($lineTax, 2),
@@ -145,7 +156,7 @@ class FacturacionController extends Controller
 
                     $this->inventoryService->stockOut(
                         $product,
-                        (float) ($item['base_quantity'] ?? $item['quantity']),
+                        $line['base_quantity'],
                         'sale:'.$sale->id,
                         'Salida por factura #'.($sale->invoice_number ?? $sale->id),
                         $sale->user_id,
@@ -270,11 +281,20 @@ class FacturacionController extends Controller
                 $subtotalExcl = 0;
                 $taxTotal = 0;
                 $taxIncluded = (bool) $sale->tax_included;
+                $priceListId = $client?->price_list_id;
 
                 foreach ($data['items'] as $item) {
-                    $product = Product::find($item['product_id']);
-                    $rate = $product?->effectiveTaxRate() ?? Tax::defaultRate();
-                    $lineGross = $item['quantity'] * $item['price'];
+                    $product = Product::query()
+                        ->with(['baseUnit', 'unitConversions'])
+                        ->findOrFail($item['product_id']);
+                    $line = $this->posCatalog->resolveSaleLine(
+                        $product,
+                        (float) $item['quantity'],
+                        isset($item['unit_id']) ? (int) $item['unit_id'] : null,
+                        $priceListId,
+                    );
+                    $rate = $product->effectiveTaxRate();
+                    $lineGross = $line['quantity'] * $line['price'];
 
                     if ($taxIncluded) {
                         $lineNet = $rate > 0 ? ($lineGross / (1 + $rate)) : $lineGross;
@@ -287,9 +307,9 @@ class FacturacionController extends Controller
                     SaleDetail::create([
                         'sale_id' => $sale->id,
                         'product_id' => $item['product_id'],
-                        'unit_id' => $item['unit_id'] ?? null,
-                        'quantity' => $item['quantity'],
-                        'price' => $item['price'],
+                        'unit_id' => $line['unit_id'],
+                        'quantity' => $line['quantity'],
+                        'price' => $line['price'],
                         'subtotal' => $lineGross,
                         'tax_rate' => $rate,
                         'tax_amount' => round($lineTax, 2),
@@ -297,7 +317,7 @@ class FacturacionController extends Controller
 
                     $this->inventoryService->stockOut(
                         $product,
-                        (float) ($item['base_quantity'] ?? $item['quantity']),
+                        $line['base_quantity'],
                         'sale:'.$sale->id,
                         'Salida por factura #'.($sale->invoice_number ?? $sale->id).' (editada)',
                         $sale->user_id,
@@ -378,8 +398,17 @@ class FacturacionController extends Controller
         $categories = Category::orderBy('name')->get();
         $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'code', 'is_default']);
         $defaultTaxRate = Tax::defaultRate();
+        $posReferenceFx = $this->purchaseCosting->posReferenceFx();
 
-        return view('facturacion.pos', compact('products', 'clients', 'categories', 'warehouses', 'defaultWarehouseId', 'defaultTaxRate'));
+        return view('facturacion.pos', compact(
+            'products',
+            'clients',
+            'categories',
+            'warehouses',
+            'defaultWarehouseId',
+            'defaultTaxRate',
+            'posReferenceFx',
+        ));
     }
 
     public function posProducts(Request $request)

@@ -124,9 +124,7 @@ class RepairOrder extends Model
 
     public function balance(): float
     {
-        $totalAfterDiscount = (float) $this->total - (float) ($this->discount_amount ?? 0);
-
-        return max(0, $totalAfterDiscount - (float) $this->advance_payment);
+        return max(0, (float) $this->total - (float) $this->advance_payment);
     }
 
     public function formattedReceivedTime(): ?string

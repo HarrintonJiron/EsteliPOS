@@ -12,18 +12,11 @@ class ExchangeRateController extends Controller
 
     public function index()
     {
-        $rates = ExchangeRate::where('is_active', true)
-            ->where('effective_date', '<=', now()->toDateString())
-            ->orderBy('effective_date', 'desc')
+        $rates = ExchangeRate::query()
+            ->orderByDesc('effective_date')
             ->orderBy('from_currency')
             ->orderBy('to_currency')
             ->get();
-
-        $rates = $rates->groupBy(['from_currency', 'to_currency'])
-            ->map(function ($group) {
-                return $group->first();
-            })
-            ->values();
 
         return view('settings.exchange-rates.index', compact('rates'));
     }

@@ -12,6 +12,7 @@ use App\Models\OperationalExpense;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
+use Carbon\CarbonInterface;
 use Database\Seeders\AccountingSeeder;
 use Illuminate\Support\Facades\DB;
 
@@ -19,15 +20,25 @@ class AccountingService
 {
     // Códigos del catálogo de cuentas (ChartOfAccountsSeeder) usados por la integración automática.
     private const ACC_CAJA = '1.1.01';
+
     private const ACC_BANCO = '1.1.02';
+
     private const ACC_CLIENTES = '1.1.04';
+
     private const ACC_INVENTARIO = '1.1.05';
+
     private const ACC_PROVEEDORES = '2.1.01';
+
     private const ACC_IVA_POR_PAGAR = '2.1.02';
+
     private const ACC_IVA_CREDITO_FISCAL = '1.1.06';
+
     private const ACC_VENTAS = '4.1';
+
     private const ACC_AJUSTE_FALTANTE = '5.2';
+
     private const ACC_GASTOS_OPERATIVOS = '6.1.99';
+
     private const ACC_OTROS_INGRESOS = '7.2';
 
     /**
@@ -50,6 +61,9 @@ class AccountingService
                 'status' => JournalEntry::STATUS_DRAFT,
                 'source_type' => $data['source_type'] ?? null,
                 'source_id' => $data['source_id'] ?? null,
+                'active_source_key' => isset($data['source_type'], $data['source_id'])
+                    ? $data['source_type'].':'.$data['source_id']
+                    : null,
                 'user_id' => $data['user_id'] ?? auth()->id(),
                 'notes' => $data['notes'] ?? null,
                 'total_debit' => 0,
@@ -118,8 +132,9 @@ class AccountingService
 
         $entry->update([
             'status' => JournalEntry::STATUS_VOIDED,
+            'active_source_key' => null,
             'voided_at' => now(),
-            'notes' => trim(($entry->notes ? $entry->notes . ' | ' : '') . 'Anulado: ' . ($reason ?? 'sin motivo especificado')),
+            'notes' => trim(($entry->notes ? $entry->notes.' | ' : '').'Anulado: '.($reason ?? 'sin motivo especificado')),
         ]);
 
         return $entry;
@@ -155,7 +170,7 @@ class AccountingService
             default => $this->account(self::ACC_CAJA),
         };
 
-        $reference = $sale->invoice_number ?? ('#' . $sale->id);
+        $reference = $sale->invoice_number ?? ('#'.$sale->id);
 
         $lines = [
             ['account_id' => $debitAccount->id, 'detail' => "Venta {$reference}", 'debit' => $sale->total, 'credit' => 0],
@@ -167,7 +182,7 @@ class AccountingService
         }
 
         return $this->createEntry([
-            'date' => $sale->date instanceof \Carbon\CarbonInterface ? $sale->date->toDateString() : $sale->date,
+            'date' => $sale->date instanceof CarbonInterface ? $sale->date->toDateString() : $sale->date,
             'concept' => "Venta {$reference}",
             'reference' => $reference,
             'source_type' => Sale::class,
@@ -182,11 +197,11 @@ class AccountingService
      */
     public function recordPurchase(Purchase $purchase): ?JournalEntry
     {
-        if ($purchase->status === 'canceled' || (float) $purchase->total <= 0) {
+        if ($purchase->status !== 'completed' || (float) $purchase->total <= 0) {
             return null;
         }
 
-        $reference = 'COMPRA-' . $purchase->id;
+        $reference = 'COMPRA-'.$purchase->id;
         $subtotal = (float) $purchase->subtotal;
         $taxTotal = (float) $purchase->tax_total;
 
@@ -206,7 +221,7 @@ class AccountingService
         $lines[] = ['account_id' => $this->account(self::ACC_PROVEEDORES)->id, 'detail' => $reference, 'debit' => 0, 'credit' => $purchase->total];
 
         return $this->createEntry([
-            'date' => $purchase->date instanceof \Carbon\CarbonInterface ? $purchase->date->toDateString() : $purchase->date,
+            'date' => $purchase->date instanceof CarbonInterface ? $purchase->date->toDateString() : $purchase->date,
             'concept' => "Compra a proveedor #{$purchase->supplier_id}",
             'reference' => $reference,
             'source_type' => Purchase::class,
@@ -231,7 +246,7 @@ class AccountingService
         ];
 
         return $this->createEntry([
-            'date' => $payment->payment_date instanceof \Carbon\CarbonInterface ? $payment->payment_date->toDateString() : now()->toDateString(),
+            'date' => $payment->payment_date instanceof CarbonInterface ? $payment->payment_date->toDateString() : now()->toDateString(),
             'concept' => 'Abono a crédito de cliente',
             'reference' => $payment->reference_number,
             'source_type' => CreditPayment::class,
@@ -270,7 +285,7 @@ class AccountingService
 
         return $this->createEntry([
             'date' => now()->toDateString(),
-            'concept' => 'Ajuste de inventario: ' . $adjustment->reason,
+            'concept' => 'Ajuste de inventario: '.$adjustment->reason,
             'reference' => $adjustment->reference,
             'source_type' => InventoryAdjustment::class,
             'source_id' => $adjustment->id,
@@ -297,11 +312,11 @@ class AccountingService
             ? Account::query()->findOrFail($expense->account_id)
             : $this->account(self::ACC_GASTOS_OPERATIVOS);
 
-        $reference = 'GASTO-' . $expense->id;
+        $reference = 'GASTO-'.$expense->id;
 
         return $this->createEntry([
-            'date' => $expense->expense_date instanceof \Carbon\CarbonInterface ? $expense->expense_date->toDateString() : $expense->expense_date,
-            'concept' => 'Gasto operativo: ' . $expense->description,
+            'date' => $expense->expense_date instanceof CarbonInterface ? $expense->expense_date->toDateString() : $expense->expense_date,
+            'concept' => 'Gasto operativo: '.$expense->description,
             'reference' => $reference,
             'source_type' => OperationalExpense::class,
             'source_id' => $expense->id,
@@ -381,7 +396,7 @@ class AccountingService
         }
 
         if (round($totalDebit, 2) !== round($totalCredit, 2)) {
-            throw new \InvalidArgumentException('El asiento está desbalanceado: Debe (' . number_format($totalDebit, 2) . ') ≠ Haber (' . number_format($totalCredit, 2) . ').');
+            throw new \InvalidArgumentException('El asiento está desbalanceado: Debe ('.number_format($totalDebit, 2).') ≠ Haber ('.number_format($totalCredit, 2).').');
         }
     }
 }

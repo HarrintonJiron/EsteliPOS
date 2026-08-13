@@ -1,38 +1,64 @@
 ESTELIPOS - INSTALACION LOCAL PARA WINDOWS
 Northlink Microsystem
-Version: 2.0.0-final
+Version: 1.0.0-final
 
 REQUISITOS
 - Windows 10 u 11 de 64 bits (Pro, Enterprise o Education para perfil IIS).
-- PHP 8.4.1 o superior (Thread Safe para IIS). El instalador puede instalarlo solo.
+- PHP 8.4.1 o superior (Thread Safe para IIS). PHP 8.4.24 x64 viene incluido.
 - IIS: el instalador lo activa automaticamente en la opcion 1 (no hace falta instalarlo antes).
-- Extensiones PHP: ctype, dom, fileinfo, gd, mbstring, openssl, pdo_sqlite,
+- Extensiones PHP: ctype, curl, dom, fileinfo, gd, mbstring, openssl, pdo_sqlite,
   sqlite3, tokenizer, xml y zip.
 - El paquete ZIP oficial generado desde deployment/build-release.sh.
+- IIS URL Rewrite 2.1 x64 y Visual C++ Redistributable vienen incluidos.
+- La instalacion de PHP, Visual C++ y URL Rewrite funciona sin internet.
 - Microsoft Edge o Google Chrome.
 - PC servidor y tablets/celulares en la misma red privada (no red de invitados).
 
 PAQUETE PARA ENVIAR AL TECNICO
-- deployment\produccion2.0.zip  (contiene EsteliPOSProduccion2.0.zip + checksum SHA256)
-1. Extraiga deployment\produccion2.0.zip (o el archivo produccion2.0.zip recibido)
-2. Verifique SHA256 con EsteliPOSProduccion2.0.zip.sha256 si lo desea
-3. Extraiga EsteliPOSProduccion2.0.zip en una ruta permanente, por ejemplo:
-   C:\Northlink\EsteliPOS
-4. Doble clic en Instalar-EsteliPOS.bat (en la raiz del paquete extraido)
-   O clic derecho -> Ejecutar como administrador
-   El instalador muestra un menu:
-   - Opcion 1: IIS (instala IIS, PHP TS, URL Rewrite y sitio en puerto 8080)
-   - Opcion 2: Simple (1 caja, sin IIS)
-   - Opcion 3: Solo verificar PHP sin instalar
-5. Si algo falla, la ventana indica la FASE, CODIGO DE ERROR y
-   POSIBLES SOLUCIONES paso a paso para el tecnico.
-6. Revise tambien: storage\logs\install-*.log
-7. Indique correo y contrasena del administrador cuando se solicite.
-8. Al finalizar se abrira EsteliPOS y la hoja de acceso en red.
+- deployment\parche1.0.zip
+  (contiene INSTALAR.bat + EsteliPOSProduccion1.0.zip + checksum SHA256)
+
+FORMA MAS FACIL (RECOMENDADA)
+1. Extraiga parche1.0.zip en cualquier carpeta (USB o Escritorio)
+2. Doble clic en INSTALAR.bat  (acepte UAC / administrador)
+3. Elija:
+   - Instalar IIS (recomendado) si es PC nueva
+   - Actualizar si ya hay datos en C:\Northlink\EsteliPOS
+4. Espere "LISTO". Se crea C:\Northlink\EsteliPOS y accesos en el escritorio.
+5. Si falla: lea el codigo de error en pantalla y storage\logs\install-*.log
+
+FORMA MANUAL (alternativa)
+1. Extraiga EsteliPOSProduccion1.0.zip en C:\Northlink\EsteliPOS
+2. Ejecute Instalar-EsteliPOS.bat como administrador
+   - Opcion 1: IIS (instala IIS, PHP TS, URL Rewrite, puerto 8080)
+   - Opcion 2: Simple (1 caja)
+   - Opcion 3: Solo verificar PHP
+3. Indique correo/contrasena de administrador cuando se solicite.
+
+ACTUALIZAR SIN PERDER DATOS (PC YA INSTALADA)
+1. Copie deployment\parche1.0.zip a la PC del cliente (USB o red),
+   por ejemplo: C:\Northlink\parche1.0.zip
+2. RECOMENDADO: pase la ruta completa del ZIP NUEVO (evita usar un ZIP viejo):
+   C:\Northlink\EsteliPOS\Actualizar-EsteliPOS.bat C:\Northlink\parche1.0.zip
+   Si lo ejecuta sin ruta, pedira confirmar el ZIP mas reciente detectado.
+3. El actualizador:
+   - Muestra version actual y version del paquete
+   - Crea respaldo en backups\YYYYMMDD_HHMMSS
+   - Conserva .env, database.sqlite y storage\app
+   - REEMPLAZA codigo/vistas/vendor/assets (no mezcla carpetas viejas)
+   - Ejecuta php artisan migrate --force (no borra ventas/inventario)
+   - Limpia cache y reinicia IIS/app pool
+   - Si falla, restaura automaticamente la version anterior
+4. Al terminar debe mostrar: Version nueva: 1.0.0-final
+5. En el navegador use Ctrl+F5 (o ventana privada) si aun ve la pantalla vieja.
+6. No use Instalar-EsteliPOS.bat sobre una instalacion con datos si solo quiere actualizar.
+7. Borre ZIPs viejos (produccion2.0.zip, etc.) de C:\Northlink para no confundirse.
 
 ATAJOS
-- Instalar-EsteliPOS.bat              -> instalador con menu (raiz del paquete extraido)
+- Instalar-EsteliPOS.bat              -> instalador NUEVO con menu (raiz del paquete)
+- Actualizar-EsteliPOS.bat            -> actualiza instalacion existente sin perder datos
 - deployment\windows\Install-EsteliPOS.bat -> mismo instalador
+- deployment\windows\Actualizar-EsteliPOS.bat -> mismo actualizador
 
 CODIGOS DE ERROR COMUNES (instalacion)
   1  = ejecutar como administrador
@@ -72,14 +98,15 @@ RESPALDOS
 - Backup-EsteliPOS.ps1 crea una copia inmediata.
 
 HERRAMIENTAS
-- Instalar-EsteliPOS.bat           -> instalador con menu (raiz del paquete)
+- Instalar-EsteliPOS.bat           -> instalacion NUEVA con menu (raiz del paquete)
+- Actualizar-EsteliPOS.bat         -> actualizacion sin perder datos (raiz del paquete)
 - Install-EsteliPOS.bat            -> instalador con menu y mensajes de error
 - Show-InstallError.ps1            -> muestra soluciones por codigo de error
 - EsteliPOS-PHP.ps1               -> descarga/instala PHP TS en C:\EsteliPOS\PHP
 - Verify-PHP-EsteliPOS.ps1        -> comprobar PHP antes de instalar
 - Deploy-EsteliPOS.ps1            -> instalacion completa con parametros
 - Test-EsteliPOSInstallation.ps1  -> pruebas automaticas post-instalacion
-- Update-EsteliPOS.ps1            -> actualizar version con respaldo
+- Update-EsteliPOS.ps1            -> motor de actualizacion con respaldo y rollback
 - Start-EsteliPOS.ps1             -> iniciar servidor
 - Stop-EsteliPOS.ps1              -> detener servidor
 - Show-NetworkAccess.ps1          -> abrir hoja URL + QR

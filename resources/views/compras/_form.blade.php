@@ -5,6 +5,11 @@
     'suppliers',
     'warehouses',
     'categories' => collect(),
+    'units' => collect(),
+    'currencies' => ['NIO', 'USD', 'EUR'],
+    'companyCurrency' => 'NIO',
+    'companySymbol' => 'C$',
+    'exchangeRates' => [],
     'initialItems' => [],
     'title',
     'submitLabel' => 'Registrar compra',
@@ -16,6 +21,11 @@
         'warehouse_id',
         $purchase?->warehouse_id ?? $warehouses->firstWhere('is_default', true)?->id ?? $warehouses->first()?->id,
     );
+    $defaultCurrency = old('currency', $purchase?->currency ?? $companyCurrency);
+    $defaultExchangeRate = old(
+        'exchange_rate',
+        $purchase?->exchange_rate ?? ($exchangeRates[$defaultCurrency] ?? 1),
+    );
 @endphp
 
 <div
@@ -25,6 +35,9 @@
     data-search-url="{{ route('compras.products.search') }}"
     data-quick-store-url="{{ route('compras.products.quick-store') }}"
     data-next-code-url="{{ route('compras.products.next-code') }}"
+    data-company-currency="{{ $companyCurrency }}"
+    data-company-symbol="{{ $companySymbol }}"
+    data-exchange-rates='@json($exchangeRates)'
 >
     <form
         action="{{ $action }}"
@@ -40,6 +53,11 @@
         {{-- Panel lateral: contexto y totales --}}
         <aside class="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white lg:w-[340px] lg:border-b-0 lg:border-r">
             <div class="border-b border-slate-100 px-5 py-4">
+                <x-ui.back-button
+                    :href="$isEdit ? route('compras.show', $purchase->id) : route('compras.index')"
+                    label="Regresar"
+                    class="mb-3"
+                />
                 <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     {{ $isEdit ? 'Editar compra' : 'Nueva compra' }}
                 </p>
@@ -108,6 +126,40 @@
                     </select>
                 </div>
 
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="currency" class="mb-1 block text-xs font-medium text-slate-500">Moneda</label>
+                        <select name="currency" id="currency" class="select-field" required>
+                            @foreach($currencies as $currency)
+                                <option value="{{ $currency }}" @selected($defaultCurrency === $currency)>{{ $currency }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label for="exchange_rate" class="mb-1 block text-xs font-medium text-slate-500">T.C. → {{ $companyCurrency }}</label>
+                        <input
+                            type="number"
+                            name="exchange_rate"
+                            id="exchange_rate"
+                            min="0.000001"
+                            step="0.000001"
+                            value="{{ $defaultExchangeRate }}"
+                            class="input-field"
+                            required
+                        />
+                    </div>
+                </div>
+                <p id="exchangeHint" class="text-[11px] text-slate-500">
+                    Contabilidad e inventario siempre en {{ $companySymbol }} ({{ $companyCurrency }}).
+                </p>
+                @if(empty($exchangeRates['USD'] ?? null))
+                    <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                        Configura USD→{{ $companyCurrency }} en
+                        <a href="{{ route('settings.exchange-rates.index') }}" class="font-semibold underline">Tipos de cambio</a>
+                        para comprar en dólares.
+                    </p>
+                @endif
+
                 <div class="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
                     <p class="font-medium text-slate-700">Atajos</p>
                     <p class="mt-1"><kbd class="rounded bg-white px-1.5 py-0.5 shadow-sm">/</kbd> buscar producto</p>
@@ -122,12 +174,16 @@
                         <span id="purchaseLineCount" class="font-medium text-slate-800">0</span>
                     </div>
                     <div class="flex justify-between text-slate-600">
-                        <span>Unidades</span>
+                        <span>Cantidad</span>
                         <span id="purchaseUnitCount" class="font-medium text-slate-800">0</span>
                     </div>
+                    <div class="flex justify-between text-slate-600" id="foreignTotalRow">
+                        <span>Total moneda compra</span>
+                        <span id="purchaseForeignTotal" class="font-medium text-slate-800">—</span>
+                    </div>
                     <div class="flex justify-between border-t border-slate-200 pt-2">
-                        <span class="font-semibold text-slate-700">Total estimado</span>
-                        <span id="purchaseTotal" class="text-2xl font-bold text-slate-900">C$ 0.00</span>
+                        <span class="font-semibold text-slate-700">Total {{ $companySymbol }}</span>
+                        <span id="purchaseTotal" class="text-2xl font-bold text-slate-900">{{ $companySymbol }} 0.00</span>
                     </div>
                 </div>
 
@@ -225,6 +281,15 @@
                     </div>
                 </div>
 
+                <div>
+                    <label for="quickProductUnit" class="mb-1 block text-xs font-medium text-slate-500">Unidad base</label>
+                    <select id="quickProductUnit" name="base_unit_id" class="select-field">
+                        @foreach($units as $unit)
+                            <option value="{{ $unit->id }}" @selected($unit->abbreviation === 'und')>{{ $unit->name }} ({{ $unit->abbreviation }})</option>
+                        @endforeach
+                    </select>
+                </div>
+
                 @if($categories->isNotEmpty())
                     <div>
                         <label for="quickProductCategory" class="mb-1 block text-xs font-medium text-slate-500">Categoría</label>
@@ -254,6 +319,11 @@
     const app = document.getElementById('purchaseApp');
     const form = document.getElementById('purchaseForm');
     const supplierSelect = document.getElementById('supplier_id');
+    const currencySelect = document.getElementById('currency');
+    const exchangeRateInput = document.getElementById('exchange_rate');
+    const exchangeHint = document.getElementById('exchangeHint');
+    const foreignTotalRow = document.getElementById('foreignTotalRow');
+    const foreignTotalEl = document.getElementById('purchaseForeignTotal');
     const searchInput = document.getElementById('productSearch');
     const searchResults = document.getElementById('searchResults');
     const searchHint = document.getElementById('searchHint');
@@ -266,6 +336,9 @@
     const searchUrl = app.dataset.searchUrl;
     const quickStoreUrl = app.dataset.quickStoreUrl;
     const nextCodeUrl = app.dataset.nextCodeUrl;
+    const companyCurrency = app.dataset.companyCurrency || 'NIO';
+    const companySymbol = app.dataset.companySymbol || 'C$';
+    const catalogRates = JSON.parse(app.dataset.exchangeRates || '{}');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 
     const quickModal = document.getElementById('quickProductModal');
@@ -280,6 +353,7 @@
     const quickPurchaseInput = document.getElementById('quickProductPurchasePrice');
     const quickSaleInput = document.getElementById('quickProductSalePrice');
     const quickCategoryInput = document.getElementById('quickProductCategory');
+    const quickUnitInput = document.getElementById('quickProductUnit');
 
     let items = JSON.parse(app.dataset.initialItems || '[]');
     let searchCache = [];
@@ -287,7 +361,39 @@
     let activeResultIndex = -1;
     let lastSearchTerm = '';
 
-    const money = (value) => `C$ ${Number(value || 0).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const currencySymbol = (code) => {
+        if (code === 'USD') return 'US$';
+        if (code === 'EUR') return '€';
+        return companySymbol;
+    };
+
+    const money = (value, code = null) => {
+        const symbol = currencySymbol(code || currencySelect.value || companyCurrency);
+        return `${symbol} ${Number(value || 0).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
+    const currentRate = () => Math.max(0.000001, parseFloat(exchangeRateInput.value) || 1);
+
+    function syncExchangeRateFromCatalog(force = false) {
+        const currency = currencySelect.value;
+        const suggested = catalogRates[currency];
+        if (currency === companyCurrency) {
+            exchangeRateInput.value = '1';
+            exchangeRateInput.readOnly = true;
+        } else {
+            exchangeRateInput.readOnly = false;
+            if (force || !exchangeRateInput.value || Number(exchangeRateInput.value) === 1) {
+                if (suggested) {
+                    exchangeRateInput.value = suggested;
+                }
+            }
+        }
+        exchangeHint.textContent = currency === companyCurrency
+            ? `Compra en ${companyCurrency}. Totales contables en ${companySymbol}.`
+            : `1 ${currency} = ${currentRate()} ${companyCurrency}. Inventario y contabilidad en ${companySymbol}.`;
+        foreignTotalRow.classList.toggle('hidden', currency === companyCurrency);
+        renderLines();
+    }
 
     function updateSearchState() {
         searchHint.textContent = supplierSelect.value
@@ -331,7 +437,7 @@
                     <p class="truncate font-medium text-slate-800">${escapeHtml(product.name)}</p>
                     <p class="text-xs text-slate-500">${escapeHtml(product.code)}${product.has_supplier_price ? ' · costo proveedor' : ''}</p>
                 </div>
-                <span class="shrink-0 text-sm font-semibold text-emerald-700">${money(product.price)}</span>
+                <span class="shrink-0 text-sm font-semibold text-emerald-700">${money(product.price, companyCurrency)}</span>
             </button>
         `).join('');
 
@@ -372,14 +478,21 @@
         const existing = items.find((item) => item.id === product.id);
 
         if (existing) {
-            existing.quantity += 1;
+            existing.quantity = Number((existing.quantity + 1).toFixed(4));
+            if (!existing.units?.length && product.units?.length) {
+                existing.units = product.units;
+            }
         } else {
+            const units = product.units || [];
+            const defaultUnitId = product.base_unit_id || units[0]?.id || null;
             items.push({
                 id: product.id,
                 name: product.name,
                 code: product.code,
                 quantity: 1,
                 price: Number(product.price) || 0,
+                unit_id: defaultUnitId,
+                units,
             });
         }
 
@@ -396,31 +509,49 @@
 
     function updateItem(index, field, value) {
         if (field === 'quantity') {
-            items[index].quantity = Math.max(1, parseInt(value, 10) || 1);
+            items[index].quantity = Math.max(0.0001, parseFloat(value) || 0.0001);
         }
 
         if (field === 'price') {
             items[index].price = Math.max(0, parseFloat(value) || 0);
         }
 
+        if (field === 'unit_id') {
+            items[index].unit_id = value ? Number(value) : null;
+        }
+
         renderLines();
     }
 
     function stepQty(index, delta) {
-        items[index].quantity = Math.max(1, items[index].quantity + delta);
+        items[index].quantity = Math.max(0.0001, Number((items[index].quantity + delta).toFixed(4)));
         renderLines();
+    }
+
+    function unitOptionsHtml(item) {
+        const units = item.units || [];
+        if (!units.length) {
+            return `<option value="">Base</option>`;
+        }
+
+        return units.map((unit) => `
+            <option value="${unit.id}" ${Number(item.unit_id) === Number(unit.id) ? 'selected' : ''}>
+                ${escapeHtml(unit.abbreviation)}
+            </option>
+        `).join('');
     }
 
     function renderLines() {
         linesContainer.innerHTML = '';
 
-        let total = 0;
-        let units = 0;
+        let foreignTotal = 0;
+        let qtyTotal = 0;
+        const rate = currentRate();
 
         items.forEach((item, index) => {
             const subtotal = item.quantity * item.price;
-            total += subtotal;
-            units += item.quantity;
+            foreignTotal += subtotal;
+            qtyTotal += item.quantity;
 
             const row = document.createElement('div');
             row.className = 'rounded-xl border border-slate-200 bg-white p-3 shadow-sm';
@@ -434,25 +565,31 @@
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
-                <div class="mt-3 grid grid-cols-[auto_1fr_1fr_auto] items-end gap-3">
+                <div class="mt-3 grid grid-cols-2 items-end gap-3 sm:grid-cols-[auto_7rem_1fr_auto]">
                     <div>
                         <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Cant.</p>
                         <div class="flex items-center rounded-lg border border-slate-200 bg-slate-50">
                             <button type="button" data-step="${index}" data-delta="-1" class="px-2.5 py-1.5 text-slate-600 hover:text-slate-900">−</button>
-                            <input type="number" min="1" value="${item.quantity}" data-qty="${index}" class="w-14 border-0 bg-transparent py-1.5 text-center text-sm font-semibold focus:ring-0" />
+                            <input type="number" min="0.0001" step="0.0001" value="${item.quantity}" data-qty="${index}" class="w-16 border-0 bg-transparent py-1.5 text-center text-sm font-semibold focus:ring-0" />
                             <button type="button" data-step="${index}" data-delta="1" class="px-2.5 py-1.5 text-slate-600 hover:text-slate-900">+</button>
                         </div>
                     </div>
                     <div>
-                        <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Costo unit.</p>
+                        <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Unidad</p>
+                        <select data-unit="${index}" class="select-field py-1.5 text-sm">${unitOptionsHtml(item)}</select>
+                    </div>
+                    <div>
+                        <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Costo (${currencySelect.value})</p>
                         <input type="number" min="0" step="0.01" value="${item.price}" data-price="${index}" class="input-field py-1.5 text-sm" />
                     </div>
                     <div class="text-right">
                         <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Subtotal</p>
                         <p class="text-sm font-bold text-slate-800">${money(subtotal)}</p>
+                        ${currencySelect.value !== companyCurrency ? `<p class="text-[10px] text-slate-500">${money(subtotal * rate, companyCurrency)}</p>` : ''}
                     </div>
                 </div>
                 <input type="hidden" name="items[${index}][product_id]" value="${item.id}" />
+                <input type="hidden" name="items[${index}][unit_id]" value="${item.unit_id || ''}" />
                 <input type="hidden" name="items[${index}][quantity]" value="${item.quantity}" />
                 <input type="hidden" name="items[${index}][price]" value="${item.price}" />
             `;
@@ -476,10 +613,15 @@
             input.addEventListener('change', (event) => updateItem(Number(input.dataset.price), 'price', event.target.value));
         });
 
+        linesContainer.querySelectorAll('[data-unit]').forEach((select) => {
+            select.addEventListener('change', (event) => updateItem(Number(select.dataset.unit), 'unit_id', event.target.value));
+        });
+
         emptyState.classList.toggle('hidden', items.length > 0);
         lineCountEl.textContent = String(items.length);
-        unitCountEl.textContent = String(units);
-        totalEl.textContent = money(total);
+        unitCountEl.textContent = Number(qtyTotal.toFixed(4)).toString();
+        foreignTotalEl.textContent = money(foreignTotal);
+        totalEl.textContent = money(foreignTotal * rate, companyCurrency);
         submitBtn.disabled = items.length === 0;
     }
 
@@ -488,6 +630,14 @@
         if (searchInput.value.trim().length >= 2) {
             runSearch(searchInput.value.trim());
         }
+    });
+
+    currencySelect.addEventListener('change', () => syncExchangeRateFromCatalog(true));
+    exchangeRateInput.addEventListener('input', () => {
+        exchangeHint.textContent = currencySelect.value === companyCurrency
+            ? `Compra en ${companyCurrency}. Totales contables en ${companySymbol}.`
+            : `1 ${currencySelect.value} = ${currentRate()} ${companyCurrency}. Inventario y contabilidad en ${companySymbol}.`;
+        renderLines();
     });
 
     searchInput.addEventListener('input', () => {
@@ -541,7 +691,7 @@
     form.addEventListener('submit', (event) => {
         linesContainer.querySelectorAll('[data-qty]').forEach((input) => {
             const index = Number(input.dataset.qty);
-            items[index].quantity = Math.max(1, parseInt(input.value, 10) || 1);
+            items[index].quantity = Math.max(0.0001, parseFloat(input.value) || 0.0001);
         });
 
         linesContainer.querySelectorAll('[data-price]').forEach((input) => {
@@ -549,9 +699,20 @@
             items[index].price = Math.max(0, parseFloat(input.value) || 0);
         });
 
+        linesContainer.querySelectorAll('[data-unit]').forEach((select) => {
+            const index = Number(select.dataset.unit);
+            items[index].unit_id = select.value ? Number(select.value) : null;
+        });
+
         if (!items.length) {
             event.preventDefault();
             alert('Agrega al menos un producto a la compra.');
+            return;
+        }
+
+        if (currencySelect.value !== companyCurrency && !(parseFloat(exchangeRateInput.value) > 0)) {
+            event.preventDefault();
+            alert('Indica el tipo de cambio para convertir a ' + companyCurrency + '.');
             return;
         }
 
@@ -651,6 +812,7 @@
             sale_price: quickSaleInput.value.trim() ? parseFloat(quickSaleInput.value) : null,
             category_id: quickCategoryInput?.value ?? null,
             supplier_id: supplierSelect.value || null,
+            base_unit_id: quickUnitInput?.value || null,
         };
 
         try {
@@ -686,6 +848,7 @@
     });
 
     updateSearchState();
+    syncExchangeRateFromCatalog(false);
     renderLines();
 })();
 </script>

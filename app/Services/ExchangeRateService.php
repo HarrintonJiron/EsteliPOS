@@ -12,6 +12,8 @@ class ExchangeRateService
      */
     public function getCurrentRate(string $from, string $to): ?ExchangeRate
     {
+        $from = strtoupper($from);
+        $to = strtoupper($to);
         $cacheKey = "exchange_rate_{$from}_{$to}";
 
         return Cache::remember($cacheKey, now()->addHours(1), function () use ($from, $to) {
@@ -20,17 +22,45 @@ class ExchangeRateService
     }
 
     /**
+     * Multiplicador efectivo (directo o inverso) cacheado.
+     */
+    public function resolveMultiplier(string $from, string $to): ?float
+    {
+        $from = strtoupper($from);
+        $to = strtoupper($to);
+
+        if ($from === $to) {
+            return 1.0;
+        }
+
+        $cacheKey = "exchange_multiplier_{$from}_{$to}";
+        $cached = Cache::get($cacheKey);
+
+        if (is_numeric($cached)) {
+            return (float) $cached;
+        }
+
+        $multiplier = ExchangeRate::resolveMultiplier($from, $to);
+
+        if ($multiplier !== null) {
+            Cache::put($cacheKey, $multiplier, now()->addHours(1));
+        }
+
+        return $multiplier;
+    }
+
+    /**
      * Convertir un monto de una moneda a otra
      */
     public function convert(float $amount, string $from, string $to): float
     {
-        $rate = $this->getCurrentRate($from, $to);
+        $multiplier = $this->resolveMultiplier($from, $to);
 
-        if (! $rate) {
+        if ($multiplier === null) {
             return 0;
         }
 
-        return $amount * $rate->rate;
+        return round($amount * $multiplier, 4);
     }
 
     /**
@@ -38,16 +68,15 @@ class ExchangeRateService
      */
     public function getActiveRates(): array
     {
-        $rates = ExchangeRate::where('is_active', true)
-            ->where('effective_date', '<=', now()->toDateString())
-            ->orderBy('effective_date', 'desc')
+        $rates = ExchangeRate::query()
+            ->where('is_active', true)
+            ->whereDate('effective_date', '<=', now()->toDateString())
+            ->orderByDesc('effective_date')
             ->get()
-            ->groupBy(['from_currency', 'to_currency'])
-            ->map(function ($group) {
-                return $group->first();
-            });
+            ->groupBy(fn (ExchangeRate $rate) => $rate->from_currency.'_'.$rate->to_currency)
+            ->map(fn ($group) => $group->first());
 
-        return $rates->values()->toArray();
+        return $rates->values()->all();
     }
 
     /**
@@ -55,7 +84,7 @@ class ExchangeRateService
      */
     public function createRate(array $data): ExchangeRate
     {
-        $rate = ExchangeRate::create([
+        $rate = ExchangeRate::query()->create([
             'from_currency' => strtoupper($data['from_currency']),
             'to_currency' => strtoupper($data['to_currency']),
             'rate' => $data['rate'],
@@ -63,7 +92,6 @@ class ExchangeRateService
             'is_active' => $data['is_active'] ?? true,
         ]);
 
-        // Limpiar caché
         $this->clearCache($rate->from_currency, $rate->to_currency);
 
         return $rate;
@@ -82,7 +110,6 @@ class ExchangeRateService
             'is_active' => $data['is_active'] ?? $rate->is_active,
         ]);
 
-        // Limpiar caché
         $this->clearCache($rate->from_currency, $rate->to_currency);
 
         return $rate->fresh();
@@ -98,16 +125,14 @@ class ExchangeRateService
 
         $rate->delete();
 
-        // Limpiar caché
         $this->clearCache($from, $to);
     }
 
-    /**
-     * Limpiar caché de tasas de cambio
-     */
     private function clearCache(string $from, string $to): void
     {
         Cache::forget("exchange_rate_{$from}_{$to}");
         Cache::forget("exchange_rate_{$to}_{$from}");
+        Cache::forget("exchange_multiplier_{$from}_{$to}");
+        Cache::forget("exchange_multiplier_{$to}_{$from}");
     }
 }
