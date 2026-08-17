@@ -497,7 +497,9 @@ class InventarioController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('inventario.index')->with('success', 'Producto creado correctamente.');
+        return redirect()
+            ->route('inventario.create')
+            ->with('success', "Producto «{$product->name}» guardado. Puede agregar el siguiente.");
     }
 
     public function show(int $id): View

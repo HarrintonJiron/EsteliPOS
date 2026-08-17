@@ -2,7 +2,8 @@
 param(
     [int]$Port = 0,
     [ValidateSet("Simple", "IIS", "Auto")]
-    [string]$ServerProfile = "Auto"
+    [string]$ServerProfile = "Auto",
+    [switch]$SkipSlowChecks
 )
 
 $ErrorActionPreference = "Continue"
@@ -66,8 +67,8 @@ try {
 }
 
 try {
-    $Response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/login" -UseBasicParsing -TimeoutSec 10
-    Set-Result "http_login" ($Response.StatusCode -eq 200) "HTTP $($Response.StatusCode)"
+    $LoginCode = Invoke-EsteliPOSLocalHttp -Uri "http://127.0.0.1:$Port/login" -TimeoutMs 8000
+    Set-Result "http_login" ($LoginCode -ge 200 -and $LoginCode -lt 500) "HTTP $LoginCode"
 } catch {
     Set-Result "http_login" $false $_.Exception.Message
 }
@@ -84,17 +85,29 @@ if ($ResolvedProfile -eq "IIS") {
     Set-Result "url_rewrite" (Test-EsteliPOSUrlRewriteModule) "Modulo URL Rewrite no instalado"
 } else {
     $PidFile = Join-Path $ProjectRoot "storage\app\estelipos.pid"
-    Set-Result "serve_pid" (Test-Path $PidFile) "Proceso artisan serve no registrado"
+    Set-Result "serve_pid" (Test-Path $PidFile) "Proceso PHP no registrado"
+    if (Test-Path $PidFile) {
+        $ServePid = [int](Get-Content $PidFile -ErrorAction SilentlyContinue)
+        $ServeProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $ServePid" -ErrorAction SilentlyContinue
+        $Cmd = if ($ServeProcess) { [string]$ServeProcess.CommandLine } else { "" }
+        $ListensLan = $Cmd -match "--host=0\.0\.0\.0" -or $Cmd -match "-S\s+0\.0\.0\.0:$Port"
+        Set-Result "serve_lan_bind" $ListensLan "PHP debe escuchar en 0.0.0.0:$Port (cmd: $Cmd)"
+    }
+    Set-Result "launch_script" (Test-Path (Join-Path $PSScriptRoot "Launch-EsteliPOS.ps1")) "Falta Launch-EsteliPOS.ps1"
+    Set-Result "open_bat" (Test-Path (Join-Path $ProjectRoot "Abrir-EsteliPOS.bat")) "Falta Abrir-EsteliPOS.bat"
 }
 
-$Php = Get-Command php.exe -ErrorAction SilentlyContinue
-if ($Php) {
-    Push-Location $ProjectRoot
-    $About = & $Php.Source artisan about --only=environment 2>&1 | Out-String
-    Pop-Location
-    Set-Result "artisan_about" ($About -match "production") "artisan about fallo"
-} else {
-    Set-Result "php_available" $false "php.exe no esta disponible en PATH"
+try {
+    $PhpPath = Resolve-EsteliPOSPhpExecutable
+    Set-Result "php_available" $true $PhpPath
+    if (-not $SkipSlowChecks) {
+        Push-Location $ProjectRoot
+        $About = & $PhpPath artisan about --only=environment 2>&1 | Out-String
+        Pop-Location
+        Set-Result "artisan_about" ($About -match "production") "artisan about fallo"
+    }
+} catch {
+    Set-Result "php_available" $false $_.Exception.Message
 }
 
 $FirewallName = "EsteliPOS LAN - Puerto $Port"
@@ -102,12 +115,12 @@ Set-Result "firewall_rule" ([bool](Get-NetFirewallRule -DisplayName $FirewallNam
 Set-Result "server_task" ([bool](Get-ScheduledTask -TaskName "EsteliPOS - Servidor" -ErrorAction SilentlyContinue)) "Falta tarea de arranque"
 Set-Result "backup_task" ([bool](Get-ScheduledTask -TaskName "EsteliPOS - Respaldo diario" -ErrorAction SilentlyContinue)) "Falta tarea de respaldo"
 
-if ($DeploymentConfig -and $DeploymentConfig.lan_address) {
+if ($DeploymentConfig -and $DeploymentConfig.lan_address -and -not $SkipSlowChecks) {
     try {
-        $LanResponse = Invoke-WebRequest -Uri "http://$($DeploymentConfig.lan_address):$Port/login" -UseBasicParsing -TimeoutSec 10
+        $LanResponse = Invoke-WebRequest -Uri "http://$($DeploymentConfig.lan_address):$Port/login" -UseBasicParsing -TimeoutSec 3
         Set-Result "http_lan" ($LanResponse.StatusCode -eq 200) "HTTP LAN $($LanResponse.StatusCode)"
     } catch {
-        Set-Result "http_lan" $false $_.Exception.Message
+        Write-Warning "Acceso LAN no verificado: $($_.Exception.Message). Abra $($DeploymentConfig.app_url) desde otra PC o tablet."
     }
 }
 

@@ -130,10 +130,66 @@
                 </button>
                 <div id="clientsList" class="space-y-2"></div>
             </div>
-            <div class="p-4 border-t border-slate-200">
+            <div class="p-4 border-t border-slate-200 space-y-2">
+                <button type="button" onclick="openQuickClientModal()"
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl text-sm flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    Cliente Rápido
+                </button>
                 <button type="button" onclick="document.getElementById('clientModal').classList.add('hidden')"
                     class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl text-sm">Cerrar</button>
             </div>
+        </div>
+    </div>
+
+    {{-- MODAL: Cliente Rápido --}}
+    <div id="quickClientModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+            <div class="p-5 border-b border-slate-200 flex justify-between items-center">
+                <h2 class="text-lg font-bold text-slate-900">Cliente Rápido</h2>
+                <button type="button" onclick="document.getElementById('quickClientModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <form id="quickClientForm" action="{{ route('clientes.quick-store') }}" method="POST">
+                @csrf
+                <div class="p-4 space-y-3">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Nombre *</label>
+                        <input type="text" name="name" required placeholder="Nombre del cliente" class="w-full px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Teléfono</label>
+                        <input type="text" name="phone" placeholder="Opcional" class="w-full px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Tipo</label>
+                        <select name="client_type" class="w-full px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500">
+                            <option value="natural">Natural</option>
+                            <option value="company">Empresa</option>
+                        </select>
+                    </div>
+                    <div id="cedulaField">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Cédula</label>
+                        <input type="text" name="cedula" placeholder="Opcional" class="w-full px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div id="rucField" class="hidden">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">RUC</label>
+                        <input type="text" name="ruc" placeholder="Opcional" class="w-full px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div id="businessNameField" class="hidden">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Nombre Empresa</label>
+                        <input type="text" name="business_name" placeholder="Opcional" class="w-full px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Dirección</label>
+                        <input type="text" name="address" placeholder="Opcional" class="w-full px-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+                <div class="p-4 border-t border-slate-200 space-y-2">
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl text-sm">Guardar y Seleccionar</button>
+                    <button type="button" onclick="document.getElementById('quickClientModal').classList.add('hidden')"
+                        class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl text-sm">Cancelar</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -377,6 +433,13 @@ document.addEventListener('DOMContentLoaded', function () {
         currentClient = id;
         document.getElementById('clientDisplay').textContent = name;
         document.getElementById('clientModal').classList.add('hidden');
+        document.getElementById('quickClientModal')?.classList.add('hidden');
+    };
+
+    window.openQuickClientModal = function() {
+        document.getElementById('clientModal').classList.add('hidden');
+        document.getElementById('quickClientModal').classList.remove('hidden');
+        window.setTimeout(() => document.querySelector('#quickClientForm input[name="name"]')?.focus(), 0);
     };
 
     function renderClientsList(filter) {
@@ -392,6 +455,64 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     document.getElementById('clientSearch')?.addEventListener('input', e => renderClientsList(e.target.value));
+
+    document.querySelector('#quickClientForm select[name="client_type"]')?.addEventListener('change', function (e) {
+        const isCompany = e.target.value === 'company';
+        document.getElementById('cedulaField').classList.toggle('hidden', isCompany);
+        document.getElementById('rucField').classList.toggle('hidden', !isCompany);
+        document.getElementById('businessNameField').classList.toggle('hidden', !isCompany);
+    });
+
+    document.getElementById('quickClientForm')?.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const form = this;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalLabel = submitBtn?.textContent;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Guardando...';
+        }
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                },
+            });
+            const data = await response.json();
+
+            if (! response.ok || ! data.success) {
+                const message = data.message
+                    || (data.errors ? Object.values(data.errors).flat().join('\n') : null)
+                    || 'No se pudo crear el cliente.';
+                alert(message);
+                return;
+            }
+
+            clientsData.push({
+                id: data.client.id,
+                name: data.client.name,
+                phone: data.client.phone || '',
+                email: data.client.email || '',
+            });
+            renderClientsList(document.getElementById('clientSearch')?.value || '');
+            selectClient(data.client.id, data.client.name);
+            form.reset();
+            document.getElementById('cedulaField').classList.remove('hidden');
+            document.getElementById('rucField').classList.add('hidden');
+            document.getElementById('businessNameField').classList.add('hidden');
+        } catch (error) {
+            alert('Error de red al crear el cliente.');
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalLabel || 'Guardar y Seleccionar';
+            }
+        }
+    });
 
     function renderProducts(filter) {
         const grid = document.querySelector('#productsGrid > div');

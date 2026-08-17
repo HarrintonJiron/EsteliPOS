@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [ValidateSet("Simple", "IIS", "Auto")]
-    [string]$ServerProfile = "Auto"
+    [string]$ServerProfile = "Auto",
+    [int]$Port = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,19 +10,19 @@ $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Get-EsteliPOSProjectRoot
 $ResolvedProfile = Get-EsteliPOSResolvedServerProfile -ServerProfile $ServerProfile
+$DeploymentConfig = Get-EsteliPOSDeploymentConfig
+if ($Port -le 0 -and $DeploymentConfig) {
+    $Port = [int]$DeploymentConfig.port
+}
 
 if ($ResolvedProfile -eq "IIS") {
     Stop-EsteliPOSIISSite
     exit 0
 }
 
-$PidFile = Join-Path $ProjectRoot "storage\app\estelipos.pid"
-
-if (-not (Test-Path $PidFile)) { exit 0 }
-
-$ServerPid = [int](Get-Content $PidFile -ErrorAction SilentlyContinue)
-$ServerProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $ServerPid" -ErrorAction SilentlyContinue
-if ($ServerProcess -and $ServerProcess.CommandLine -match "artisan\s+serve") {
-    & taskkill.exe /PID $ServerPid /T /F | Out-Null
+if ($Port -le 0) {
+    $Port = 8080
 }
-Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
+
+Stop-EsteliPOSSimpleListeners -ProjectRoot $ProjectRoot -Port $Port
+exit 0

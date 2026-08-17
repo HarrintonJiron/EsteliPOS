@@ -71,7 +71,7 @@
             </article>
         @endforeach
 
-        <div class="sticky bottom-4 flex justify-end"><button class="btn-primary shadow-lg">Revisar y guardar cambios</button></div>
+        <div class="flex justify-end pt-2"><button class="btn-primary shadow-sm">Revisar y guardar cambios</button></div>
     </form>
 </div>
 

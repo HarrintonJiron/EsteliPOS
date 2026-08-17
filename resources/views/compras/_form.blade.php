@@ -34,6 +34,7 @@
     data-initial-items='@json($initialItems)'
     data-search-url="{{ route('compras.products.search') }}"
     data-quick-store-url="{{ route('compras.products.quick-store') }}"
+    data-quick-supplier-url="{{ route('compras.suppliers.quick-store') }}"
     data-next-code-url="{{ route('compras.products.next-code') }}"
     data-company-currency="{{ $companyCurrency }}"
     data-company-symbol="{{ $companySymbol }}"
@@ -79,7 +80,12 @@
                 @endif
 
                 <div>
-                    <label for="supplier_id" class="mb-1 block text-xs font-medium text-slate-500">Proveedor</label>
+                    <div class="mb-1 flex items-center justify-between gap-2">
+                        <label for="supplier_id" class="block text-xs font-medium text-slate-500">Proveedor</label>
+                        <button type="button" id="openQuickSupplier" class="text-xs font-semibold text-emerald-700 hover:text-emerald-800">
+                            + Nuevo
+                        </button>
+                    </div>
                     <select name="supplier_id" id="supplier_id" class="select-field" required>
                         <option value="">Seleccionar proveedor</option>
                         @foreach($suppliers as $supplier)
@@ -312,6 +318,62 @@
             </form>
         </div>
     </div>
+
+    {{-- Modal: proveedor rápido --}}
+    <div id="quickSupplierModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4" aria-hidden="true">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="quickSupplierTitle">
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                    <h2 id="quickSupplierTitle" class="text-lg font-bold text-slate-900">Proveedor rápido</h2>
+                    <p class="text-xs text-slate-500">Se guarda y queda seleccionado en esta compra.</p>
+                </div>
+                <button type="button" id="closeQuickSupplier" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Cerrar">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <form id="quickSupplierForm" class="space-y-3 px-5 py-4">
+                <div id="quickSupplierError" class="hidden rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></div>
+
+                <div>
+                    <label for="quickSupplierName" class="mb-1 block text-xs font-medium text-slate-500">Nombre *</label>
+                    <input type="text" id="quickSupplierName" name="name" required class="input-field py-2" placeholder="Nombre del proveedor" autocomplete="organization">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="quickSupplierPhone" class="mb-1 block text-xs font-medium text-slate-500">Teléfono</label>
+                        <input type="text" id="quickSupplierPhone" name="phone" class="input-field py-2" placeholder="Opcional" autocomplete="tel">
+                    </div>
+                    <div>
+                        <label for="quickSupplierRuc" class="mb-1 block text-xs font-medium text-slate-500">RUC</label>
+                        <input type="text" id="quickSupplierRuc" name="ruc" class="input-field py-2" placeholder="Opcional">
+                    </div>
+                </div>
+                <div>
+                    <label for="quickSupplierContact" class="mb-1 block text-xs font-medium text-slate-500">Contacto</label>
+                    <input type="text" id="quickSupplierContact" name="contact_name" class="input-field py-2" placeholder="Opcional">
+                </div>
+                <div>
+                    <label for="quickSupplierAddress" class="mb-1 block text-xs font-medium text-slate-500">Dirección</label>
+                    <input type="text" id="quickSupplierAddress" name="address" class="input-field py-2" placeholder="Opcional">
+                </div>
+                <div>
+                    <label for="quickSupplierPayment" class="mb-1 block text-xs font-medium text-slate-500">Condición de pago</label>
+                    <select id="quickSupplierPayment" name="payment_condition" class="select-field">
+                        <option value="contado">Contado</option>
+                        <option value="credito_15">Crédito 15 días</option>
+                        <option value="credito_30">Crédito 30 días</option>
+                        <option value="credito_60">Crédito 60 días</option>
+                    </select>
+                </div>
+
+                <div class="flex gap-2 border-t border-slate-100 pt-4">
+                    <button type="button" id="cancelQuickSupplier" class="btn-outline flex-1 justify-center">Cancelar</button>
+                    <button type="submit" id="saveQuickSupplier" class="btn-primary flex-[1.4] justify-center">Guardar y seleccionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -335,6 +397,7 @@
     const submitBtn = document.getElementById('purchaseSubmit');
     const searchUrl = app.dataset.searchUrl;
     const quickStoreUrl = app.dataset.quickStoreUrl;
+    const quickSupplierUrl = app.dataset.quickSupplierUrl;
     const nextCodeUrl = app.dataset.nextCodeUrl;
     const companyCurrency = app.dataset.companyCurrency || 'NIO';
     const companySymbol = app.dataset.companySymbol || 'C$';
@@ -354,6 +417,20 @@
     const quickSaleInput = document.getElementById('quickProductSalePrice');
     const quickCategoryInput = document.getElementById('quickProductCategory');
     const quickUnitInput = document.getElementById('quickProductUnit');
+
+    const supplierModal = document.getElementById('quickSupplierModal');
+    const supplierForm = document.getElementById('quickSupplierForm');
+    const supplierError = document.getElementById('quickSupplierError');
+    const openSupplierBtn = document.getElementById('openQuickSupplier');
+    const closeSupplierBtn = document.getElementById('closeQuickSupplier');
+    const cancelSupplierBtn = document.getElementById('cancelQuickSupplier');
+    const saveSupplierBtn = document.getElementById('saveQuickSupplier');
+    const supplierNameInput = document.getElementById('quickSupplierName');
+    const supplierPhoneInput = document.getElementById('quickSupplierPhone');
+    const supplierRucInput = document.getElementById('quickSupplierRuc');
+    const supplierContactInput = document.getElementById('quickSupplierContact');
+    const supplierAddressInput = document.getElementById('quickSupplierAddress');
+    const supplierPaymentInput = document.getElementById('quickSupplierPayment');
 
     let items = JSON.parse(app.dataset.initialItems || '[]');
     let searchCache = [];
@@ -758,6 +835,47 @@
         hideQuickError();
     }
 
+    function showSupplierError(message) {
+        supplierError.textContent = message;
+        supplierError.classList.remove('hidden');
+    }
+
+    function hideSupplierError() {
+        supplierError.textContent = '';
+        supplierError.classList.add('hidden');
+    }
+
+    function openQuickSupplierModal() {
+        hideSupplierError();
+        supplierForm.reset();
+        if (supplierPaymentInput) {
+            supplierPaymentInput.value = 'contado';
+        }
+        supplierModal.classList.remove('hidden');
+        supplierModal.classList.add('flex');
+        supplierModal.setAttribute('aria-hidden', 'false');
+        setTimeout(() => supplierNameInput.focus(), 50);
+    }
+
+    function closeQuickSupplierModal() {
+        supplierModal.classList.add('hidden');
+        supplierModal.classList.remove('flex');
+        supplierModal.setAttribute('aria-hidden', 'true');
+        hideSupplierError();
+    }
+
+    function selectSupplierOption(supplier) {
+        let option = [...supplierSelect.options].find((item) => item.value === String(supplier.id));
+        if (!option) {
+            option = document.createElement('option');
+            option.value = supplier.id;
+            option.textContent = supplier.name;
+            supplierSelect.appendChild(option);
+        }
+        supplierSelect.value = String(supplier.id);
+        supplierSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
     quickPurchaseInput?.addEventListener('input', () => {
         if (quickSaleInput.value.trim() !== '') {
             return;
@@ -777,12 +895,6 @@
 
     quickModal?.addEventListener('click', (event) => {
         if (event.target === quickModal) {
-            closeQuickProductModal();
-        }
-    });
-
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && !quickModal.classList.contains('hidden')) {
             closeQuickProductModal();
         }
     });
@@ -844,6 +956,79 @@
         } finally {
             saveQuickBtn.disabled = false;
             saveQuickBtn.textContent = 'Crear y agregar';
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') {
+            return;
+        }
+        if (!supplierModal.classList.contains('hidden')) {
+            closeQuickSupplierModal();
+            return;
+        }
+        if (!quickModal.classList.contains('hidden')) {
+            closeQuickProductModal();
+        }
+    });
+
+    openSupplierBtn?.addEventListener('click', openQuickSupplierModal);
+    closeSupplierBtn?.addEventListener('click', closeQuickSupplierModal);
+    cancelSupplierBtn?.addEventListener('click', closeQuickSupplierModal);
+    supplierModal?.addEventListener('click', (event) => {
+        if (event.target === supplierModal) {
+            closeQuickSupplierModal();
+        }
+    });
+
+    supplierForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        hideSupplierError();
+
+        const name = supplierNameInput.value.trim();
+        if (!name) {
+            showSupplierError('El nombre del proveedor es obligatorio.');
+            return;
+        }
+
+        saveSupplierBtn.disabled = true;
+        saveSupplierBtn.textContent = 'Guardando…';
+
+        try {
+            const response = await fetch(quickSupplierUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({
+                    name,
+                    phone: supplierPhoneInput.value.trim() || null,
+                    ruc: supplierRucInput.value.trim() || null,
+                    contact_name: supplierContactInput.value.trim() || null,
+                    address: supplierAddressInput.value.trim() || null,
+                    payment_condition: supplierPaymentInput.value || 'contado',
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                const messages = data.errors
+                    ? Object.values(data.errors).flat().join(' ')
+                    : (data.message ?? 'No se pudo crear el proveedor.');
+                showSupplierError(messages);
+                return;
+            }
+
+            selectSupplierOption(data.supplier);
+            closeQuickSupplierModal();
+        } catch {
+            showSupplierError('Error de conexión. Intenta de nuevo.');
+        } finally {
+            saveSupplierBtn.disabled = false;
+            saveSupplierBtn.textContent = 'Guardar y seleccionar';
         }
     });
 

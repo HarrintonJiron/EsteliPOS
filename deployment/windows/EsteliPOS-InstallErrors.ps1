@@ -166,10 +166,12 @@ $Script:EsteliPOSInstallErrorCatalog = @{
         Phase = "Inicio del servidor"
         Title = "EsteliPOS no pudo iniciar despues de instalar"
         Solutions = @(
-            "Perfil IIS: abra services.msc y verifique que 'World Wide Web Publishing Service' este en ejecucion."
-            "Perfil Simple: revise la tarea programada 'EsteliPOS - Servidor'."
-            "Ejecute: powershell -File deployment\windows\Start-EsteliPOS.ps1"
-            "Revise storage\logs\laravel.log"
+            "Windows Home debe usar perfil Simple (no IIS)."
+            "Cierre PHP anterior: en el Administrador de tareas termine php.exe, o reinicie el PC, y vuelva a instalar."
+            "Si el log dice puerto 8081, 8080 estaba ocupado. Libere 8080 y reintente."
+            "Revise storage\logs\server-error.log y storage\logs\launcher.log"
+            "Ejecute: powershell -File deployment\windows\Start-EsteliPOS.ps1 -ServerProfile Simple -HostAddress 0.0.0.0"
+            "Abra en el navegador: http://127.0.0.1:8080/up"
         )
     }
     18 = @{
@@ -193,14 +195,35 @@ $Script:EsteliPOSInstallErrorCatalog = @{
             "Instale Microsoft Visual C++ Redistributable x64 (vc_redist.x64.exe)."
         )
     }
+    21 = @{
+        Phase = "Red LAN / IP fija"
+        Title = "No se pudo fijar la direccion IPv4 en esta PC"
+        Solutions = @(
+            "Deje la opcion de IP fija desmarcada e instale con DHCP; luego reserve la IP en el router usando la MAC."
+            "Compruebe que el cable o Wi-Fi de la ferreteria este conectado y que la red no sea de invitados."
+            "Ejecute el instalador como administrador: Instalar-EsteliPOS-Grafico.bat"
+            "Fije la IP manualmente: Configuracion de Windows -> Red -> Adaptador -> IP estatica, con la misma puerta de enlace."
+            "Ejecute: powershell -File deployment\windows\Diagnose-EsteliPOS.ps1"
+        )
+    }
+    22 = @{
+        Phase = "Perfil de red de Windows"
+        Title = "Windows sigue identificando la red (no impide instalar)"
+        Solutions = @(
+            "Espere 30 segundos y vuelva a instalar. La IP fija ya pudo quedar aplicada."
+            "En Configuracion de Windows -> Red, marque esta red como Privada."
+            "Si ya fijo la IP, desmarque 'Fijar esta IP' y continue la instalacion."
+            "Ejecute: powershell -File deployment\windows\Diagnose-EsteliPOS.ps1"
+        )
+    }
     99 = @{
         Phase = "Error inesperado"
         Title = "Ocurrio un error no catalogado"
         Solutions = @(
-            "Copie el mensaje de error completo de esta ventana."
+            "Copie el bloque COPIAR PARA SOPORTE que aparece abajo (boton Copiar informe en el asistente)."
             "Revise storage\logs\install-*.log y storage\logs\laravel.log"
             "Ejecute: powershell -File deployment\windows\Diagnose-EsteliPOS.ps1"
-            "Contacte soporte Northlink con el log adjunto."
+            "Contacte soporte Northlink con el informe copiado o el log adjunto."
         )
     }
 }
@@ -227,6 +250,67 @@ function Write-InstallLogLine {
     }
 }
 
+function Get-EsteliPOSInstallLogTail {
+    param(
+        [string]$LogPath = "",
+        [int]$Lines = 40
+    )
+
+    if ([string]::IsNullOrWhiteSpace($LogPath) -or -not (Test-Path -LiteralPath $LogPath)) {
+        return @()
+    }
+
+    try {
+        return @(Get-Content -LiteralPath $LogPath -Tail $Lines -ErrorAction Stop)
+    } catch {
+        return @()
+    }
+}
+
+function Format-EsteliPOSInstallErrorReport {
+    param(
+        [int]$ExitCode = 99,
+        [string]$DetailMessage = "",
+        [string]$LogPath = "",
+        [string]$Phase = "",
+        [string]$Title = ""
+    )
+
+    if (-not $Script:EsteliPOSInstallErrorCatalog.ContainsKey($ExitCode)) {
+        $ExitCode = 99
+    }
+    $info = $Script:EsteliPOSInstallErrorCatalog[$ExitCode]
+    if ([string]::IsNullOrWhiteSpace($Phase)) {
+        $Phase = $info.Phase
+    }
+    if ([string]::IsNullOrWhiteSpace($Title)) {
+        $Title = $info.Title
+    }
+
+    $tail = Get-EsteliPOSInstallLogTail -LogPath $LogPath -Lines 40
+    $lines = @(
+        "===== COPIAR PARA SOPORTE ESTELIPOS ====="
+        "Fecha: $(Get-Date -Format o)"
+        "Equipo: $env:COMPUTERNAME"
+        "Usuario: $env:USERNAME"
+        "Codigo: $ExitCode"
+        "Fase: $Phase"
+        "Problema: $Title"
+    )
+    if ($DetailMessage) {
+        $lines += "Detalle: $DetailMessage"
+    }
+    if ($LogPath) {
+        $lines += "Log: $LogPath"
+    }
+    if ($tail.Count -gt 0) {
+        $lines += "----- Ultimas lineas del log -----"
+        $lines += $tail
+    }
+    $lines += "===== FIN INFORME ESTELIPOS ====="
+    return ($lines -join [Environment]::NewLine)
+}
+
 function Show-EsteliPOSInstallError {
     param(
         [int]$ExitCode = 99,
@@ -235,12 +319,21 @@ function Show-EsteliPOSInstallError {
         [string]$LogPath = ""
     )
 
+    if ($DetailMessage -match "Identifying|NetworkCategory") {
+        $ExitCode = 22
+        $ExtraSolutions = @(
+            "Este aviso ya no detiene la instalacion en el paquete actualizado."
+            "Si usa un ZIP viejo: desmarque Fijar IP (ya quedo fija) y vuelva a instalar."
+        ) + $ExtraSolutions
+    }
+
     if (-not $Script:EsteliPOSInstallErrorCatalog.ContainsKey($ExitCode)) {
         $ExitCode = 99
     }
 
     $Info = $Script:EsteliPOSInstallErrorCatalog[$ExitCode]
     $Separator = ("=" * 62)
+    $Report = Format-EsteliPOSInstallErrorReport -ExitCode $ExitCode -DetailMessage $DetailMessage -LogPath $LogPath -Phase $Info.Phase -Title $Info.Title
 
     Write-Host ""
     Write-Host $Separator -ForegroundColor Red
@@ -267,6 +360,25 @@ function Show-EsteliPOSInstallError {
         Write-Host "Log de instalacion: $LogPath" -ForegroundColor DarkGray
     }
     Write-Host "Documentacion: informes\GUIA_INSTALACION_PRODUCCION_WINDOWS.md" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host $Report -ForegroundColor Yellow
+    Write-Host ""
+    $copied = $false
+    if (Get-Command Copy-EsteliPOSTextToClipboard -ErrorAction SilentlyContinue) {
+        $copied = Copy-EsteliPOSTextToClipboard -Text $Report
+    } else {
+        try {
+            Set-Clipboard -Value $Report
+            $copied = $true
+        } catch {
+            $copied = $false
+        }
+    }
+    if ($copied) {
+        Write-Host "El informe se copio al portapapeles. Peguelo en un correo o chat (Ctrl+V)." -ForegroundColor Green
+    } else {
+        Write-Host "Seleccione el bloque COPIAR PARA SOPORTE, clic derecho -> Copiar." -ForegroundColor Cyan
+    }
     Write-Host $Separator -ForegroundColor Red
     Write-Host ""
 
@@ -278,7 +390,10 @@ function Show-EsteliPOSInstallError {
         foreach ($Solution in $Info.Solutions) {
             Write-InstallLogLine -LogPath $LogPath -Line "Solucion: $Solution"
         }
+        Write-InstallLogLine -LogPath $LogPath -Line $Report
     }
+
+    return $ExitCode
 }
 
 function Stop-EsteliPOSInstall {
@@ -289,6 +404,6 @@ function Stop-EsteliPOSInstall {
         [string]$LogPath = ""
     )
 
-    Show-EsteliPOSInstallError -ExitCode $ExitCode -DetailMessage $Message -ExtraSolutions $ExtraSolutions -LogPath $LogPath
-    exit $ExitCode
+    $resolved = Show-EsteliPOSInstallError -ExitCode $ExitCode -DetailMessage $Message -ExtraSolutions $ExtraSolutions -LogPath $LogPath
+    exit $resolved
 }

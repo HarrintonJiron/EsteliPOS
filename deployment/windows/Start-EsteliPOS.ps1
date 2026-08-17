@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [int]$Port = 0,
-    [string]$HostAddress = "127.0.0.1",
+    [string]$HostAddress = "",
     [ValidateSet("Simple", "IIS", "Auto")]
     [string]$ServerProfile = "Auto"
 )
@@ -19,81 +19,95 @@ if ($Port -le 0) {
 }
 
 $ResolvedProfile = Get-EsteliPOSResolvedServerProfile -ServerProfile $ServerProfile
+$LauncherLog = Join-Path $ProjectRoot "storage\logs\launcher.log"
+
+function Write-LauncherLog([string]$Message) {
+    $Line = "$(Get-Date -Format o) $Message"
+    Add-Content -Path $LauncherLog -Value $Line -Encoding UTF8 -ErrorAction SilentlyContinue
+}
+
+New-Item -ItemType Directory -Force -Path (Split-Path $LauncherLog -Parent) | Out-Null
 
 if ($ResolvedProfile -eq "IIS") {
     try {
         Start-EsteliPOSIISSite -Port $Port
     } catch {
+        Write-LauncherLog "ERROR IIS: $($_.Exception.Message)"
         Write-Error $_.Exception.Message
         exit 1
     }
 
-    $Ready = $false
-    for ($Attempt = 1; $Attempt -le 20; $Attempt++) {
-        Start-Sleep -Seconds 1
-        try {
-            $Response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/login" -UseBasicParsing -TimeoutSec 2
-            if ($Response.StatusCode -eq 200) {
-                $Ready = $true
-                break
-            }
-        } catch {
-            continue
-        }
-    }
-
-    if (-not $Ready) {
-        Write-Error "EsteliPOS (IIS) no respondio en http://127.0.0.1:$Port/login"
+    if (-not (Wait-EsteliPOSHttpReady -Port $Port -Attempts 25)) {
+        Write-LauncherLog "ERROR IIS no respondio en http://127.0.0.1:$Port/up"
+        Write-Error "EsteliPOS (IIS) no respondio en http://127.0.0.1:$Port/up"
         exit 1
     }
 
+    Write-LauncherLog "OK IIS listo en puerto $Port"
     exit 0
 }
 
-$PhpPath = (Get-Command php.exe -ErrorAction Stop).Source
+$ListenHost = Get-EsteliPOSSimpleListenHost -HostAddress $HostAddress
+$PhpPath = Resolve-EsteliPOSPhpExecutable
 $PidFile = Join-Path $ProjectRoot "storage\app\estelipos.pid"
 $StdOut = Join-Path $ProjectRoot "storage\logs\server-output.log"
 $StdErr = Join-Path $ProjectRoot "storage\logs\server-error.log"
-
-if (Test-Path $PidFile) {
-    $ExistingPid = [int](Get-Content $PidFile -ErrorAction SilentlyContinue)
-    $ExistingProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $ExistingPid" -ErrorAction SilentlyContinue
-    if ($ExistingProcess -and $ExistingProcess.CommandLine -match "artisan\s+serve") {
-        try {
-            $ExistingResponse = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/login" -UseBasicParsing -TimeoutSec 3
-            if ($ExistingResponse.StatusCode -eq 200) { exit 0 }
-        } catch {
-            & taskkill.exe /PID $ExistingPid /T /F | Out-Null
-        }
-    }
-    Remove-Item $PidFile -Force
+$PublicDir = Join-Path $ProjectRoot "public"
+$Router = Join-Path $ProjectRoot "vendor\laravel\framework\src\Illuminate\Foundation\resources\server.php"
+$LanAddress = ""
+if ($DeploymentConfig -and $DeploymentConfig.lan_address) {
+    $LanAddress = [string]$DeploymentConfig.lan_address
 }
 
-$Process = Start-Process -FilePath $PhpPath `
-    -ArgumentList @("artisan", "serve", "--host=$HostAddress", "--port=$Port", "--no-reload") `
-    -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru `
-    -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
-$Process.Id | Set-Content -Path $PidFile -Encoding ASCII
-
-$Ready = $false
-for ($Attempt = 1; $Attempt -le 20; $Attempt++) {
-    Start-Sleep -Seconds 1
-    try {
-        $Response = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/login" -UseBasicParsing -TimeoutSec 2
-        if ($Response.StatusCode -eq 200) {
-            $Ready = $true
-            break
-        }
-    } catch {
-        if ($Process.HasExited) { break }
-    }
-}
-
-if (-not $Ready) {
-    if (-not $Process.HasExited) { Stop-Process -Id $Process.Id -Force }
-    Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
-    Write-Error "EsteliPOS no respondio. Revisa storage\logs\server-error.log."
+if (-not (Test-Path -LiteralPath $Router)) {
+    Write-Error "Falta el enrutador PHP de Laravel: $Router"
     exit 1
 }
 
+Write-LauncherLog "Iniciando Simple: `"$PhpPath`" -S ${ListenHost}:$Port (cwd=$PublicDir)"
+
+Stop-EsteliPOSSimpleListeners -ProjectRoot $ProjectRoot -Port $Port
+Start-Sleep -Seconds 1
+
+if (Test-Path $StdOut) { Clear-Content $StdOut -ErrorAction SilentlyContinue }
+if (Test-Path $StdErr) { Clear-Content $StdErr -ErrorAction SilentlyContinue }
+
+$Process = Start-Process -FilePath $PhpPath `
+    -ArgumentList @("-S", "${ListenHost}:${Port}", $Router) `
+    -WorkingDirectory $PublicDir -WindowStyle Hidden -PassThru `
+    -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
+$Process.Id | Set-Content -Path $PidFile -Encoding ASCII
+Write-LauncherLog "Proceso iniciado PID $($Process.Id)"
+
+Start-Sleep -Seconds 1
+if ($Process.HasExited) {
+    $ErrTail = ""
+    if (Test-Path $StdErr) {
+        $ErrTail = (Get-Content $StdErr -Raw -ErrorAction SilentlyContinue)
+    }
+    Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
+    Write-LauncherLog "ERROR php -S salio de inmediato. stderr=$ErrTail"
+    Write-Error "PHP no pudo escuchar en ${ListenHost}:$Port. $ErrTail"
+    exit 1
+}
+
+$Ready = Wait-EsteliPOSHttpReady -Port $Port -Attempts 40 -Addresses @($LanAddress)
+if (-not $Ready -and (Test-EsteliPOSTcpOpen -Port $Port) -and -not $Process.HasExited) {
+    Write-LauncherLog "AVISO HTTP no confirmo /up, pero el puerto $Port esta en escucha. Se continua."
+    $Ready = $true
+}
+
+if (-not $Ready) {
+    $ErrTail = ""
+    if (Test-Path $StdErr) {
+        $ErrTail = (Get-Content $StdErr -Raw -ErrorAction SilentlyContinue)
+    }
+    if (-not $Process.HasExited) { Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue }
+    Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
+    Write-LauncherLog "ERROR no respondio. stderr=$ErrTail"
+    Write-Error "EsteliPOS no respondio en http://127.0.0.1:$Port/up. Revise storage\logs\server-error.log y storage\logs\launcher.log. $ErrTail"
+    exit 1
+}
+
+Write-LauncherLog "OK listo en http://0.0.0.0:$Port (comprobado via 127.0.0.1)"
 exit 0

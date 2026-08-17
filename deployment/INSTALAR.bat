@@ -61,61 +61,94 @@ if defined OUTER_ZIP if not defined PACKAGE_ZIP echo   Paquete:           !OUTER
 echo   Destino:            %TARGET_DIR%
 echo.
 
+if exist "%TARGET_DIR%\deployment\windows\Install-EsteliPOS-GUI.ps1" goto :gui_ready
+if /i "%EXISTING%"=="1" goto :legacy_existing
+
+echo   No hay instalacion previa con datos en %TARGET_DIR%
+echo   Se abrira el asistente grafico despues de extraer el paquete.
+echo.
+choice /c SN /n /m "Continuar? [S/N]: "
+if errorlevel 2 exit /b 0
+set "MODE=INSTALL_IIS"
+call :prepare_install_folder
+if errorlevel 1 (
+    pause
+    exit /b 3
+)
+goto :do_gui
+
+:gui_ready
 if /i "%EXISTING%"=="1" (
     echo   Se detecto una instalacion EXISTENTE con datos.
-    echo   Elija con cuidado:
-    echo.
-    echo   [1] ACTUALIZAR  ^(recomendado - conserva ventas e inventario^)
-    echo   [2] Reinstalar IIS sobre la misma carpeta
-    echo       ^(NO borra la base de datos, pero reinstala servicios^)
-    echo   [Q] Cancelar
-    echo.
-    choice /c 12Q /n /m "Opcion [1/2/Q]: "
-    if errorlevel 3 exit /b 0
-    if errorlevel 2 (
-        set "MODE=INSTALL_IIS"
-    ) else (
-        set "MODE=UPDATE"
-    )
+    echo   El asistente grafico le permitira actualizar o reinstalar servicios.
 ) else (
-    echo   No hay instalacion previa con datos en %TARGET_DIR%
-    echo.
-    echo   [1] Instalar ahora ^(IIS - RECOMENDADO para ferreteria^)
-    echo   [2] Instalar modo Simple ^(1 caja / pruebas^)
-    echo   [Q] Cancelar
-    echo.
-    choice /c 12Q /n /m "Opcion [1/2/Q]: "
-    if errorlevel 3 exit /b 0
-    if errorlevel 2 (
-        set "MODE=INSTALL_SIMPLE"
-    ) else (
-        set "MODE=INSTALL_IIS"
-    )
+    echo   Se abrira el asistente grafico de instalacion.
 )
+echo.
+choice /c SN /n /m "Continuar? [S/N]: "
+if errorlevel 2 exit /b 0
+if /i "%EXISTING%"=="1" (set "MODE=UPDATE") else (set "MODE=INSTALL_IIS")
+call :prepare_install_folder
+if errorlevel 1 (
+    pause
+    exit /b 3
+)
+goto :do_gui
 
+:legacy_existing
+echo   Se detecto una instalacion EXISTENTE con datos.
+echo   Elija con cuidado:
+echo.
+echo   [1] ACTUALIZAR  ^(recomendado - conserva ventas e inventario^)
+echo   [2] Reinstalar IIS sobre la misma carpeta
+echo       ^(NO borra la base de datos, pero reinstala servicios^)
+echo   [Q] Cancelar
+echo.
+choice /c 12Q /n /m "Opcion [1/2/Q]: "
+if errorlevel 3 exit /b 0
+if errorlevel 2 (
+    set "MODE=INSTALL_IIS"
+) else (
+    set "MODE=UPDATE"
+)
 echo.
 echo  ------------------------------------------------------------
 if /i "%MODE%"=="UPDATE" (
     echo   Accion: ACTUALIZAR sin perder datos
-) else if /i "%MODE%"=="INSTALL_SIMPLE" (
-    echo   Accion: Instalacion NUEVA - perfil Simple
 ) else (
-    echo   Accion: Instalacion NUEVA - perfil IIS
+    echo   Accion: Reinstalacion de servicios IIS
 )
 echo   Destino: %TARGET_DIR%
 echo  ------------------------------------------------------------
 echo.
 choice /c SN /n /m "Continuar? [S/N]: "
 if errorlevel 2 exit /b 0
-
 call :prepare_install_folder
 if errorlevel 1 (
     pause
     exit /b 3
 )
-
 if /i "%MODE%"=="UPDATE" goto :do_update
 goto :do_install
+
+:: ---------------------------------------------------------------------------
+:do_gui
+echo.
+echo  ==> Abriendo asistente grafico...
+echo.
+set "GUI_PS=%TARGET_DIR%\deployment\windows\Install-EsteliPOS-GUI.ps1"
+if not exist "%GUI_PS%" (
+    echo [ERROR] Falta Install-EsteliPOS-GUI.ps1 en %TARGET_DIR%
+    echo Se intentara el instalador de consola.
+    if /i "%EXISTING%"=="1" goto :do_update
+    goto :do_install
+)
+set "ZIP_ARG="
+if defined PACKAGE_ZIP set "ZIP_ARG=-UpdateZip ""%PACKAGE_ZIP%"""
+if not defined ZIP_ARG if defined OUTER_ZIP set "ZIP_ARG=-UpdateZip ""%OUTER_ZIP%"""
+powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File "%GUI_PS%" -ProjectRoot "%TARGET_DIR%" %ZIP_ARG%
+set "EC=%ERRORLEVEL%"
+goto :finish
 
 :: ---------------------------------------------------------------------------
 :do_update
@@ -269,7 +302,7 @@ if defined OUTER_ZIP if not defined PACKAGE_ZIP (
     if exist "!EXTRACT_TMP!" rd /s /q "!EXTRACT_TMP!" >nul 2>&1
     mkdir "!EXTRACT_TMP!" >nul 2>&1
     powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
-      "Expand-Archive -LiteralPath '%OUTER_ZIP%' -DestinationPath '%EXTRACT_TMP%' -Force"
+      "Expand-Archive -LiteralPath '%OUTER_ZIP%' -DestinationPath '!EXTRACT_TMP!' -Force"
     if errorlevel 1 (
         echo [ERROR] No se pudo extraer %OUTER_ZIP%
         exit /b 1
@@ -310,7 +343,7 @@ if defined PACKAGE_ZIP (
 
     echo  ==> Extrayendo paquete ^(puede tardar un minuto^)...
     powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
-      "Expand-Archive -LiteralPath '%PACKAGE_ZIP%' -DestinationPath '%NEST_TMP%' -Force"
+      "Expand-Archive -LiteralPath '%PACKAGE_ZIP%' -DestinationPath '!NEST_TMP!' -Force"
     if errorlevel 1 (
         echo [ERROR] No se pudo extraer el paquete.
         exit /b 1

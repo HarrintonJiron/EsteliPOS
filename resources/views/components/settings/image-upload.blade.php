@@ -21,10 +21,10 @@
     </div>
 
     <div class="p-4">
-        <label for="{{ $inputId }}" class="relative flex min-h-48 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-indigo-50/50 transition hover:border-indigo-400 hover:bg-indigo-50" data-image-dropzone>
+        <label for="{{ $inputId }}" class="relative flex min-h-48 max-h-64 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-indigo-50/50 transition hover:border-indigo-400 hover:bg-indigo-50" data-image-dropzone>
             <img src="{{ $currentUrl ?: '' }}"
                  alt="Vista previa de {{ strtolower($label) }}"
-                 class="absolute inset-0 h-full w-full object-contain p-4 {{ $currentUrl ? '' : 'hidden' }}"
+                 class="absolute inset-0 h-full max-h-64 w-full object-contain p-4 {{ $currentUrl ? '' : 'hidden' }}"
                  data-image-preview>
 
             <div class="relative z-10 flex flex-col items-center px-6 py-8 text-center {{ $currentUrl ? 'hidden' : '' }}" data-image-placeholder>

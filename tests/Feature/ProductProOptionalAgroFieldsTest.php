@@ -38,7 +38,7 @@ test('pro product can be created without lot expiry or agrochemical fields', fun
         'stock' => 5,
         'base_unit_id' => $unit->id,
         'status' => 'active',
-    ])->assertRedirect(route('inventario.index'));
+    ])->assertRedirect(route('inventario.create'));
 
     $product = Product::query()->where('code', 'MART-PRO-1')->firstOrFail();
 
@@ -77,7 +77,7 @@ test('pro and quick product creation can assign initial stock to a warehouse', f
         'base_unit_id' => $unit->id,
         'warehouse_id' => $warehouse->id,
         'status' => 'active',
-    ])->assertRedirect(route('inventario.index'));
+    ])->assertRedirect(route('inventario.create'));
 
     $product = Product::query()->where('code', 'CEM-BOD-2')->firstOrFail();
 
@@ -136,7 +136,7 @@ test('pro product can optionally save agrochemical traceability fields', functio
         'registration_number' => 'AG-9988',
         'active_ingredient' => 'Glifosato',
         'concentration' => '48% SL',
-    ])->assertRedirect(route('inventario.index'));
+    ])->assertRedirect(route('inventario.create'));
 
     $product = Product::query()->where('code', 'AGRO-PRO-1')->firstOrFail();
 

@@ -13,16 +13,28 @@ if ($Port -le 0) {
 }
 
 $ServerProfile = Get-EsteliPOSResolvedServerProfile -ServerProfile "Auto"
-$Php = Get-Command php.exe -ErrorAction SilentlyContinue
-$LanAddress = Get-EsteliPOSLanAddress
-$MacAddress = Get-EsteliPOSMacAddress
-$NetworkPage = Join-Path $ProjectRoot "storage\app\deployment\acceso-red.html"
 
 Write-Host "Diagnostico EsteliPOS" -ForegroundColor Cyan
 Write-Host "Ruta: $ProjectRoot"
 Write-Host "Perfil de servidor: $ServerProfile"
-Write-Host "PHP: $($Php.Source)"
-if ($Php) { & $Php.Source -v }
+Write-Host ""
+Write-Host "Dependencias:" -ForegroundColor Cyan
+$Report = Get-EsteliPOSPrerequisiteReport -ServerProfile $(if ($ServerProfile -eq "Simple") { "Simple" } else { "IIS" }) -ProjectRoot $ProjectRoot
+Write-Host (Format-EsteliPOSPrerequisiteReport -Report $Report)
+Write-Host ""
+
+$PhpPath = $null
+try {
+    $PhpPath = Resolve-EsteliPOSPhpExecutable
+} catch {
+    $PhpPath = $null
+}
+$LanAddress = Get-EsteliPOSLanAddress
+$MacAddress = Get-EsteliPOSMacAddress
+$NetworkPage = Join-Path $ProjectRoot "storage\app\deployment\acceso-red.html"
+
+Write-Host "PHP: $PhpPath"
+if ($PhpPath) { & $PhpPath -v }
 Write-Host "Base SQLite: $(Test-Path (Join-Path $ProjectRoot 'database\database.sqlite'))"
 Write-Host "Configuracion: $(Test-Path (Join-Path $ProjectRoot '.env'))"
 Write-Host "Dependencias: $(Test-Path (Join-Path $ProjectRoot 'vendor\autoload.php'))"
@@ -77,9 +89,9 @@ if ($LanAddress) {
     }
 }
 
-if ($Php) {
+if ($PhpPath) {
     Set-Location $ProjectRoot
-    & $Php.Source artisan about
+    & $PhpPath artisan about
 }
 
 Read-Host "Presiona Enter para cerrar"

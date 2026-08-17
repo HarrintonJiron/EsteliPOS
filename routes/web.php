@@ -198,6 +198,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/compras/productos/buscar', [CompraController::class, 'searchProducts'])->middleware('permission:compras.view')->name('compras.products.search');
         Route::get('/compras/productos/siguiente-codigo', [CompraController::class, 'nextProductCode'])->middleware('permission:compras.create')->name('compras.products.next-code');
         Route::post('/compras/productos/rapido', [CompraController::class, 'quickStoreProduct'])->middleware('permission:compras.create')->name('compras.products.quick-store');
+        Route::post('/compras/proveedores/rapido', [ProveedorController::class, 'quickStore'])->middleware('permission:compras.create')->name('compras.suppliers.quick-store');
         Route::get('/compras', [CompraController::class, 'index'])->middleware('permission:compras.view')->name('compras.index');
         Route::get('/compras/create', [CompraController::class, 'create'])->middleware('permission:compras.create')->name('compras.create');
         Route::get('/compras/{id}', [CompraController::class, 'show'])->middleware('permission:compras.view')->name('compras.show');

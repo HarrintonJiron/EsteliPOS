@@ -126,7 +126,8 @@
 
             cards.forEach(card => {
                 const matchesCategory = category === 'all' || card.dataset.category === category;
-                const matchesSearch = !term || card.dataset.search.includes(term);
+                const haystack = (card.dataset.search || '').toLocaleLowerCase('es');
+                const matchesSearch = !term || haystack.includes(term);
                 const show = matchesCategory && matchesSearch;
                 card.classList.toggle('hidden', !show);
                 if (show) visible++;

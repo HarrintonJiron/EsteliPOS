@@ -5,9 +5,10 @@ title EsteliPOS - Instalador
 
 :: Instalador desde la raiz del paquete extraido (carpeta EsteliPOS)
 :: Uso:
-::   Instalar-EsteliPOS.bat
+::   Instalar-EsteliPOS.bat              -> asistente grafico
 ::   Instalar-EsteliPOS.bat IIS
 ::   Instalar-EsteliPOS.bat Simple
+::   Instalar-EsteliPOS-Grafico.bat      -> mismo asistente grafico
 
 cd /d "%~dp0"
 
@@ -50,34 +51,26 @@ if not exist "%~dp0public\build\manifest.json" (
     )
 )
 
-:: Si hay instalacion con datos y no pasaron perfil, ofrecer actualizar
-if "%~1"=="" (
-    if exist "%~dp0database\database.sqlite" if exist "%~dp0.env" (
-        for %%A in ("%~dp0database\database.sqlite") do (
-            if %%~zA GTR 1024 (
-                cls
-                echo.
-                echo  ============================================================
-                echo    ESTELIPOS - YA HAY DATOS EN ESTA CARPETA
-                echo  ============================================================
-                echo.
-                echo   [1] ACTUALIZAR sin perder ventas/inventario
-                echo   [2] Continuar con instalacion/reconfiguracion IIS
-                echo   [Q] Cancelar
-                echo.
-                choice /c 12Q /n /m "Opcion: "
-                if errorlevel 3 exit /b 0
-                if errorlevel 2 goto :delegate
-                if exist "%~dp0Actualizar-EsteliPOS.bat" (
-                    call "%~dp0Actualizar-EsteliPOS.bat"
-                    exit /b %ERRORLEVEL%
-                )
-                echo [ERROR] Falta Actualizar-EsteliPOS.bat
-                pause
-                exit /b 4
-            )
-        )
+if /i "%~1"=="IIS" goto :delegate
+if /i "%~1"=="Simple" goto :delegate
+if /i "%~1"=="SIMPLE" goto :delegate
+if /i "%~1"=="Verify" goto :delegate
+if not "%~1"=="" (
+    echo.
+    echo [ERROR] Parametro no valido: %~1
+    echo Use: Instalar-EsteliPOS.bat   o   Instalar-EsteliPOS.bat IIS ^| Simple
+    echo.
+    pause
+    exit /b 1
+)
+
+if exist "%~dp0deployment\windows\Install-EsteliPOS-GUI.ps1" (
+    if exist "%~dp0Instalar-EsteliPOS-Grafico.bat" (
+        call "%~dp0Instalar-EsteliPOS-Grafico.bat"
+        exit /b %ERRORLEVEL%
     )
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File "%~dp0deployment\windows\Install-EsteliPOS-GUI.ps1"
+    exit /b %ERRORLEVEL%
 )
 
 :delegate

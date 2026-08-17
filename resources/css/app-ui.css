@@ -558,6 +558,7 @@ main label,
     background:
         radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.06), transparent),
         var(--ui-surface-muted);
+    overscroll-behavior: contain;
 }
 
 /* ── Pagination ── */

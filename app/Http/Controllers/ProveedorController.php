@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Models\Supplier;
 use App\Http\Requests\SupplierRequest;
+use App\Models\Supplier;
+use Illuminate\Http\Request;
 
 class ProveedorController extends Controller
 {
@@ -36,12 +36,12 @@ class ProveedorController extends Controller
 
         // Filtro por tipo
         if ($request->filled('type')) {
-            $query->where('type', 'like', '%' . $request->type . '%');
+            $query->where('type', 'like', '%'.$request->type.'%');
         }
 
         // Filtro por ciudad
         if ($request->filled('city')) {
-            $query->where('city', 'like', '%' . $request->city . '%');
+            $query->where('city', 'like', '%'.$request->city.'%');
         }
 
         // Ordenamiento
@@ -105,9 +105,67 @@ class ProveedorController extends Controller
             ->with('success', 'Proveedor creado correctamente.');
     }
 
+    public function quickStore(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'ruc' => 'nullable|string|max:30',
+            'contact_name' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:500',
+            'payment_condition' => 'nullable|in:contado,credito_15,credito_30,credito_60',
+        ], [
+            'name.required' => 'El nombre del proveedor es obligatorio.',
+        ]);
+
+        $supplier = Supplier::query()->create([
+            'code' => $this->nextSupplierCode(),
+            'name' => $data['name'],
+            'phone' => $data['phone'] ?? null,
+            'ruc' => $data['ruc'] ?? null,
+            'contact_name' => $data['contact_name'] ?? null,
+            'address' => $data['address'] ?? null,
+            'payment_condition' => $data['payment_condition'] ?? 'contado',
+            'status' => 'active',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Proveedor creado correctamente',
+            'supplier' => [
+                'id' => $supplier->id,
+                'name' => $supplier->name,
+                'code' => $supplier->code,
+            ],
+        ]);
+    }
+
+    private function nextSupplierCode(): string
+    {
+        $last = Supplier::query()
+            ->withTrashed()
+            ->where('code', 'like', 'PR-%')
+            ->orderByDesc('id')
+            ->value('code');
+
+        $next = 1;
+        if (is_string($last) && preg_match('/^PR-(\d+)$/', $last, $matches) === 1) {
+            $next = (int) $matches[1] + 1;
+        }
+
+        do {
+            $code = 'PR-'.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+            $exists = Supplier::query()->withTrashed()->where('code', $code)->exists();
+            $next++;
+        } while ($exists);
+
+        return $code;
+    }
+
     public function edit($id)
     {
         $supplier = Supplier::findOrFail($id);
+
         return view('proveedores.edit', compact('supplier'));
     }
 
@@ -180,7 +238,7 @@ class ProveedorController extends Controller
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="proveedores_' . now()->format('Ymd_His') . '.csv"',
+            'Content-Disposition' => 'attachment; filename="proveedores_'.now()->format('Ymd_His').'.csv"',
         ]);
     }
 }

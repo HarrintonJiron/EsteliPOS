@@ -55,7 +55,7 @@ test('an image can be uploaded while creating a product', function () {
         'image' => UploadedFile::fake()->image('producto.webp', 800, 800),
     ]);
 
-    $response->assertRedirect(route('inventario.index'));
+    $response->assertRedirect(route('inventario.create'));
 
     $product = Product::where('code', 'IMG-001')->firstOrFail();
     $storedPath = $product->getRawOriginal('image_url');

@@ -34,6 +34,10 @@
             --ui-primary-hover: {{ $primaryColor }};
             --ui-primary-dark: #0f766e;
         }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
         body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
 
         /* ── Sidebar (layout-specific) ── */
@@ -41,7 +45,9 @@
             position: fixed;
             width: 17rem;
             max-width: calc(100vw - 2rem);
-            overflow: visible;
+            height: 100%;
+            min-height: 0;
+            overflow: hidden;
             transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1), transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
         }
         #app-sidebar.is-collapsed {
@@ -52,11 +58,11 @@
             display: none;
             position: absolute;
             top: 50%;
-            right: 0;
+            right: 0.35rem;
             z-index: 70;
             width: 1.75rem;
             height: 2.75rem;
-            transform: translate(50%, -50%);
+            transform: translateY(-50%);
             align-items: center;
             justify-content: center;
             border-radius: 9999px;
@@ -88,6 +94,8 @@
             #app-sidebar {
                 position: relative;
                 max-width: none;
+                height: auto;
+                align-self: stretch;
             }
             .sidebar-collapse-pill { display: inline-flex; }
         }
@@ -219,9 +227,10 @@
         }
 
         @media print {
+            html, body { height: auto !important; overflow: visible !important; }
             aside, header, form, .no-print { display: none !important; }
             body, main { background: #fff !important; overflow: visible !important; }
-            .flex.h-dvh { display: block !important; height: auto !important; overflow: visible !important; }
+            .flex.h-dvh { display: block !important; height: auto !important; max-height: none !important; overflow: visible !important; }
             main { padding: 0 !important; }
             .card { box-shadow: none !important; break-inside: avoid; }
         }
@@ -230,7 +239,7 @@
 
 <body class="{{ $bodyBg }}">
 
-    <div class="flex h-dvh overflow-hidden">
+    <div class="flex h-dvh max-h-dvh overflow-hidden">
 
         <div id="sidebar-overlay" class="fixed inset-0 z-40 hidden bg-slate-950/55 backdrop-blur-sm lg:hidden" aria-hidden="true"></div>
 
@@ -531,7 +540,7 @@
             @endif
 
             <main @class([
-                'app-main flex-1 min-h-0',
+                'app-main flex-1 min-h-0 overscroll-contain',
                 'overflow-hidden' => View::hasSection('main-fluid'),
                 'overflow-y-auto' => ! View::hasSection('main-fluid'),
                 trim(View::getSection('main-class') ?: 'p-4 sm:p-6 lg:p-8'),
@@ -594,6 +603,12 @@
             const savedCollapsed = localStorage.getItem(STORAGE_KEY) === '1';
             if (isDesktop() && savedCollapsed) {
                 setCollapsed(true);
+            }
+
+            // Nested main scroll must start at top on each full page load
+            const main = document.querySelector('main.app-main');
+            if (main) {
+                main.scrollTop = 0;
             }
 
             openButtons.forEach((button) => button.addEventListener('click', () => setMobileOpen(true)));

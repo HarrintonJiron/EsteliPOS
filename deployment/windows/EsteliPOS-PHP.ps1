@@ -199,12 +199,16 @@ function Test-EsteliPOSPhpInstallation {
     }
 
     if ([string]::IsNullOrWhiteSpace($PhpPath)) {
-        $PhpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
-        $PhpPath = if ($PhpCommand) { $PhpCommand.Source } else { "" }
+        try {
+            $PhpPath = Resolve-EsteliPOSPhpExecutable
+        } catch {
+            $Result.Issues.Add("PHP no esta en el PATH ni en C:\EsteliPOS\PHP.")
+            return [pscustomobject]$Result
+        }
     }
 
-    if ([string]::IsNullOrWhiteSpace($PhpPath) -or -not (Test-Path $PhpPath)) {
-        $Result.Issues.Add("PHP no esta en el PATH.")
+    if (-not (Test-Path -LiteralPath $PhpPath)) {
+        $Result.Issues.Add("No existe php.exe en $PhpPath")
         return [pscustomobject]$Result
     }
 
@@ -312,10 +316,14 @@ function Install-EsteliPOSPhpThreadSafe {
     }
 
     if (-not $SkipVcRedist) {
-        try {
-            Install-EsteliPOSVcRedistributable
-        } catch {
-            Write-Warning "No se pudo instalar VC++ Redistributable: $($_.Exception.Message)"
+        if (Test-EsteliPOSVcRedistributableInstalled) {
+            Write-Host "Visual C++ Redistributable x64 ya esta instalado."
+        } else {
+            try {
+                Install-EsteliPOSVcRedistributable
+            } catch {
+                Write-Warning "No se pudo instalar VC++ Redistributable: $($_.Exception.Message)"
+            }
         }
     }
 

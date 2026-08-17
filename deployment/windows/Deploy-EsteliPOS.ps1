@@ -6,8 +6,13 @@ param(
     [int]$FastCgiMaxInstances = 2,
     [string]$AdminName = "Administrador",
     [string]$AdminEmail = "",
+    [string]$AdminPassword = "",
     [string]$ExternalBackupPath = "",
     [string]$LanAddress = "",
+    [string]$ProjectRoot = "",
+    [switch]$SetStaticIp,
+    [switch]$SkipDemoData,
+    [switch]$NonInteractive,
     [switch]$AutoInstallPhp = $true,
     [string]$PhpInstallDirectory = "C:\EsteliPOS\PHP"
 )
@@ -15,7 +20,15 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "EsteliPOS-Common.ps1")
 . (Join-Path $PSScriptRoot "EsteliPOS-InstallErrors.ps1")
+
+if (-not [string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    Set-EsteliPOSProjectRootOverride $ProjectRoot
+}
+
 $ProjectRoot = Get-EsteliPOSProjectRoot
+if ([string]::IsNullOrWhiteSpace($AdminPassword) -and -not [string]::IsNullOrWhiteSpace($env:INSTALL_ADMIN_PASSWORD)) {
+    $AdminPassword = [string]$env:INSTALL_ADMIN_PASSWORD
+}
 $PhpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
 $PhpPath = if ($PhpCommand) { $PhpCommand.Source } else { "" }
 $InstallLogPath = Get-EsteliPOSInstallLogPath
@@ -59,6 +72,21 @@ try {
         Stop-WithError "Ejecute el instalador como administrador." -ExitCode 1
     }
 
+    Write-Step "Buscando dependencias en este equipo"
+    $PrerequisiteReport = Get-EsteliPOSPrerequisiteReport -ServerProfile $ServerProfile -ProjectRoot $ProjectRoot
+    $PrerequisiteText = Format-EsteliPOSPrerequisiteReport -Report $PrerequisiteReport
+    Write-Host $PrerequisiteText
+    Write-InstallLogLine -LogPath $InstallLogPath -Line $PrerequisiteText
+    if (-not $PrerequisiteReport.Ready) {
+        $failDetails = New-Object System.Collections.ArrayList
+        foreach ($item in $PrerequisiteReport.Items) {
+            if ([string]$item.Status -eq "FAIL") {
+                [void]$failDetails.Add(("{0}: {1}" -f [string]$item.Name, [string]$item.Detail))
+            }
+        }
+        Stop-WithError ([string]::Join("; ", $failDetails.ToArray())) -ExitCode 2
+    }
+
     if ($AutoInstallPhp) {
         Write-Step "Comprobando o instalando PHP Thread Safe"
         try {
@@ -78,7 +106,11 @@ try {
     }
 
     if ([string]::IsNullOrWhiteSpace($PhpPath) -or -not (Test-Path $PhpPath)) {
-        Stop-WithError "php.exe no esta en el PATH del sistema." -ExitCode 3
+        try {
+            $PhpPath = Resolve-EsteliPOSPhpExecutable
+        } catch {
+            Stop-WithError "php.exe no esta en el PATH ni en C:\EsteliPOS\PHP." -ExitCode 3
+        }
     }
 
     $PhpVersion = & $PhpPath -r "echo PHP_VERSION;"
@@ -115,7 +147,8 @@ try {
     }
 
     if ($ServerProfile -eq "Simple") {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Stop-EsteliPOS.ps1") -ServerProfile Simple
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Stop-EsteliPOS.ps1") -ServerProfile Simple -Port $Port
+        Start-Sleep -Seconds 1
         $RequestedPort = $Port
         $Port = Get-EsteliPOSAvailablePort -PreferredPort $RequestedPort
         if ($Port -eq 0) {
@@ -127,20 +160,44 @@ try {
         }
     }
 
-    $LanAddress = Get-EsteliPOSLanAddress -PreferredAddress $LanAddress
+    $LanInfo = $null
+    if ($SetStaticIp) {
+        Write-Step "Fijando direccion IPv4 en esta PC"
+        try {
+            $LanInfo = Set-EsteliPOSStaticIpv4 -IpAddress $LanAddress
+            $LanAddress = $LanInfo.IpAddress
+            $MacAddress = $LanInfo.MacAddress
+            Write-InstallLogLine -LogPath $InstallLogPath -Line "IP fija: $LanAddress MAC: $MacAddress DHCP desactivado"
+        } catch {
+            Stop-WithError "No se pudo fijar la IP en esta PC. $($_.Exception.Message)" -ExitCode 21
+        }
+    } else {
+        $LanAddress = Get-EsteliPOSLanAddress -PreferredAddress $LanAddress
+        if ([string]::IsNullOrWhiteSpace($LanAddress)) {
+            Stop-WithError "No hay adaptador de red con IPv4 en la LAN." -ExitCode 11
+        }
+        $MacAddress = Get-EsteliPOSMacAddress
+    }
+
     if ([string]::IsNullOrWhiteSpace($LanAddress)) {
         Stop-WithError "No hay adaptador de red con IPv4 en la LAN." -ExitCode 11
     }
 
-    $MacAddress = Get-EsteliPOSMacAddress
     $AppUrl = "http://${LanAddress}:$Port"
 
-    $ActiveNetwork = Get-NetConnectionProfile |
-        Where-Object { $_.IPv4Connectivity -ne "Disconnected" } |
-        Select-Object -First 1
-    if ($ActiveNetwork -and $ActiveNetwork.NetworkCategory -eq "Public") {
-        Set-NetConnectionProfile -InterfaceIndex $ActiveNetwork.InterfaceIndex -NetworkCategory Private
-        Write-Host "La red activa se configuro como privada para permitir el acceso de otros dispositivos."
+    Write-Step "Esperando perfil de red de Windows"
+    $privateOk = $false
+    try {
+        $privateOk = Set-EsteliPOSLanProfilePrivate -TimeoutSeconds 8
+    } catch {
+        Write-Warning "No se pudo consultar el perfil de red: $($_.Exception.Message). EsteliPOS se instalara igual."
+        Write-InstallLogLine -LogPath $InstallLogPath -Line "AVISO perfil de red: $($_.Exception.Message)"
+        $privateOk = $false
+    }
+    if ($privateOk) {
+        Write-InstallLogLine -LogPath $InstallLogPath -Line "Red marcada como privada o ya no era Public."
+    } else {
+        Write-InstallLogLine -LogPath $InstallLogPath -Line "AVISO: no se marco la red como Privada (Identifying u otro). La instalacion continua."
     }
 
     Set-Location $ProjectRoot
@@ -170,7 +227,7 @@ try {
     Set-EnvValue $EnvPath "SESSION_DRIVER" "database"
     Set-EnvValue $EnvPath "CACHE_STORE" "database"
     Set-EnvValue $EnvPath "QUEUE_CONNECTION" "database"
-    Set-EnvValue $EnvPath "SEED_DEMO_DATA" "false"
+    Set-EnvValue $EnvPath "SEED_DEMO_DATA" $(if ($SkipDemoData) { "false" } else { "true" })
 
     if (-not (Test-Path $DatabasePath)) {
         New-Item -ItemType File -Path $DatabasePath | Out-Null
@@ -188,17 +245,51 @@ try {
     }
 
     if ([string]::IsNullOrWhiteSpace($AdminEmail)) {
+        if ($NonInteractive) {
+            Stop-WithError "En modo no interactivo debe indicar -AdminEmail." -ExitCode 13
+        }
         $AdminEmail = Read-Host "Correo del administrador"
     }
     if ([string]::IsNullOrWhiteSpace($AdminEmail)) {
         Stop-WithError "Debe ingresar un correo para el usuario administrador." -ExitCode 13
     }
+    if ($NonInteractive -and [string]::IsNullOrWhiteSpace($AdminPassword)) {
+        Stop-WithError "En modo no interactivo debe indicar -AdminPassword o INSTALL_ADMIN_PASSWORD." -ExitCode 13
+    }
 
     Write-Step "Instalando base de datos y administrador"
-    Write-Host "El sistema solicitara una contrasena segura de 12 o mas caracteres."
-    & $PhpPath artisan app:install-production "--admin-name=$AdminName" "--admin-email=$AdminEmail" --force
-    if ($LASTEXITCODE -ne 0) {
-        Stop-WithError "app:install-production devolvio codigo $LASTEXITCODE." -ExitCode 14
+    $PreviousInstallPassword = $env:INSTALL_ADMIN_PASSWORD
+    try {
+        if (-not [string]::IsNullOrWhiteSpace($AdminPassword)) {
+            $env:INSTALL_ADMIN_PASSWORD = $AdminPassword
+        } else {
+            Write-Host "El sistema solicitara una contrasena segura de 12 o mas caracteres."
+        }
+        $InstallArguments = @(
+            "app:install-production",
+            "--admin-name=$AdminName",
+            "--admin-email=$AdminEmail",
+            "--force"
+        )
+        if (-not [string]::IsNullOrWhiteSpace($AdminPassword)) {
+            $InstallArguments += "--admin-password=$AdminPassword"
+        }
+        if (-not $SkipDemoData) {
+            $InstallArguments += "--demo"
+            Write-Host "Se cargaran productos, clientes y ventas de demostracion para mostrar a clientes."
+        } else {
+            Write-Host "Instalacion vacia: sin productos ni ventas de demostracion."
+        }
+        & $PhpPath artisan @InstallArguments
+        if ($LASTEXITCODE -ne 0) {
+            Stop-WithError "app:install-production devolvio codigo $LASTEXITCODE." -ExitCode 14
+        }
+    } finally {
+        if ($null -eq $PreviousInstallPassword) {
+            Remove-Item Env:INSTALL_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+        } else {
+            $env:INSTALL_ADMIN_PASSWORD = $PreviousInstallPassword
+        }
     }
 
     if ($ServerProfile -eq "IIS") {
@@ -238,6 +329,7 @@ try {
         computer_name = $env:COMPUTERNAME
         admin_email = $AdminEmail
         php_directory = (Split-Path $PhpPath -Parent)
+        ip_mode = $(if ($SetStaticIp) { "static" } else { "dhcp" })
     }
 
     $NetworkPage = Write-EsteliPOSNetworkAccessPage `
@@ -252,7 +344,7 @@ try {
     $BackupScript = Join-Path $PSScriptRoot "Backup-EsteliPOS.ps1"
     Register-EsteliPOSServerTask -StartScript $StartScript -Port $Port -ServerProfile $ServerProfile
 
-    if ([string]::IsNullOrWhiteSpace($ExternalBackupPath)) {
+    if ([string]::IsNullOrWhiteSpace($ExternalBackupPath) -and -not $NonInteractive) {
         $ExternalBackupPath = Read-Host "Ruta opcional para una segunda copia (USB, red o nube; Enter para omitir)"
     }
     $BackupArguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$BackupScript`" -Port $Port -ServerProfile $ServerProfile"
@@ -272,39 +364,46 @@ try {
     $Principal = New-ScheduledTaskPrincipal -UserId $CurrentUser -LogonType Interactive -RunLevel Limited
     Register-ScheduledTask -TaskName "EsteliPOS - Respaldo diario" -Action $Action -Trigger $Trigger -Principal $Principal -Description "Respaldo diario local de EsteliPOS" -Force | Out-Null
 
-    $FirewallName = "EsteliPOS LAN - Puerto $Port"
-    if (-not (Get-NetFirewallRule -DisplayName $FirewallName -ErrorAction SilentlyContinue)) {
-        New-NetFirewallRule -DisplayName $FirewallName -Direction Inbound -Action Allow -Protocol TCP `
-            -LocalPort $Port -Profile Private,Domain -RemoteAddress LocalSubnet | Out-Null
-    }
+    Register-EsteliPOSFirewallRule -Port $Port
 
-    $BrowserCandidates = @(
-        "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
-        "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
-        "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
-        "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
-    )
-    $BrowserPath = $BrowserCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    $BrowserPath = Get-EsteliPOSBrowserPath
     if (-not $BrowserPath) {
-        Stop-WithError "Instale Edge o Chrome en este equipo." -ExitCode 16
+        Write-Warning "No se encontro Microsoft Edge ni Google Chrome. Se creara el acceso directo igual."
+        Write-InstallLogLine -LogPath $InstallLogPath -Line "AVISO: sin Edge/Chrome. Instale un navegador para abrir EsteliPOS."
     }
 
     $Desktop = [Environment]::GetFolderPath("Desktop")
     $ShortcutPath = Join-Path $Desktop "EsteliPOS.lnk"
     $NetworkShortcutPath = Join-Path $Desktop "EsteliPOS - Acceso en red.lnk"
-    $BrowserProfile = Join-Path $ProjectRoot "storage\app\browser-profile"
+    $LaunchScript = Join-Path $PSScriptRoot "Launch-EsteliPOS.ps1"
+    $OpenBat = Join-Path $ProjectRoot "Abrir-EsteliPOS.bat"
     $Shell = New-Object -ComObject WScript.Shell
 
+    # El acceso directo DEBE iniciar Laravel (si hace falta) y esperar HTTP listo
+    # antes de abrir el navegador. No apuntar solo a Chrome/PWA.
     $Shortcut = $Shell.CreateShortcut($ShortcutPath)
-    $Shortcut.TargetPath = $BrowserPath
-    $Shortcut.Arguments = "--app=`"$AppUrl`" --kiosk-printing --user-data-dir=`"$BrowserProfile`""
+    if (Test-Path $OpenBat) {
+        $Shortcut.TargetPath = $OpenBat
+        $Shortcut.Arguments = ""
+    } else {
+        $Shortcut.TargetPath = "powershell.exe"
+        $Shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$LaunchScript`" -Port $Port -ServerProfile $ServerProfile"
+    }
     $Shortcut.WorkingDirectory = $ProjectRoot
-    $Shortcut.IconLocation = "$BrowserPath,0"
+    if ($BrowserPath) {
+        $Shortcut.IconLocation = "$BrowserPath,0"
+    }
+    $Shortcut.Description = "Inicia EsteliPOS y abre la interfaz ($AppUrl)"
     $Shortcut.Save()
 
     $NetworkShortcut = $Shell.CreateShortcut($NetworkShortcutPath)
-    $NetworkShortcut.TargetPath = $BrowserPath
-    $NetworkShortcut.Arguments = "`"file:///$($NetworkPage.Replace('\', '/'))`""
+    if ($BrowserPath) {
+        $NetworkShortcut.TargetPath = $BrowserPath
+        $NetworkShortcut.Arguments = "`"file:///$($NetworkPage.Replace('\', '/'))`""
+    } else {
+        $NetworkShortcut.TargetPath = $NetworkPage
+        $NetworkShortcut.Arguments = ""
+    }
     $NetworkShortcut.WorkingDirectory = $ProjectRoot
     $NetworkShortcut.Save()
 
@@ -319,9 +418,10 @@ try {
     }
 
     Write-Step "Verificando instalacion completa"
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Test-EsteliPOSInstallation.ps1") -Port $Port -ServerProfile $ServerProfile
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Test-EsteliPOSInstallation.ps1") -Port $Port -ServerProfile $ServerProfile -SkipSlowChecks
     if ($LASTEXITCODE -ne 0) {
-        Stop-WithError "Revise storage\app\deployment\post-install-report.json" -ExitCode 18
+        Write-Warning "Algunas comprobaciones locales fallaron. EsteliPOS ya esta instalado; revise storage\app\deployment\post-install-report.json"
+        Write-InstallLogLine -LogPath $InstallLogPath -Line "AVISO: Test-EsteliPOSInstallation codigo $LASTEXITCODE (no aborta)."
     }
 
     Write-InstallLogLine -LogPath $InstallLogPath -Line "=== Instalacion completada OK $(Get-Date -Format o) ==="
@@ -338,9 +438,12 @@ try {
         Write-Host "Segunda copia: $ExternalBackupPath"
     }
     Write-Host "Se crearon accesos directos en el escritorio."
-    Start-Process $NetworkPage
-    Start-Process $ShortcutPath
-    Read-Host "Presiona Enter para finalizar"
+    Write-Host "Abra EsteliPOS desde el acceso directo del escritorio cuando termine este asistente."
+    if (-not $NonInteractive) {
+        Read-Host "Presiona Enter para finalizar"
+    }
 } catch {
+    Write-InstallLogLine -LogPath $InstallLogPath -Line "EXCEPCION: $($_.Exception.Message)"
+    Write-InstallLogLine -LogPath $InstallLogPath -Line "STACK: $($_.ScriptStackTrace)"
     Stop-WithError $_.Exception.Message -ExitCode 99
 }

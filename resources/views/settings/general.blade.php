@@ -178,7 +178,7 @@
             </div>
         </section>
 
-        <div class="sticky bottom-0 z-20 flex flex-col-reverse gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col-reverse gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <p class="hidden text-sm text-amber-700" data-unsaved-indicator>Hay cambios sin guardar.</p>
             <div class="flex gap-3 sm:ml-auto">
                 <a href="{{ route('settings.index') }}" class="btn-outline flex-1 justify-center sm:flex-none" data-cancel-link>Cancelar</a>

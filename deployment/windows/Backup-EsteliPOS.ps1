@@ -3,7 +3,7 @@ param(
     [int]$Port = 8080,
     [int]$RetentionDays = 30,
     [string]$ExternalBackupPath = "",
-    [string]$HostAddress = "127.0.0.1",
+    [string]$HostAddress = "0.0.0.0",
     [ValidateSet("Simple", "IIS", "Auto")]
     [string]$ServerProfile = "Auto"
 )

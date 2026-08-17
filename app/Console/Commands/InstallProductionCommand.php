@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Role;
 use App\Models\User;
+use Database\Seeders\ClientDemoSeeder;
 use Database\Seeders\ProductionSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -17,9 +18,11 @@ class InstallProductionCommand extends Command
     protected $signature = 'app:install-production
         {--admin-name= : Nombre del administrador inicial}
         {--admin-email= : Correo del administrador inicial}
+        {--admin-password= : Contraseña del administrador inicial}
+        {--demo : Carga productos, clientes, compras y ventas de demostración}
         {--force : Confirma la ejecución no interactiva en producción}';
 
-    protected $description = 'Instala la estructura y catálogos esenciales sin cargar datos de demostración';
+    protected $description = 'Instala catálogos de producción y, con --demo, datos para mostrar a clientes';
 
     public function handle(): int
     {
@@ -31,7 +34,10 @@ class InstallProductionCommand extends Command
 
         $name = trim((string) ($this->option('admin-name') ?: $this->ask('Nombre del administrador', 'Administrador')));
         $email = mb_strtolower(trim((string) ($this->option('admin-email') ?: $this->ask('Correo del administrador'))));
-        $password = (string) (env('INSTALL_ADMIN_PASSWORD') ?: $this->secret('Contraseña inicial segura (12+ caracteres)'));
+        $password = (string) ($this->option('admin-password') ?: env('INSTALL_ADMIN_PASSWORD') ?: '');
+        if ($password === '') {
+            $password = (string) $this->secret('Contraseña inicial segura (12+ caracteres)');
+        }
 
         $validator = Validator::make(compact('name', 'email', 'password'), [
             'name' => ['required', 'string', 'max:255'],
@@ -82,6 +88,15 @@ class InstallProductionCommand extends Command
             return self::FAILURE;
         }
 
+        if ($this->option('demo')) {
+            if (! $this->runStep('Cargando datos de demostración para clientes', 'db:seed', [
+                '--class' => ClientDemoSeeder::class,
+                '--force' => true,
+            ])) {
+                return self::FAILURE;
+            }
+        }
+
         if (! is_link(public_path('storage'))) {
             if ($this->callSilent('storage:link') !== self::SUCCESS) {
                 $this->error('No se pudo crear el enlace público de archivos.');
@@ -98,7 +113,11 @@ class InstallProductionCommand extends Command
         }
 
         $this->newLine();
-        $this->info('Instalación base completada sin productos, clientes, ventas ni compras de demostración.');
+        if ($this->option('demo')) {
+            $this->info('Instalación completada con catálogo, clientes y ventas de demostración.');
+        } else {
+            $this->info('Instalación base completada sin productos, clientes, ventas ni compras de demostración.');
+        }
         $this->warn('El administrador deberá cambiar la contraseña en su primer ingreso.');
         $this->warn('Elimina INSTALL_ADMIN_PASSWORD del entorno si fue utilizado.');
 

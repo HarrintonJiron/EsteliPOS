@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Client;
+use App\Models\NumberSequence;
 use App\Models\Product;
 use App\Models\Proforma;
 use App\Models\ProformaDetail;
-use App\Models\NumberSequence;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
@@ -24,13 +24,9 @@ class ProformaController extends Controller
         private PosCatalogService $posCatalog,
     ) {}
 
-    private const DEFAULT_TAX_RATE = 0.15;
-
     private function defaultTaxRate(): float
     {
-        $rate = Tax::defaultRate();
-
-        return $rate > 0 ? $rate : self::DEFAULT_TAX_RATE;
+        return Tax::defaultRate();
     }
 
     private function nextProformaNumber(): string
@@ -133,15 +129,21 @@ class ProformaController extends Controller
                 'total' => 0,
             ]);
 
-            $linesTotal = 0;
+            $linesTotal = 0.0;
+            $taxTotal = 0.0;
 
             foreach ($items as $item) {
                 $quantity = (float) ($item['quantity'] ?? 1);
                 $price = (float) ($item['price'] ?? 0);
-                $discountPct = (float) ($item['discount'] ?? 0);
+                $discountPct = min(100, max(0, (float) ($item['discount'] ?? 0)));
                 $subtotal = $price * $quantity * (1 - $discountPct / 100);
 
-                $product = Product::find($item['product_id'] ?? null);
+                $product = Product::query()
+                    ->with('tax')
+                    ->find($item['product_id'] ?? null);
+
+                $rate = $product?->effectiveTaxRate() ?? $defaultTaxRate;
+                $lineTax = $subtotal * $rate;
 
                 ProformaDetail::create([
                     'proforma_id' => $proforma->id,
@@ -154,16 +156,14 @@ class ProformaController extends Controller
                 ]);
 
                 $linesTotal += $subtotal;
+                $taxTotal += $lineTax;
             }
 
-            $rate = $defaultTaxRate;
-            $taxTotal = $linesTotal * $rate;
-            $grandTotal = $linesTotal + $taxTotal;
-
             $proforma->update([
+                'tax_rate' => $linesTotal > 0 ? round($taxTotal / $linesTotal, 4) : $defaultTaxRate,
                 'subtotal' => round($linesTotal, 2),
                 'tax_total' => round($taxTotal, 2),
-                'total' => round($grandTotal, 2),
+                'total' => round($linesTotal + $taxTotal, 2),
             ]);
         });
 

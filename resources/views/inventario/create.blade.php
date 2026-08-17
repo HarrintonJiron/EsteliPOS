@@ -282,10 +282,11 @@
             </div>
         </div>
 
-        <div class="flex justify-end gap-3">
-            <a href="{{ route('inventario.index') }}" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">Cancelar</a>
+        <div class="flex flex-col items-end gap-2 sm:flex-row sm:justify-end sm:items-center">
+            <p class="text-xs text-gray-500 sm:mr-auto">Al guardar, el formulario se limpia para seguir agregando productos.</p>
+            <a href="{{ route('inventario.index') }}" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">Volver al listado</a>
             <button type="submit" class="bg-slate-800 text-white px-6 py-2 rounded-lg hover:bg-green-800 shadow">
-                Guardar Producto
+                Guardar y seguir
             </button>
         </div>
     </form>

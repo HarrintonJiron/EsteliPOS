@@ -44,7 +44,7 @@ if ($Port -le 0) {
 $ServerProfile = Get-EsteliPOSResolvedServerProfile -ServerProfile "Auto"
 $BackupDir = Join-Path $ProjectRoot "backups\$(Get-Date -Format 'yyyyMMdd_HHmmss')"
 $FilesBackupDir = Join-Path $BackupDir "files"
-$PhpPath = (Get-Command php.exe -ErrorAction Stop).Source
+$PhpPath = Resolve-EsteliPOSPhpExecutable
 $CopyMap = [ordered]@{}
 $CreatedDestinations = New-Object System.Collections.Generic.List[string]
 $TempDir = $null
@@ -60,6 +60,22 @@ function Write-Step([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Cyan
 }
 
+function Invoke-EsteliPOSPhpFile([string]$PhpCode, [string[]]$Arguments = @()) {
+    $TempPhp = Join-Path $env:TEMP ("estelipos-" + [guid]::NewGuid().ToString() + ".php")
+    try {
+        # UTF-8 sin BOM: evita parse errors en php.exe de Windows.
+        [System.IO.File]::WriteAllText($TempPhp, $PhpCode, (New-Object System.Text.UTF8Encoding($false)))
+        $Output = & $PhpPath $TempPhp @Arguments 2>&1
+        $ExitCode = $LASTEXITCODE
+        return @{
+            ExitCode = $ExitCode
+            Output = ($Output | Out-String).Trim()
+        }
+    } finally {
+        Remove-Item -LiteralPath $TempPhp -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Assert-EsteliPOSDatabase([string]$Path, [string]$Label) {
     if (-not (Test-Path -LiteralPath $Path)) {
         throw "$Label no existe: $Path"
@@ -70,10 +86,39 @@ function Assert-EsteliPOSDatabase([string]$Path, [string]$Label) {
         throw "$Label esta vacia o incompleta: $Path"
     }
 
-    $CheckScript = '$path = $argv[1]; $pdo = new PDO(''sqlite:''.$path); echo $pdo->query(''PRAGMA quick_check;'')->fetchColumn();'
-    $CheckResult = & $PhpPath -r $CheckScript $DatabaseFile.FullName
-    if ($LASTEXITCODE -ne 0 -or ($CheckResult -join '').Trim() -ne "ok") {
-        throw "$Label no paso PRAGMA quick_check: $Path"
+    $CheckCode = @'
+<?php
+$path = $argv[1] ?? '';
+if ($path === '' || !is_file($path)) {
+   fwrite(STDERR, "missing");
+    exit(1);
+}
+$pdo = new PDO('sqlite:' . $path);
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+echo $pdo->query('PRAGMA quick_check;')->fetchColumn();
+'@
+    $Result = Invoke-EsteliPOSPhpFile -PhpCode $CheckCode -Arguments @($DatabaseFile.FullName)
+    if ($Result.ExitCode -ne 0 -or $Result.Output -ne "ok") {
+        throw "$Label no paso PRAGMA quick_check: $Path ($($Result.Output))"
+    }
+}
+
+function Invoke-EsteliPOSWalCheckpoint([string]$RelativeSqlitePath) {
+    $CheckpointCode = @'
+<?php
+$path = $argv[1] ?? '';
+if ($path === '' || !is_file($path)) {
+   fwrite(STDERR, "missing db");
+    exit(1);
+}
+$pdo = new PDO('sqlite:' . $path);
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('PRAGMA wal_checkpoint(TRUNCATE);');
+echo 'ok';
+'@
+    $Result = Invoke-EsteliPOSPhpFile -PhpCode $CheckpointCode -Arguments @($RelativeSqlitePath)
+    if ($Result.ExitCode -ne 0 -or $Result.Output -ne "ok") {
+        throw "No se pudo consolidar SQLite antes del respaldo ($($Result.Output)). La actualizacion fue cancelada sin modificar archivos."
     }
 }
 
@@ -86,13 +131,14 @@ function Find-EsteliPOSNewestUpdateZip([string]$ProjectRootPath) {
         (Get-Location).Path
     ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique
 
+    # Preferir paquete completo de produccion sobre parches parciales.
     $patterns = @(
-        "parche1.0.zip",
-        "parche*.zip",
-        "produccion1.0.zip",
         "EsteliPOSProduccion1.0.zip",
+        "EsteliPOSProduccion*.zip",
+        "produccion1.0.zip",
         "produccion*.zip",
-        "EsteliPOSProduccion*.zip"
+        "parche1.0.zip",
+        "parche*.zip"
     )
 
     $candidates = @()
@@ -102,12 +148,22 @@ function Find-EsteliPOSNewestUpdateZip([string]$ProjectRootPath) {
         }
     }
 
-    $candidates = $candidates | Sort-Object FullName -Unique | Sort-Object LastWriteTime -Descending
-    if (-not $candidates -or $candidates.Count -eq 0) {
+    $candidates = $candidates |
+        Sort-Object FullName -Unique |
+        Sort-Object @{
+            Expression = {
+                if ($_.Name -match '^EsteliPOSProduccion') { 3 }
+                elseif ($_.Name -match '^produccion') { 2 }
+                else { 1 }
+            }
+            Descending = $true
+        }, @{ Expression = 'LastWriteTime'; Descending = $true }, @{ Expression = 'Length'; Descending = $true }
+
+    if (-not $candidates -or @($candidates).Count -eq 0) {
         return $null
     }
 
-    return $candidates[0]
+    return @($candidates)[0]
 }
 
 function Resolve-EsteliPOSPackageRoot([string]$ZipPath) {
@@ -124,7 +180,8 @@ function Resolve-EsteliPOSPackageRoot([string]$ZipPath) {
         (Join-Path $extractRoot "EsteliPOSProduccion1.0.zip"),
         (Join-Path $extractRoot "EsteliPOSProduccion2.0.zip"),
         (Join-Path $extractRoot "EsteliPOSProduccion3.0.zip")
-    ) + @(Get-ChildItem -Path $extractRoot -Filter "EsteliPOS*.zip" -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
+    ) + @(Get-ChildItem -Path $extractRoot -Filter "EsteliPOS*.zip" -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName) +
+      @(Get-ChildItem -Path $extractRoot -Filter "produccion*.zip" -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
 
     foreach ($innerZip in $innerCandidates | Select-Object -Unique) {
         if (-not (Test-Path $innerZip)) {
@@ -206,10 +263,7 @@ try {
     New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
     Set-Location $ProjectRoot
     Assert-EsteliPOSDatabase -Path $DatabasePath -Label "La base de datos instalada"
-    & $PhpPath -r '$pdo = new PDO("sqlite:database/database.sqlite"); $pdo->exec("PRAGMA wal_checkpoint(TRUNCATE);");'
-    if ($LASTEXITCODE -ne 0) {
-        throw "No se pudo consolidar SQLite antes del respaldo. La actualizacion fue cancelada sin modificar archivos."
-    }
+    Invoke-EsteliPOSWalCheckpoint -RelativeSqlitePath $DatabasePath
     if (Test-Path (Join-Path $ProjectRoot ".env")) {
         Copy-Item (Join-Path $ProjectRoot ".env") $BackupDir
     }
@@ -248,10 +302,12 @@ try {
         Write-Warning "La instalacion ya reporta la misma VERSION ($PreviousVersion). Se reaplicaran archivos de todas formas."
     }
 
+    # Paquete completo: todo el codigo de la app salvo .env / sqlite / storage\app.
     $CopyMap = [ordered]@{
         "app" = "app"
         "bootstrap" = "bootstrap"
         "config" = "config"
+        "database\factories" = "database\factories"
         "database\migrations" = "database\migrations"
         "database\seeders" = "database\seeders"
         "lang" = "lang"
@@ -259,8 +315,11 @@ try {
         "public\build" = "public\build"
         "public\css" = "public\css"
         "public\js" = "public\js"
+        "public\images" = "public\images"
         "public\index.php" = "public\index.php"
         "public\web.config" = "public\web.config"
+        "public\robots.txt" = "public\robots.txt"
+        "public\.htaccess" = "public\.htaccess"
         "resources" = "resources"
         "routes" = "routes"
         "deployment\windows" = "deployment\windows"
@@ -269,7 +328,10 @@ try {
         "composer.lock" = "composer.lock"
         "VERSION" = "VERSION"
         "Instalar-EsteliPOS.bat" = "Instalar-EsteliPOS.bat"
+        "Instalar-EsteliPOS-Grafico.bat" = "Instalar-EsteliPOS-Grafico.bat"
         "Actualizar-EsteliPOS.bat" = "Actualizar-EsteliPOS.bat"
+        "Abrir-EsteliPOS.bat" = "Abrir-EsteliPOS.bat"
+        "Reparar-EsteliPOS-LAN.bat" = "Reparar-EsteliPOS-LAN.bat"
     }
 
     Write-Step "Respaldando archivos que se actualizaran"
@@ -315,10 +377,16 @@ try {
         throw "Falta resources\views\facturacion\pos.blade.php despues de actualizar."
     }
 
-    Write-Step "Migraciones y limpieza de cache (no borra ventas ni inventario)"
+    # Recargar helpers nuevos (LAN 0.0.0.0, launcher, firewall) tras reemplazar deployment\windows.
+    $WindowsScriptsDir = Get-EsteliPOSWindowsScriptsDir
+    . (Join-Path $WindowsScriptsDir "EsteliPOS-Common.ps1")
+    $PhpPath = Resolve-EsteliPOSPhpExecutable
+    $ServerProfile = Get-EsteliPOSResolvedServerProfile -ServerProfile "Auto"
+
+    Write-Step "Migraciones y limpia de cache (no borra ventas ni inventario)"
     Set-Location $ProjectRoot
     Assert-EsteliPOSDatabase -Path $DatabasePath -Label "La base de datos antes de migrar"
-    & $PhpPath artisan migrate --force
+    & $PhpPath artisan app:migrate-production --force
     if ($LASTEXITCODE -ne 0) { throw "Las migraciones fallaron." }
 
     & $PhpPath artisan optimize:clear
@@ -330,8 +398,20 @@ try {
     & $PhpPath artisan optimize
     if ($LASTEXITCODE -ne 0) { throw "No se pudo optimizar la aplicacion." }
 
-    Write-Step "Reiniciando EsteliPOS"
-    if ($ServerProfile -eq "IIS") {
+    Write-Step "Reaplicando arranque LAN, firewall, tarea y acceso directo"
+    $StartScript = Join-Path $WindowsScriptsDir "Start-EsteliPOS.ps1"
+    Register-EsteliPOSServerTask -StartScript $StartScript -Port $Port -ServerProfile $ServerProfile
+    Register-EsteliPOSFirewallRule -Port $Port
+
+    $RepairScript = Join-Path $WindowsScriptsDir "Repair-EsteliPOS-LAN.ps1"
+    if ($ServerProfile -eq "Simple" -and (Test-Path -LiteralPath $RepairScript)) {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $RepairScript -Port $Port
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Repair-EsteliPOS-LAN devolvio codigo $LASTEXITCODE; se intentara arranque directo."
+            & (Join-Path $WindowsScriptsDir "Start-EsteliPOS.ps1") -Port $Port -ServerProfile Simple -HostAddress "0.0.0.0"
+        }
+    } else {
+        Write-Step "Reiniciando EsteliPOS (IIS)"
         & (Join-Path $WindowsScriptsDir "Start-EsteliPOS.ps1") -Port $Port -ServerProfile IIS
         try {
             Import-Module WebAdministration -ErrorAction SilentlyContinue
@@ -345,8 +425,6 @@ try {
         } catch {
             Write-Warning "No se pudo reiniciar el app pool IIS explicitamente (puede estar bien si Start-EsteliPOS ya lo hizo)."
         }
-    } else {
-        & (Join-Path $WindowsScriptsDir "Start-EsteliPOS.ps1") -Port $Port -ServerProfile Simple -HostAddress "0.0.0.0"
     }
 
     Write-Step "Verificando instalacion"
@@ -355,12 +433,15 @@ try {
         throw "La verificacion post-actualizacion fallo."
     }
 
+    $AppUrl = Get-EsteliPOSAppUrl -Port $Port
     Write-Host "`nACTUALIZACION COMPLETADA" -ForegroundColor Green
     Write-Host "Version anterior: $PreviousVersion"
     Write-Host "Version nueva:    $InstalledVersion"
+    Write-Host "URL recomendada:  $AppUrl"
     Write-Host "Datos conservados: .env + database.sqlite + storage\app"
     Write-Host "Respaldo: $BackupDir"
-    Write-Host "Si el navegador sigue igual: cierre pestañas, Ctrl+F5 o abra en ventana privada."
+    Write-Host "Abra EsteliPOS con Abrir-EsteliPOS.bat o el acceso directo del escritorio."
+    Write-Host "Si el navegador sigue igual: cierre pestañas, Ctrl+F5 o ventana privada."
 } catch {
     $FailureMessage = $_.Exception.Message
     Write-Warning "La actualizacion fallo. Restaurando la version anterior..."
@@ -388,20 +469,21 @@ try {
     $InstalledDatabasePath = Join-Path $ProjectRoot "database\database.sqlite"
     $RestoreDatabasePath = Join-Path $ProjectRoot "database\database.sqlite.restore"
     if (-not (Test-Path -LiteralPath $BackupDatabasePath)) {
-        throw "No se encontro la base respaldada; no se reemplazo la base instalada. Respaldo esperado: $BackupDatabasePath"
-    }
-    Assert-EsteliPOSDatabase -Path $BackupDatabasePath -Label "La base respaldada para rollback"
-    Copy-Item -LiteralPath $BackupDatabasePath -Destination $RestoreDatabasePath -Force
-    Assert-EsteliPOSDatabase -Path $RestoreDatabasePath -Label "La copia temporal de restauracion"
-    Remove-Item (Join-Path $ProjectRoot "database\database.sqlite-wal") -Force -ErrorAction SilentlyContinue
-    Remove-Item (Join-Path $ProjectRoot "database\database.sqlite-shm") -Force -ErrorAction SilentlyContinue
-    Move-Item -LiteralPath $RestoreDatabasePath -Destination $InstalledDatabasePath -Force
-    Assert-EsteliPOSDatabase -Path $InstalledDatabasePath -Label "La base restaurada"
-    if (Test-Path (Join-Path $BackupDir "database.sqlite-wal")) {
-        Copy-Item (Join-Path $BackupDir "database.sqlite-wal") (Join-Path $ProjectRoot "database\database.sqlite-wal") -Force
-    }
-    if (Test-Path (Join-Path $BackupDir "database.sqlite-shm")) {
-        Copy-Item (Join-Path $BackupDir "database.sqlite-shm") (Join-Path $ProjectRoot "database\database.sqlite-shm") -Force
+        Write-Warning "No hubo respaldo de base (fallo antes de copiarla). La base instalada NO se toco: $InstalledDatabasePath"
+    } else {
+        Assert-EsteliPOSDatabase -Path $BackupDatabasePath -Label "La base respaldada para rollback"
+        Copy-Item -LiteralPath $BackupDatabasePath -Destination $RestoreDatabasePath -Force
+        Assert-EsteliPOSDatabase -Path $RestoreDatabasePath -Label "La copia temporal de restauracion"
+        Remove-Item (Join-Path $ProjectRoot "database\database.sqlite-wal") -Force -ErrorAction SilentlyContinue
+        Remove-Item (Join-Path $ProjectRoot "database\database.sqlite-shm") -Force -ErrorAction SilentlyContinue
+        Move-Item -LiteralPath $RestoreDatabasePath -Destination $InstalledDatabasePath -Force
+        Assert-EsteliPOSDatabase -Path $InstalledDatabasePath -Label "La base restaurada"
+        if (Test-Path (Join-Path $BackupDir "database.sqlite-wal")) {
+            Copy-Item (Join-Path $BackupDir "database.sqlite-wal") (Join-Path $ProjectRoot "database\database.sqlite-wal") -Force
+        }
+        if (Test-Path (Join-Path $BackupDir "database.sqlite-shm")) {
+            Copy-Item (Join-Path $BackupDir "database.sqlite-shm") (Join-Path $ProjectRoot "database\database.sqlite-shm") -Force
+        }
     }
     if (Test-Path (Join-Path $BackupDir "VERSION")) {
         Copy-Item (Join-Path $BackupDir "VERSION") (Join-Path $ProjectRoot "VERSION") -Force

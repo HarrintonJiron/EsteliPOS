@@ -95,12 +95,19 @@ php "$stage_dir/artisan" list --raw | grep -q '^app:install-production'
 
 for required_path in \
     "$stage_dir/Instalar-EsteliPOS.bat" \
+    "$stage_dir/Instalar-EsteliPOS-Grafico.bat" \
     "$stage_dir/Actualizar-EsteliPOS.bat" \
+    "$stage_dir/Abrir-EsteliPOS.bat" \
+    "$stage_dir/Reparar-EsteliPOS-LAN.bat" \
     "$stage_dir/.env.production.example" \
     "$stage_dir/public/web.config" \
     "$stage_dir/deployment/windows/Install-EsteliPOS.bat" \
+    "$stage_dir/deployment/windows/Install-EsteliPOS-GUI.ps1" \
     "$stage_dir/deployment/windows/Actualizar-EsteliPOS.bat" \
     "$stage_dir/deployment/windows/Update-EsteliPOS.ps1" \
+    "$stage_dir/deployment/windows/Start-EsteliPOS.ps1" \
+    "$stage_dir/deployment/windows/Launch-EsteliPOS.ps1" \
+    "$stage_dir/deployment/windows/Bootstrap-UpdateFromZip.ps1" \
     "$stage_dir/deployment/windows/EsteliPOS-IIS.ps1" \
     "$stage_dir/deployment/windows/EsteliPOS-PHP.ps1" \
     "$stage_dir/deployment/windows/EsteliPOS-InstallErrors.ps1" \
@@ -114,6 +121,15 @@ for required_path in \
         exit 1
     fi
 done
+
+if ! grep -q 'Get-EsteliPOSSimpleListenHost' "$stage_dir/deployment/windows/Start-EsteliPOS.ps1"; then
+    echo "Start-EsteliPOS.ps1 debe usar Get-EsteliPOSSimpleListenHost (LAN 0.0.0.0)." >&2
+    exit 1
+fi
+if ! grep -q -- '--host=0.0.0.0\|HostAddress 0.0.0.0\|HostAddress", "0.0.0.0' "$stage_dir/deployment/windows/Launch-EsteliPOS.ps1"; then
+    echo "Launch-EsteliPOS.ps1 debe forzar --host=0.0.0.0." >&2
+    exit 1
+fi
 
 php_sha256="$(php -r 'echo hash_file("sha256", $argv[1]);' "$stage_dir/deployment/windows/assets/php-ts.zip")"
 rewrite_sha256="$(php -r 'echo hash_file("sha256", $argv[1]);' "$stage_dir/deployment/windows/assets/rewrite_amd64_en-US.msi")"
@@ -165,22 +181,26 @@ if [[ ! -f "$release_dir/INSTALAR.bat" ]]; then
 fi
 
 delivery_path="$release_dir/parche1.0.zip"
-rm -f "$delivery_path" "$release_dir/produccion1.0.zip" "$release_dir/produccion.zip" "$release_dir/produccion2.0.zip" "$release_dir/produccion3.0.zip"
+produccion_path="$release_dir/produccion1.0.zip"
+rm -f "$delivery_path" "$produccion_path" "$release_dir/produccion.zip" "$release_dir/produccion2.0.zip" "$release_dir/produccion3.0.zip"
 (
     cd "$release_dir"
     zip -j "$delivery_path" EsteliPOSProduccion1.0.zip EsteliPOSProduccion1.0.zip.sha256 INSTALAR.bat
 )
+cp -f "$delivery_path" "$produccion_path"
 rm -f "$package_path" "$package_path.sha256"
 
 package_size="$(du -h "$delivery_path" | awk '{print $1}')"
 echo ""
 echo "Paquete generado: $delivery_path"
+echo "Copia identica:   $produccion_path"
 echo "Tamano: $package_size"
 echo "Contenido: INSTALAR.bat + EsteliPOSProduccion1.0.zip + checksum"
 echo ""
 echo "Enviar al tecnico:"
-echo "  1. deployment/parche1.0.zip"
+echo "  1. deployment/produccion1.0.zip  (recomendado / actualizador definitivo)"
+echo "     o deployment/parche1.0.zip    (mismo contenido)"
 echo "  2. Extraer y DOBLE CLIC en INSTALAR.bat  (recomendado)"
 echo "  3. Alternativa manual: extraer EsteliPOSProduccion1.0.zip y Instalar-EsteliPOS.bat"
-echo "  4. ACTUALIZAR: INSTALAR.bat detecta datos y ofrece actualizar, o use"
-echo "     Actualizar-EsteliPOS.bat ruta\\parche1.0.zip"
+echo "  4. ACTUALIZAR sin perder datos:"
+echo "     Actualizar-EsteliPOS.bat C:\\ruta\\produccion1.0.zip"

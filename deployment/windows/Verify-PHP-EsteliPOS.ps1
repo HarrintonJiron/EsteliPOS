@@ -28,19 +28,30 @@ function Add-Pass([string]$Message) {
 Write-Host "`nEsteliPOS - Verificacion previa de PHP ($ServerProfile)" -ForegroundColor Cyan
 Write-Host "============================================================`n"
 
-$Php = Get-Command php.exe -ErrorAction SilentlyContinue
-if (-not $Php) {
-    Add-Failure "PHP no esta en el PATH. El instalador intentara instalarlo automaticamente (requiere internet o php-ts.zip en assets)."
+$PhpPath = $null
+try {
+    $PhpPath = Resolve-EsteliPOSPhpExecutable
+} catch {
+    $PhpPath = $null
+}
+
+$BundledPhp = Test-Path (Join-Path $PSScriptRoot "assets\php-ts.zip")
+if (-not $PhpPath) {
+    if ($BundledPhp) {
+        Add-Warning "PHP no esta instalado aun. El instalador lo extraera de php-ts.zip."
+    } else {
+        Add-Failure "PHP no esta en el PATH ni en C:\EsteliPOS\PHP. El instalador intentara instalarlo automaticamente (requiere internet o php-ts.zip en assets)."
+    }
 } else {
-    Add-Pass "PHP encontrado en $($Php.Source)"
-    $Version = & $Php.Source -r "echo PHP_VERSION;"
+    Add-Pass "PHP encontrado en $PhpPath"
+    $Version = & $PhpPath -r "echo PHP_VERSION;"
     if ([version]$Version -lt [version]"8.4.1") {
         Add-Failure "Se requiere PHP 8.4.1 o superior. Version actual: $Version"
     } else {
         Add-Pass "Version PHP $Version"
     }
 
-    $Loaded = @(& $Php.Source -m | ForEach-Object { $_.Trim().ToLowerInvariant() })
+    $Loaded = @(& $PhpPath -m | ForEach-Object { $_.Trim().ToLowerInvariant() })
     foreach ($Extension in $RequiredExtensions) {
         if ($Loaded -contains $Extension) {
             Add-Pass "Extension $Extension"
@@ -50,7 +61,7 @@ if (-not $Php) {
     }
 
     if ($ServerProfile -eq "IIS") {
-        $PhpCgi = Join-Path (Split-Path $Php.Source -Parent) "php-cgi.exe"
+        $PhpCgi = Join-Path (Split-Path $PhpPath -Parent) "php-cgi.exe"
         if (Test-Path $PhpCgi) {
             Add-Pass "php-cgi.exe encontrado (PHP Thread Safe)"
         } else {
@@ -78,14 +89,11 @@ if (-not (Test-Path (Join-Path $ProjectRoot "public\web.config"))) {
     Add-Pass "public\web.config presente"
 }
 
-$Edge = @(
-    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
-    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
-) | Where-Object { Test-Path $_ } | Select-Object -First 1
+$Edge = Get-EsteliPOSBrowserPath
 if ($Edge) {
-    Add-Pass "Navegador compatible encontrado"
+    Add-Pass "Navegador compatible encontrado: $Edge"
 } else {
-    Add-Failure "Instale Microsoft Edge o Google Chrome."
+    Add-Warning "No se encontro Microsoft Edge ni Google Chrome. Instale uno para abrir EsteliPOS en el navegador."
 }
 
 $Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
