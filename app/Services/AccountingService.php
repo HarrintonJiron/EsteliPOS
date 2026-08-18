@@ -193,22 +193,29 @@ class AccountingService
     }
 
     /**
-     * Asiento automático de una compra: Debe Inventario, Haber Proveedores.
+     * Asiento de una compra recibida: Debe Inventario (+ IVA), Haber Proveedores (crédito) o Caja/Banco (contado).
      */
     public function recordPurchase(Purchase $purchase): ?JournalEntry
     {
-        if ($purchase->status !== 'completed' || (float) $purchase->total <= 0) {
+        if ($purchase->status === 'canceled' || (float) $purchase->total <= 0) {
             return null;
         }
 
         $reference = 'COMPRA-'.$purchase->id;
         $subtotal = (float) $purchase->subtotal;
         $taxTotal = (float) $purchase->tax_total;
+        $settlement = $purchase->settlementType();
 
         // Compras antiguas sin desglose de impuesto: todo el total va a Inventario.
         if ($subtotal <= 0 && $taxTotal <= 0) {
             $subtotal = (float) $purchase->total;
         }
+
+        $creditAccount = match ($settlement) {
+            'credit' => self::ACC_PROVEEDORES,
+            'transfer' => self::ACC_BANCO,
+            default => self::ACC_CAJA,
+        };
 
         $lines = [
             ['account_id' => $this->account(self::ACC_INVENTARIO)->id, 'detail' => $reference, 'debit' => $subtotal, 'credit' => 0],
@@ -218,11 +225,15 @@ class AccountingService
             $lines[] = ['account_id' => $this->account(self::ACC_IVA_CREDITO_FISCAL)->id, 'detail' => "IVA compra {$reference}", 'debit' => $taxTotal, 'credit' => 0];
         }
 
-        $lines[] = ['account_id' => $this->account(self::ACC_PROVEEDORES)->id, 'detail' => $reference, 'debit' => 0, 'credit' => $purchase->total];
+        $lines[] = ['account_id' => $this->account($creditAccount)->id, 'detail' => $reference, 'debit' => 0, 'credit' => $purchase->total];
+
+        $concept = $settlement === 'credit'
+            ? "Compra a crédito proveedor #{$purchase->supplier_id}"
+            : "Compra a proveedor #{$purchase->supplier_id}";
 
         return $this->createEntry([
             'date' => $purchase->date instanceof CarbonInterface ? $purchase->date->toDateString() : $purchase->date,
-            'concept' => "Compra a proveedor #{$purchase->supplier_id}",
+            'concept' => $concept,
             'reference' => $reference,
             'source_type' => Purchase::class,
             'source_id' => $purchase->id,

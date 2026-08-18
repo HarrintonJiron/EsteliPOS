@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use InvalidArgumentException;
 use Throwable;
 
 class InventarioController extends Controller
@@ -601,29 +602,46 @@ class InventarioController extends Controller
 
         $validated = $request->validate([
             'unit_id' => 'required|exists:units,id',
-            // 1 unidad alternativa = N unidades base (ej. 1 carga = 2 qq)
             'equals_base_qty' => 'nullable|numeric|min:0.000001',
+            'equals_unit_id' => 'nullable|exists:units,id|different:unit_id',
             'factor_to_base' => 'nullable|numeric|min:0.000001',
             'sale_price' => 'nullable|numeric|min:0',
             'is_default_sale_unit' => 'boolean',
         ], [
-            'unit_id.required' => 'Selecciona la unidad alternativa (ej. carga).',
-            'equals_base_qty.min' => 'Indica cuántas unidades base equivalen a 1 de la unidad elegida.',
+            'unit_id.required' => 'Selecciona la presentación (ej. ristra o caja).',
+            'equals_base_qty.min' => 'Indica cuánto contiene 1 de esa presentación.',
+            'equals_unit_id.different' => 'La equivalencia debe ser otra unidad, no la misma presentación.',
         ]);
 
-        $factorToBase = (float) ($validated['equals_base_qty'] ?? $validated['factor_to_base'] ?? 0);
+        $equalsQty = (float) ($validated['equals_base_qty'] ?? $validated['factor_to_base'] ?? 0);
+        $equalsUnitId = isset($validated['equals_unit_id']) ? (int) $validated['equals_unit_id'] : (int) $product->base_unit_id;
 
-        if ($factorToBase <= 0) {
+        if ($equalsQty <= 0) {
             return back()->withErrors([
-                'equals_base_qty' => 'Ejemplo: si 1 carga = 2 quintales, escribe 2.',
+                'equals_base_qty' => 'Ejemplo: 1 ristra = 3 unidades, o 1 caja = 12 ristras.',
             ])->withInput();
         }
 
         if ((int) $validated['unit_id'] === (int) $product->base_unit_id) {
-            return back()->withErrors(['unit_id' => 'La unidad alternativa debe ser diferente a la unidad base.']);
+            return back()->withErrors(['unit_id' => 'La presentación debe ser diferente a la unidad base.']);
+        }
+
+        try {
+            $factorToBase = $this->units->convertToBase($product, $equalsQty, $equalsUnitId);
+        } catch (InvalidArgumentException) {
+            return back()->withErrors([
+                'equals_unit_id' => 'Primero configura esa unidad (ej. ristra) y después la caja.',
+            ])->withInput();
+        }
+
+        if ($factorToBase <= 0) {
+            return back()->withErrors([
+                'equals_base_qty' => 'La equivalencia debe ser mayor que cero.',
+            ])->withInput();
         }
 
         $altUnit = Unit::query()->find($validated['unit_id']);
+        $equalsUnit = Unit::query()->find($equalsUnitId);
 
         if ($request->boolean('is_default_sale_unit')) {
             $product->unitConversions()->update(['is_default_sale_unit' => false]);
@@ -640,11 +658,47 @@ class InventarioController extends Controller
 
         $baseLabel = $product->baseUnitLabel();
         $altLabel = $altUnit?->abbreviation ?? 'und';
+        $equalsLabel = $equalsUnit?->abbreviation ?? $baseLabel;
+        $formattedEquals = rtrim(rtrim(number_format($equalsQty, 6, '.', ''), '0'), '.') ?: '0';
+        $formattedBase = rtrim(rtrim(number_format($factorToBase, 6, '.', ''), '0'), '.') ?: '0';
+        $message = "Conversión guardada: 1 {$altLabel} = {$formattedEquals} {$equalsLabel}";
+        if ($equalsUnitId !== (int) $product->base_unit_id) {
+            $message .= " ({$formattedBase} {$baseLabel})";
+        }
 
-        return back()->with(
-            'success',
-            "Conversión guardada: 1 {$altLabel} = {$factorToBase} {$baseLabel}."
-        );
+        return back()->with('success', $message.'.');
+    }
+
+    public function setDefaultSaleUnit(Request $request, int $id): RedirectResponse
+    {
+        $product = Product::query()->with('unitConversions.unit', 'baseUnit')->findOrFail($id);
+        $validated = $request->validate([
+            'unit_id' => 'required|exists:units,id',
+        ], [
+            'unit_id.required' => 'Elige la presentación que se usará al vender.',
+        ]);
+
+        $unitId = (int) $validated['unit_id'];
+        $isBase = $product->base_unit_id && $unitId === (int) $product->base_unit_id;
+        $conversion = $product->unitConversions->firstWhere('unit_id', $unitId);
+
+        if (! $isBase && $conversion === null) {
+            return back()->withErrors([
+                'unit_id' => 'Esa presentación no está configurada para este producto.',
+            ]);
+        }
+
+        $product->unitConversions()->update(['is_default_sale_unit' => false]);
+
+        if ($conversion) {
+            $conversion->update(['is_default_sale_unit' => true]);
+        }
+
+        $label = $isBase
+            ? $product->baseUnitLabel()
+            : ($conversion?->unit?->abbreviation ?? 'und');
+
+        return back()->with('success', "Al vender se usará {$label} por defecto. En el POS puedes elegir otra presentación.");
     }
 
     public function destroyUnitConversion(int $id, ProductUnitConversion $conversion): RedirectResponse

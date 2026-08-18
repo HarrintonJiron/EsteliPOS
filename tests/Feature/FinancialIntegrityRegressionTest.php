@@ -34,7 +34,7 @@ function financialIntegrityAdmin(): User
     return $user;
 }
 
-test('pending and canceled purchases do not alter inventory or accounting', function () {
+test('credit purchases enter inventory and canceled purchases reverse stock and accounting', function () {
     $admin = financialIntegrityAdmin();
     $this->seed(InventoryCatalogSeeder::class);
 
@@ -73,13 +73,9 @@ test('pending and canceled purchases do not alter inventory or accounting', func
         ->assertRedirect(route('compras.index'));
 
     $purchase = Purchase::query()->firstOrFail();
-    expect((float) $product->fresh()->stock)->toBe(0.0)
-        ->and(JournalEntry::query()->where('source_type', Purchase::class)->where('source_id', $purchase->id)->exists())->toBeFalse();
-
-    $payload['status'] = 'completed';
-    $this->actingAs($admin)->put(route('compras.update', $purchase), $payload)
-        ->assertRedirect(route('compras.index'));
-    expect((float) $product->fresh()->stock)->toBe(3.0);
+    expect((float) $product->fresh()->stock)->toBe(3.0)
+        ->and($purchase->status)->toBe('pending')
+        ->and(JournalEntry::query()->where('source_type', Purchase::class)->where('source_id', $purchase->id)->where('status', JournalEntry::STATUS_POSTED)->exists())->toBeTrue();
 
     $payload['status'] = 'canceled';
     $this->actingAs($admin)->put(route('compras.update', $purchase), $payload)

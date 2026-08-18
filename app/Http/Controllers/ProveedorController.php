@@ -136,6 +136,7 @@ class ProveedorController extends Controller
                 'id' => $supplier->id,
                 'name' => $supplier->name,
                 'code' => $supplier->code,
+                'payment_condition' => $supplier->payment_condition,
             ],
         ]);
     }

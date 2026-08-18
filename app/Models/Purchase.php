@@ -20,6 +20,7 @@ class Purchase extends Model
         'tax_total',
         'total',
         'status',
+        'payment_type',
         'currency',
         'exchange_rate',
         'foreign_subtotal',
@@ -59,6 +60,38 @@ class Purchase extends Model
     public function details(): HasMany
     {
         return $this->hasMany(PurchaseDetail::class);
+    }
+
+    public function affectsInventory(): bool
+    {
+        return in_array($this->status, ['pending', 'completed'], true);
+    }
+
+    public function isOnCredit(): bool
+    {
+        return $this->status === 'pending' || $this->settlementType() === 'credit';
+    }
+
+    public function settlementType(): string
+    {
+        if ($this->status === 'pending') {
+            return 'credit';
+        }
+
+        $paymentType = (string) ($this->payment_type ?: 'cash');
+
+        return in_array($paymentType, ['cash', 'transfer', 'credit'], true)
+            ? $paymentType
+            : 'cash';
+    }
+
+    public function statusLabel(): string
+    {
+        return match ($this->status) {
+            'completed' => 'Pagada',
+            'pending' => 'Por pagar',
+            default => 'Anulada',
+        };
     }
 
     public function isForeignCurrency(?string $companyCurrency = null): bool

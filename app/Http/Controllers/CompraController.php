@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\PurchaseRequest;
+use App\Http\Requests\UpdatePurchaseStatusRequest;
 use App\Models\Category;
+use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseDetail;
@@ -60,13 +62,13 @@ class CompraController extends Controller
 
         $stats = [
             'month_total' => (float) Purchase::query()
-                ->where('status', 'completed')
+                ->whereIn('status', ['pending', 'completed'])
                 ->whereBetween('date', [$monthStart, $monthEnd])
                 ->sum('total'),
             'completed_count' => Purchase::query()->where('status', 'completed')->count(),
             'pending_count' => Purchase::query()->where('status', 'pending')->count(),
             'invested_total' => (float) Purchase::query()
-                ->where('status', 'completed')
+                ->whereIn('status', ['pending', 'completed'])
                 ->sum('total'),
         ];
 
@@ -259,6 +261,7 @@ class CompraController extends Controller
                     isset($data['exchange_rate']) ? (float) $data['exchange_rate'] : null,
                 );
 
+                $settlement = $this->resolveSettlement($data);
                 $purchase = Purchase::create([
                     'supplier_id' => $data['supplier_id'],
                     'user_id' => $request->user()?->id ?? ($data['user_id'] ?? 1),
@@ -267,7 +270,8 @@ class CompraController extends Controller
                     'subtotal' => 0,
                     'tax_total' => 0,
                     'total' => 0,
-                    'status' => $data['status'] ?? 'completed',
+                    'status' => $settlement['status'],
+                    'payment_type' => $settlement['payment_type'],
                     'currency' => $data['currency'],
                     'exchange_rate' => $exchangeRate,
                     'foreign_subtotal' => 0,
@@ -280,8 +284,9 @@ class CompraController extends Controller
                     $data['items'],
                     $warehouseId,
                     $exchangeRate,
-                    $purchase->status === 'completed',
+                    $purchase->affectsInventory(),
                 );
+                $this->assertSupplierCreditAvailable($purchase->fresh());
                 $this->accountingService->recordPurchase($purchase->fresh());
             });
         } catch (RuntimeException|\InvalidArgumentException $e) {
@@ -296,6 +301,27 @@ class CompraController extends Controller
         $purchase = Purchase::with('details.product.baseUnit', 'details.product.unitConversions.unit', 'details.unit')->findOrFail($id);
 
         return view('compras.edit', array_merge($this->purchaseFormData(), compact('purchase')));
+    }
+
+    public function updateStatus(UpdatePurchaseStatusRequest $request, int $id)
+    {
+        $purchase = Purchase::query()->with('details.product')->findOrFail($id);
+        $newStatus = (string) $request->validated('status');
+        $paymentType = (string) ($request->validated('payment_type') ?? 'cash');
+
+        try {
+            DB::transaction(function () use ($purchase, $newStatus, $paymentType) {
+                $this->transitionPurchaseStatus($purchase, $newStatus, $paymentType);
+            });
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $message = $newStatus === 'completed'
+            ? 'Pago registrado. Se liquidó la deuda con el proveedor.'
+            : 'Compra anulada. Se revirtió el inventario.';
+
+        return back()->with('success', $message);
     }
 
     public function productosPorProveedor($supplierId)
@@ -324,7 +350,7 @@ class CompraController extends Controller
     public function update(PurchaseRequest $request, $id)
     {
         $data = $request->validated();
-        $purchase = Purchase::with('details')->findOrFail($id);
+        $purchase = Purchase::with('details.product')->findOrFail($id);
 
         try {
             DB::transaction(function () use ($purchase, $data) {
@@ -334,27 +360,19 @@ class CompraController extends Controller
                     isset($data['exchange_rate']) ? (float) $data['exchange_rate'] : null,
                 );
 
-                if ($purchase->status === 'completed') {
-                    foreach ($purchase->details as $detail) {
-                        $this->inventoryService->stockOut(
-                            $detail->product,
-                            $detail->inventoryQuantity(),
-                            'purchase_update_revert:'.$purchase->id,
-                            'Reverso por edición de compra #'.$purchase->id,
-                            $purchase->user_id,
-                            false,
-                            $purchase->warehouse_id,
-                        );
-                    }
+                if ($purchase->affectsInventory()) {
+                    $this->reversePurchaseInventory($purchase);
                 }
 
                 PurchaseDetail::where('purchase_id', $purchase->id)->delete();
 
+                $settlement = $this->resolveSettlement($data, $purchase);
                 $purchase->update([
                     'supplier_id' => $data['supplier_id'],
                     'warehouse_id' => $warehouseId,
                     'date' => $data['date'],
-                    'status' => $data['status'] ?? $purchase->status,
+                    'status' => $settlement['status'],
+                    'payment_type' => $settlement['payment_type'],
                     'currency' => $data['currency'],
                     'exchange_rate' => $exchangeRate,
                 ]);
@@ -364,8 +382,9 @@ class CompraController extends Controller
                     $data['items'],
                     $warehouseId,
                     $exchangeRate,
-                    $purchase->status === 'completed',
+                    $purchase->fresh()->affectsInventory(),
                 );
+                $this->assertSupplierCreditAvailable($purchase->fresh());
                 $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra editada');
                 $this->accountingService->recordPurchase($purchase->fresh());
             });
@@ -378,22 +397,12 @@ class CompraController extends Controller
 
     public function destroy($id)
     {
-        $purchase = Purchase::with('details')->findOrFail($id);
+        $purchase = Purchase::with('details.product')->findOrFail($id);
 
         try {
             DB::transaction(function () use ($purchase) {
-                if ($purchase->status === 'completed') {
-                    foreach ($purchase->details as $detail) {
-                        $this->inventoryService->stockOut(
-                            $detail->product,
-                            $detail->inventoryQuantity(),
-                            'purchase_delete:'.$purchase->id,
-                            'Reverso por eliminación de compra #'.$purchase->id,
-                            $purchase->user_id,
-                            false,
-                            $purchase->warehouse_id,
-                        );
-                    }
+                if ($purchase->affectsInventory()) {
+                    $this->reversePurchaseInventory($purchase);
                 }
 
                 PurchaseDetail::where('purchase_id', $purchase->id)->delete();
@@ -499,5 +508,155 @@ class CompraController extends Controller
             'foreign_total' => round($foreignSubtotal + $foreignTaxTotal, 2),
             'exchange_rate' => $exchangeRate,
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{status: string, payment_type: string}
+     */
+    private function resolveSettlement(array $data, ?Purchase $purchase = null): array
+    {
+        $status = (string) ($data['status'] ?? $purchase?->status ?? 'completed');
+        $paymentType = (string) ($data['payment_type'] ?? $purchase?->payment_type ?? '');
+
+        if ($status === 'canceled') {
+            return [
+                'status' => 'canceled',
+                'payment_type' => in_array($paymentType, ['cash', 'transfer', 'credit'], true) ? $paymentType : 'cash',
+            ];
+        }
+
+        if ($paymentType === 'credit' || $status === 'pending') {
+            return ['status' => 'pending', 'payment_type' => 'credit'];
+        }
+
+        if ($paymentType === 'transfer') {
+            return ['status' => 'completed', 'payment_type' => 'transfer'];
+        }
+
+        return ['status' => 'completed', 'payment_type' => 'cash'];
+    }
+
+    private function assertSupplierCreditAvailable(Purchase $purchase): void
+    {
+        if ($purchase->status !== 'pending') {
+            return;
+        }
+
+        $supplier = Supplier::query()->lockForUpdate()->findOrFail($purchase->supplier_id);
+        $limit = (float) ($supplier->credit_limit ?? 0);
+
+        if ($limit <= 0) {
+            return;
+        }
+
+        $used = (float) $supplier->purchases()
+            ->where('status', 'pending')
+            ->where('id', '!=', $purchase->id)
+            ->sum('total');
+        $available = round($limit - $used, 2);
+
+        if ((float) $purchase->total > $available + 0.00001) {
+            throw new RuntimeException(
+                'Esta compra a crédito supera el límite del proveedor. Disponible: C$ '.number_format(max(0, $available), 2).'.'
+            );
+        }
+    }
+
+    private function transitionPurchaseStatus(Purchase $purchase, string $newStatus, string $paymentType = 'cash'): void
+    {
+        $current = $purchase->status;
+
+        if ($current === $newStatus) {
+            throw new RuntimeException(
+                $newStatus === 'canceled'
+                    ? 'Esta compra ya está anulada.'
+                    : 'Esta compra ya está pagada.'
+            );
+        }
+
+        if ($current === 'canceled') {
+            throw new RuntimeException('Una compra anulada no se puede cambiar desde aquí.');
+        }
+
+        if ($newStatus === 'canceled') {
+            $this->reversePurchaseInventory($purchase);
+            $purchase->update(['status' => 'canceled']);
+            $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra anulada');
+
+            return;
+        }
+
+        if ($newStatus !== 'completed' || $current !== 'pending') {
+            throw new RuntimeException('Solo se pueden pagar compras pendientes a crédito.');
+        }
+
+        if (! $this->purchaseHasStockEntry($purchase)) {
+            $this->applyPendingInventory($purchase);
+        }
+
+        $purchase->update([
+            'status' => 'completed',
+            'payment_type' => $paymentType === 'transfer' ? 'transfer' : 'cash',
+        ]);
+        $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra pagada');
+        $this->accountingService->recordPurchase($purchase->fresh());
+    }
+
+    private function purchaseHasStockEntry(Purchase $purchase): bool
+    {
+        return InventoryMovement::query()
+            ->where('reference', 'purchase:'.$purchase->id)
+            ->where('type', 'in')
+            ->exists();
+    }
+
+    private function reversePurchaseInventory(Purchase $purchase): void
+    {
+        if (! $this->purchaseHasStockEntry($purchase)) {
+            return;
+        }
+
+        foreach ($purchase->details as $detail) {
+            $qty = $detail->inventoryQuantity();
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $this->inventoryService->stockOut(
+                $detail->product,
+                $qty,
+                'purchase_cancel:'.$purchase->id,
+                'Reverso por anulación de compra #'.$purchase->id,
+                $purchase->user_id,
+                false,
+                $purchase->warehouse_id,
+            );
+        }
+    }
+
+    private function applyPendingInventory(Purchase $purchase): void
+    {
+        $warehouseId = $this->posCatalog->resolveWarehouseId($purchase->warehouse_id);
+        $exchangeRate = max((float) ($purchase->exchange_rate ?: 1), 0.000001);
+
+        foreach ($purchase->details as $detail) {
+            $qty = $detail->inventoryQuantity();
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $this->inventoryService->stockIn(
+                $detail->product,
+                $qty,
+                'purchase:'.$purchase->id,
+                'Entrada por compra #'.$purchase->id,
+                $purchase->user_id,
+                $warehouseId,
+            );
+
+            $lineNetCompany = $this->purchaseCosting->toCompanyAmount((float) $detail->subtotal, $exchangeRate);
+            $detail->product->update(['purchase_price' => round($lineNetCompany / $qty, 4)]);
+        }
     }
 }

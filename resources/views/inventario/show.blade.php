@@ -17,7 +17,7 @@
             </p>
         </div>
         <div class="flex gap-2">
-            <a href="#conversiones" class="btn-outline text-sm">Conversiones</a>
+            <button type="button" data-open-presentations class="btn-outline text-sm">Cómo se vende</button>
             <a href="{{ route('inventario.edit', $product->id) }}" class="btn-outline text-sm">Editar</a>
             <a href="{{ route('inventario.index') }}" class="btn-outline text-sm">Volver</a>
         </div>
@@ -64,6 +64,15 @@
                         {{ number_format((float)$product->stock, 2) }}
                     </p>
                     <p class="text-sm text-gray-500">{{ $product->baseUnitLabel() }}</p>
+                    @if($product->unitConversions->isNotEmpty())
+                        <button type="button" data-open-presentations class="mt-2 text-xs font-semibold text-indigo-600 hover:underline">
+                            {{ $product->unitConversions->map(function ($conv) use ($product) {
+                                $factor = rtrim(rtrim(number_format((float) $conv->factor_to_base, 4, '.', ''), '0'), '.') ?: '0';
+
+                                return '1 '.($conv->unit?->abbreviation ?? '').' = '.$factor.' '.$product->baseUnitLabel();
+                            })->implode(' · ') }}
+                        </button>
+                    @endif
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">

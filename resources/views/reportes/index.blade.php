@@ -96,8 +96,8 @@
                     <label class="form-label" for="status">Estado</label>
                     <select id="status" name="status" class="select-field">
                         <option value="">Todos</option>
-                        <option value="completed" @selected(request('status') === 'completed')>Completada</option>
-                        <option value="pending" @selected(request('status') === 'pending')>Pendiente</option>
+                        <option value="completed" @selected(request('status') === 'completed')>Pagada</option>
+                        <option value="pending" @selected(request('status') === 'pending')>Por pagar</option>
                     </select>
                 </div>
             @elseif(in_array($reportType, ['inventory', 'kardex']))

@@ -36,6 +36,11 @@ class PricingService
             if ($conversion?->sale_price !== null) {
                 return (float) $conversion->sale_price;
             }
+
+            $factor = (float) ($conversion?->factor_to_base ?? 0);
+            if ($factor > 0) {
+                return round($product->effectivePrice() * $factor, 2);
+            }
         }
 
         return $product->effectivePrice();

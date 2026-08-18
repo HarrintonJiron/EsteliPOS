@@ -9,6 +9,7 @@ use App\Models\NumberSequence;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
+use App\Models\ProductUnitConversion;
 use App\Models\Purchase;
 use App\Models\PurchaseDetail;
 use App\Models\Sale;
@@ -49,6 +50,7 @@ class ClientDemoSeeder extends Seeder
         $this->seedSuppliers();
         $this->seedClients();
         $this->seedProducts();
+        $this->seedRetailPresentations();
         $this->seedPurchases();
         $this->seedSales();
     }
@@ -417,6 +419,7 @@ class ClientDemoSeeder extends Seeder
             ['Guantes de goma', 'Par de guantes de látex', 6.00, 9.00, 40, 'und'],
             ['Bolsas de basura 30 L', 'Paquete de bolsas', 10.00, 15.00, 45, 'caja'],
             ['Lavaloza concentrado', 'Lavaloza de cocina 1 L', 15.00, 22.00, 24, 'und'],
+            ['Jabón de baño', 'Un producto: unidad, ristra de 3 y caja de 12 ristras', 5.50, 8.00, 216, 'und'],
         ]);
 
         $add('Miscelánea', 'MIS', [
@@ -428,6 +431,35 @@ class ClientDemoSeeder extends Seeder
         ]);
 
         return $items;
+    }
+
+    private function seedRetailPresentations(): void
+    {
+        $product = Product::query()->where('name', 'Jabón de baño')->first();
+        $ristra = Unit::query()->where('abbreviation', 'ristra')->first();
+        $caja = Unit::query()->where('abbreviation', 'caja')->first();
+
+        if ($product === null || $ristra === null || $caja === null) {
+            return;
+        }
+
+        ProductUnitConversion::query()->updateOrCreate(
+            ['product_id' => $product->id, 'unit_id' => $ristra->id],
+            [
+                'factor_to_base' => 3,
+                'sale_price' => null,
+                'is_default_sale_unit' => true,
+            ]
+        );
+
+        ProductUnitConversion::query()->updateOrCreate(
+            ['product_id' => $product->id, 'unit_id' => $caja->id],
+            [
+                'factor_to_base' => 36,
+                'sale_price' => 270,
+                'is_default_sale_unit' => false,
+            ]
+        );
     }
 
     private function seedPurchases(): void

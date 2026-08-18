@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Client;
 use App\Models\InventoryMovement;
@@ -10,6 +11,7 @@ use App\Models\Sale;
 use App\Models\Tax;
 use App\Models\User;
 use App\Services\AccountingService;
+use App\Services\CreditOverrideService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -176,6 +178,35 @@ test('credit sales require an enabled client and respect its limit', function ()
 
     expect(Sale::count())->toBe(0)
         ->and($product->fresh()->stock)->toBe(10);
+});
+
+test('a one-time administrator override permits and audits an over-limit credit sale', function () {
+    config(['cache.default' => 'array']);
+    $cashier = productionSalesUser();
+    $administrator = productionSalesUser();
+    $product = productionSalesProduct(price: 150);
+    $client = Client::create([
+        'name' => 'Cliente autorizado sobre límite',
+        'code' => 'CRED-OVERRIDE',
+        'credit_enabled' => true,
+        'credit_limit' => 100,
+        'credit_days' => 30,
+    ]);
+    $token = app(CreditOverrideService::class)->issue($cashier, $administrator, $client, 150);
+    $accounting = Mockery::mock(AccountingService::class);
+    $accounting->shouldReceive('recordSale')->once();
+    app()->instance(AccountingService::class, $accounting);
+
+    $this->actingAs($cashier)->post(route('facturacion.pos-store'), [
+        'payment_type' => 'credit',
+        'client_id' => $client->id,
+        'items' => json_encode([['product_id' => $product->id, 'quantity' => 1]]),
+        'credit_override_token' => $token,
+    ])->assertRedirect();
+
+    expect(Sale::query()->count())->toBe(1)
+        ->and($product->fresh()->stock)->toBe(9)
+        ->and(AuditLog::query()->where('action', 'credit.override.used')->where('user_id', $administrator->id)->exists())->toBeTrue();
 });
 
 test('number sequences produce unique consecutive document numbers', function () {

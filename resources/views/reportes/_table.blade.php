@@ -73,7 +73,7 @@
                             <td class="text-right font-semibold">C$ {{ number_format($purchase->total, 2) }}</td>
                             <td class="text-center">
                                 <span class="{{ $purchase->status === 'completed' ? 'badge-success' : 'badge-warning' }}">
-                                    {{ $purchase->status === 'completed' ? 'Completada' : 'Pendiente' }}
+                                    {{ $purchase->status === 'completed' ? 'Pagada' : ($purchase->status === 'canceled' ? 'Anulada' : 'Por pagar') }}
                                 </span>
                             </td>
                         </tr>

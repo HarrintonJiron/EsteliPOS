@@ -67,7 +67,7 @@
                             </option>
                         @endforeach
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">Las unidades alternativas se configuran en la ficha del producto.</p>
+                    <p class="text-xs text-gray-500 mt-1">Así se cuenta el inventario. Las presentaciones (ristra, caja) se agregan en la ficha, en <strong>Cómo se vende</strong>.</p>
                 </div>
 
                 <div class="md:col-span-2">

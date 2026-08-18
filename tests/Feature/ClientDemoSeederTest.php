@@ -27,6 +27,8 @@ it('loads a rich ferreteria catalog for client demonstrations', function () {
         ->and(CreditPayment::count())->toBeGreaterThan(5)
         ->and(WarehouseStock::count())->toBeGreaterThan(80)
         ->and(Product::query()->whereNotNull('base_unit_id')->count())->toBe(Product::count())
+        ->and(Product::query()->where('name', 'Jabón de baño')->exists())->toBeTrue()
+        ->and(Product::query()->where('name', 'Jabón de baño')->first()?->unitConversions()->count())->toBe(2)
         ->and(Product::query()->where('image_url', 'like', 'http%')->count())->toBe(0)
         ->and(Sale::query()->whereNotNull('invoice_number')->count())->toBe(Sale::count());
 });

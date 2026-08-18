@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SaleRequest;
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Client;
 use App\Models\NumberSequence;
@@ -10,8 +11,10 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
+use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AccountingService;
+use App\Services\CreditOverrideService;
 use App\Services\CreditService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
@@ -29,6 +32,7 @@ class FacturacionController extends Controller
         private AccountingService $accountingService,
         private InventoryService $inventoryService,
         private CreditService $creditService,
+        private CreditOverrideService $creditOverrides,
         private PosCatalogService $posCatalog,
         private PurchaseCostingService $purchaseCosting,
     ) {}
@@ -394,7 +398,12 @@ class FacturacionController extends Controller
             ['code' => 'GEN'],
             ['name' => 'Cliente genérico', 'phone' => 'N/A', 'email' => null, 'address' => null]
         );
-        $clients = Client::with('priceList:id,name,code')->orderBy('name')->get();
+        $clients = Client::with('priceList:id,name,code')->orderBy('name')->get()
+            ->each(function (Client $client): void {
+                foreach ($this->creditService->clientCreditSummary($client) as $key => $value) {
+                    $client->setAttribute($key, $value);
+                }
+            });
         $categories = Category::orderBy('name')->get();
         $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'code', 'is_default']);
         $defaultTaxRate = Tax::defaultRate();
@@ -545,6 +554,7 @@ class FacturacionController extends Controller
             'reference_number' => 'nullable|string|max:100',
             'amount_received' => 'nullable|numeric|min:0',
             'order_discount_pct' => 'nullable|numeric|min:0|max:100',
+            'credit_override_token' => ['nullable', 'string', 'size:64'],
         ]);
 
         $items = json_decode($validated['items'], true);
@@ -583,7 +593,9 @@ class FacturacionController extends Controller
 
                 $clientId = $validated['client_id'] ?? null;
                 $client = $clientId
-                    ? Client::find($clientId)
+                    ? Client::query()
+                        ->when($storedPaymentType === 'credit', fn ($query) => $query->lockForUpdate())
+                        ->find($clientId)
                     : Client::where('code', 'GEN')->first();
 
                 if (! $client) {
@@ -711,7 +723,30 @@ class FacturacionController extends Controller
                     }
                     if ((float) $client->credit_limit > 0
                         && $this->creditService->pendingDebt($client) > (float) $client->credit_limit) {
-                        throw new \RuntimeException('La venta excede el límite de crédito disponible del cliente.');
+                        $administratorId = $this->creditOverrides->consume(
+                            (string) ($validated['credit_override_token'] ?? ''),
+                            User::query()->findOrFail($userId),
+                            $client,
+                            (float) $sale->total,
+                        );
+
+                        if (! $administratorId) {
+                            throw new \RuntimeException('La venta excede el límite de crédito y requiere autorización vigente de un administrador.');
+                        }
+
+                        AuditLog::query()->create([
+                            'user_id' => $administratorId,
+                            'action' => 'credit.override.used',
+                            'model_type' => Sale::class,
+                            'model_id' => $sale->id,
+                            'description' => "Exceso de crédito aplicado a la venta {$sale->invoice_number}",
+                            'new_values' => [
+                                'cashier_id' => $userId,
+                                'client_id' => $client->id,
+                                'sale_total' => (float) $sale->total,
+                                'credit_limit' => (float) $client->credit_limit,
+                            ],
+                        ]);
                     }
                 }
 

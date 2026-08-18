@@ -36,6 +36,7 @@
     data-quick-store-url="{{ route('compras.products.quick-store') }}"
     data-quick-supplier-url="{{ route('compras.suppliers.quick-store') }}"
     data-next-code-url="{{ route('compras.products.next-code') }}"
+    data-is-edit="{{ $isEdit ? '1' : '0' }}"
     data-company-currency="{{ $companyCurrency }}"
     data-company-symbol="{{ $companySymbol }}"
     data-exchange-rates='@json($exchangeRates)'
@@ -102,7 +103,11 @@
                     <select name="supplier_id" id="supplier_id" class="select-field" required>
                         <option value="">Seleccionar proveedor</option>
                         @foreach($suppliers as $supplier)
-                            <option value="{{ $supplier->id }}" @selected(old('supplier_id', $purchase?->supplier_id) == $supplier->id)>
+                            <option
+                                value="{{ $supplier->id }}"
+                                data-payment-condition="{{ $supplier->payment_condition }}"
+                                @selected(old('supplier_id', $purchase?->supplier_id) == $supplier->id)
+                            >
                                 {{ $supplier->name }}
                             </option>
                         @endforeach
@@ -126,14 +131,25 @@
                         />
                     </div>
                     <div>
-                        <label for="status" class="mb-1 block text-xs font-medium text-slate-500">Estado</label>
-                        <select name="status" id="status" class="select-field">
-                            @foreach(['completed' => 'Completada', 'pending' => 'Pendiente', 'canceled' => 'Anulada'] as $value => $label)
-                                <option value="{{ $value }}" @selected(old('status', $purchase?->status ?? 'completed') === $value)>{{ $label }}</option>
-                            @endforeach
+                        <label for="payment_type" class="mb-1 block text-xs font-medium text-slate-500">Pago</label>
+                        @php
+                            $defaultPaymentType = old(
+                                'payment_type',
+                                $purchase?->payment_type
+                                    ?? ($purchase?->status === 'pending' ? 'credit' : null)
+                                    ?? ($isEdit ? 'cash' : 'credit')
+                            );
+                        @endphp
+                        <select name="payment_type" id="payment_type" class="select-field">
+                            <option value="credit" @selected($defaultPaymentType === 'credit')>A crédito (por pagar)</option>
+                            <option value="cash" @selected($defaultPaymentType === 'cash')>Contado (efectivo)</option>
+                            <option value="transfer" @selected($defaultPaymentType === 'transfer')>Contado (transferencia)</option>
                         </select>
                     </div>
                 </div>
+                <p id="paymentHint" class="text-[11px] text-slate-500">
+                    La mercadería entra al inventario al guardar. A crédito queda una deuda con el proveedor.
+                </p>
 
                 <div>
                     <label for="warehouse_id" class="mb-1 block text-xs font-medium text-slate-500">Bodega destino</label>
@@ -397,6 +413,8 @@
     const supplierSelect = document.getElementById('supplier_id');
     const supplierSearch = document.getElementById('supplierSearch');
     const supplierSearchEmpty = document.getElementById('supplierSearchEmpty');
+    const paymentTypeSelect = document.getElementById('payment_type');
+    const paymentHint = document.getElementById('paymentHint');
     const currencySelect = document.getElementById('currency');
     const exchangeRateInput = document.getElementById('exchange_rate');
     const exchangeHint = document.getElementById('exchangeHint');
@@ -419,6 +437,36 @@
     const companySymbol = app.dataset.companySymbol || 'C$';
     const catalogRates = JSON.parse(app.dataset.exchangeRates || '{}');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+    const isEdit = app.dataset.isEdit === '1';
+
+    const syncPaymentHint = () => {
+        if (!paymentHint) {
+            return;
+        }
+
+        paymentHint.textContent = paymentTypeSelect?.value === 'credit'
+            ? 'La mercadería entra al inventario al guardar. El saldo queda a crédito con el proveedor.'
+            : 'La mercadería entra al inventario y se registra como pagada de contado.';
+    };
+
+    const suggestPaymentForSupplier = () => {
+        if (!supplierSelect || !paymentTypeSelect || isEdit) {
+            return;
+        }
+
+        const condition = supplierSelect.selectedOptions[0]?.dataset.paymentCondition || '';
+        if (condition.startsWith('credito')) {
+            paymentTypeSelect.value = 'credit';
+        } else if (condition === 'contado') {
+            paymentTypeSelect.value = 'cash';
+        }
+
+        syncPaymentHint();
+    };
+
+    supplierSelect?.addEventListener('change', suggestPaymentForSupplier);
+    paymentTypeSelect?.addEventListener('change', syncPaymentHint);
+    syncPaymentHint();
 
     const quickModal = document.getElementById('quickProductModal');
     const quickForm = document.getElementById('quickProductForm');
@@ -916,6 +964,9 @@
             option = document.createElement('option');
             option.value = supplier.id;
             option.textContent = supplier.name;
+            if (supplier.payment_condition) {
+                option.dataset.paymentCondition = supplier.payment_condition;
+            }
             supplierSelect.appendChild(option);
         }
         supplierSearch.value = '';

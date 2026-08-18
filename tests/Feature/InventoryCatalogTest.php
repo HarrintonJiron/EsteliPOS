@@ -17,6 +17,8 @@ use App\Models\WarehouseShelf;
 use App\Models\WarehouseStock;
 use App\Services\AccountingService;
 use App\Services\InventoryService;
+use App\Services\PosCatalogService;
+use App\Services\PricingService;
 use App\Services\UnitConversionService;
 use Database\Seeders\ConfigurationSeeder;
 use Database\Seeders\InventoryCatalogSeeder;
@@ -38,6 +40,8 @@ test('inventory catalog seeder creates warehouses units and price lists', functi
 
     expect(Warehouse::query()->count())->toBeGreaterThanOrEqual(3)
         ->and(Unit::query()->where('abbreviation', 'm3')->exists())->toBeTrue()
+        ->and(Unit::query()->where('abbreviation', 'ristra')->exists())->toBeTrue()
+        ->and(Unit::query()->where('abbreviation', 'caja')->exists())->toBeTrue()
         ->and(PriceList::query()->where('code', 'GENERAL')->exists())->toBeTrue()
         ->and(PriceList::query()->where('code', 'MAYOR')->exists())->toBeTrue();
 });
@@ -154,10 +158,202 @@ test('product conversion can express one carga equals two quintales', function (
     $this->actingAs($admin)
         ->get(route('inventario.show', $product->id))
         ->assertOk()
+        ->assertSee('Cómo se vende')
         ->assertSee('Unidades y conversiones')
         ->assertSee('Opcional')
         ->assertSee('1 carga')
         ->assertSee('2 qq');
+});
+
+test('soap can be bought in boxes and sold as ristras without duplicating the product', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+
+    $und = Unit::query()->where('abbreviation', 'und')->firstOrFail();
+    $ristra = Unit::query()->where('abbreviation', 'ristra')->firstOrFail();
+    $caja = Unit::query()->where('abbreviation', 'caja')->firstOrFail();
+    $category = Category::firstOrCreate(['name' => 'Limpieza']);
+    $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
+
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Jabón de baño',
+        'code' => 'JABON-001',
+        'purchase_price' => 5.5,
+        'sale_price' => 8,
+        'stock' => 0,
+        'unit' => 'und',
+        'base_unit_id' => $und->id,
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($admin)->post(route('inventario.conversions.store', $product->id), [
+        'unit_id' => $ristra->id,
+        'equals_base_qty' => 3,
+        'equals_unit_id' => $und->id,
+        'is_default_sale_unit' => 1,
+    ])->assertRedirect()->assertSessionHas('success');
+
+    $this->actingAs($admin)
+        ->get(route('inventario.show', $product->id).'?conversiones=1')
+        ->assertOk()
+        ->assertSee('Cómo se vende')
+        ->assertSee('Una')
+        ->assertSee('contiene')
+        ->assertSee('1 ristra')
+        ->assertSee('Predeterminada');
+
+    $this->actingAs($admin)->post(route('inventario.conversions.store', $product->id), [
+        'unit_id' => $caja->id,
+        'equals_base_qty' => 12,
+        'equals_unit_id' => $ristra->id,
+        'sale_price' => 270,
+    ])->assertRedirect()->assertSessionHas('success');
+
+    $product->refresh()->load('unitConversions');
+    $ristraFactor = (float) $product->unitConversions->firstWhere('unit_id', $ristra->id)?->factor_to_base;
+    $cajaFactor = (float) $product->unitConversions->firstWhere('unit_id', $caja->id)?->factor_to_base;
+
+    expect($ristraFactor)->toBe(3.0)
+        ->and($cajaFactor)->toBe(36.0);
+
+    $units = app(UnitConversionService::class);
+    $pricing = app(PricingService::class);
+    $catalog = app(PosCatalogService::class);
+
+    expect($units->convertToBase($product, 1, $ristra->id))->toBe(3.0)
+        ->and($units->convertToBase($product, 1, $caja->id))->toBe(36.0)
+        ->and($pricing->resolveUnitPrice($product, null, $ristra->id))->toBe(24.0)
+        ->and($pricing->resolveUnitPrice($product, null, $caja->id))->toBe(270.0);
+
+    $available = $units->availableUnitsFor($product);
+    expect($available[$ristra->id]['is_default_sale_unit'])->toBeTrue()
+        ->and($available[$und->id]['is_default_sale_unit'])->toBeFalse();
+
+    app(InventoryService::class)->stockIn(
+        $product,
+        72,
+        'test-in',
+        'Compra de 2 cajas',
+        $admin->id,
+        $warehouse->id,
+    );
+
+    $serialized = $catalog->serializeProduct($product->fresh(['baseUnit', 'unitConversions.unit', 'warehouseStocks.warehouse']), $warehouse->id);
+    $defaultUnits = collect($serialized['sale_units'])->where('is_default', true);
+
+    expect($serialized['default_unit_id'])->toBe($ristra->id)
+        ->and($serialized['base_unit_label'])->toBe('und')
+        ->and((float) $serialized['stock'])->toBe(72.0)
+        ->and($defaultUnits)->toHaveCount(1)
+        ->and($defaultUnits->first()['abbreviation'])->toBe('ristra')
+        ->and((float) $defaultUnits->first()['price'])->toBe(24.0)
+        ->and((float) $defaultUnits->first()['stock'])->toBe(24.0);
+
+    $accounting = Mockery::mock(AccountingService::class);
+    $accounting->shouldReceive('recordSale')->once();
+    app()->instance(AccountingService::class, $accounting);
+
+    $this->actingAs($admin)->post(route('facturacion.pos-store'), [
+        'payment_type' => 'cash',
+        'warehouse_id' => $warehouse->id,
+        'items' => json_encode([[
+            'product_id' => $product->id,
+            'unit_id' => $ristra->id,
+            'quantity' => 2,
+            'discount' => 0,
+        ]]),
+        'amount_received' => 100,
+        'order_discount_pct' => 0,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $sale = Sale::query()->with('details')->latest('id')->firstOrFail();
+
+    expect((float) $sale->details->first()->quantity)->toBe(2.0)
+        ->and((int) $sale->details->first()->unit_id)->toBe($ristra->id)
+        ->and((float) $sale->details->first()->price)->toBe(24.0)
+        ->and((float) $product->fresh()->stock)->toBe(66.0);
+});
+
+test('the default sale unit can be changed for the pos', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+
+    $und = Unit::query()->where('abbreviation', 'und')->firstOrFail();
+    $ristra = Unit::query()->where('abbreviation', 'ristra')->firstOrFail();
+    $caja = Unit::query()->where('abbreviation', 'caja')->firstOrFail();
+    $category = Category::firstOrCreate(['name' => 'Limpieza']);
+
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Jabón Zote',
+        'code' => 'JABON-DEF-001',
+        'purchase_price' => 5.5,
+        'sale_price' => 8,
+        'stock' => 0,
+        'unit' => 'und',
+        'base_unit_id' => $und->id,
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($admin)->post(route('inventario.conversions.store', $product->id), [
+        'unit_id' => $ristra->id,
+        'equals_base_qty' => 3,
+        'equals_unit_id' => $und->id,
+        'is_default_sale_unit' => 1,
+    ])->assertRedirect();
+
+    $this->actingAs($admin)->post(route('inventario.conversions.store', $product->id), [
+        'unit_id' => $caja->id,
+        'equals_base_qty' => 12,
+        'equals_unit_id' => $ristra->id,
+        'sale_price' => 270,
+    ])->assertRedirect();
+
+    $this->actingAs($admin)->post(route('inventario.conversions.default', $product->id), [
+        'unit_id' => $caja->id,
+    ])->assertRedirect()->assertSessionHas('success');
+
+    $product->refresh()->load('unitConversions');
+    $catalog = app(PosCatalogService::class)->serializeProduct($product);
+
+    expect($product->unitConversions->firstWhere('unit_id', $caja->id)?->is_default_sale_unit)->toBeTrue()
+        ->and($product->unitConversions->firstWhere('unit_id', $ristra->id)?->is_default_sale_unit)->toBeFalse()
+        ->and($catalog['default_unit_id'])->toBe($caja->id)
+        ->and(collect($catalog['sale_units'])->where('is_default', true)->pluck('abbreviation')->all())->toBe(['caja'])
+        ->and(collect($catalog['sale_units'])->pluck('abbreviation')->sort()->values()->all())->toContain('und', 'ristra', 'caja');
+
+    $this->actingAs($admin)
+        ->get(route('inventario.show', $product->id).'?conversiones=1')
+        ->assertOk()
+        ->assertSee('Predeterminada')
+        ->assertSee('Usar al vender');
+
+    $this->actingAs($admin)
+        ->getJson(route('facturacion.pos-products', ['search' => 'JABON-DEF-001']))
+        ->assertOk()
+        ->assertJsonPath('0.code', 'JABON-DEF-001')
+        ->assertJsonPath('0.default_unit_id', $caja->id)
+        ->assertJsonPath('0.default_unit_label', 'caja');
+
+    $pos = $this->actingAs($admin)->get(route('facturacion.pos'));
+    $pos->assertOk()
+        ->assertSee('data-product-unit-select', false)
+        ->assertSee('JABON-DEF-001', false);
+
+    $posProduct = collect($pos->viewData('products'))->firstWhere('code', 'JABON-DEF-001');
+    expect($posProduct['sale_units'])->toHaveCount(3)
+        ->and($posProduct['default_unit_id'])->toBe($caja->id);
+
+    $this->actingAs($admin)->post(route('inventario.conversions.default', $product->id), [
+        'unit_id' => $und->id,
+    ])->assertRedirect()->assertSessionHas('success');
+
+    $product->refresh()->load('unitConversions');
+    $catalog = app(PosCatalogService::class)->serializeProduct($product);
+
+    expect($product->unitConversions->contains('is_default_sale_unit', true))->toBeFalse()
+        ->and($catalog['default_unit_id'])->toBe($und->id);
 });
 
 test('unit conversion converts sand from cubic meters to sacks', function () {

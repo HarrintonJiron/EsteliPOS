@@ -54,18 +54,22 @@ class UnitConversionService
      */
     public function availableUnitsFor(Product $product): array
     {
+        $product->loadMissing(['baseUnit', 'unitConversions.unit']);
         $units = [];
+        $explicitDefaultId = $product->unitConversions
+            ->first(fn (ProductUnitConversion $conversion): bool => $conversion->is_default_sale_unit)
+            ?->unit_id;
 
         if ($product->baseUnit) {
             $units[$product->baseUnit->id] = [
                 'unit' => $product->baseUnit,
                 'factor_to_base' => 1.0,
                 'sale_price' => (float) $product->sale_price,
-                'is_default_sale_unit' => true,
+                'is_default_sale_unit' => $explicitDefaultId === null,
             ];
         }
 
-        foreach ($product->unitConversions()->with('unit')->get() as $conversion) {
+        foreach ($product->unitConversions as $conversion) {
             if ($conversion->unit === null) {
                 continue;
             }
@@ -74,7 +78,7 @@ class UnitConversionService
                 'unit' => $conversion->unit,
                 'factor_to_base' => (float) $conversion->factor_to_base,
                 'sale_price' => $conversion->sale_price !== null ? (float) $conversion->sale_price : null,
-                'is_default_sale_unit' => (bool) $conversion->is_default_sale_unit,
+                'is_default_sale_unit' => $explicitDefaultId !== null && (int) $conversion->unit_id === (int) $explicitDefaultId,
             ];
         }
 

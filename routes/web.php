@@ -13,6 +13,7 @@ use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\CompraController;
 use App\Http\Controllers\CostCenterController;
 use App\Http\Controllers\CreditController;
+use App\Http\Controllers\CreditOverrideController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeductionController;
 use App\Http\Controllers\DeviceBrandController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ExchangeRateController;
 use App\Http\Controllers\FacturacionController;
 use App\Http\Controllers\FiscalPeriodController;
+use App\Http\Controllers\HelpCenterController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\IncomeStatementController;
 use App\Http\Controllers\InventarioController;
@@ -44,6 +46,7 @@ use App\Http\Controllers\ReparacionController;
 use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SystemResetController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\UserController;
@@ -69,6 +72,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/acceso-limitado', [HomeController::class, 'unavailable'])->name('access.unavailable');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::post('/cambiar-usuario', [AuthController::class, 'switchUser'])->name('auth.switch-user');
+    Route::get('/ayuda', HelpCenterController::class)->name('help.index');
 
     Route::middleware('module:ventas')->group(function () {
         Route::get('/facturacion/create', [FacturacionController::class, 'create'])
@@ -85,6 +89,9 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/facturacion/{id}', [FacturacionController::class, 'show'])->name('facturacion.show');
         });
         Route::middleware('permission:ventas.create')->group(function () {
+            Route::post('/facturacion/credit-override', CreditOverrideController::class)
+                ->middleware('throttle:5,10')
+                ->name('facturacion.credit-override');
             Route::post('/facturacion/pos/products/{product}/image', [FacturacionController::class, 'updateProductImage'])
                 ->middleware('permission:inventario.edit')->name('facturacion.pos-product-image')->whereNumber('product');
             Route::post('/facturacion/pos-store', [FacturacionController::class, 'posStore'])->name('facturacion.pos-store');
@@ -166,6 +173,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/categorias', [InventarioController::class, 'storeCategory'])->middleware('permission:inventario.create')->name('categorias.store');
         Route::get('/inventario/export', [InventarioController::class, 'export'])->middleware('permission:inventario.export')->name('inventario.export');
         Route::post('/inventario/{id}/conversiones', [InventarioController::class, 'storeUnitConversion'])->middleware('permission:inventario.edit')->name('inventario.conversions.store')->whereNumber('id');
+        Route::post('/inventario/{id}/conversiones/predeterminada', [InventarioController::class, 'setDefaultSaleUnit'])->middleware('permission:inventario.edit')->name('inventario.conversions.default')->whereNumber('id');
         Route::delete('/inventario/{id}/conversiones/{conversion}', [InventarioController::class, 'destroyUnitConversion'])->middleware('permission:inventario.delete')->name('inventario.conversions.destroy')->whereNumber('id');
         Route::get('/inventario/{id}', [InventarioController::class, 'show'])->middleware('permission:inventario.view')->name('inventario.show')->whereNumber('id');
         Route::get('/inventario/{id}/edit', [InventarioController::class, 'edit'])->middleware('permission:inventario.edit')->name('inventario.edit')->whereNumber('id');
@@ -208,6 +216,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/compras', [CompraController::class, 'store'])->middleware('permission:compras.create')->name('compras.store');
         Route::get('/compras/{id}/edit', [CompraController::class, 'edit'])->middleware('permission:compras.edit')->name('compras.edit');
         Route::match(['put', 'patch'], '/compras/{id}', [CompraController::class, 'update'])->middleware('permission:compras.edit')->name('compras.update');
+        Route::post('/compras/{id}/estado', [CompraController::class, 'updateStatus'])->middleware('permission:compras.edit')->name('compras.status');
         Route::delete('/compras/{id}', [CompraController::class, 'destroy'])->middleware('permission:compras.delete')->name('compras.destroy');
     });
 
@@ -453,6 +462,12 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/appearance', [SettingsController::class, 'appearance'])->middleware('permission:configuracion.edit')->name('appearance.update');
         Route::get('/sequences', [SettingsController::class, 'sequences'])->name('sequences');
         Route::post('/sequences', [SettingsController::class, 'sequences'])->middleware('permission:configuracion.edit')->name('sequences.update');
+        Route::middleware('permission:configuracion.reset_system')->group(function () {
+            Route::get('/system-reset', [SystemResetController::class, 'create'])->name('system-reset.create');
+            Route::post('/system-reset', [SystemResetController::class, 'store'])
+                ->middleware('throttle:2,10')
+                ->name('system-reset.store');
+        });
     });
 
     // Contabilidad

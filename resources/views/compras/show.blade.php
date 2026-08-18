@@ -4,11 +4,7 @@
 
 @section('content')
 @php
-    $statusLabel = match ($purchase->status) {
-        'completed' => 'Completada',
-        'pending' => 'Pendiente',
-        default => 'Anulada',
-    };
+    $statusLabel = $purchase->statusLabel();
     $statusClass = match ($purchase->status) {
         'completed' => 'badge-success',
         'pending' => 'badge-warning',
@@ -30,8 +26,12 @@
                 @endif
             </p>
         </div>
-        <div class="flex gap-2">
-            <a href="{{ route('compras.edit', $purchase->id) }}" class="btn-outline">Editar</a>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+            <a href="{{ route('compras.index') }}" class="btn-outline">Volver</a>
+            @if($purchase->status !== 'canceled')
+                <a href="{{ route('compras.edit', $purchase->id) }}" class="btn-outline">Editar</a>
+            @endif
+            @include('compras._status_actions', ['purchase' => $purchase, 'compact' => false])
         </div>
     </div>
 
@@ -39,6 +39,15 @@
         <div class="card p-4">
             <p class="text-xs text-slate-500">Estado</p>
             <p class="mt-2"><span class="{{ $statusClass }}">{{ $statusLabel }}</span></p>
+            @if($purchase->status === 'pending')
+                <p class="mt-2 text-xs text-amber-700">Mercadería en inventario. Saldo a crédito con el proveedor.</p>
+            @elseif($purchase->status === 'canceled')
+                <p class="mt-2 text-xs text-slate-500">No afecta inventario ni cuentas.</p>
+            @elseif($purchase->payment_type === 'transfer')
+                <p class="mt-2 text-xs text-slate-500">Pagada por transferencia.</p>
+            @else
+                <p class="mt-2 text-xs text-slate-500">Pagada de contado.</p>
+            @endif
         </div>
         <div class="card p-4">
             <p class="text-xs text-slate-500">Bodega</p>

@@ -33,10 +33,8 @@ return new class extends Migration
             }
         });
 
-        $indexExists = DB::select(
-            'SHOW INDEX FROM payrolls WHERE Key_name = ?',
-            ['payrolls_employee_id_month_year_unique']
-        );
+        $indexExists = collect(Schema::getIndexes('payrolls'))
+            ->contains(fn (array $index): bool => ($index['name'] ?? '') === 'payrolls_employee_id_month_year_unique');
 
         $hasDuplicatePayrolls = DB::table('payrolls')
             ->select('employee_id', 'month', 'year')
@@ -44,7 +42,7 @@ return new class extends Migration
             ->havingRaw('COUNT(*) > 1')
             ->exists();
 
-        if ($indexExists === [] && ! $hasDuplicatePayrolls) {
+        if (! $indexExists && ! $hasDuplicatePayrolls) {
             Schema::table('payrolls', function (Blueprint $table) {
                 $table->unique(['employee_id', 'month', 'year']);
             });

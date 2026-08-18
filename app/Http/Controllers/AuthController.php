@@ -139,7 +139,7 @@ class AuthController extends Controller
 
             return back()->withErrors([
                 'switch_user' => 'El PIN no coincide, no está configurado o el usuario está inactivo.',
-            ])->withInput('user_id');
+            ])->onlyInput('user_id');
         }
 
         $previousUser = $request->user();

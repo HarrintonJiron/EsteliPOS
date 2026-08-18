@@ -72,7 +72,7 @@
                             </option>
                         @endforeach
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">Stock y kardex usan esta unidad. Crea más en Inventario → Unidades.</p>
+                    <p class="text-xs text-gray-500 mt-1">Así se cuenta el inventario. Ejemplo: jabón en <strong>unidades</strong>. Después, en la ficha, puedes venderlo en ristra o caja sin crear otro producto.</p>
                 </div>
 
                 <div class="md:col-span-2">

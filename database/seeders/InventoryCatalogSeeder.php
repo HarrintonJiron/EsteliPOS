@@ -32,6 +32,11 @@ class InventoryCatalogSeeder extends Seeder
             ['name' => 'Varilla', 'abbreviation' => 'var', 'unit_type' => 'length'],
             ['name' => 'Plancha', 'abbreviation' => 'pln', 'unit_type' => 'count'],
             ['name' => 'Caja', 'abbreviation' => 'caja', 'unit_type' => 'package'],
+            ['name' => 'Ristra', 'abbreviation' => 'ristra', 'unit_type' => 'package'],
+            ['name' => 'Paquete', 'abbreviation' => 'paq', 'unit_type' => 'package'],
+            ['name' => 'Docena', 'abbreviation' => 'doc', 'unit_type' => 'package'],
+            ['name' => 'Media docena', 'abbreviation' => 'mdoc', 'unit_type' => 'package'],
+            ['name' => 'Display', 'abbreviation' => 'disp', 'unit_type' => 'package'],
         ];
 
         foreach ($units as $unit) {

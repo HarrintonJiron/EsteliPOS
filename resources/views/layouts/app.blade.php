@@ -394,6 +394,12 @@
                             'icon_extra' => 'M15 12a3 3 0 11-6 0 3 3 0 016 0z',
                         ];
                     }
+                    $systemLinks[] = [
+                        'route' => 'help.index',
+                        'label' => 'Centro de ayuda',
+                        'match' => 'help.*',
+                        'icon' => 'M8.228 9a3.001 3.001 0 115.117 2.122c-.842.808-1.845 1.253-1.845 2.378M12 17h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+                    ];
                 @endphp
 
                 @if(count($systemLinks))

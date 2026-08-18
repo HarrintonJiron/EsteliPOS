@@ -51,6 +51,7 @@
                     <th>Teléfono</th>
                     <th class="text-right">Límite</th>
                     <th class="text-right">Saldo</th>
+                    <th class="text-right">Disponible</th>
                     <th class="text-center">Plazo</th>
                     <th>Estado</th>
                     <th class="text-center">Acciones</th>
@@ -73,6 +74,15 @@
                     </td>
                     <td class="text-right font-semibold {{ ($client->balance ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600' }}">
                         C$ {{ number_format($client->balance ?? 0, 2) }}
+                    </td>
+                    <td class="text-right font-semibold text-indigo-700">
+                        @if(!$client->credit_enabled)
+                            —
+                        @elseif($client->available_credit === null)
+                            Ilimitado
+                        @else
+                            C$ {{ number_format((float) $client->available_credit, 2) }}
+                        @endif
                     </td>
                     <td class="text-center text-sm text-slate-600">
                         {{ $client->credit_enabled ? ($client->credit_days ?? 30).' días' : '—' }}
@@ -97,7 +107,7 @@
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="7" class="text-center py-8 text-slate-500">No hay clientes registrados</td></tr>
+                <tr><td colspan="8" class="text-center py-8 text-slate-500">No hay clientes registrados</td></tr>
                 @endforelse
             </tbody>
         </table>

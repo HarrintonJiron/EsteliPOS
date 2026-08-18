@@ -49,6 +49,7 @@ class SettingsDashboardService
         $canManageRoles = $user?->isAdmin() || $user?->hasPermission('configuracion.manage_roles');
         $canManagePermissions = $user?->isAdmin() || $user?->hasPermission('configuracion.manage_permissions');
         $canManageModules = $user?->isAdmin() || $user?->hasPermission('configuracion.manage_modules');
+        $canResetSystem = $user?->hasPermission('configuracion.reset_system') ?? false;
 
         $sections = [
             $this->section('general', 'general', '⚙️', 'Configuración general', 'Moneda, zona horaria e información básica.', 'Disponible', 'success', '8 opciones', route('settings.general'), 'Administrar'),
@@ -67,6 +68,22 @@ class SettingsDashboardService
             $this->comingSoon('audit', 'system', '📋', 'Auditoría', 'Consulta y trazabilidad completa de cambios administrativos.'),
             $this->comingSoon('diagnostics', 'system', '🩺', 'Diagnóstico del sistema', 'Estado técnico sin exponer información sensible.'),
         ];
+
+        if ($canResetSystem) {
+            $sections[] = $this->section(
+                'system-reset',
+                'system',
+                '🧪',
+                'Ambiente de pruebas',
+                'Reinicia los datos en limpio o carga información de demostración.',
+                'Zona de riesgo',
+                'danger',
+                'Requiere confirmación',
+                route('settings.system-reset.create'),
+                'Abrir',
+                true,
+            );
+        }
 
         return [
             'stats' => [

@@ -16,6 +16,7 @@
      data-warehouses='@json($warehouses)'
      data-default-warehouse-id="{{ $defaultWarehouseId }}"
      data-product-search-url="{{ route('facturacion.pos-products') }}"
+     data-credit-override-url="{{ route('facturacion.credit-override') }}"
      data-product-image-url="{{ url('/facturacion/pos/products') }}"
      data-daily-report-url="{{ route('facturacion.pos-daily-report') }}"
      data-company-currency="{{ $posReferenceFx['company_currency'] }}"
@@ -169,6 +170,23 @@
                 @endforeach
             </div>
 
+            <div id="creditLimitAlert" class="hidden rounded-xl border border-red-300 bg-red-50 p-3 text-red-900 shadow-sm" role="alert" aria-live="assertive">
+                <div class="flex items-start gap-3">
+                    <svg class="mt-0.5 h-5 w-5 shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+                    <div>
+                        <p class="text-sm font-bold">Límite de crédito sobrepasado</p>
+                        <p class="mt-1 text-xs leading-5">Disponible: <strong id="creditAvailableAmount">C$ 0.00</strong> · Este ticket: <strong id="creditTicketAmount">C$ 0.00</strong> · Exceso: <strong id="creditExceededAmount">C$ 0.00</strong>.</p>
+                        <p class="mt-1 text-xs">Reduce el ticket, registra un abono o selecciona otro método de pago.</p>
+                        <button type="button" onclick="openCreditOverrideModal()" class="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700">Solicitar autorización</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="creditOverrideApproved" class="hidden rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900" role="status" aria-live="polite">
+                <strong>Exceso autorizado</strong>
+                <span id="creditOverrideApprovedBy" class="block text-xs"></span>
+            </div>
+
             <button type="button" id="payBtn" onclick="initiatePayment()"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -183,6 +201,20 @@
                     <button type="button" id="closeCashBtn" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 rounded-xl text-sm" title="Cierre de Caja (Arqueo)">Cierre Caja</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div id="presentationModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div class="w-full max-w-sm rounded-2xl bg-white shadow-xl">
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                    <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Presentación</p>
+                    <p id="presentationModalName" class="font-bold text-slate-900"></p>
+                    <p id="presentationModalStock" class="text-xs text-slate-500"></p>
+                </div>
+                <button type="button" onclick="closePresentationModal()" class="text-2xl leading-none text-slate-400">×</button>
+            </div>
+            <div id="presentationModalChoices" class="grid gap-2 p-4"></div>
         </div>
     </div>
 
@@ -349,6 +381,39 @@
         </div>
     </div>
 
+    {{-- MODAL: Autorización administrativa de exceso de crédito --}}
+    <div id="creditOverrideModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-200 p-5">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-red-600">Autorización requerida</p>
+                    <h2 class="text-lg font-bold text-slate-900">Permitir exceso de crédito</h2>
+                </div>
+                <button type="button" onclick="closeCreditOverrideModal()" class="text-slate-400 hover:text-slate-700" aria-label="Cerrar">✕</button>
+            </div>
+            <form id="creditOverrideForm" class="space-y-4 p-5">
+                <div class="rounded-xl bg-red-50 p-3 text-sm text-red-900">
+                    <p>Cliente: <strong id="creditOverrideClientName"></strong></p>
+                    <p>Ticket: <strong id="creditOverrideTicketTotal"></strong> · Disponible: <strong id="creditOverrideAvailable"></strong></p>
+                </div>
+                <div>
+                    <label for="creditOverrideAdminLogin" class="mb-1 block text-sm font-semibold text-slate-700">Usuario o correo del administrador</label>
+                    <input id="creditOverrideAdminLogin" class="input-field" type="text" required autocomplete="username">
+                </div>
+                <div>
+                    <label for="creditOverridePassword" class="mb-1 block text-sm font-semibold text-slate-700">Contraseña del administrador</label>
+                    <input id="creditOverridePassword" class="input-field" type="password" required autocomplete="current-password">
+                </div>
+                <p id="creditOverrideError" class="hidden rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert"></p>
+                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button type="button" onclick="closeCreditOverrideModal()" class="btn-outline justify-center">Cancelar</button>
+                    <button id="creditOverrideSubmit" type="submit" class="rounded-xl bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700">Autorizar una vez</button>
+                </div>
+                <p class="text-xs leading-5 text-slate-500">La autorización dura 5 minutos, solo sirve para este cajero, cliente y monto, y se consume al guardar la venta.</p>
+            </form>
+        </div>
+    </div>
+
     {{-- MODAL: Pago --}}
     <div id="paymentModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
         <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -400,6 +465,7 @@
                 <input type="hidden" name="amount_received" id="amountReceivedInput">
                 <input type="hidden" name="reference_number" id="referenceNumberInput">
                 <input type="hidden" name="order_discount_pct" id="orderDiscountPctInput" value="0">
+                <input type="hidden" name="credit_override_token" id="creditOverrideTokenInput">
 
                 <div class="p-4 border-t border-slate-200 space-y-2 sticky bottom-0 bg-white">
                     <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl">Confirmar Pago</button>
@@ -454,18 +520,21 @@ document.addEventListener('DOMContentLoaded', function() {
         price: parseFloat(defaultUnit?.price ?? p.sale_price ?? 0),
         discount_pct: parseFloat(p.discount_pct ?? 0),
         discount_label: p.discount_label ?? '',
-        stock: parseFloat(defaultUnit?.stock ?? totalStock ?? 0),
+        stock: totalStock,
         total_stock: totalStock,
         warehouse_stock: warehouseStock,
         preferred_warehouse_id: p.preferred_warehouse_id ? parseInt(p.preferred_warehouse_id, 10) : null,
         preferred_warehouse_name: p.preferred_warehouse_name ?? null,
         stocks_by_warehouse: p.stocks_by_warehouse || [],
+        base_unit_id: p.base_unit_id ?? null,
+        base_unit_label: p.base_unit_label ?? 'und',
         unit_id: defaultUnit?.id ?? p.default_unit_id ?? p.base_unit_id ?? null,
         unit_label: defaultUnit?.abbreviation ?? p.default_unit_label ?? 'und',
         sale_units: (p.sale_units || []).map(u => ({
             id: u.id,
             abbreviation: u.abbreviation,
             name: u.name,
+            factor_to_base: parseFloat(u.factor_to_base ?? 1) || 1,
             price: parseFloat(u.price ?? 0),
             stock: parseFloat(u.stock ?? 0),
             is_default: !!u.is_default,
@@ -513,8 +582,11 @@ document.addEventListener('DOMContentLoaded', function() {
     let orderDiscountPct = 0;
     let ticketCounter = parseInt(localStorage.getItem('pos_ticket_counter') || '1');
     let currentPaymentMethod = 'cash';
+    let creditOverrideToken = '';
+    let creditOverrideMaximum = 0;
+    let creditOverrideClientId = null;
     const HELD_KEY = 'pos_held_tickets';
-    const modalIds = ['shortcutModal', 'clientModal', 'paymentModal', 'heldModal', 'dailyReportModal'];
+    const modalIds = ['presentationModal', 'shortcutModal', 'clientModal', 'paymentModal', 'creditOverrideModal', 'heldModal', 'dailyReportModal'];
 
     document.getElementById('ticketNumber').textContent = ticketCounter;
 
@@ -525,6 +597,101 @@ document.addEventListener('DOMContentLoaded', function() {
     function productUnit(product, unitId) {
         return (product.sale_units || []).find(u => u.id == unitId) || product.sale_units?.[0];
     }
+
+    window.cardUnitId = function(productId) {
+        const select = document.querySelector(`[data-product-unit-select="${productId}"]`);
+        return select?.value ? parseInt(select.value, 10) : null;
+    };
+
+    window.updateProductCardUnit = function(productId) {
+        const product = products.find(p => p.id == productId);
+        const unit = product ? productUnit(product, cardUnitId(productId)) : null;
+        if (!product || !unit) return;
+        const priceEl = document.querySelector(`[data-product-price="${productId}"]`);
+        if (priceEl) {
+            priceEl.innerHTML = `${formatMoney(unit.price)} <span class="text-[10px] font-semibold text-slate-500">/ ${unit.abbreviation}</span>`;
+        }
+    };
+
+    function formatQty(value) {
+        const number = parseFloat(value);
+        if (!Number.isFinite(number)) return '0';
+        return number.toLocaleString('es-NI', { maximumFractionDigits: 4 });
+    }
+
+    function unitFactor(unit) {
+        const factor = parseFloat(unit?.factor_to_base);
+        return factor > 0 ? factor : 1;
+    }
+
+    function committedBaseQty(productId, exceptIdx = null) {
+        const product = products.find(p => p.id == productId);
+        if (!product) return 0;
+        return ticket.reduce((sum, item, idx) => {
+            if (item.product_id != productId || idx === exceptIdx) return sum;
+            return sum + (parseFloat(item.quantity) || 0) * unitFactor(productUnit(product, item.unit_id));
+        }, 0);
+    }
+
+    function remainingBaseQty(product, exceptIdx = null) {
+        return Math.max(0, parseFloat(product.total_stock ?? product.stock ?? 0) - committedBaseQty(product.id, exceptIdx));
+    }
+
+    function maxPresentationQty(product, unit, exceptIdx = null) {
+        const factor = unitFactor(unit);
+        return Math.floor((remainingBaseQty(product, exceptIdx) / factor) * 10000) / 10000;
+    }
+
+    let presentationTicketIdx = null;
+
+    window.closePresentationModal = function() {
+        presentationTicketIdx = null;
+        document.getElementById('presentationModal')?.classList.add('hidden');
+    };
+
+    window.openPresentationModal = function(product, ticketIdx = null) {
+        presentationTicketIdx = ticketIdx;
+        const modal = document.getElementById('presentationModal');
+        document.getElementById('presentationModalName').textContent = product.name;
+        document.getElementById('presentationModalStock').textContent = `Hay ${formatQty(product.total_stock)} ${product.base_unit_label || 'und'}`;
+        const selectedId = ticketIdx != null ? ticket[ticketIdx]?.unit_id : product.unit_id;
+        const baseLabel = product.base_unit_label || 'und';
+        document.getElementById('presentationModalChoices').innerHTML = (product.sale_units || []).map(unit => {
+            const factor = unitFactor(unit);
+            const available = maxPresentationQty(product, unit, ticketIdx);
+            const factorHint = factor === 1 ? `1 ${baseLabel}` : `1 ${unit.abbreviation} = ${formatQty(factor)} ${baseLabel}`;
+            const defaultBadge = unit.is_default ? '<span class="ml-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-indigo-700">Predeterminada</span>' : '';
+            return `
+            <button type="button" onclick="choosePresentation(${product.id}, ${unit.id})"
+                class="flex items-center justify-between rounded-xl border px-4 py-3 text-left ${selectedId == unit.id ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 hover:border-indigo-400'}">
+                <span>
+                    <span class="font-semibold text-slate-900">${unit.name}</span>${defaultBadge}
+                    <span class="mt-0.5 block text-[11px] text-slate-500">${factorHint} · ${formatQty(available)} disponibles</span>
+                </span>
+                <span class="text-sm font-bold text-indigo-600">${formatMoney(unit.price)}</span>
+            </button>`;
+        }).join('');
+        modal.classList.remove('hidden');
+    };
+
+    window.pickProductPresentation = function(productId, ticketIdx = null) {
+        const product = products.find(p => p.id == productId);
+        if (!product) return;
+        if ((product.sale_units || []).length < 2) {
+            if (ticketIdx == null) addProductToTicket(productId);
+            return;
+        }
+        openPresentationModal(product, ticketIdx);
+    };
+
+    window.choosePresentation = function(productId, unitId) {
+        if (presentationTicketIdx != null) {
+            changeTicketUnit(presentationTicketIdx, unitId);
+        } else {
+            addProductToTicket(productId, 1, unitId);
+        }
+        closePresentationModal();
+    };
 
     async function refreshCatalogPrices() {
         const params = new URLSearchParams({ search: '' });
@@ -543,7 +710,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const unit = productUnit(product, item.unit_id);
                 if (unit) {
                     item.price = unit.price;
-                    item.max_stock = unit.stock;
+                    item.max_stock = maxPresentationQty(product, unit, ticket.indexOf(item));
                     item.unit_label = unit.abbreviation;
                 }
             });
@@ -863,7 +1030,109 @@ document.addEventListener('DOMContentLoaded', function() {
             discLabel.classList.add('hidden');
             discDisplay.classList.add('hidden');
         }
+
+        updateCreditLimitAlert();
     }
+
+    function updateCreditLimitAlert() {
+        const alertBox = document.getElementById('creditLimitAlert');
+        const payButton = document.getElementById('payBtn');
+        const client = currentClient ? clientsData.find(c => c.id == currentClient) : null;
+        const total = getTotal().total;
+        const hasFiniteLimit = client && client.credit_enabled && client.credit_limit > 0;
+        const available = hasFiniteLimit ? Math.max(0, parseFloat(client.available_credit ?? 0)) : null;
+        const exceeded = currentPaymentMethod === 'credit' && available !== null && total > available + 0.0001;
+        const authorized = exceeded
+            && creditOverrideToken
+            && String(creditOverrideClientId) === String(currentClient)
+            && total <= creditOverrideMaximum + 0.01;
+
+        alertBox.classList.toggle('hidden', !exceeded || authorized);
+        document.getElementById('creditOverrideApproved').classList.toggle('hidden', !authorized);
+        payButton.disabled = exceeded && !authorized;
+        payButton.classList.toggle('opacity-50', exceeded && !authorized);
+        payButton.classList.toggle('cursor-not-allowed', exceeded && !authorized);
+        payButton.title = exceeded && !authorized ? 'La venta supera el crédito disponible del cliente.' : '';
+
+        if (exceeded) {
+            document.getElementById('creditAvailableAmount').textContent = formatMoney(available);
+            document.getElementById('creditTicketAmount').textContent = formatMoney(total);
+            document.getElementById('creditExceededAmount').textContent = formatMoney(total - available);
+        }
+
+        return exceeded && !authorized;
+    }
+
+    function clearCreditOverride() {
+        creditOverrideToken = '';
+        creditOverrideMaximum = 0;
+        creditOverrideClientId = null;
+        document.getElementById('creditOverrideTokenInput').value = '';
+        document.getElementById('creditOverrideApproved').classList.add('hidden');
+    }
+
+    window.openCreditOverrideModal = function() {
+        const client = clientsData.find(c => c.id == currentClient);
+        if (!client) return;
+        document.getElementById('creditOverrideClientName').textContent = client.name;
+        document.getElementById('creditOverrideTicketTotal').textContent = formatMoney(getTotal().total);
+        document.getElementById('creditOverrideAvailable').textContent = formatMoney(client.available_credit ?? 0);
+        document.getElementById('creditOverrideError').classList.add('hidden');
+        document.getElementById('creditOverridePassword').value = '';
+        document.getElementById('creditOverrideModal').classList.remove('hidden');
+        window.setTimeout(() => document.getElementById('creditOverrideAdminLogin').focus(), 0);
+    };
+
+    window.closeCreditOverrideModal = function() {
+        document.getElementById('creditOverridePassword').value = '';
+        document.getElementById('creditOverrideModal').classList.add('hidden');
+    };
+
+    document.getElementById('creditOverrideForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const submit = document.getElementById('creditOverrideSubmit');
+        const errorBox = document.getElementById('creditOverrideError');
+        submit.disabled = true;
+        submit.textContent = 'Verificando…';
+        errorBox.classList.add('hidden');
+
+        try {
+            const response = await fetch(app.dataset.creditOverrideUrl, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('#paymentForm input[name="_token"]').value,
+                },
+                body: JSON.stringify({
+                    admin_login: document.getElementById('creditOverrideAdminLogin').value,
+                    password: document.getElementById('creditOverridePassword').value,
+                    client_id: currentClient,
+                    amount: getTotal().total,
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                const firstError = Object.values(data.errors || {}).flat()[0];
+                throw new Error(firstError || data.message || 'No se pudo autorizar el exceso.');
+            }
+
+            creditOverrideToken = data.token;
+            creditOverrideMaximum = getTotal().total;
+            creditOverrideClientId = currentClient;
+            document.getElementById('creditOverrideTokenInput').value = data.token;
+            document.getElementById('creditOverrideApprovedBy').textContent = `Autorizado por ${data.administrator} para este ticket.`;
+            closeCreditOverrideModal();
+            updateCreditLimitAlert();
+        } catch (error) {
+            errorBox.textContent = error.message;
+            errorBox.classList.remove('hidden');
+            document.getElementById('creditOverridePassword').value = '';
+        } finally {
+            submit.disabled = false;
+            submit.textContent = 'Autorizar una vez';
+        }
+    });
 
     function renderTicket() {
         const container = document.getElementById('ticketItems');
@@ -885,7 +1154,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="flex-1 min-w-0">
                         <p class="font-semibold text-slate-900 text-sm truncate">${item.name}</p>
                         <div class="flex gap-2 text-xs text-slate-600 mt-1 flex-wrap">
-                            <span>Cant: <b>${item.quantity}</b> ${item.unit_label || ''}</span>
+                            <span>Cant: <b>${item.quantity}</b></span>
+                            ${(() => {
+                                const units = products.find(p => p.id == item.product_id)?.sale_units || [];
+                                if (units.length < 2) return `<span>${item.unit_label || ''}</span>`;
+                                return `<select onclick="event.stopPropagation()" onchange="event.stopPropagation(); changeTicketUnit(${idx}, this.value)"
+                                    class="rounded border border-indigo-200 bg-indigo-50 px-1 py-0.5 text-xs font-semibold text-indigo-800" title="Presentación">
+                                    ${units.map(unit => `<option value="${unit.id}" ${unit.id == item.unit_id ? 'selected' : ''}>${unit.abbreviation}</option>`).join('')}
+                                </select>`;
+                            })()}
                             <span>${formatMoney(item.price)}</span>
                             ${item.discount > 0 ? `<span class="text-red-600">-${item.discount}%</span>` : ''}
                             ${item.source_warehouse_name ? `<span class="text-indigo-600">${item.source_warehouse_name}</span>` : ''}
@@ -924,19 +1201,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const unit = productUnit(product, unitId ?? product.unit_id);
         const resolvedUnitId = unit?.id ?? product.unit_id;
         const totalStock = parseFloat(product.total_stock ?? product.stock ?? 0);
-        const unitStock = parseFloat(unit?.stock ?? totalStock ?? 0);
         const unitPrice = parseFloat(unit?.price ?? product.price ?? 0);
+        const baseLabel = product.base_unit_label || 'und';
 
-        if (totalStock <= 0 || unitStock <= 0) {
+        if (totalStock <= 0) {
             alert('Producto sin stock disponible en ninguna bodega');
             return;
         }
 
-        const existing = ticket.find(item => ticketLineKey(item.product_id, item.unit_id) === ticketLineKey(productId, resolvedUnitId));
+        const existingIdx = ticket.findIndex(item => ticketLineKey(item.product_id, item.unit_id) === ticketLineKey(productId, resolvedUnitId));
+        const existing = existingIdx >= 0 ? ticket[existingIdx] : null;
         const newQty = (existing ? existing.quantity : 0) + qty;
+        const maxQty = maxPresentationQty(product, unit, existingIdx >= 0 ? existingIdx : null);
 
-        if (newQty > unitStock) {
-            alert(`Stock insuficiente. Disponible: ${unitStock} ${unit?.abbreviation || ''}`);
+        if (newQty > maxQty) {
+            alert(`Stock insuficiente. Puedes vender ${formatQty(maxQty)} ${unit?.abbreviation || ''}. Hay ${formatQty(totalStock)} ${baseLabel} en total.`);
             return;
         }
 
@@ -949,7 +1228,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (existing) {
             existing.quantity = newQty;
-            existing.max_stock = unitStock;
+            existing.max_stock = maxQty;
             existing.source_warehouse_id = product.preferred_warehouse_id || selectedWarehouseId;
             existing.source_warehouse_name = product.preferred_warehouse_name || null;
         } else {
@@ -962,7 +1241,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 quantity: qty,
                 discount: product.discount_pct || 0,
                 tax_rate: product.tax_rate,
-                max_stock: unitStock,
+                max_stock: maxQty,
                 source_warehouse_id: product.preferred_warehouse_id || selectedWarehouseId,
                 source_warehouse_name: product.preferred_warehouse_name || null,
             });
@@ -975,12 +1254,34 @@ document.addEventListener('DOMContentLoaded', function() {
         const product = products.find(p => p.id == item.product_id);
         if (!product) return;
         const unit = productUnit(product, parseInt(unitId, 10));
-        if (!unit) return;
+        if (!unit || item.unit_id == unit.id) return;
+
+        const otherIdx = ticket.findIndex((row, rowIdx) =>
+            rowIdx !== idx && ticketLineKey(row.product_id, unit.id) === ticketLineKey(item.product_id, unit.id)
+        );
+
+        if (otherIdx >= 0) {
+            ticket[otherIdx].quantity += item.quantity;
+            ticket.splice(idx, 1);
+            const mergedIdx = otherIdx > idx ? otherIdx - 1 : otherIdx;
+            const merged = ticket[mergedIdx];
+            const maxQty = maxPresentationQty(product, unit, mergedIdx);
+            merged.price = unit.price;
+            merged.unit_id = unit.id;
+            merged.unit_label = unit.abbreviation;
+            merged.max_stock = maxQty;
+            if (merged.quantity > maxQty) merged.quantity = maxQty;
+            selectedItemIndex = mergedIdx;
+            renderTicket();
+            return;
+        }
+
+        const maxQty = maxPresentationQty(product, unit, idx);
         item.unit_id = unit.id;
         item.unit_label = unit.abbreviation;
         item.price = unit.price;
-        item.max_stock = unit.stock;
-        if (item.quantity > unit.stock) item.quantity = unit.stock;
+        item.max_stock = maxQty;
+        if (item.quantity > maxQty) item.quantity = maxQty;
         renderTicket();
     };
 
@@ -1035,10 +1336,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const qty = parseFloat(padBuffer) || 1;
         const item = ticket[selectedItemIndex];
         const product = products.find(p => p.id == item.product_id);
-        const maxStock = product?.total_stock ?? product?.stock ?? item.max_stock;
+        const maxStock = maxPresentationQty(product, productUnit(product, item.unit_id), selectedItemIndex);
 
         if (qty <= 0) { alert('Cantidad inválida'); return; }
-        if (qty > maxStock) { alert(`Stock máximo: ${maxStock}`); return; }
+        if (qty > maxStock) {
+            alert(`Stock máximo: ${formatQty(maxStock)} ${item.unit_label || ''} (hay ${formatQty(product?.total_stock ?? 0)} ${product?.base_unit_label || 'und'})`);
+            return;
+        }
 
         item.quantity = qty;
         padBuffer = '';
@@ -1093,7 +1397,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     title="${p.image_url ? 'Cambiar imagen' : 'Cargar imagen'}">
                     <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 </button>
-                <button type="button" onclick="addProductToTicket(${p.id})" ${outStock ? 'disabled' : ''}
+                <button type="button" onclick="addProductToTicket(${p.id}, 1, cardUnitId(${p.id}))" ${outStock ? 'disabled' : ''}
                     class="w-full text-left ${outStock ? 'cursor-not-allowed' : ''}">
                     <div class="flex h-24 w-full items-center justify-center overflow-hidden border-b border-slate-100 bg-slate-100">
                         ${imageBlock}
@@ -1101,19 +1405,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="p-2">
                         <p class="min-h-[2rem] line-clamp-2 text-xs font-semibold leading-4 text-slate-800">${p.name}</p>
                         <p class="mt-0.5 truncate text-[10px] text-slate-400">${p.code || '—'}</p>
-                        <p class="mt-0.5 text-sm font-bold text-indigo-600">${formatMoney(p.price)}</p>
+                        <p data-product-price="${p.id}" class="mt-0.5 text-sm font-bold text-indigo-600">${formatMoney(p.price)} <span class="text-[10px] font-semibold text-slate-500">/ ${p.unit_label || 'und'}</span></p>
                         ${referenceLineHtml(p.price, 'text-[10px] font-semibold text-emerald-700')}
                         ${p.discount_pct > 0 ? `<p class="text-[10px] font-bold text-amber-600">${p.discount_label || p.discount_pct + '% OFF'} → ${formatMoney(p.price * (1 - p.discount_pct/100))}${formatReference(p.price * (1 - p.discount_pct/100)) ? ` · ${formatReference(p.price * (1 - p.discount_pct/100))}` : ''}</p>` : ''}
                         <p class="mt-0.5 text-[10px] ${outStock ? 'text-red-600 font-bold' : lowStock ? 'text-amber-600' : 'text-slate-500'}">
                             ${outStock
                                 ? 'Sin stock'
                                 : (otherWarehouseHint
-                                    ? `Stock total: ${totalStock} · ${otherWarehouseHint}`
-                                    : `Stock: ${totalStock} ${p.unit_label || ''}${selectedWarehouseId ? ` · Bodega: ${warehouseStock}` : ''}`)}
+                                    ? `Hay ${formatQty(totalStock)} ${p.base_unit_label || 'und'} · ${otherWarehouseHint}`
+                                    : `Hay ${formatQty(totalStock)} ${p.base_unit_label || 'und'}${selectedWarehouseId ? ` · Bodega: ${formatQty(warehouseStock)}` : ''}`)}
                         </p>
-                        ${(p.sale_units || []).length > 1 ? `<p class="text-[10px] text-slate-400 mt-1">${p.sale_units.map(u => u.abbreviation).join(' · ')}</p>` : ''}
                     </div>
                 </button>
+                ${(p.sale_units || []).length > 1 ? `<label class="block border-t border-indigo-100 bg-indigo-50 px-2 py-2">
+                    <span class="text-[10px] font-bold uppercase tracking-wide text-indigo-700">Presentación</span>
+                    <select data-product-unit-select="${p.id}" ${outStock ? 'disabled' : ''}
+                        onclick="event.stopPropagation()"
+                        onchange="updateProductCardUnit(${p.id})"
+                        class="mt-1 w-full rounded-lg border border-indigo-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800">
+                        ${(p.sale_units || []).map(unit => `<option value="${unit.id}" ${unit.is_default ? 'selected' : ''}>${unit.name || unit.abbreviation} · ${formatMoney(unit.price)}</option>`).join('')}
+                    </select>
+                </label>` : ''}
             </div>`;
         }).join('');
     }
@@ -1238,6 +1550,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     window.selectClient = function(clientId, clientName) {
+        if (String(currentClient) !== String(clientId)) clearCreditOverride();
         currentClient = clientId;
         document.getElementById('clientDisplay').textContent = clientName;
         document.getElementById('clientIdInput').value = clientId || '';
@@ -1259,6 +1572,8 @@ document.addEventListener('DOMContentLoaded', function() {
             updatePaymentMethodSelection();
         }
 
+        updateCreditLimitAlert();
+
         refreshCatalogPrices();
         document.getElementById('clientModal').classList.add('hidden');
     };
@@ -1277,7 +1592,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     ${c.credit_enabled ? '<span class="badge-info text-xs">Crédito</span>' : ''}
                 </div>
                 <p class="text-xs text-slate-500 mt-1">${c.document_label}: ${c.document_number || '—'}</p>
-                ${c.credit_enabled ? `<p class="text-xs text-slate-500 mt-1">Límite: C$ ${parseFloat(c.credit_limit || 0).toFixed(0)} · Saldo: C$ ${parseFloat(c.balance || 0).toFixed(2)} · ${c.credit_days}d</p>` : '<p class="text-xs text-slate-400">Solo contado</p>'}
+                ${c.credit_enabled ? `<p class="text-xs text-slate-500 mt-1">Límite: ${c.credit_limit > 0 ? `C$ ${parseFloat(c.credit_limit).toFixed(2)}` : 'Ilimitado'} · Saldo: C$ ${parseFloat(c.balance || 0).toFixed(2)} · Disponible: ${c.available_credit === null ? 'Ilimitado' : `C$ ${parseFloat(c.available_credit || 0).toFixed(2)}`} · ${c.credit_days}d</p>` : '<p class="text-xs text-slate-400">Solo contado</p>'}
                 ${c.price_list_name ? `<p class="text-xs text-indigo-600 mt-1">Lista: ${c.price_list_name}</p>` : ''}
             </button>
         `).join('');
@@ -1309,12 +1624,14 @@ document.addEventListener('DOMContentLoaded', function() {
             if (btn.disabled) return;
             currentPaymentMethod = btn.dataset.method;
             updatePaymentMethodSelection();
+            updateCreditLimitAlert();
         });
     });
 
     window.initiatePayment = function() {
         const { total } = getTotal();
         if (total === 0) { alert('El ticket está vacío'); return; }
+        if (updateCreditLimitAlert()) return;
 
         document.getElementById('paymentTypeInput').value = currentPaymentMethod;
         document.getElementById('clientIdInput').value = currentClient || '';
@@ -1385,6 +1702,7 @@ document.addEventListener('DOMContentLoaded', function() {
         orderDiscountPct = 0;
         selectedItemIndex = -1;
         padBuffer = '';
+        clearCreditOverride();
         searchInput.value = '';
         renderTicket();
         renderProducts();

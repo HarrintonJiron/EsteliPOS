@@ -37,15 +37,11 @@ class PosCatalogService
             : 0.0;
 
         $saleUnits = [];
-        $defaultUnitId = $product->base_unit_id;
+        $defaultUnitId = null;
 
         foreach ($this->units->availableUnitsFor($product) as $entry) {
             $unit = $entry['unit'];
-            $isDefault = (bool) ($entry['is_default_sale_unit'] ?? false)
-                || ($defaultUnitId === null && count($saleUnits) === 0)
-                || $unit->id === $defaultUnitId;
-
-            if ($isDefault) {
+            if ($entry['is_default_sale_unit']) {
                 $defaultUnitId = $unit->id;
             }
 
@@ -55,9 +51,10 @@ class PosCatalogService
                 'id' => $unit->id,
                 'abbreviation' => $unit->abbreviation,
                 'name' => $unit->name,
+                'factor_to_base' => (float) $entry['factor_to_base'],
                 'price' => $this->pricing->resolveUnitPrice($product, $priceListId, $unit->id),
                 'stock' => round($unitStock, 4),
-                'is_default' => $isDefault,
+                'is_default' => false,
             ];
         }
 
@@ -66,12 +63,23 @@ class PosCatalogService
                 'id' => $product->baseUnit->id,
                 'abbreviation' => $product->baseUnit->abbreviation,
                 'name' => $product->baseUnit->name,
+                'factor_to_base' => 1.0,
                 'price' => $this->pricing->resolveUnitPrice($product, $priceListId, $product->baseUnit->id),
                 'stock' => round($sellableStock, 4),
                 'is_default' => true,
             ];
             $defaultUnitId = $product->baseUnit->id;
         }
+
+        if ($defaultUnitId === null && $saleUnits !== []) {
+            $defaultUnitId = $saleUnits[0]['id'];
+        }
+
+        $saleUnits = array_map(function (array $unit) use ($defaultUnitId): array {
+            $unit['is_default'] = $unit['id'] === $defaultUnitId;
+
+            return $unit;
+        }, $saleUnits);
 
         $defaultUnit = collect($saleUnits)->firstWhere('is_default', true) ?? $saleUnits[0] ?? null;
         $preferredWarehouseName = collect($stocksByWarehouse)
@@ -82,13 +90,14 @@ class PosCatalogService
             'code' => $product->code,
             'name' => $product->name,
             'sale_price' => $defaultUnit['price'] ?? $this->pricing->resolveUnitPrice($product, $priceListId),
-            'stock' => $defaultUnit['stock'] ?? round($sellableStock, 4),
+            'stock' => round($sellableStock, 4),
             'total_stock' => round($totalStock, 4),
             'warehouse_stock' => round($warehouseStock, 4),
             'preferred_warehouse_id' => $preferredWarehouseId,
             'preferred_warehouse_name' => $preferredWarehouseName,
             'stocks_by_warehouse' => $stocksByWarehouse,
             'base_unit_id' => $product->base_unit_id,
+            'base_unit_label' => $product->baseUnitLabel(),
             'default_unit_id' => $defaultUnitId,
             'default_unit_label' => $defaultUnit['abbreviation'] ?? $product->baseUnitLabel(),
             'sale_units' => $saleUnits,

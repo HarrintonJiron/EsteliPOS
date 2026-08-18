@@ -7,7 +7,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h1 class="page-title">Compras</h1>
-            <p class="page-subtitle">Entradas de mercadería y control de costos por proveedor</p>
+            <p class="page-subtitle">La mercadería entra al inventario; el pago puede ser de contado o a crédito</p>
         </div>
         <a href="{{ route('compras.create') }}" class="btn-primary">+ Nueva compra</a>
     </div>
@@ -18,11 +18,11 @@
             <p class="mt-1 text-2xl font-bold text-slate-900">{{ $companySymbol }} {{ number_format($stats['month_total'], 2) }}</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Completadas</p>
+            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Pagadas</p>
             <p class="mt-1 text-2xl font-bold text-emerald-600">{{ number_format($stats['completed_count']) }}</p>
         </div>
         <div class="card p-4">
-            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Pendientes</p>
+            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Por pagar</p>
             <p class="mt-1 text-2xl font-bold text-amber-600">{{ number_format($stats['pending_count']) }}</p>
         </div>
         <div class="card p-4">
@@ -54,8 +54,8 @@
                 <label class="mb-1 block text-xs font-medium text-slate-500">Estado</label>
                 <select name="status" class="select-field">
                     <option value="">Todos</option>
-                    <option value="completed" @selected(request('status') === 'completed')>Completada</option>
-                    <option value="pending" @selected(request('status') === 'pending')>Pendiente</option>
+                    <option value="completed" @selected(request('status') === 'completed')>Pagada</option>
+                    <option value="pending" @selected(request('status') === 'pending')>Por pagar</option>
                     <option value="canceled" @selected(request('status') === 'canceled')>Anulada</option>
                 </select>
             </div>
@@ -84,11 +84,7 @@
                 <tbody class="divide-y divide-slate-100">
                     @forelse($purchases as $purchase)
                         @php
-                            $statusLabel = match ($purchase->status) {
-                                'completed' => 'Completada',
-                                'pending' => 'Pendiente',
-                                default => 'Anulada',
-                            };
+                            $statusLabel = $purchase->statusLabel();
                             $statusClass = match ($purchase->status) {
                                 'completed' => 'badge-success',
                                 'pending' => 'badge-warning',
@@ -119,10 +115,13 @@
                             </td>
                             <td class="px-4 py-3"><span class="{{ $statusClass }}">{{ $statusLabel }}</span></td>
                             <td class="px-4 py-3">
-                                <div class="flex justify-end gap-2">
+                                <div class="flex flex-wrap justify-end gap-2">
                                     <a href="{{ route('compras.show', $purchase->id) }}" class="text-indigo-600 hover:underline">Ver</a>
-                                    <a href="{{ route('compras.edit', $purchase->id) }}" class="text-slate-600 hover:underline">Editar</a>
-                                    <form action="{{ route('compras.destroy', $purchase->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Eliminar esta compra? Se revertirá el inventario.')">
+                                    @if($purchase->status !== 'canceled')
+                                        <a href="{{ route('compras.edit', $purchase->id) }}" class="text-slate-600 hover:underline">Editar</a>
+                                    @endif
+                                    @include('compras._status_actions', ['purchase' => $purchase, 'compact' => true])
+                                    <form action="{{ route('compras.destroy', $purchase->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Eliminar esta compra? Se revertirá el inventario si la mercadería ya había ingresado.')">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="text-red-600 hover:underline">Eliminar</button>
