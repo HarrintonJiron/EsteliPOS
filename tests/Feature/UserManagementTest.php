@@ -114,3 +114,80 @@ test('an active user can sign in with username', function () {
     $this->assertAuthenticatedAs($user);
     expect($user->fresh()->last_login_at)->not->toBeNull();
 });
+
+test('login screen lists active users for quick selection', function () {
+    User::factory()->create(['name' => 'Cajero Rápido', 'username' => 'cajero.rapido', 'is_active' => true]);
+    User::factory()->create(['name' => 'Usuario Inactivo', 'is_active' => false]);
+
+    $this->get(route('login'))
+        ->assertOk()
+        ->assertSee('Cajero Rápido')
+        ->assertDontSee('Usuario Inactivo');
+});
+
+test('an active user can sign in with a configured pin', function () {
+    $user = User::factory()->create([
+        'username' => 'cajero.pin',
+        'pin_hash' => Hash::make('2580'),
+        'is_active' => true,
+    ]);
+
+    $this->post(route('login'), [
+        'user_id' => $user->id,
+        'auth_method' => 'pin',
+        'pin' => '2580',
+    ])->assertRedirect(route('access.unavailable'));
+
+    $this->assertAuthenticatedAs($user);
+});
+
+test('an invalid pin does not authenticate the selected user', function () {
+    $user = User::factory()->create([
+        'pin_hash' => Hash::make('2580'),
+        'is_active' => true,
+    ]);
+
+    $this->post(route('login'), [
+        'user_id' => $user->id,
+        'auth_method' => 'pin',
+        'pin' => '1111',
+    ])->assertSessionHasErrors('login');
+
+    $this->assertGuest();
+});
+
+test('an authenticated user can switch quickly to an active user with pin', function () {
+    $current = User::factory()->create(['name' => 'Administrador actual', 'is_active' => true]);
+    $target = User::factory()->create([
+        'name' => 'Cajero de turno',
+        'pin_hash' => Hash::make('2580'),
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($current)->post(route('auth.switch-user'), [
+        'user_id' => $target->id,
+        'pin' => '2580',
+    ])->assertRedirect();
+
+    $this->assertAuthenticatedAs($target);
+    expect(AuditLog::query()
+        ->where('user_id', $current->id)
+        ->where('action', 'user.quick_switch')
+        ->where('model_id', $target->id)
+        ->exists())->toBeTrue();
+});
+
+test('an invalid quick switch pin keeps the current session', function () {
+    $current = User::factory()->create(['is_active' => true]);
+    $target = User::factory()->create([
+        'pin_hash' => Hash::make('2580'),
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($current)->from(route('home'))->post(route('auth.switch-user'), [
+        'user_id' => $target->id,
+        'pin' => '1111',
+    ])->assertRedirect(route('home'))->assertSessionHasErrors('switch_user');
+
+    $this->assertAuthenticatedAs($current);
+});

@@ -92,6 +92,32 @@
         <div class="space-y-4">
             <div class="card p-4 space-y-3">
                 <div>
+                    <h2 class="font-semibold text-slate-800">Estantes</h2>
+                    <p class="text-xs text-slate-500">Crea ubicaciones para asignarlas al registrar productos.</p>
+                </div>
+                <form method="POST" action="{{ route('inventario.warehouses.shelves.store', $warehouse) }}" class="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr_auto] gap-2">
+                    @csrf
+                    <input type="text" name="code" class="input-field" maxlength="50" required placeholder="Código (A-01)">
+                    <input type="text" name="name" class="input-field" maxlength="120" placeholder="Descripción">
+                    <button type="submit" class="btn-primary px-3">Agregar</button>
+                </form>
+                <div class="flex flex-wrap gap-2">
+                    @forelse($warehouse->shelves as $shelf)
+                        <div class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm">
+                            <span><strong>{{ $shelf->code }}</strong>@if($shelf->name) · {{ $shelf->name }}@endif</span>
+                            <form method="POST" action="{{ route('inventario.warehouses.shelves.destroy', [$warehouse, $shelf]) }}">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="text-rose-600" aria-label="Eliminar estante {{ $shelf->code }}">×</button>
+                            </form>
+                        </div>
+                    @empty
+                        <p class="text-sm text-slate-500">Todavía no hay estantes.</p>
+                    @endforelse
+                </div>
+            </div>
+            <div class="card p-4 space-y-3">
+                <div>
                     <h2 class="font-semibold text-slate-800">Transferir stock</h2>
                     <p class="text-xs text-slate-500">Mueve existencias desde esta bodega hacia otra.</p>
                 </div>

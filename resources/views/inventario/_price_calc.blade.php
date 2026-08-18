@@ -4,16 +4,17 @@
     $purchaseInputId  — JS id of the purchase_price <input>
     $saleInputId      — JS id of the sale_price <input>
 --}}
-<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3" id="priceCalcWidget_{{ $saleInputId }}">
+<div class="bg-amber-50 border border-amber-200 rounded-xl {{ ($compact ?? false) ? 'p-3' : 'p-4' }} space-y-3" id="priceCalcWidget_{{ $saleInputId }}">
     <div class="flex items-center gap-2">
         <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"/>
         </svg>
-        <span class="text-sm font-semibold text-amber-800">Calculadora de Precio de Venta</span>
+        <span class="text-sm font-semibold text-amber-800">Utilidad desde el costo</span>
+        <span class="text-[11px] text-amber-600">El precio de venta se completa automáticamente</span>
     </div>
 
-    <div class="grid grid-cols-2 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
             <label class="block text-xs text-amber-700 font-medium mb-1">Método</label>
             <select id="calcMethod_{{ $saleInputId }}" class="w-full px-3 py-2 text-sm border border-amber-300 rounded-lg bg-white focus:outline-none focus:border-amber-500">

@@ -485,11 +485,6 @@
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                         </a>
 
-                        @if(auth()->user()?->isAdmin() || auth()->user()?->hasPermission('configuracion.manage_users'))
-                        <a href="{{ route('settings.users') }}" class="btn-outline btn-sm" title="Usuarios">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11c1.657 0 3-1.567 3-3.5S17.657 4 16 4s-3 1.567-3 3.5S14.343 11 16 11zM6 21v-2a4 4 0 014-4h4"/></svg>
-                        </a>
-                        @endif
                         @endif
 
                         <span class="btn-outline btn-sm cursor-default text-slate-500" title="Fecha actual">
@@ -497,6 +492,11 @@
                             {{ date('d/m/Y') }}
                         </span>
                     </div>
+
+                    <button id="quick-user-switch-open" type="button" class="btn-outline btn-sm" title="Cambiar de usuario con PIN">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11c1.657 0 3-1.567 3-3.5S17.657 4 16 4s-3 1.567-3 3.5S14.343 11 16 11zM6 21v-2a4 4 0 014-4h4m7-1 2 2m0 0-2 2m2-2h-6"/></svg>
+                        <span class="hidden xl:inline">{{ auth()->user()?->name }}</span>
+                    </button>
 
                     <form action="{{ route('logout') }}" method="POST" class="inline">
                         @csrf
@@ -528,6 +528,9 @@
             @endif
             @if(session('error'))
                 <div class="hidden" data-ui-toast="error">{{ session('error') }}</div>
+            @endif
+            @if(session('warning'))
+                <div class="hidden" data-ui-toast="warning">{{ session('warning') }}</div>
             @endif
 
             @if($errors->any())
@@ -566,9 +569,59 @@
 
     </div>
 
+    <div id="quick-user-switch-modal"
+         class="fixed inset-0 z-[80] hidden items-center justify-center bg-slate-950/55 p-4"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="quick-user-switch-title">
+        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h2 id="quick-user-switch-title" class="text-lg font-bold text-slate-900">Cambiar de usuario</h2>
+                    <p class="mt-1 text-sm text-slate-500">Selecciona el usuario e ingresa su PIN.</p>
+                </div>
+                <button type="button" id="quick-user-switch-close" class="btn-ghost btn-icon" aria-label="Cerrar">&times;</button>
+            </div>
+
+            <form class="mt-5 space-y-4" method="POST" action="{{ route('auth.switch-user') }}" data-loading>
+                @csrf
+                <div>
+                    <label class="form-label" for="quick-switch-user-id">Usuario</label>
+                    <select id="quick-switch-user-id" name="user_id" class="select-field" required autofocus>
+                        <option value="">Seleccionar usuario…</option>
+                        @foreach($quickSwitchUsers as $switchUser)
+                            <option value="{{ $switchUser->id }}" @selected((string) old('user_id') === (string) $switchUser->id)>
+                                {{ $switchUser->name }}{{ $switchUser->username ? ' · @'.$switchUser->username : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" for="quick-switch-pin">PIN</label>
+                    <input id="quick-switch-pin"
+                           name="pin"
+                           type="password"
+                           inputmode="numeric"
+                           pattern="[0-9]{4,8}"
+                           minlength="4"
+                           maxlength="8"
+                           autocomplete="off"
+                           class="input-field"
+                           placeholder="4 a 8 dígitos"
+                           required>
+                    @error('switch_user')<p class="mt-2 text-sm font-medium text-red-600" data-switch-error>{{ $message }}</p>@enderror
+                </div>
+                <div class="flex justify-end gap-2 pt-1">
+                    <button type="button" class="btn-outline" data-quick-switch-cancel>Cancelar</button>
+                    <button type="submit" class="btn-primary">Entrar con PIN</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="ui-toast-container" class="ui-toast-container" aria-live="polite"></div>
 
-    <script src="{{ asset('js/app-ui.js') }}"></script>
+    <script src="{{ asset('js/app-ui.js') }}?v={{ filemtime(public_path('js/app-ui.js')) }}"></script>
     <script>
         (() => {
             const sidebar = document.getElementById('app-sidebar');

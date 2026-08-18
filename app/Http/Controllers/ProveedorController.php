@@ -10,7 +10,7 @@ class ProveedorController extends Controller
 {
     public function index(Request $request)
     {
-        $perPage = (int) $request->query('per_page', 15);
+        $perPage = max(1, min(35, (int) $request->query('per_page', 15)));
         $query = Supplier::withCount('purchases');
 
         // Búsqueda por nombre, código, RUC o contacto

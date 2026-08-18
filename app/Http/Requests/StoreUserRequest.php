@@ -25,6 +25,7 @@ class StoreUserRequest extends FormRequest
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+()\-\s]+$/'],
             'password' => ['required', 'confirmed', PasswordPolicy::rule()],
+            'pin' => ['nullable', 'digits_between:4,8', 'confirmed'],
             'roles' => ['array'],
             'roles.*' => ['integer', 'exists:roles,id'],
             'permissions' => ['array'],

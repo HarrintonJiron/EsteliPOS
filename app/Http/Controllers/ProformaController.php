@@ -43,6 +43,53 @@ class ProformaController extends Controller
         return NumberSequence::getNextAtLeast('proforma', $minimum);
     }
 
+    /**
+     * Build authoritative stock warnings without preventing a quotation from
+     * being saved. Quantities are grouped in case a crafted request repeats a
+     * product on more than one line.
+     *
+     * @return array<int, string>
+     */
+    private function stockWarnings(array $items): array
+    {
+        $requested = collect($items)
+            ->filter(fn (array $item): bool => isset($item['product_id']))
+            ->groupBy(fn (array $item): int => (int) $item['product_id'])
+            ->map(fn ($lines): float => $lines->sum(fn (array $item): float => max(0, (float) ($item['quantity'] ?? 0))));
+
+        if ($requested->isEmpty()) {
+            return [];
+        }
+
+        $products = Product::query()
+            ->whereIn('id', $requested->keys())
+            ->get(['id', 'name', 'stock'])
+            ->keyBy('id');
+
+        return $requested->map(function (float $quantity, int $productId) use ($products): ?string {
+            $product = $products->get($productId);
+            if (! $product) {
+                return null;
+            }
+
+            $stock = (float) $product->stock;
+            if ($stock <= 0) {
+                return "{$product->name}: no tiene existencias disponibles.";
+            }
+
+            if ($quantity > $stock) {
+                return sprintf(
+                    '%s: solicitaste %s y solo hay %s disponibles.',
+                    $product->name,
+                    number_format($quantity, 2),
+                    number_format($stock, 2),
+                );
+            }
+
+            return null;
+        })->filter()->values()->all();
+    }
+
     public function index(Request $request)
     {
         $query = Proforma::with('client', 'user')->latest();
@@ -99,6 +146,8 @@ class ProformaController extends Controller
         if (empty($items)) {
             return back()->withErrors(['items' => 'La proforma está vacía.']);
         }
+
+        $stockWarnings = $this->stockWarnings($items);
 
         $proforma = null;
         $userId = $request->user()?->id ?? 1;
@@ -167,8 +216,14 @@ class ProformaController extends Controller
             ]);
         });
 
-        return redirect()->route('proformas.show', $proforma->id)
+        $response = redirect()->route('proformas.show', $proforma->id)
             ->with('success', 'Proforma guardada correctamente.');
+
+        if ($stockWarnings !== []) {
+            $response->with('warning', 'Advertencia de stock: '.implode(' ', $stockWarnings));
+        }
+
+        return $response;
     }
 
     public function show($id)

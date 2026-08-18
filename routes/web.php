@@ -68,6 +68,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/', [HomeController::class, 'index'])->name('home');
     Route::get('/acceso-limitado', [HomeController::class, 'unavailable'])->name('access.unavailable');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    Route::post('/cambiar-usuario', [AuthController::class, 'switchUser'])->name('auth.switch-user');
 
     Route::middleware('module:ventas')->group(function () {
         Route::get('/facturacion/create', [FacturacionController::class, 'create'])
@@ -144,6 +145,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/inventario/bodegas/{warehouse}/edit', [WarehouseController::class, 'edit'])->middleware('permission:inventario.edit')->name('inventario.warehouses.edit');
         Route::put('/inventario/bodegas/{warehouse}', [WarehouseController::class, 'update'])->middleware('permission:inventario.edit')->name('inventario.warehouses.update');
         Route::post('/inventario/bodegas/{warehouse}/transferir', [WarehouseController::class, 'transfer'])->middleware('permission:inventario.adjust')->name('inventario.warehouses.transfer');
+        Route::post('/inventario/bodegas/{warehouse}/estantes', [WarehouseController::class, 'storeShelf'])->middleware('permission:inventario.edit')->name('inventario.warehouses.shelves.store');
+        Route::delete('/inventario/bodegas/{warehouse}/estantes/{shelf}', [WarehouseController::class, 'destroyShelf'])->middleware('permission:inventario.edit')->name('inventario.warehouses.shelves.destroy');
         Route::delete('/inventario/bodegas/{warehouse}', [WarehouseController::class, 'destroy'])->middleware('permission:inventario.delete')->name('inventario.warehouses.destroy');
         Route::get('/inventario/transferencias', [WarehouseTransferController::class, 'index'])->middleware('permission:inventario.view')->name('inventario.transfers.index');
         Route::post('/inventario/transferencias', [WarehouseTransferController::class, 'store'])->middleware('permission:inventario.adjust')->name('inventario.transfers.store');

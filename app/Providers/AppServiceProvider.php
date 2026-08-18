@@ -53,6 +53,11 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.app', function ($view): void {
             $view->with('accessibleModuleSlugs', app(ModuleAccessService::class)->accessibleSlugs(auth()->user()));
+            $view->with('quickSwitchUsers', User::query()
+                ->where('is_active', true)
+                ->whereNotNull('pin_hash')
+                ->orderBy('name')
+                ->get(['id', 'name', 'username', 'profile_photo']));
 
             if (! array_key_exists('backNavigation', $view->getData())) {
                 $view->with('backNavigation', app(BackNavigationService::class)->resolve());

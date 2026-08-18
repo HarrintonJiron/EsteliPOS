@@ -51,16 +51,16 @@
     {{-- Table --}}
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div class="overflow-x-auto">
-        <table class="w-full min-w-[760px] text-sm">
-            <thead class="bg-slate-50 border-b border-slate-200">
+        <table id="proformas-data-grid" class="min-w-full min-w-[760px] text-sm">
+            <thead class="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                    <th class="text-left px-4 py-3 font-semibold text-slate-600">#</th>
-                    <th class="text-left px-4 py-3 font-semibold text-slate-600">Cliente</th>
-                    <th class="text-left px-4 py-3 font-semibold text-slate-600">Fecha</th>
-                    <th class="text-left px-4 py-3 font-semibold text-slate-600">Vence</th>
-                    <th class="text-right px-4 py-3 font-semibold text-slate-600">Total</th>
-                    <th class="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
-                    <th class="text-center px-4 py-3 font-semibold text-slate-600">Acciones</th>
+                    <th class="px-4 py-3 font-semibold">#</th>
+                    <th class="px-4 py-3 font-semibold">Cliente</th>
+                    <th class="px-4 py-3 font-semibold">Fecha</th>
+                    <th class="px-4 py-3 font-semibold">Vence</th>
+                    <th class="px-4 py-3 font-semibold text-right">Total</th>
+                    <th class="px-4 py-3 font-semibold text-center">Estado</th>
+                    <th class="px-4 py-3 font-semibold text-center">Acciones</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">

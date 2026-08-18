@@ -13,6 +13,8 @@ use App\Models\Sale;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Models\WarehouseShelf;
+use App\Models\WarehouseStock;
 use App\Services\AccountingService;
 use App\Services\InventoryService;
 use App\Services\UnitConversionService;
@@ -358,6 +360,37 @@ test('warehouse transfer moves stock between locations', function () {
     expect((float) $product->fresh()->stock)->toBe(20.0)
         ->and((float) $product->stockInWarehouse($from->id))->toBe(15.0)
         ->and((float) $product->stockInWarehouse($to->id))->toBe(5.0);
+});
+
+test('warehouse can create shelves and quick registration assigns initial stock to one', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+    $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
+    $category = Category::firstOrCreate(['name' => 'Productos con estante']);
+
+    $this->actingAs($admin)->post(route('inventario.warehouses.shelves.store', $warehouse), [
+        'code' => 'A-01',
+        'name' => 'Fertilizantes',
+    ])->assertRedirect()->assertSessionHas('success');
+
+    $shelf = WarehouseShelf::query()->where('warehouse_id', $warehouse->id)->where('code', 'A-01')->firstOrFail();
+
+    $this->actingAs($admin)->post(route('inventario.quick-store'), [
+        'code' => 'EST-001',
+        'name' => 'Producto en estante',
+        'sale_price' => 150,
+        'purchase_price' => 100,
+        'stock' => 8,
+        'category_id' => $category->id,
+        'warehouse_id' => $warehouse->id,
+        'shelf_id' => $shelf->id,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $product = Product::query()->where('code', 'EST-001')->firstOrFail();
+    expect(WarehouseStock::query()
+        ->where('warehouse_id', $warehouse->id)
+        ->where('product_id', $product->id)
+        ->value('aisle'))->toBe('A-01');
 });
 
 test('pos sale deducts stock from default warehouse for legacy products', function () {

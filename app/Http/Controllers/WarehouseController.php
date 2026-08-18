@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
+use App\Models\WarehouseShelf;
 use App\Services\InventoryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -123,6 +124,7 @@ class WarehouseController extends Controller
 
     public function show(Request $request, Warehouse $warehouse): View
     {
+        $warehouse->load('shelves');
         $search = trim((string) $request->get('q', ''));
 
         $stocks = WarehouseStock::query()
@@ -173,6 +175,38 @@ class WarehouseController extends Controller
             'otherWarehouses',
             'transferProducts',
         ));
+    }
+
+    public function storeShelf(Request $request, Warehouse $warehouse): RedirectResponse
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|max:50|unique:warehouse_shelves,code,NULL,id,warehouse_id,'.$warehouse->id,
+            'name' => 'nullable|string|max:120',
+        ], [
+            'code.required' => 'El código del estante es obligatorio.',
+            'code.unique' => 'Ese estante ya existe en esta bodega.',
+        ]);
+
+        $warehouse->shelves()->create([
+            'code' => trim($validated['code']),
+            'name' => filled($validated['name'] ?? null) ? trim($validated['name']) : null,
+            'is_active' => true,
+        ]);
+
+        return back()->with('success', 'Estante agregado correctamente.');
+    }
+
+    public function destroyShelf(Warehouse $warehouse, WarehouseShelf $shelf): RedirectResponse
+    {
+        abort_unless($shelf->warehouse_id === $warehouse->id, 404);
+
+        if (WarehouseStock::query()->where('warehouse_id', $warehouse->id)->where('aisle', $shelf->code)->where('quantity', '>', 0)->exists()) {
+            return back()->with('error', 'No se puede eliminar un estante que tiene productos con stock.');
+        }
+
+        $shelf->delete();
+
+        return back()->with('success', 'Estante eliminado.');
     }
 
     public function transfer(Request $request, Warehouse $warehouse): RedirectResponse

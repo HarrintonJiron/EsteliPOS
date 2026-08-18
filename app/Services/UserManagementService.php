@@ -9,6 +9,7 @@ use DomainException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
@@ -23,6 +24,7 @@ class UserManagementService
 
             $user = User::create([
                 ...Arr::only($data, ['name', 'username', 'email', 'phone', 'password']),
+                'pin_hash' => filled($data['pin'] ?? null) ? Hash::make($data['pin']) : null,
                 'profile_photo' => $photo,
                 'is_active' => $data['is_active'] ?? true,
                 'force_password_change' => $data['force_password_change'] ?? true,
@@ -65,6 +67,9 @@ class UserManagementService
                 ...Arr::only($data, ['name', 'username', 'email', 'phone']),
                 'profile_photo' => $photo,
                 'role' => $willRemainAdmin ? 'admin' : 'user',
+                'pin_hash' => ! empty($data['clear_pin'])
+                    ? null
+                    : (filled($data['pin'] ?? null) ? Hash::make($data['pin']) : $user->pin_hash),
             ]);
             $user->roles()->sync($roleIds);
             $user->directPermissions()->sync(array_values(array_unique($data['permissions'] ?? [])));
@@ -174,6 +179,7 @@ class UserManagementService
             'email' => $user->email,
             'phone' => $user->phone,
             'is_active' => $user->is_active,
+            'has_pin' => filled($user->pin_hash),
             'roles' => $user->roles->pluck('slug')->sort()->values()->all(),
             'direct_permissions' => $user->directPermissions->pluck('slug')->sort()->values()->all(),
         ];

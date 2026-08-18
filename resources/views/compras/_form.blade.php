@@ -86,6 +86,19 @@
                             + Nuevo
                         </button>
                     </div>
+                    <div class="relative mb-2">
+                        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <input
+                            type="search"
+                            id="supplierSearch"
+                            class="input-field py-2 pl-9 text-sm"
+                            placeholder="Buscar proveedor…"
+                            autocomplete="off"
+                            aria-controls="supplier_id"
+                        >
+                    </div>
                     <select name="supplier_id" id="supplier_id" class="select-field" required>
                         <option value="">Seleccionar proveedor</option>
                         @foreach($suppliers as $supplier)
@@ -94,6 +107,7 @@
                             </option>
                         @endforeach
                     </select>
+                    <p id="supplierSearchEmpty" class="mt-1 hidden text-xs text-amber-700">No se encontraron proveedores.</p>
                     @error('supplier_id')
                         <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                     @enderror
@@ -381,6 +395,8 @@
     const app = document.getElementById('purchaseApp');
     const form = document.getElementById('purchaseForm');
     const supplierSelect = document.getElementById('supplier_id');
+    const supplierSearch = document.getElementById('supplierSearch');
+    const supplierSearchEmpty = document.getElementById('supplierSearchEmpty');
     const currencySelect = document.getElementById('currency');
     const exchangeRateInput = document.getElementById('exchange_rate');
     const exchangeHint = document.getElementById('exchangeHint');
@@ -437,6 +453,36 @@
     let searchTimer = null;
     let activeResultIndex = -1;
     let lastSearchTerm = '';
+
+    function normalizeSupplierText(value) {
+        return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim();
+    }
+
+    function filterSuppliers() {
+        const term = normalizeSupplierText(supplierSearch.value);
+        let visible = 0;
+
+        [...supplierSelect.options].forEach((option, index) => {
+            if (index === 0) {
+                option.hidden = false;
+                option.disabled = false;
+                return;
+            }
+
+            const matches = !term || normalizeSupplierText(option.textContent).includes(term);
+            option.hidden = !matches;
+            option.disabled = !matches;
+            if (matches) visible += 1;
+        });
+
+        supplierSearchEmpty.classList.toggle('hidden', visible > 0 || !term);
+    }
+
+    supplierSearch?.addEventListener('input', filterSuppliers);
 
     const currencySymbol = (code) => {
         if (code === 'USD') return 'US$';
@@ -872,6 +918,8 @@
             option.textContent = supplier.name;
             supplierSelect.appendChild(option);
         }
+        supplierSearch.value = '';
+        filterSuppliers();
         supplierSelect.value = String(supplier.id);
         supplierSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }

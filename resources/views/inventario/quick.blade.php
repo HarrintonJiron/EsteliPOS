@@ -41,7 +41,8 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-3">
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div>
                 <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Costo</label>
                 <input type="number" name="purchase_price" id="quick_purchase_price" step="0.01" min="0"
@@ -64,6 +65,13 @@
                     value="{{ old('wholesale_price') }}" placeholder="Opcional"
                     class="input-field py-1.5 text-sm font-semibold text-emerald-700">
             </div>
+            </div>
+
+            @include('inventario._price_calc', [
+                'purchaseInputId' => 'quick_purchase_price',
+                'saleInputId' => 'quick_sale_price',
+                'compact' => true,
+            ])
         </div>
 
         @if($wholesaleList)
@@ -79,7 +87,7 @@
             </div>
             <div>
                 <label class="mb-1 block text-xs text-slate-500">Bodega</label>
-                <select name="warehouse_id" class="select-field py-1.5 text-sm" required>
+                <select name="warehouse_id" id="quickWarehouse" class="select-field py-1.5 text-sm" required>
                     @forelse($warehouses ?? [] as $warehouse)
                         <option value="{{ $warehouse->id }}" @selected(old('warehouse_id', $warehouses->firstWhere('is_default', true)?->id ?? $warehouses->first()?->id) == $warehouse->id)>
                             {{ $warehouse->name }}
@@ -87,6 +95,17 @@
                     @empty
                         <option value="">Sin bodegas</option>
                     @endforelse
+                </select>
+            </div>
+            <div>
+                <label class="mb-1 block text-xs text-slate-500">Estante</label>
+                <select name="shelf_id" id="quickShelf" class="select-field py-1.5 text-sm">
+                    <option value="">Sin asignar</option>
+                    @foreach($warehouses ?? [] as $warehouse)
+                        @foreach($warehouse->shelves as $shelf)
+                            <option value="{{ $shelf->id }}" data-warehouse="{{ $warehouse->id }}" @selected(old('shelf_id') == $shelf->id)>{{ $shelf->label() }}</option>
+                        @endforeach
+                    @endforeach
                 </select>
             </div>
             <div>
@@ -130,16 +149,6 @@
                 class="text-xs text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-slate-800 file:px-2 file:py-1 file:text-xs file:text-white">
         </div>
 
-        <details class="text-sm">
-            <summary class="cursor-pointer text-xs font-medium text-indigo-600">Calculadora de utilidad</summary>
-            <div class="mt-2 border-t border-slate-100 pt-2">
-                @include('inventario._price_calc', [
-                    'purchaseInputId' => 'quick_purchase_price',
-                    'saleInputId' => 'quick_sale_price',
-                ])
-            </div>
-        </details>
-
         <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
             <label class="flex items-center gap-2 text-xs text-slate-600">
                 <input type="checkbox" name="add_another" value="1" checked class="rounded border-slate-300 text-indigo-600">
@@ -163,6 +172,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const imagePreview = document.getElementById('quickImagePreview');
     const imagePlaceholder = document.getElementById('quickImagePlaceholder');
     const lookupBase = document.getElementById('quickApp').dataset.lookupUrl;
+    const warehouseInput = document.getElementById('quickWarehouse');
+    const shelfInput = document.getElementById('quickShelf');
+
+    function filterShelves() {
+        const warehouseId = warehouseInput?.value || '';
+        Array.from(shelfInput?.options || []).forEach((option) => {
+            if (!option.value) return;
+            option.hidden = option.dataset.warehouse !== warehouseId;
+            option.disabled = option.hidden;
+        });
+        if (shelfInput?.selectedOptions[0]?.disabled) shelfInput.value = '';
+    }
+    warehouseInput?.addEventListener('change', filterShelves);
+    filterShelves();
 
     document.getElementById('applyWholesalePct')?.addEventListener('click', () => {
         const sale = parseFloat(saleInput.value);

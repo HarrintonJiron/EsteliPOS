@@ -133,7 +133,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Bodega del stock inicial *</label>
-                    <select name="warehouse_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <select name="warehouse_id" id="createWarehouse" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                         @forelse($warehouses ?? [] as $warehouse)
                             <option value="{{ $warehouse->id }}" @selected(old('warehouse_id', $warehouses->firstWhere('is_default', true)?->id ?? $warehouses->first()?->id) == $warehouse->id)>
                                 {{ $warehouse->name }}@if($warehouse->is_default) (principal)@endif
@@ -143,6 +143,18 @@
                         @endforelse
                     </select>
                     <p class="mt-1 text-xs text-gray-500">El stock inicial se registra en esta bodega.</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Estante</label>
+                    <select name="shelf_id" id="createShelf" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <option value="">Sin asignar</option>
+                        @foreach($warehouses ?? [] as $warehouse)
+                            @foreach($warehouse->shelves as $shelf)
+                                <option value="{{ $shelf->id }}" data-warehouse="{{ $warehouse->id }}" @selected(old('shelf_id') == $shelf->id)>{{ $shelf->label() }}</option>
+                            @endforeach
+                        @endforeach
+                    </select>
                 </div>
 
                 <div>
@@ -172,20 +184,15 @@
                     </select>
                 </div>
 
-                <div class="md:col-span-3">
-                    <label class="block text-sm font-medium text-gray-700">Ubicación en bodega</label>
-                    <input type="text" name="location" value="{{ old('location') }}"
-                           placeholder="Ej: Estante A-3 (opcional)"
-                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                </div>
-            </div>
+                <input type="hidden" name="location" value="{{ old('location') }}">
 
-            {{-- Calculadora de precio de venta --}}
-            <div class="mt-4">
-                @include('inventario._price_calc', [
-                    'purchaseInputId' => 'create_purchase_price',
-                    'saleInputId'     => 'create_sale_price',
-                ])
+                <div class="md:col-span-3">
+                    @include('inventario._price_calc', [
+                        'purchaseInputId' => 'create_purchase_price',
+                        'saleInputId' => 'create_sale_price',
+                        'compact' => true,
+                    ])
+                </div>
             </div>
         </div>
 
@@ -293,6 +300,20 @@
 </div>
 
 <script>
+    const createWarehouse = document.getElementById('createWarehouse');
+    const createShelf = document.getElementById('createShelf');
+    function filterCreateShelves() {
+        const warehouseId = createWarehouse?.value || '';
+        Array.from(createShelf?.options || []).forEach((option) => {
+            if (!option.value) return;
+            option.hidden = option.dataset.warehouse !== warehouseId;
+            option.disabled = option.hidden;
+        });
+        if (createShelf?.selectedOptions[0]?.disabled) createShelf.value = '';
+    }
+    createWarehouse?.addEventListener('change', filterCreateShelves);
+    filterCreateShelves();
+
     document.getElementById('product_image')?.addEventListener('change', function () {
         const file = this.files?.[0];
         const preview = document.getElementById('createImagePreview');

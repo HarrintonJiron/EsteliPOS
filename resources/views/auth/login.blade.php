@@ -329,6 +329,32 @@
             gap: 1.125rem;
         }
 
+        .login-methods {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.375rem;
+            padding: 0.25rem;
+            border-radius: 0.75rem;
+            background: #f1f5f9;
+        }
+
+        .login-method {
+            border: 0;
+            border-radius: 0.625rem;
+            padding: 0.6rem 0.75rem;
+            background: transparent;
+            color: #64748b;
+            font-size: 0.8125rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .login-method.is-active {
+            background: #fff;
+            color: var(--login-primary-dark);
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+        }
+
         .login-field .form-label {
             margin-bottom: 0.4375rem;
             color: var(--ui-text);
@@ -509,6 +535,25 @@
                 <form method="POST" action="{{ route('login') }}" class="login-form" data-loading>
                     @csrf
 
+                    <input type="hidden" name="user_id" id="quick-user-id" value="{{ old('user_id') }}">
+                    <input type="hidden" name="auth_method" id="auth-method" value="{{ old('auth_method', 'password') }}">
+
+                    <div class="login-field">
+                        <label class="form-label" for="quick-user">Selección rápida de usuario</label>
+                        <select id="quick-user" class="input-field">
+                            <option value="">Escribir usuario manualmente</option>
+                            @foreach($quickUsers as $quickUser)
+                                <option value="{{ $quickUser['id'] }}"
+                                    data-login="{{ $quickUser['login'] }}"
+                                    data-has-pin="{{ $quickUser['has_pin'] ? '1' : '0' }}"
+                                    @selected((string) old('user_id') === (string) $quickUser['id'])>
+                                    {{ $quickUser['name'] }}{{ $quickUser['has_pin'] ? ' · PIN' : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p id="quick-user-help" style="margin: .35rem 0 0; font-size: .72rem; color: #64748b;">Selecciona tu nombre o escribe tu usuario debajo.</p>
+                    </div>
+
                     <div class="login-field">
                         <label class="form-label" for="login">Correo o nombre de usuario</label>
                         <input type="text"
@@ -522,7 +567,12 @@
                                autocomplete="username">
                     </div>
 
-                    <div class="login-field">
+                    <div class="login-methods" role="tablist" aria-label="Método de acceso">
+                        <button type="button" class="login-method" data-auth-method="password">Con contraseña</button>
+                        <button type="button" class="login-method" data-auth-method="pin">Con PIN</button>
+                    </div>
+
+                    <div class="login-field" id="password-field">
                         <label class="form-label" for="password">Contraseña</label>
                         <div class="login-password-wrap">
                             <input type="password"
@@ -536,6 +586,19 @@
                                 Mostrar
                             </button>
                         </div>
+                    </div>
+
+                    <div class="login-field" id="pin-field" hidden>
+                        <label class="form-label" for="pin">PIN</label>
+                        <input type="password"
+                               id="pin"
+                               name="pin"
+                               class="input-field"
+                               inputmode="numeric"
+                               pattern="[0-9]{4,8}"
+                               maxlength="8"
+                               placeholder="4 a 8 dígitos"
+                               autocomplete="one-time-code">
                     </div>
 
                     <label class="login-remember">
@@ -561,7 +624,7 @@
         </main>
     </div>
 
-    <script src="{{ asset('js/app-ui.js') }}"></script>
+    <script src="{{ asset('js/app-ui.js') }}?v={{ filemtime(public_path('js/app-ui.js')) }}"></script>
     <script>
         document.getElementById('toggle-password')?.addEventListener('click', function () {
             const input = document.getElementById('password');
@@ -570,6 +633,57 @@
             this.textContent = showing ? 'Mostrar' : 'Ocultar';
             this.setAttribute('aria-label', showing ? 'Mostrar contraseña' : 'Ocultar contraseña');
         });
+
+        const quickUser = document.getElementById('quick-user');
+        const quickUserId = document.getElementById('quick-user-id');
+        const loginInput = document.getElementById('login');
+        const methodInput = document.getElementById('auth-method');
+        const passwordField = document.getElementById('password-field');
+        const passwordInput = document.getElementById('password');
+        const pinField = document.getElementById('pin-field');
+        const pinInput = document.getElementById('pin');
+
+        function setAuthMethod(method) {
+            methodInput.value = method;
+            document.querySelectorAll('[data-auth-method]').forEach(button => {
+                button.classList.toggle('is-active', button.dataset.authMethod === method);
+            });
+            const usingPin = method === 'pin';
+            passwordField.hidden = usingPin;
+            passwordInput.disabled = usingPin;
+            passwordInput.required = !usingPin;
+            pinField.hidden = !usingPin;
+            pinInput.disabled = !usingPin;
+            pinInput.required = usingPin;
+            if (usingPin) pinInput.focus();
+        }
+
+        document.querySelectorAll('[data-auth-method]').forEach(button => {
+            button.addEventListener('click', () => setAuthMethod(button.dataset.authMethod));
+        });
+
+        quickUser?.addEventListener('change', function () {
+            const option = this.selectedOptions[0];
+            quickUserId.value = option?.value || '';
+            if (option?.dataset.login) {
+                loginInput.value = option.dataset.login;
+                loginInput.readOnly = true;
+                if (option.dataset.hasPin !== '1' && methodInput.value === 'pin') {
+                    setAuthMethod('password');
+                }
+                document.getElementById('quick-user-help').textContent = option.dataset.hasPin === '1'
+                    ? 'Este usuario puede entrar con contraseña o PIN.'
+                    : 'Este usuario todavía no tiene PIN; usa su contraseña.';
+            } else {
+                loginInput.readOnly = false;
+                loginInput.value = '';
+                document.getElementById('quick-user-help').textContent = 'Selecciona tu nombre o escribe tu usuario debajo.';
+                loginInput.focus();
+            }
+        });
+
+        setAuthMethod(methodInput.value || 'password');
+        if (quickUser?.value) quickUser.dispatchEvent(new Event('change'));
     </script>
 </body>
 </html>

@@ -40,7 +40,7 @@ class FacturacionController extends Controller
 
     public function index(Request $request)
     {
-        $perPage = (int) $request->query('per_page', 15);
+        $perPage = max(1, min(35, (int) $request->query('per_page', 15)));
         $query = Sale::with('client', 'user');
 
         if ($request->filled('search')) {

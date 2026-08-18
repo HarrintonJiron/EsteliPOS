@@ -74,7 +74,7 @@ class ReporteController extends Controller
             $query->where('payment_type', $request->payment_type);
         }
 
-        return $query->latest()->paginate(50);
+        return $query->latest()->paginate(35);
     }
 
     private function getSalesSummary($startDate, $endDate)
@@ -103,7 +103,7 @@ class ReporteController extends Controller
             $query->where('status', $request->status);
         }
 
-        return $query->latest()->paginate(50);
+        return $query->latest()->paginate(35);
     }
 
     private function getPurchasesSummary($startDate, $endDate)
@@ -145,7 +145,7 @@ class ReporteController extends Controller
             }
         }
 
-        return $query->orderBy('name')->paginate(50);
+        return $query->orderBy('name')->paginate(35);
     }
 
     private function getInventorySummary()
@@ -183,7 +183,7 @@ class ReporteController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
 
-        return $query->latest()->paginate(100);
+        return $query->latest()->paginate(35);
     }
 
     private function getProfitReport($startDate, $endDate)
@@ -192,7 +192,7 @@ class ReporteController extends Controller
             ->whereBetween('date', [$startDate, $endDate])
             ->where('status', 'completed')
             ->latest()
-            ->paginate(50);
+            ->paginate(35);
     }
 
     private function getProfitSummary($startDate, $endDate)

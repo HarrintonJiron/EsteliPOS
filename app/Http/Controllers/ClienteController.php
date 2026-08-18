@@ -14,7 +14,7 @@ class ClienteController extends Controller
 
     public function index(Request $request)
     {
-        $perPage = (int) $request->query('per_page', 15);
+        $perPage = max(1, min(35, (int) $request->query('per_page', 15)));
         $query = Client::query()->latest();
 
         if ($search = $request->query('search')) {

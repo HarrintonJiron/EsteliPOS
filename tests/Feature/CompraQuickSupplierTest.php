@@ -55,6 +55,8 @@ test('nueva compra shows quick supplier option', function () {
         ->get(route('compras.create'))
         ->assertOk()
         ->assertSee('openQuickSupplier', false)
+        ->assertSee('supplierSearch', false)
+        ->assertSee('Buscar proveedor')
         ->assertSee('Proveedor rápido')
         ->assertSee(route('compras.suppliers.quick-store'), false);
 });

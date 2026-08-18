@@ -21,7 +21,7 @@ class AjusteInventarioController extends Controller
 
     public function index(Request $request)
     {
-        $perPage = (int) $request->query('per_page', 15);
+        $perPage = max(1, min(35, (int) $request->query('per_page', 15)));
         $query = InventoryAdjustment::with(['product', 'user'])->latest();
 
         if ($request->filled('product_id')) {

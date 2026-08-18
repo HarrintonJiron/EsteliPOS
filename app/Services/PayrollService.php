@@ -382,16 +382,32 @@ class PayrollService
         $payrollReport = $this->getPayrollReportForPeriod($startDate, $endDate);
         $trend = $this->getPayrollTrend(6, $referenceDate);
 
-        $activeEmployees = Employee::where('is_active', true)->count();
-        $inactiveEmployees = Employee::where('is_active', false)->count();
+        $employeeStats = Employee::selectRaw('
+            SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active_count,
+            SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_count
+        ')->first();
 
-        $pendingLeaves = LeaveRequest::where('status', 'pending')->count();
-        $pendingLoans = Loan::where('status', 'pending')->count();
-        $pendingBonuses = Bonus::where('status', 'pending')->count();
-        $pendingDeductions = Deduction::where('status', 'pending')->count();
+        $activeEmployees = $employeeStats->active_count ?? 0;
+        $inactiveEmployees = $employeeStats->inactive_count ?? 0;
 
-        $activeLoansBalance = Loan::where('status', 'active')->sum('remaining_balance');
-        $activeLoansCount = Loan::where('status', 'active')->count();
+        $pendingStats = collect([
+            'leaves' => LeaveRequest::where('status', 'pending')->count(),
+            'loans' => Loan::where('status', 'pending')->count(),
+            'bonuses' => Bonus::where('status', 'pending')->count(),
+            'deductions' => Deduction::where('status', 'pending')->count(),
+        ]);
+
+        $pendingLeaves = $pendingStats['leaves'];
+        $pendingLoans = $pendingStats['loans'];
+        $pendingBonuses = $pendingStats['bonuses'];
+        $pendingDeductions = $pendingStats['deductions'];
+
+        $activeLoanStats = Loan::where('status', 'active')
+            ->selectRaw('SUM(remaining_balance) as total_balance, COUNT(*) as total_count')
+            ->first();
+
+        $activeLoansBalance = $activeLoanStats->total_balance ?? 0;
+        $activeLoansCount = $activeLoanStats->total_count ?? 0;
 
         $contractDistribution = Employee::where('is_active', true)
             ->selectRaw('contract_type, COUNT(*) as total')

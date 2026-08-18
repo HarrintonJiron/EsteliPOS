@@ -249,7 +249,7 @@ document.addEventListener('DOMContentLoaded', function () {
         code: p.code ?? '',
         name: p.name,
         price: parseFloat(p.sale_price ?? 0),
-        stock: parseInt(p.stock ?? 0),
+        stock: parseFloat(p.stock ?? 0),
         category_id: p.category_id,
         image_url: p.image_url ?? null,
         tax_rate: parseFloat(p.effective_tax_rate ?? app.dataset.defaultTaxRate ?? 0),
@@ -270,6 +270,29 @@ document.addEventListener('DOMContentLoaded', function () {
     let orderDiscountPct = 0;
 
     function fmt(v) { return 'C$ ' + parseFloat(v || 0).toFixed(2); }
+
+    function formatQuantity(value) {
+        return parseFloat(value || 0).toLocaleString('es-NI', { maximumFractionDigits: 4 });
+    }
+
+    function stockWarning(item, quantity = item.quantity) {
+        const stock = parseFloat(item.stock || 0);
+        const requested = parseFloat(quantity || 0);
+
+        if (stock <= 0) {
+            return `${item.name} no tiene existencias disponibles.`;
+        }
+
+        if (requested > stock) {
+            return `${item.name}: solicitaste ${formatQuantity(requested)} y solo hay ${formatQuantity(stock)} disponibles.`;
+        }
+
+        return null;
+    }
+
+    function currentStockWarnings() {
+        return items.map(item => stockWarning(item)).filter(Boolean);
+    }
 
     function lineSubtotal(item) {
         return item.price * item.quantity * (1 - item.discount / 100);
@@ -324,9 +347,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         <p class="font-semibold text-slate-900 text-sm truncate">${item.name}</p>
                         <div class="flex gap-2 text-xs text-slate-600 mt-1">
                             <span>Cant: <b>${item.quantity}</b></span>
+                            <span>Stock: <b>${formatQuantity(item.stock)}</b></span>
                             <span>${fmt(item.price)}</span>
                             ${item.discount > 0 ? `<span class="text-red-600">-${item.discount}%</span>` : ''}
                         </div>
+                        ${stockWarning(item) ? `<p class="mt-1 text-xs font-semibold text-red-600">⚠ ${stockWarning(item)}</p>` : ''}
                     </div>
                     <div class="text-right shrink-0">
                         <p class="font-bold text-slate-900 text-sm">${fmt(lineSubtotal(item))}</p>
@@ -359,8 +384,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const existing = items.find(i => i.product_id == productId);
         if (existing) {
             existing.quantity += 1;
+            const warning = stockWarning(existing);
+            if (warning) alert(`Advertencia de stock\n\n${warning}`);
         } else {
-            items.push({ product_id: productId, name: p.name, price: p.price, quantity: 1, discount: 0, tax_rate: p.tax_rate });
+            const item = { product_id: productId, name: p.name, price: p.price, stock: p.stock, quantity: 1, discount: 0, tax_rate: p.tax_rate };
+            items.push(item);
+            const warning = stockWarning(item);
+            if (warning) alert(`Advertencia de stock\n\n${warning}`);
         }
         renderItems();
     };
@@ -399,6 +429,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const qty = parseFloat(padBuffer) || 1;
         if (qty <= 0) { alert('Cantidad inválida'); return; }
         items[selectedIdx].quantity = qty;
+        const warning = stockWarning(items[selectedIdx]);
+        if (warning) alert(`Advertencia de stock\n\n${warning}`);
         padBuffer = '';
         renderItems();
     };
@@ -416,6 +448,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     window.openSaveModal = function() {
         if (items.length === 0) { alert('Agrega al menos un producto'); return; }
+        const warnings = currentStockWarnings();
+        if (warnings.length > 0 && !confirm(`Advertencia de stock:\n\n${warnings.join('\n')}\n\n¿Deseas guardar la proforma de todas formas?`)) {
+            return;
+        }
         document.getElementById('saveClientId').value = currentClient || '';
         document.getElementById('saveItems').value = JSON.stringify(items.map(i => ({
             product_id: i.product_id,

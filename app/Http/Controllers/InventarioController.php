@@ -11,6 +11,8 @@ use App\Models\ProductUnitConversion;
 use App\Models\Tax;
 use App\Models\Unit;
 use App\Models\Warehouse;
+use App\Models\WarehouseShelf;
+use App\Models\WarehouseStock;
 use App\Services\InventoryService;
 use App\Services\PricingService;
 use App\Services\UnitConversionService;
@@ -34,7 +36,7 @@ class InventarioController extends Controller
 
     public function index(Request $request): View
     {
-        $perPage = (int) $request->query('per_page', 15);
+        $perPage = max(1, min(35, (int) $request->query('per_page', 15)));
         $viewMode = $request->query('view', 'list');
         $periodDays = (int) $request->query('period', 30);
         $salesSub = $this->inventory->salesStatsSubquery($periodDays);
@@ -197,7 +199,7 @@ class InventarioController extends Controller
     {
         $categories = Category::orderBy('name')->get();
         $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
-        $warehouses = $this->activeWarehouses();
+        $warehouses = $this->activeWarehouses()->load('shelves');
         $suggestedCode = $this->inventory->nextProductCode();
 
         return view('inventario.bulk', compact('categories', 'units', 'warehouses', 'suggestedCode'));
@@ -306,7 +308,7 @@ class InventarioController extends Controller
         $categories = Category::orderBy('name')->get();
         $taxes = Tax::where('is_active', true)->orderBy('rate')->get();
         $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
-        $warehouses = $this->activeWarehouses();
+        $warehouses = $this->activeWarehouses()->load('shelves');
 
         return view('inventario.create', compact('categories', 'taxes', 'units', 'warehouses'));
     }
@@ -317,7 +319,7 @@ class InventarioController extends Controller
         $defaultCategory = $categories->first();
         $wholesaleList = $this->pricing->wholesaleList();
         $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
-        $warehouses = $this->activeWarehouses();
+        $warehouses = $this->activeWarehouses()->load('shelves');
 
         return view('inventario.quick', compact('categories', 'defaultCategory', 'wholesaleList', 'units', 'warehouses'));
     }
@@ -357,6 +359,7 @@ class InventarioController extends Controller
             'unit' => 'nullable|string|max:50',
             'base_unit_id' => 'nullable|exists:units,id',
             'warehouse_id' => 'nullable|exists:warehouses,id',
+            'shelf_id' => 'nullable|exists:warehouse_shelves,id',
             'low_stock_threshold' => 'nullable|integer|min:1',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
         ]);
@@ -371,6 +374,7 @@ class InventarioController extends Controller
         $imagePath = $request->file('image')?->store('products', 'public');
         $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
         $warehouseId = isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null;
+        $shelf = $this->validatedShelf($validated['shelf_id'] ?? null, $warehouseId);
 
         try {
             $product = Product::create([
@@ -396,6 +400,7 @@ class InventarioController extends Controller
                     $request->user()?->id,
                     $warehouseId,
                 );
+                WarehouseStock::query()->where('product_id', $product->id)->where('warehouse_id', $warehouseId ?: Warehouse::default()?->id)->update(['aisle' => $shelf?->code]);
             }
 
             $product = $product->fresh();
@@ -447,6 +452,7 @@ class InventarioController extends Controller
             'unit' => 'nullable|string|max:50',
             'base_unit_id' => 'required|exists:units,id',
             'warehouse_id' => 'nullable|exists:warehouses,id',
+            'shelf_id' => 'nullable|exists:warehouse_shelves,id',
             'lot' => 'nullable|string|max:100',
             'expiry_date' => 'nullable|date',
             'location' => 'nullable|string|max:255',
@@ -463,8 +469,9 @@ class InventarioController extends Controller
 
         $stock = (float) $validated['stock'];
         $warehouseId = isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null;
+        $shelf = $this->validatedShelf($validated['shelf_id'] ?? null, $warehouseId);
         $validated['stock'] = 0;
-        unset($validated['image'], $validated['warehouse_id']);
+        unset($validated['image'], $validated['warehouse_id'], $validated['shelf_id']);
         $validated['expiry_date'] = $validated['expiry_date'] ?? null;
 
         $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
@@ -488,6 +495,7 @@ class InventarioController extends Controller
                     $request->user()?->id,
                     $warehouseId,
                 );
+                WarehouseStock::query()->where('product_id', $product->id)->where('warehouse_id', $warehouseId ?: Warehouse::default()?->id)->update(['aisle' => $shelf?->code]);
             }
 
             $this->pricing->syncProductToDefaultList($product->fresh());
@@ -821,6 +829,19 @@ class InventarioController extends Controller
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get();
+    }
+
+    private function validatedShelf(mixed $shelfId, ?int $warehouseId): ?WarehouseShelf
+    {
+        if (! $shelfId) {
+            return null;
+        }
+
+        return WarehouseShelf::query()
+            ->whereKey($shelfId)
+            ->where('warehouse_id', $warehouseId ?: Warehouse::default()?->id)
+            ->where('is_active', true)
+            ->firstOrFail();
     }
 
     private function resolveBaseUnit(mixed $baseUnitId, ?string $abbreviation = null): ?Unit

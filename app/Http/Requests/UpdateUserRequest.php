@@ -11,7 +11,10 @@ class UpdateUserRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $this->merge(['remove_profile_photo' => $this->boolean('remove_profile_photo')]);
+        $this->merge([
+            'remove_profile_photo' => $this->boolean('remove_profile_photo'),
+            'clear_pin' => $this->boolean('clear_pin'),
+        ]);
     }
 
     public function rules(): array
@@ -23,6 +26,8 @@ class UpdateUserRequest extends FormRequest
             'username' => ['nullable', 'string', 'max:60', 'regex:/^[A-Za-z0-9._-]+$/', Rule::unique('users', 'username')->ignore($user)],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user)],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+()\-\s]+$/'],
+            'pin' => ['nullable', 'digits_between:4,8', 'confirmed'],
+            'clear_pin' => ['boolean'],
             'roles' => ['array'],
             'roles.*' => ['integer', 'exists:roles,id'],
             'permissions' => ['array'],

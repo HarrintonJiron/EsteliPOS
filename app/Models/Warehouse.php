@@ -36,6 +36,11 @@ class Warehouse extends Model
         return $this->hasMany(InventoryMovement::class);
     }
 
+    public function shelves(): HasMany
+    {
+        return $this->hasMany(WarehouseShelf::class)->orderBy('code');
+    }
+
     public static function default(): ?self
     {
         return static::query()

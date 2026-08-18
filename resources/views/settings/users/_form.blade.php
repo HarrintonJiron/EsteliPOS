@@ -32,6 +32,21 @@
         @endunless
 
         <section class="card p-5 sm:p-6">
+            <h2 class="font-semibold text-slate-900">Acceso rápido con PIN</h2>
+            <p class="mt-1 text-xs text-slate-500">Opcional. Usa entre 4 y 8 dígitos; se almacena cifrado y nunca se muestra.</p>
+            @if($editing && $user->pin_hash)
+                <p class="mt-2 text-xs font-semibold text-emerald-700">Este usuario ya tiene un PIN configurado.</p>
+            @endif
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                <div><label class="mb-1 block text-sm font-medium">{{ $editing ? 'Nuevo PIN' : 'PIN' }}</label><input type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" class="input-field" name="pin" autocomplete="new-password" placeholder="4 a 8 dígitos"></div>
+                <div><label class="mb-1 block text-sm font-medium">Confirmar PIN</label><input type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" class="input-field" name="pin_confirmation" autocomplete="new-password" placeholder="Repite el PIN"></div>
+            </div>
+            @if($editing && $user->pin_hash)
+                <label class="mt-4 flex items-center gap-2 text-sm text-red-700"><input type="checkbox" name="clear_pin" value="1" class="rounded"> Quitar el PIN actual</label>
+            @endif
+        </section>
+
+        <section class="card p-5 sm:p-6">
             <h2 class="font-semibold text-slate-900">Roles</h2>
             <p class="mt-1 text-xs text-slate-500">Definen el conjunto principal de accesos.</p>
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
