@@ -12,8 +12,15 @@ class ApplySystemSettings
 {
     public function handle(Request $request, Closure $next): Response
     {
+        self::apply();
+
+        return $next($request);
+    }
+
+    public static function apply(): void
+    {
         if (! Schema::hasTable('settings')) {
-            return $next($request);
+            return;
         }
 
         $timezone = Setting::get('timezone', config('app.timezone'));
@@ -30,7 +37,5 @@ class ApplySystemSettings
         if (is_string($language) && in_array($language, ['es', 'en'], true)) {
             app()->setLocale($language);
         }
-
-        return $next($request);
     }
 }

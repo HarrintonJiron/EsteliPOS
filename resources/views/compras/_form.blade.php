@@ -698,7 +698,10 @@
             }
         } else {
             const units = product.units || [];
-            const defaultUnitId = product.base_unit_id || units[0]?.id || null;
+            const defaultUnitId = units.find(unit => unit.is_default_purchase_unit)?.id
+                || product.base_unit_id
+                || units[0]?.id
+                || null;
             items.push({
                 id: product.id,
                 name: product.name,

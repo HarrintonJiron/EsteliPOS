@@ -17,7 +17,7 @@
             </p>
         </div>
         <div class="flex gap-2">
-            <button type="button" data-open-presentations class="btn-outline text-sm">Cómo se vende</button>
+            <button type="button" data-open-presentations class="btn-primary text-sm">Compra y venta por presentación</button>
             <a href="{{ route('inventario.edit', $product->id) }}" class="btn-outline text-sm">Editar</a>
             <a href="{{ route('inventario.index') }}" class="btn-outline text-sm">Volver</a>
         </div>

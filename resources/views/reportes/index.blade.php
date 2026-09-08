@@ -10,23 +10,53 @@
         ['id' => 'inventory', 'label' => 'Inventario', 'active' => $reportType === 'inventory'],
         ['id' => 'kardex', 'label' => 'Kardex', 'active' => $reportType === 'kardex'],
         ['id' => 'profit', 'label' => 'Rentabilidad', 'active' => $reportType === 'profit'],
+        ['id' => 'abc', 'label' => 'ABC', 'active' => $reportType === 'abc'],
+        ['id' => 'aging', 'label' => 'Cartera', 'active' => $reportType === 'aging'],
+        ['id' => 'slow', 'label' => 'Lenta rotación', 'active' => $reportType === 'slow'],
+        ['id' => 'top_clients', 'label' => 'Clientes top', 'active' => $reportType === 'top_clients'],
+        ['id' => 'sellers', 'label' => 'Vendedores', 'active' => $reportType === 'sellers'],
+        ['id' => 'categories', 'label' => 'Categorías', 'active' => $reportType === 'categories'],
     ];
     $periodLabel = \Carbon\Carbon::parse($startDate)->format('d/m/Y') . ' — ' . \Carbon\Carbon::parse($endDate)->format('d/m/Y');
 @endphp
 
-<div class="page-shell">
+<div class="ex-shell">
 
-    <x-ui.page-header
+    <x-ui.command-hero
+        kicker="Inteligencia comercial"
         title="Reportes y análisis"
-        :subtitle="'Información operativa para tu PYME · ' . $periodLabel"
+        :subtitle="'Tablero gerencial · ' . $periodLabel"
+        :stats="[
+            ['label' => 'Periodo', 'value' => \Carbon\Carbon::parse($startDate)->format('d/m')],
+            ['label' => 'Hasta', 'value' => \Carbon\Carbon::parse($endDate)->format('d/m')],
+            ['label' => 'Vista', 'value' => collect($reportTabs)->firstWhere('active', true)['label'] ?? 'Ventas'],
+        ]"
+        :compact="true"
     >
         <x-slot:actions>
+            <a href="{{ route('analitica.index') }}" class="ex-btn">Analítica gerencial</a>
             <x-ui.export-bar
                 csv-route="reportes.export"
                 :csv-query="request()->except('page')"
             />
         </x-slot:actions>
-    </x-ui.page-header>
+    </x-ui.command-hero>
+
+    <nav class="ex-shortcuts no-print" aria-label="Atajos de reportes">
+        @foreach([
+            ['href' => route('analitica.index'), 'label' => 'Analítica', 'text' => 'Sala de control'],
+            ['href' => route('sucursales.index'), 'label' => 'Sucursales', 'text' => 'Red Estelí'],
+            ['href' => route('rrhh.hub'), 'label' => 'RR.HH.', 'text' => 'Equipo y nómina'],
+            ['href' => route('contabilidad.centros-costo.analytics'), 'label' => 'Centros de costo', 'text' => 'Gasto por unidad'],
+            ['href' => route('reportes.index', ['report_type' => 'abc']), 'label' => 'ABC', 'text' => 'Rotación'],
+            ['href' => route('reportes.index', ['report_type' => 'aging']), 'label' => 'Cartera', 'text' => 'Antigüedad'],
+        ] as $shortcut)
+            <a href="{{ $shortcut['href'] }}" class="ex-shortcut">
+                <strong>{{ $shortcut['label'] }}</strong>
+                <span>{{ $shortcut['text'] }}</span>
+            </a>
+        @endforeach
+    </nav>
 
     <x-ui.tabs :items="$reportTabs" param="report_type" />
 

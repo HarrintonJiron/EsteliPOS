@@ -10,12 +10,13 @@
 
 <div id="proformaApp" class="flex h-full min-h-0 flex-col overflow-y-auto bg-slate-50 sm:flex-row sm:overflow-hidden"
      data-products='@json($products)'
+     data-products-url="{{ route('proformas.products') }}"
      data-clients='@json($clients)'
      data-categories='@json($categories)'
      data-default-tax-rate="{{ $defaultTaxRate }}">
 
     {{-- COLUMNA IZQUIERDA: ITEMS --}}
-    <div class="flex max-h-[55vh] min-h-[24rem] w-full shrink-0 flex-col border-b border-slate-200 bg-white sm:h-full sm:max-h-none sm:min-h-0 sm:min-w-[280px] sm:max-w-[520px] sm:w-2/5 sm:border-b-0 sm:border-r">
+    <div class="pos-ticket-col min-h-0 w-full flex-1 overflow-hidden border-b border-slate-200 bg-white sm:h-full sm:max-h-none sm:min-w-[280px] sm:max-w-[520px] sm:w-2/5 sm:flex-none sm:border-b-0 sm:border-r">
 
         <div class="px-4 py-2 bg-indigo-700 text-white flex items-center justify-between text-xs shrink-0">
             <div class="flex items-center gap-2">
@@ -25,7 +26,7 @@
             <a href="{{ route('proformas.index') }}" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg">← Volver</a>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto border-b border-slate-200">
+        <div id="ticketScroller" class="min-h-0 overflow-y-auto border-b border-slate-200">
             <div id="proformaItems" class="divide-y divide-slate-100"></div>
             <div id="emptyProforma" class="flex flex-col items-center justify-center h-full text-slate-400 py-12">
                 <svg class="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -57,7 +58,7 @@
             </div>
         </div>
 
-        <div class="max-h-[45%] shrink-0 space-y-3 overflow-y-auto p-4">
+        <div class="pos-ticket-actions space-y-2 p-3">
             <button type="button" id="clientBtn"
                 onclick="document.getElementById('clientModal').classList.remove('hidden')"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl px-4 text-sm flex items-center justify-center gap-2 transition-all shadow">
@@ -65,22 +66,7 @@
                 <span id="clientDisplay">Sin cliente asignado</span>
             </button>
 
-            <div id="selectedItemBar" class="hidden bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-xs text-indigo-800">
-                Editando: <span id="selectedItemName" class="font-semibold"></span> · Cant: <span id="selectedItemQty" class="font-bold">0</span>
-            </div>
-
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                @foreach(['7','8','9','4','5','6','1','2','3'] as $key)
-                <button type="button" onclick="padInput('{{ $key }}')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 rounded-xl text-sm shadow-sm">{{ $key }}</button>
-                @endforeach
-                <button type="button" onclick="padInput('0')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 rounded-xl text-sm shadow-sm col-span-2">0</button>
-                <button type="button" onclick="padInput('.')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 rounded-xl text-sm shadow-sm">.</button>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2">
-                <button type="button" onclick="padBackspace()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded-xl text-sm">Borrar</button>
-                <button type="button" onclick="padConfirm()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl text-sm">Confirmar cant.</button>
-            </div>
+            @include('facturacion._numpad')
 
             <button type="button" onclick="openSaveModal()"
                 class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm">
@@ -244,16 +230,30 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const app = document.getElementById('proformaApp');
-    const products = JSON.parse(app.dataset.products).map(p => ({
+    const normalizeProduct = p => {
+        const defaultUnit = (p.sale_units || []).find(unit => unit.is_default) || (p.sale_units || [])[0];
+        return {
         id: p.id,
         code: p.code ?? '',
         name: p.name,
-        price: parseFloat(p.sale_price ?? 0),
+        price: parseFloat(defaultUnit?.price ?? p.sale_price ?? 0),
         stock: parseFloat(p.stock ?? 0),
         category_id: p.category_id,
         image_url: p.image_url ?? null,
         tax_rate: parseFloat(p.effective_tax_rate ?? app.dataset.defaultTaxRate ?? 0),
-    }));
+        default_unit_id: defaultUnit?.id ?? p.base_unit_id ?? null,
+        sale_units: (p.sale_units || []).map(unit => ({
+            id: unit.id,
+            abbreviation: unit.abbreviation,
+            price: parseFloat(unit.price ?? 0),
+            factor_to_base: parseFloat(unit.factor_to_base ?? 1) || 1,
+            price_breaks: (unit.price_breaks || []).map(priceBreak => ({
+                min_quantity: parseFloat(priceBreak.min_quantity ?? 1),
+                price: parseFloat(priceBreak.price ?? unit.price ?? 0),
+            })),
+        })),
+    };};
+    let products = JSON.parse(app.dataset.products).map(normalizeProduct);
     const clientsData = JSON.parse(app.dataset.clients).map(c => ({
         id: c.id,
         name: c.name ?? '',
@@ -275,9 +275,25 @@ document.addEventListener('DOMContentLoaded', function () {
         return parseFloat(value || 0).toLocaleString('es-NI', { maximumFractionDigits: 4 });
     }
 
+    function unitPrice(unit, quantity) {
+        const applicable = (unit?.price_breaks || [])
+            .filter(priceBreak => priceBreak.min_quantity <= parseFloat(quantity || 0))
+            .sort((a, b) => b.min_quantity - a.min_quantity)[0];
+        return applicable?.price ?? parseFloat(unit?.price ?? 0);
+    }
+
+    function refreshItemPrices() {
+        items.forEach(item => {
+            const product = products.find(candidate => candidate.id == item.product_id);
+            const unit = product?.sale_units.find(candidate => candidate.id == item.unit_id)
+                || product?.sale_units[0];
+            if (unit) item.price = unitPrice(unit, item.quantity);
+        });
+    }
+
     function stockWarning(item, quantity = item.quantity) {
         const stock = parseFloat(item.stock || 0);
-        const requested = parseFloat(quantity || 0);
+        const requested = parseFloat(quantity || 0) * parseFloat(item.unit_factor || 1);
 
         if (stock <= 0) {
             return `${item.name} no tiene existencias disponibles.`;
@@ -326,7 +342,28 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function revealTicketLine(index) {
+        requestAnimationFrame(() => {
+            const scroller = document.getElementById('ticketScroller');
+            const row = scroller?.querySelector(`[data-ticket-idx="${index}"]`);
+            if (!scroller || !row) {
+                return;
+            }
+
+            row.classList.add('ticket-line--fresh');
+            const rowBox = row.getBoundingClientRect();
+            const viewBox = scroller.getBoundingClientRect();
+            const padding = 8;
+            if (rowBox.bottom > viewBox.bottom - padding) {
+                scroller.scrollTop += rowBox.bottom - viewBox.bottom + padding;
+            } else if (rowBox.top < viewBox.top + padding) {
+                scroller.scrollTop -= viewBox.top - rowBox.top + padding;
+            }
+        });
+    }
+
     function renderItems() {
+        refreshItemPrices();
         const container = document.getElementById('proformaItems');
         const empty = document.getElementById('emptyProforma');
 
@@ -341,13 +378,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
         empty.classList.add('hidden');
         container.innerHTML = items.map((item, idx) => `
-            <div onclick="selectItem(${idx})" class="p-3 cursor-pointer transition-colors group ${selectedIdx === idx ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : 'hover:bg-slate-50'}">
+            <div onclick="selectItem(${idx})" data-ticket-idx="${idx}" class="p-3 cursor-pointer transition-colors group ${selectedIdx === idx ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : 'hover:bg-slate-50'}">
                 <div class="flex justify-between items-start gap-2">
                     <div class="flex-1 min-w-0">
                         <p class="font-semibold text-slate-900 text-sm truncate">${item.name}</p>
                         <div class="flex gap-2 text-xs text-slate-600 mt-1">
                             <span>Cant: <b>${item.quantity}</b></span>
-                            <span>Stock: <b>${formatQuantity(item.stock)}</b></span>
+                            <span>${(() => {
+                                const product = products.find(p => p.id == item.product_id);
+                                const units = product?.sale_units || [];
+                                if (units.length < 2) return item.unit_label || '';
+                                return `<select onclick="event.stopPropagation()" onchange="event.stopPropagation(); changeItemUnit(${idx}, this.value)" class="rounded border border-indigo-200 bg-indigo-50 px-1 py-0.5 text-xs font-semibold text-indigo-800">${units.map(unit => `<option value="${unit.id}" ${unit.id == item.unit_id ? 'selected' : ''}>${unit.abbreviation}</option>`).join('')}</select>`;
+                            })()}
+                            <span>Stock base: <b>${formatQuantity(item.stock)}</b></span>
                             <span>${fmt(item.price)}</span>
                             ${item.discount > 0 ? `<span class="text-red-600">-${item.discount}%</span>` : ''}
                         </div>
@@ -376,6 +419,7 @@ document.addEventListener('DOMContentLoaded', function () {
         selectedIdx = idx;
         padBuffer = String(items[idx].quantity);
         renderItems();
+        expandPosPad();
     };
 
     window.addProduct = function(productId) {
@@ -386,18 +430,35 @@ document.addEventListener('DOMContentLoaded', function () {
             existing.quantity += 1;
             const warning = stockWarning(existing);
             if (warning) alert(`Advertencia de stock\n\n${warning}`);
-        } else {
-            const item = { product_id: productId, name: p.name, price: p.price, stock: p.stock, quantity: 1, discount: 0, tax_rate: p.tax_rate };
-            items.push(item);
-            const warning = stockWarning(item);
-            if (warning) alert(`Advertencia de stock\n\n${warning}`);
+            renderItems();
+            revealTicketLine(items.indexOf(existing));
+            return;
         }
+
+        const unit = p.sale_units.find(unit => unit.id == p.default_unit_id) || p.sale_units[0];
+        const item = { product_id: productId, unit_id: unit?.id ?? null, unit_label: unit?.abbreviation ?? '', unit_factor: unit?.factor_to_base ?? 1, name: p.name, price: unit?.price ?? p.price, stock: p.stock, quantity: 1, discount: 0, tax_rate: p.tax_rate };
+        items.push(item);
+        const warning = stockWarning(item);
+        if (warning) alert(`Advertencia de stock\n\n${warning}`);
         renderItems();
+        revealTicketLine(items.length - 1);
     };
 
     window.applyItemDiscount = function(idx) {
         const v = parseFloat(prompt('Descuento (%) para este item:', items[idx].discount || '0'));
         if (!isNaN(v) && v >= 0 && v <= 100) { items[idx].discount = v; renderItems(); }
+    };
+
+    window.changeItemUnit = function(idx, unitId) {
+        const item = items[idx];
+        const product = products.find(p => p.id == item.product_id);
+        const unit = product?.sale_units.find(candidate => candidate.id == unitId);
+        if (!unit) return;
+        item.unit_id = unit.id;
+        item.unit_label = unit.abbreviation;
+        item.unit_factor = unit.factor_to_base;
+        item.price = unitPrice(unit, item.quantity);
+        renderItems();
     };
 
     window.applyOrderDiscount = function() {
@@ -412,8 +473,30 @@ document.addEventListener('DOMContentLoaded', function () {
         renderItems();
     };
 
+    function setPosPadOpen(open) {
+        const pad = document.getElementById('posNumpad');
+        const toggle = document.getElementById('posPadToggle');
+        if (!pad) return;
+        pad.classList.toggle('pos-pad--open', open);
+        if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open && selectedIdx >= 0) {
+            window.setTimeout(() => revealTicketLine(selectedIdx), 280);
+        }
+    }
+
+    window.togglePosPad = function() {
+        const pad = document.getElementById('posNumpad');
+        if (!pad) return;
+        setPosPadOpen(!pad.classList.contains('pos-pad--open'));
+    };
+
+    window.expandPosPad = function() {
+        setPosPadOpen(true);
+    };
+
     window.padInput = function(key) {
         if (selectedIdx < 0) { alert('Selecciona un producto para editar cantidad'); return; }
+        expandPosPad();
         if (padBuffer === '0' && key !== '.') padBuffer = key;
         else padBuffer += key;
         document.getElementById('selectedItemQty').textContent = padBuffer || '0';
@@ -422,6 +505,16 @@ document.addEventListener('DOMContentLoaded', function () {
     window.padBackspace = function() {
         padBuffer = padBuffer.slice(0, -1);
         if (selectedIdx >= 0) document.getElementById('selectedItemQty').textContent = padBuffer || '0';
+    };
+
+    window.padAdjust = function(delta) {
+        if (selectedIdx < 0) return;
+        const current = parseFloat(padBuffer || items[selectedIdx].quantity) || 1;
+        const next = Math.round((current + delta) * 100) / 100;
+        if (next < 0.01) return;
+        items[selectedIdx].quantity = next;
+        padBuffer = String(next);
+        renderItems();
     };
 
     window.padConfirm = function() {
@@ -455,6 +548,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('saveClientId').value = currentClient || '';
         document.getElementById('saveItems').value = JSON.stringify(items.map(i => ({
             product_id: i.product_id,
+            unit_id: i.unit_id,
             name: i.name,
             quantity: i.quantity,
             price: i.price,
@@ -465,11 +559,22 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('saveModal').classList.remove('hidden');
     };
 
-    window.selectClient = function(id, name) {
+    window.selectClient = async function(id, name) {
         currentClient = id;
         document.getElementById('clientDisplay').textContent = name;
         document.getElementById('clientModal').classList.add('hidden');
         document.getElementById('quickClientModal')?.classList.add('hidden');
+        try {
+            const url = new URL(app.dataset.productsUrl, window.location.origin);
+            if (id) url.searchParams.set('client_id', id);
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error('No se pudo cargar la lista de precios.');
+            products = (await response.json()).map(normalizeProduct);
+            renderProducts(document.getElementById('productSearch').value);
+            renderItems();
+        } catch (error) {
+            alert('No pudimos actualizar los precios del cliente. Intente seleccionarlo nuevamente.');
+        }
     };
 
     window.openQuickClientModal = function() {

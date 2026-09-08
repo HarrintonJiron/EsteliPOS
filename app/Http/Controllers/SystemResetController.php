@@ -33,9 +33,10 @@ class SystemResetController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login')->with(
-            'success',
-            "Sistema reiniciado correctamente. Respaldo creado: {$result['backup_name']}"
-        );
+        $message = $result['mode'] === 'clean'
+            ? "Sistema entregado en limpio correctamente. Respaldo creado: {$result['backup_name']}"
+            : "Demostración recargada correctamente. Respaldo creado: {$result['backup_name']}";
+
+        return redirect()->route('login')->with('success', $message);
     }
 }

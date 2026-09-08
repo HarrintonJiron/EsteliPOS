@@ -1,0 +1,34 @@
+ESTELIPOS - CARGA DE INVENTARIO CISVE (4,094 PRODUCTOS)
+Northlink Microsystem - https://northlinkni.com
+
+Compatible con la instalacion EsteliPOS 1.0.10 SQLite.
+
+PASOS
+1. Extraiga completamente el archivo ZIP en la computadora administradora.
+2. Cierre EsteliPOS en las cajas durante la carga.
+3. Haga clic derecho en CARGAR-INVENTARIO.bat.
+4. Seleccione "Ejecutar como administrador".
+5. Escriba CARGAR cuando el asistente de consola lo solicite.
+6. Espere el mensaje: CARGA COMPLETADA.
+
+PROTECCIONES
+- Verifica el SHA-256 y los 4,094 codigos antes de borrar datos.
+- Detiene EsteliPOS antes de copiar SQLite.
+- Guarda un respaldo en storage\app\backups.
+- Conserva usuarios y permisos.
+- Elimina productos, ventas, compras y operaciones de demostracion.
+- Verifica productos, precios y claves foraneas al terminar.
+- Si algo falla, restaura automaticamente la base anterior.
+
+NOTAS DEL DOCUMENTO FUENTE
+- 4,094 productos y 20 categorias.
+- 1,459 productos tienen existencia positiva.
+- 2,633 productos tienen existencia cero en el documento.
+- Dos existencias negativas se cargan en cero y quedan marcadas para revision:
+  codigo 670, Arroz Dona Maria 65%; codigo 368, Pierna pelada.
+- El documento no contiene costo de compra; se carga en C$0.00 para actualizarlo
+  posteriormente desde compras o edicion de producto.
+
+SOPORTE
+Los logs quedan en:
+C:\Northlink\EsteliPOS\storage\logs\import-inventory-AAAAmmdd-HHMMSS.log

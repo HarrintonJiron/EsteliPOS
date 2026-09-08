@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseDetail;
 use App\Models\Supplier;
+use App\Models\SupplierPayment;
 use App\Models\Tax;
 use App\Models\Unit;
 use App\Models\Warehouse;
@@ -22,6 +23,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class CompraController extends Controller
 {
@@ -298,6 +300,10 @@ class CompraController extends Controller
                 $this->recalculatePurchaseTotals($purchase);
             });
         } catch (RuntimeException $e) {
+            if ($e instanceof HttpExceptionInterface) {
+                throw $e;
+            }
+
             return back()->with('error', $e->getMessage());
         }
 
@@ -707,6 +713,10 @@ class CompraController extends Controller
             $this->reversePurchaseInventory($purchase);
             $purchase->update(['status' => 'canceled']);
             $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra anulada');
+            if ($payment = $purchase->supplierPayment()->where('status', 'registered')->first()) {
+                $this->accountingService->voidForSource(SupplierPayment::class, $payment->id, 'Pago de compra anulada');
+                $payment->update(['status' => 'canceled', 'canceled_at' => now()]);
+            }
 
             return;
         }
@@ -750,8 +760,17 @@ class CompraController extends Controller
             'status' => 'completed',
             'payment_type' => $paymentType === 'transfer' ? 'transfer' : 'cash',
         ]);
-        $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra pagada');
-        $this->accountingService->recordPurchase($purchase->fresh());
+        $payment = SupplierPayment::query()->create([
+            'purchase_id' => $purchase->id,
+            'supplier_id' => $purchase->supplier_id,
+            'user_id' => auth()->id() ?? $purchase->user_id,
+            'amount' => $purchase->total,
+            'payment_type' => $paymentType === 'transfer' ? 'transfer' : 'cash',
+            'reference' => 'PAGO-COMPRA-'.$purchase->id,
+            'paid_at' => now(),
+            'status' => 'registered',
+        ]);
+        $this->accountingService->recordSupplierPayment($payment);
     }
 
     private function purchaseHasStockEntry(Purchase $purchase): bool

@@ -259,6 +259,22 @@ class PurchaseCostingService
     public function resolveLineQuantity(Product $product, float $quantity, ?int $unitId): array
     {
         $resolvedUnitId = $unitId ?: $product->base_unit_id;
+        $conversion = $resolvedUnitId && (int) $resolvedUnitId !== (int) $product->base_unit_id
+            ? $product->unitConversions->firstWhere('unit_id', $resolvedUnitId)
+            : null;
+
+        if ($resolvedUnitId && (int) $resolvedUnitId !== (int) $product->base_unit_id && ! $conversion) {
+            throw new RuntimeException('Unidad de medida no configurada para este producto.');
+        }
+
+        if ($conversion && ! $conversion->use_for_purchase) {
+            throw new RuntimeException('La presentación seleccionada no está habilitada para compra.');
+        }
+
+        if ($conversion && ! $conversion->allow_fraction && abs($quantity - round($quantity)) > 0.000001) {
+            throw new RuntimeException("La presentación {$conversion->unit?->abbreviation} solo admite cantidades enteras.");
+        }
+
         $baseQuantity = $this->units->convertToBase($product, $quantity, $resolvedUnitId);
 
         return [
@@ -275,13 +291,25 @@ class PurchaseCostingService
     {
         $product->loadMissing('baseUnit', 'unitConversions.unit');
 
-        return collect($this->units->availableUnitsFor($product))
-            ->map(fn (array $entry) => [
-                'id' => $entry['unit']->id,
-                'abbreviation' => $entry['unit']->abbreviation,
-                'name' => $entry['unit']->name,
-                'factor_to_base' => $entry['factor_to_base'],
-            ])
+        $base = $product->baseUnit ? collect([[
+            'id' => $product->baseUnit->id,
+            'abbreviation' => $product->baseUnit->abbreviation,
+            'name' => $product->baseUnit->name,
+            'factor_to_base' => 1.0,
+            'is_default_purchase_unit' => ! $product->unitConversions->contains('is_default_purchase_unit', true),
+        ]]) : collect();
+
+        return $base->concat($product->unitConversions
+            ->where('use_for_purchase', true)
+            ->filter(fn ($conversion) => $conversion->unit !== null)
+            ->map(fn ($conversion) => [
+                'id' => $conversion->unit->id,
+                'abbreviation' => $conversion->unit->abbreviation,
+                'name' => $conversion->unit->name,
+                'factor_to_base' => (float) $conversion->factor_to_base,
+                'is_default_purchase_unit' => (bool) $conversion->is_default_purchase_unit,
+            ]))
+            ->sortByDesc('is_default_purchase_unit')
             ->values()
             ->all();
     }

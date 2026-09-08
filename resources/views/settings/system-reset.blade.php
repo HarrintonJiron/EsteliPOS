@@ -1,19 +1,19 @@
 @extends('layouts.app')
 
-@section('title', 'Ambiente de pruebas')
+@section('title', 'Entregar en limpio')
 
 @section('content')
 <div class="mx-auto max-w-3xl space-y-6" id="system-reset-page">
     <nav class="flex items-center gap-2 text-sm text-slate-500" aria-label="Breadcrumb">
         <a href="{{ route('settings.index') }}" class="hover:text-indigo-600">Configuración</a>
         <span aria-hidden="true">/</span>
-        <span class="font-medium text-red-700" aria-current="page">Ambiente de pruebas</span>
+        <span class="font-medium text-red-700" aria-current="page">Entregar en limpio</span>
     </nav>
 
     <header>
         <p class="text-xs font-semibold uppercase tracking-[0.2em] text-red-600">Zona de riesgo</p>
-        <h1 class="mt-2 text-2xl font-bold text-slate-900">Reiniciar el sistema</h1>
-        <p class="mt-2 text-sm leading-6 text-slate-600">Esta herramienta prepara el sistema para repetir pruebas desde cero. Antes de borrar los datos se crea un respaldo local recuperable.</p>
+        <h1 class="mt-2 text-2xl font-bold text-slate-900">Entregar el sistema en limpio</h1>
+        <p class="mt-2 text-sm leading-6 text-slate-600">Al terminar la capacitación, esta herramienta elimina la operación demostrativa y deja EsteliPOS listo para comenzar con los datos reales. Primero crea un respaldo local recuperable.</p>
     </header>
 
     <div class="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-900" role="alert">
@@ -30,7 +30,7 @@
             <label class="flex cursor-pointer gap-4 rounded-xl border border-slate-200 p-4 transition hover:border-indigo-300 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
                 <input type="radio" name="mode" value="clean" class="mt-1" @checked(old('mode', 'clean') === 'clean') required>
                 <span>
-                    <strong class="block text-slate-900">Sistema limpio</strong>
+                    <strong class="block text-slate-900">Entregar en limpio</strong>
                     <span class="mt-1 block text-sm leading-5 text-slate-600">Conserva catálogos base y administrador, sin productos, clientes, compras ni ventas de prueba.</span>
                 </span>
             </label>
@@ -66,7 +66,7 @@
         <div class="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
             <a href="{{ route('settings.index') }}" class="btn-outline justify-center">Cancelar</a>
             <button id="system-reset-submit" type="submit" class="rounded-xl bg-red-600 px-5 py-2.5 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40" disabled>
-                Crear respaldo y reiniciar
+                Crear respaldo y entregar en limpio
             </button>
         </div>
     </form>
@@ -84,6 +84,10 @@
 
         const refresh = () => {
             submit.disabled = !password.value || confirmation.value !== 'REINICIAR SISTEMA' || !acknowledge.checked;
+            const mode = form.querySelector('input[name="mode"]:checked')?.value;
+            submit.textContent = mode === 'demo'
+                ? 'Crear respaldo y recargar demostración'
+                : 'Crear respaldo y entregar en limpio';
         };
 
         form.addEventListener('input', refresh);

@@ -243,13 +243,16 @@
                 @php
                     $lockType = $order->lock_type ?? ($order->device_password ? (preg_match('/^[1-9](?:-[1-9])*$/', $order->device_password) ? 'pattern' : 'password') : 'none');
                 @endphp
-                @if($order->device_password && $lockType === 'pattern')
-                <div class="space-y-2">
-                    <span class="text-slate-500">Patrón</span>
-                    <x-pattern-viewer :pattern="$order->device_password" />
-                </div>
-                @elseif($order->device_password)
-                <div class="flex justify-between"><span class="text-slate-500">Contraseña</span><span class="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded">{{ $order->device_password }}</span></div>
+                @if($order->device_password)
+                <details class="rounded-lg border border-amber-200 bg-amber-50 p-2">
+                    <summary class="cursor-pointer text-xs font-semibold text-amber-800">Mostrar acceso del dispositivo</summary>
+                    @if($lockType === 'pattern')
+                        <div class="mt-2"><x-pattern-viewer :pattern="$order->device_password" /></div>
+                    @else
+                        <p class="mt-2 font-mono text-xs text-slate-800">{{ $order->device_password }}</p>
+                    @endif
+                    <p class="mt-2 text-[11px] text-amber-700">Información confidencial. No compartir ni imprimir.</p>
+                </details>
                 @endif
             </div>
 

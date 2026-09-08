@@ -5,15 +5,20 @@ test('the windows deployment package is self contained and production safe', fun
     $buildScript = file_get_contents(base_path('deployment/build-release.sh'));
     $iisScript = file_get_contents(base_path('deployment/windows/EsteliPOS-IIS.ps1'));
     $phpScript = file_get_contents(base_path('deployment/windows/EsteliPOS-PHP.ps1'));
+    $backupScript = file_get_contents(base_path('deployment/windows/Backup-EsteliPOS.ps1'));
     $installerBatch = file_get_contents(base_path('deployment/windows/Install-EsteliPOS.bat'));
     $verifyScript = file_get_contents(base_path('deployment/windows/Verify-PHP-EsteliPOS.ps1'));
     $updateScript = file_get_contents(base_path('deployment/windows/Update-EsteliPOS.ps1'));
     $commonScript = file_get_contents(base_path('deployment/windows/EsteliPOS-Common.ps1'));
+    $exeBootstrap = file_get_contents(base_path('deployment/windows/installer/Bootstrap-EsteliPOS-Setup.ps1'));
+    $innoSetup = file_get_contents(base_path('deployment/windows/installer/EsteliPOS-Setup.iss'));
+    $exeBuilder = file_get_contents(base_path('deployment/build-installer-exe.ps1'));
 
     expect($deployScript)
         ->toContain('APP_ENV" "production"')
         ->toContain('APP_DEBUG" "false"')
         ->toContain('DB_CONNECTION" "sqlite"')
+        ->toContain('DB_JOURNAL_MODE" "WAL"')
         ->toContain('[version]"8.4.1"')
         ->toContain('app:install-production')
         ->toContain('NonInteractive')
@@ -69,6 +74,7 @@ test('the windows deployment package is self contained and production safe', fun
         ->toContain('npm --prefix "$stage_dir" run build')
         ->toContain('git -C "$project_root" archive')
         ->toContain('storage/*.sqlite')
+        ->toContain('bootstrap/cache/routes-*.php')
         ->and(is_executable(base_path('deployment/build-release.sh')))->toBeTrue()
         ->and(file_exists(base_path('public/web.config')))->toBeTrue()
         ->and(file_exists(base_path('deployment/windows/EsteliPOS-IIS.ps1')))->toBeTrue()
@@ -107,14 +113,14 @@ test('the windows deployment package is self contained and production safe', fun
         ->and(file_exists(base_path('Instalar-EsteliPOS-Grafico.bat')))->toBeTrue()
         ->and(file_exists(base_path('deployment/windows/Install-EsteliPOS-GUI.ps1')))->toBeTrue()
         ->and(file_get_contents(base_path('deployment/INSTALAR.bat')))
-        ->toContain('INSTALADOR A PRUEBA DE ERRORES')
+        ->toContain('INSTALADOR DE CONSOLA A PRUEBA DE ERRORES')
         ->toContain('C:\\Northlink\\EsteliPOS')
         ->toContain('ACTUALIZAR')
         ->and(file_get_contents(base_path('deployment/build-release.sh')))
         ->toContain('INSTALAR.bat')
         ->and(file_get_contents(base_path('Instalar-EsteliPOS.bat')))
         ->toContain('vendor\\autoload.php')
-        ->toContain('Install-EsteliPOS-GUI.ps1')
+        ->not->toContain('Install-EsteliPOS-GUI.ps1')
         ->and(file_get_contents(base_path('Instalar-EsteliPOS-Grafico.bat')))
         ->toContain('Install-EsteliPOS-GUI.ps1')
         ->and(file_get_contents(base_path('deployment/windows/Install-EsteliPOS-GUI.ps1')))
@@ -138,9 +144,38 @@ test('the windows deployment package is self contained and production safe', fun
         ->and(file_exists(base_path('deployment/windows/templates/acceso-red.html')))->toBeTrue()
         ->and(file_exists(base_path('deployment/windows/assets/qrcode.min.js')))->toBeTrue()
         ->and($installerBatch)->toContain('exit /b 1')
-        ->and($installerBatch)->toContain('Install-EsteliPOS-GUI.ps1')
+        ->and($installerBatch)->not->toContain('Install-EsteliPOS-GUI.ps1')
+        ->and($installerBatch)->not->toContain('-SkipDemoData')
         ->and($verifyScript)->toContain('$script:Failures += $Message')
         ->toContain('$script:Warnings += $Message');
+
+    expect($backupScript)
+        ->toContain('database.sqlite')
+        ->toContain('estelipos-$Timestamp.sqlite')
+        ->not->toContain('mysqldump.exe');
+
+    expect($exeBootstrap)
+        ->toContain('Get-FileHash')
+        ->toContain('Expand-Archive')
+        ->toContain('ProgramData')
+        ->toContain('setup-exe-')
+        ->toContain('Show-SetupFailure')
+        ->toContain('notepad.exe')
+        ->toContain('Start-Process -FilePath $launcher')
+        ->and($innoSetup)
+        ->toContain('WizardStyle=modern')
+        ->toContain('PrivilegesRequired=admin')
+        ->toContain('ArchitecturesAllowed=x64compatible')
+        ->toContain('Bootstrap-EsteliPOS-Setup.ps1')
+        ->toContain('produccion1.0.zip.sha256')
+        ->toContain('waituntilterminated')
+        ->and($exeBuilder)
+        ->toContain('Inno Setup 6')
+        ->toContain('Get-FileHash')
+        ->toContain('EsteliPOS-Setup-$Version.exe')
+        ->and(file_exists(base_path('deployment/windows/installer/Bootstrap-EsteliPOS-Setup.ps1')))->toBeTrue()
+        ->and(file_exists(base_path('deployment/windows/installer/EsteliPOS-Setup.iss')))->toBeTrue()
+        ->and(file_exists(base_path('deployment/build-installer-exe.ps1')))->toBeTrue();
 
     expect($iisScript)
         ->toContain('rewrite_amd64_en-US.msi')
@@ -164,6 +199,8 @@ test('the windows deployment package is self contained and production safe', fun
         ->toContain('$SeenExtensions')
         ->toContain('-PhpPath $ManagedPhpPath')
         ->toContain('-n -r "echo PHP_VERSION;"')
+        ->toContain('pdo_sqlite')
+        ->toContain('sqlite3')
         ->and(hash_file('sha256', base_path('deployment/windows/assets/php-ts.zip')))
         ->toBe('7b57fc9840273ab153834d0e2bd06e0bcf4fead36e381182b4b8fe9cedff3174')
         ->and(hash_file('sha256', base_path('deployment/windows/assets/vc_redist.x64.exe')))
@@ -197,7 +234,7 @@ test('the windows deployment package is self contained and production safe', fun
         ->toContain('Invoke-EsteliPOSWalCheckpoint')
         ->toContain('PRAGMA wal_checkpoint(TRUNCATE)')
         ->and(file_get_contents(base_path('VERSION')))
-        ->toContain('1.0.7')
+        ->toContain('1.0.14')
         ->and(file_exists(base_path('deployment/windows/Bootstrap-UpdateFromZip.ps1')))->toBeTrue()
         ->and(file_get_contents(base_path('deployment/windows/Actualizar-EsteliPOS.bat')))
         ->toContain('Bootstrap-UpdateFromZip.ps1')
@@ -215,7 +252,9 @@ test('the windows deployment package is self contained and production safe', fun
     expect(file_get_contents(base_path('deployment/INSTALAR.bat')))
         ->toContain('set "DAMAGED=1"')
         ->toContain('instalacion existente SIN una base de datos valida')
-        ->toContain('Install-EsteliPOS-GUI.ps1')
+        ->toContain('INSTALADOR DE CONSOLA')
+        ->not->toContain('Install-EsteliPOS-GUI.ps1')
+        ->not->toContain('-STA')
         ->toContain("DestinationPath '!NEST_TMP!'")
         ->toContain("DestinationPath '!EXTRACT_TMP!'")
         ->not->toContain("DestinationPath '%NEST_TMP%'")
@@ -249,21 +288,26 @@ test('the windows release archive is complete clean and verifiable', function ()
     $innerName = 'EsteliPOSProduccion1.0.zip';
     $checksumName = $innerName.'.sha256';
     $easyInstaller = $outerArchive->getFromName('INSTALAR.bat');
-    $innerContents = $outerArchive->getFromName($innerName);
+    $consoleInstaller = $outerArchive->getFromName('INSTALAR-CONSOLA.bat');
     $checksumContents = $outerArchive->getFromName($checksumName);
+    $temporaryDirectory = sys_get_temp_dir().'/estelipos-release-'.bin2hex(random_bytes(6));
+    mkdir($temporaryDirectory, 0700, true);
+    expect($outerArchive->extractTo($temporaryDirectory, [$innerName]))->toBeTrue();
     $outerArchive->close();
 
+    $temporaryInnerPath = $temporaryDirectory.'/'.$innerName;
+
     expect($easyInstaller)->not->toBeFalse()
-        ->and((string) $easyInstaller)->toContain('INSTALADOR A PRUEBA DE ERRORES')
-        ->and($innerContents)->not->toBeFalse()
+        ->and((string) $easyInstaller)->toContain('INSTALADOR DE CONSOLA A PRUEBA DE ERRORES')
+        ->and((string) $easyInstaller)->not->toContain('Install-EsteliPOS-GUI.ps1')
+        ->and((string) $easyInstaller)->not->toContain('-STA')
+        ->and($consoleInstaller)->toBe($easyInstaller)
+        ->and(file_exists($temporaryInnerPath))->toBeTrue()
         ->and($checksumContents)->not->toBeFalse()
         ->and(trim((string) $checksumContents))->toMatch('/^[a-f0-9]{64}\s+EsteliPOSProduccion1\.0\.zip$/');
 
     $expectedHash = strtok(trim((string) $checksumContents), " \t");
-    expect(hash('sha256', (string) $innerContents))->toBe($expectedHash);
-
-    $temporaryInnerPath = tempnam(sys_get_temp_dir(), 'estelipos-release-');
-    file_put_contents($temporaryInnerPath, $innerContents);
+    expect(hash_file('sha256', $temporaryInnerPath))->toBe($expectedHash);
 
     $innerArchive = new ZipArchive;
     expect($innerArchive->open($temporaryInnerPath))->toBeTrue();
@@ -274,12 +318,11 @@ test('the windows release archive is complete clean and verifiable', function ()
     }
     $innerArchive->close();
     unlink($temporaryInnerPath);
+    rmdir($temporaryDirectory);
 
     expect($entries)
         ->toContain('EsteliPOS/Instalar-EsteliPOS.bat')
-        ->toContain('EsteliPOS/Instalar-EsteliPOS-Grafico.bat')
         ->toContain('EsteliPOS/Actualizar-EsteliPOS.bat')
-        ->toContain('EsteliPOS/deployment/windows/Install-EsteliPOS-GUI.ps1')
         ->toContain('EsteliPOS/deployment/windows/Actualizar-EsteliPOS.bat')
         ->toContain('EsteliPOS/deployment/windows/Update-EsteliPOS.ps1')
         ->toContain('EsteliPOS/vendor/autoload.php')
@@ -288,8 +331,17 @@ test('the windows release archive is complete clean and verifiable', function ()
         ->toContain('EsteliPOS/deployment/windows/assets/php-ts.zip')
         ->toContain('EsteliPOS/deployment/windows/assets/rewrite_amd64_en-US.msi')
         ->toContain('EsteliPOS/deployment/windows/assets/vc_redist.x64.exe')
+        ->not->toContain('EsteliPOS/Instalar-EsteliPOS-Grafico.bat')
+        ->not->toContain('EsteliPOS/deployment/windows/Install-EsteliPOS-GUI.ps1')
+        ->and(collect($entries)->contains(fn (string $entry): bool => str_starts_with($entry, 'EsteliPOS/deployment/windows/installer/')))->toBeFalse()
         ->and(collect($entries)->contains(fn (string $entry): bool => str_ends_with($entry, '.sqlite')))->toBeFalse()
+        ->and(collect($entries)->contains(fn (string $entry): bool => str_contains(strtolower($entry), 'mysql-8.4')))->toBeFalse()
+        ->and(collect($entries)->contains(fn (string $entry): bool => preg_match('#^EsteliPOS/bootstrap/cache/(config|events|routes-[^/]+)\.php$#', $entry) === 1))->toBeFalse()
         ->and(collect($entries)->contains(fn (string $entry): bool => str_starts_with($entry, 'EsteliPOS/tests/')))->toBeFalse()
+        ->and(collect($entries)->contains(fn (string $entry): bool => str_starts_with($entry, 'EsteliPOS/deployment/client-inventory/')))->toBeFalse()
+        ->and(collect($entries)->contains(fn (string $entry): bool => $entry === 'EsteliPOS/scripts/extract-client-inventory.py'))->toBeFalse()
+        ->and(collect($entries)->contains(fn (string $entry): bool => str_starts_with($entry, 'EsteliPOS/database/seeders/assets/')))->toBeTrue()
+        ->and(collect($entries)->contains(fn (string $entry): bool => str_starts_with($entry, 'EsteliPOS/storage/app/') && ! str_ends_with($entry, '/')))->toBeFalse()
         ->and(collect($entries)->contains(fn (string $entry): bool => $entry === 'EsteliPOS/.env'))->toBeFalse();
 })->skip(
     ! file_exists(dirname(__DIR__, 2).'/deployment/parche1.0.zip'),

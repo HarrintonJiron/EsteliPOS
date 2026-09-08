@@ -20,6 +20,7 @@ class CreditPayment extends Model
         'reference_number',
         'notes',
         'user_id',
+        'caja_session_id',
     ];
 
     protected $casts = [
@@ -40,5 +41,10 @@ class CreditPayment extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cajaSession()
+    {
+        return $this->belongsTo(CajaSession::class);
     }
 }

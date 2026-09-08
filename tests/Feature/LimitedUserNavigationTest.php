@@ -87,7 +87,7 @@ test('a limited user cannot execute a hidden mutation by direct url', function (
 });
 
 test('every authenticated business mutation declares an action permission', function () {
-    $exceptions = ['logout', 'password.update'];
+    $exceptions = ['logout', 'password.update', 'auth.switch-user'];
 
     $unprotected = collect(Route::getRoutes())->filter(function ($route) use ($exceptions): bool {
         $methods = $route->methods();

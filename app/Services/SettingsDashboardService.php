@@ -74,13 +74,13 @@ class SettingsDashboardService
                 'system-reset',
                 'system',
                 '🧪',
-                'Ambiente de pruebas',
-                'Reinicia los datos en limpio o carga información de demostración.',
+                'Entregar en limpio',
+                'Elimina la operación de capacitación o vuelve a cargar la demostración.',
                 'Zona de riesgo',
                 'danger',
                 'Requiere confirmación',
                 route('settings.system-reset.create'),
-                'Abrir',
+                'Preparar entrega',
                 true,
             );
         }

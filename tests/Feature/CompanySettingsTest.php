@@ -4,6 +4,7 @@ use App\Models\AuditLog;
 use App\Models\Role;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\ImageProcessingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -63,6 +64,8 @@ test('client branding uses a prominent logo and identifies the system developer'
     $this->actingAs($admin)->get(route('settings.general'))
         ->assertOk()
         ->assertSee('data-company-logo', false)
+        ->assertSee('data-application-brand', false)
+        ->assertSee('EsteliPOS')
         ->assertSee('sidebar-brand-logo', false)
         ->assertSee('rounded-full', false);
 
@@ -71,7 +74,21 @@ test('client branding uses a prominent logo and identifies the system developer'
     $this->get(route('login'))
         ->assertOk()
         ->assertSee('data-developer-credit', false)
-        ->assertSee('Northlink Microsystem');
+        ->assertSee('Northlink Microsystem')
+        ->assertSee('login-hero-nicaragua-v2.png', false)
+        ->assertSee('northlink-logo-login.png', false)
+        ->assertSee('login-hero-product', false)
+        ->assertSee('Sistema de punto de venta')
+        ->assertSee('Contactar a Northlink');
+
+    $this->actingAs($admin)->get(route('help.index'))
+        ->assertOk()
+        ->assertSee('Soporte oficial')
+        ->assertSee('EsteliPOS')
+        ->assertSee('Desarrollado por Northlink Microsystem')
+        ->assertSee('Northlink Microsystem')
+        ->assertSee('northlinkni.com');
+
 });
 
 test('company settings are validated persisted and audited', function () {
@@ -113,7 +130,20 @@ test('company and ticket logos are stored on the public disk', function () {
     expect($companyLogo)->toStartWith('company/')
         ->and($ticketLogo)->toStartWith('company/');
     Storage::disk('public')->assertExists([$companyLogo, $ticketLogo]);
-    $this->get('/media/'.$companyLogo)->assertSuccessful();
+    $this->get('/media/'.$companyLogo)
+        ->assertSuccessful()
+        ->assertHeader('Content-Type', str_ends_with($companyLogo, '.webp') ? 'image/webp' : 'image/jpeg')
+        ->assertHeader('X-Content-Type-Options', 'nosniff');
+});
+
+test('the preventive image pipeline command verifies storage without leaving files', function () {
+    Storage::fake('public');
+
+    $this->artisan('app:verify-image-pipeline')
+        ->expectsOutputToContain('[OK] El manejo de logos e imágenes está operativo.')
+        ->assertSuccessful();
+
+    expect(Storage::disk('public')->allFiles('company/.health-check'))->toBeEmpty();
 });
 
 test('oversized company logos are resized and optimized automatically', function () {
@@ -136,6 +166,49 @@ test('oversized company logos are resized and optimized automatically', function
     expect($size)->not->toBeFalse()
         ->and($size[0])->toBeLessThanOrEqual(1200)
         ->and($size[1])->toBeLessThanOrEqual(1200);
+});
+
+test('a logo processing failure returns to settings with a visible error instead of a blank response', function () {
+    Storage::fake('public');
+    $admin = companyAdmin();
+    $processor = Mockery::mock(ImageProcessingService::class);
+    $processor->shouldReceive('storePublicImage')
+        ->once()
+        ->andThrow(new RuntimeException('Fallo controlado del procesador'));
+    app()->instance(ImageProcessingService::class, $processor);
+
+    $response = $this->actingAs($admin)->post(route('settings.general.update'), validCompanySettings([
+        'company_logo' => UploadedFile::fake()->image('empresa.png', 600, 300),
+    ]));
+
+    $response->assertRedirect()
+        ->assertSessionHasErrors(['company_logo']);
+
+    expect(Setting::get('company_logo'))->toBeNull()
+        ->and(AuditLog::where('action', 'settings.company.updated')->exists())->toBeFalse();
+});
+
+test('logos above the safe upload size are rejected without changing company settings', function () {
+    Storage::fake('public');
+    $admin = companyAdmin();
+
+    $this->actingAs($admin)->post(route('settings.general.update'), validCompanySettings([
+        'ticket_logo' => UploadedFile::fake()->create('ticket.png', 8193, 'image/png'),
+    ]))->assertSessionHasErrors(['ticket_logo']);
+
+    expect(Setting::get('ticket_logo'))->toBeNull();
+});
+
+test('logos with unsafe pixel dimensions are rejected before gd decodes them', function () {
+    Storage::fake('public');
+    $admin = companyAdmin();
+
+    $this->actingAs($admin)->post(route('settings.general.update'), validCompanySettings([
+        'company_logo' => UploadedFile::fake()->image('demasiado-grande.png', 5000, 5000),
+    ]))->assertSessionHasErrors(['company_logo']);
+
+    expect(Setting::get('company_logo'))->toBeNull()
+        ->and(Storage::disk('public')->allFiles('company'))->toBeEmpty();
 });
 
 test('invalid company data and unsafe logo formats are rejected', function () {

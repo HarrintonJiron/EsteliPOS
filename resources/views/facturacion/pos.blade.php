@@ -8,7 +8,7 @@
 
 @section('content')
 
-<div id="posApp" class="flex h-full min-h-0 flex-col overflow-y-auto bg-slate-50 sm:flex-row sm:overflow-hidden"
+<div id="posApp" class="pos-shell flex h-full min-h-0 flex-col overflow-hidden bg-slate-50 md:flex-row"
      data-products='@json($products)'
      data-clients='@json($clients)'
      data-categories='@json($categories)'
@@ -28,7 +28,7 @@
     <input type="file" id="posProductImageInput" class="hidden" accept="image/jpeg,image/png,image/webp" capture="environment">
 
     {{-- COLUMNA IZQUIERDA: TICKET --}}
-    <div class="flex max-h-[55vh] min-h-[24rem] w-full shrink-0 flex-col border-b border-slate-200 bg-white sm:h-full sm:max-h-none sm:min-h-0 sm:min-w-[280px] sm:max-w-[520px] sm:w-2/5 sm:border-b-0 sm:border-r">
+    <div class="pos-ticket-col min-h-0 w-full flex-[1.05] overflow-hidden border-b border-slate-200 bg-white md:h-full md:max-h-none md:min-w-[280px] md:max-w-[480px] md:w-[38%] md:flex-none md:border-b-0 md:border-r">
 
         {{-- Barra de acciones rápidas --}}
         <div class="px-4 py-2 bg-slate-800 text-white flex items-center justify-between text-xs shrink-0">
@@ -41,7 +41,7 @@
             </div>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto border-b border-slate-200">
+        <div id="ticketScroller" class="min-h-0 overflow-y-auto border-b border-slate-200">
             <div id="ticketItems" class="divide-y divide-slate-100"></div>
             <div id="emptyTicket" class="flex h-full flex-col items-center justify-center py-12 text-slate-400">
                 <svg class="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -52,83 +52,82 @@
             </div>
         </div>
 
-        <div class="bg-slate-100 px-6 py-4 border-b border-slate-200 shrink-0">
-            <div class="space-y-2">
-                <div class="flex justify-between text-sm text-slate-600">
+        <div class="pos-ticket-totals shrink-0 border-b border-slate-200 bg-slate-100 px-4 py-2.5">
+            <div class="space-y-1">
+                <div class="flex justify-between text-xs text-slate-600">
                     <span>Subtotal</span>
                     <span id="subtotalDisplay" class="font-medium">C$ 0.00</span>
                 </div>
-                <div class="flex justify-between text-sm text-slate-600">
+                <div class="flex justify-between text-xs text-slate-600">
                     <span id="orderDiscountLabel" class="hidden">Descuento</span>
                     <span id="discountDisplay" class="font-medium text-red-600 hidden">-C$ 0.00</span>
                 </div>
-                <div class="flex justify-between text-sm text-slate-600">
+                <div class="flex justify-between text-xs text-slate-600">
                     <span id="taxLabel">IVA ({{ number_format($defaultTaxRate * 100, 2) }}%)</span>
                     <span id="taxDisplay" class="font-medium">C$ 0.00</span>
                 </div>
-                <div class="border-t border-slate-300 pt-2 flex justify-between items-end gap-2">
-                    <span class="text-sm font-semibold text-slate-700">Total</span>
+                <div class="flex items-end justify-between gap-2 border-t border-slate-300 pt-1.5">
+                    <span class="text-xs font-semibold text-slate-700">Total</span>
                     <div class="text-right">
-                        <span id="totalDisplay" class="block text-3xl font-bold text-slate-900">C$ 0.00</span>
-                        <span id="totalReferenceDisplay" class="hidden text-xs font-semibold text-slate-500"></span>
+                        <span id="totalDisplay" class="block text-2xl font-bold leading-none text-slate-900">C$ 0.00</span>
+                        <span id="totalReferenceDisplay" class="hidden text-[11px] font-semibold text-slate-500"></span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="max-h-[45%] shrink-0 space-y-3 overflow-y-auto p-4">
-            <button type="button" id="clientBtn" onclick="openClientModal()"
-                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl px-4 transition-all shadow-md text-sm flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                <span id="clientDisplay">Cliente General</span>
-            </button>
-
-            <button type="button" onclick="openDiscountModal()"
-                class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 rounded-xl px-4 transition-all shadow-md text-sm flex items-center justify-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
-                <span>Descuento Factura</span>
-            </button>
-
-            <div id="selectedItemBar" class="hidden bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-xs text-indigo-800">
-                Editando: <span id="selectedItemName" class="font-semibold"></span> · Cant: <span id="selectedItemQty" class="font-bold">0</span>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2">
-                @foreach(['7','8','9','4','5','6','1','2','3'] as $key)
-                <button type="button" onclick="padInput('{{ $key }}')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 rounded-xl text-sm shadow-sm">{{ $key }}</button>
-                @endforeach
-                <button type="button" onclick="padInput('0')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 rounded-xl text-sm shadow-sm col-span-2">0</button>
-                <button type="button" onclick="padInput('.')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 rounded-xl text-sm shadow-sm">.</button>
-            </div>
-
+        <div class="pos-ticket-actions space-y-2 p-3">
             <div class="grid grid-cols-2 gap-2">
-                <button type="button" onclick="padBackspace()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded-xl text-sm">Borrar</button>
-                <button type="button" onclick="padConfirm()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl text-sm">Confirmar cant.</button>
+                <button type="button" id="clientBtn" onclick="openClientModal()"
+                    class="flex min-w-0 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-2.5 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 sm:text-sm">
+                    <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                    <span id="clientDisplay" class="truncate">Cliente General</span>
+                </button>
+
+                <button type="button" onclick="openDiscountModal()"
+                    class="flex min-w-0 items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-2.5 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-teal-700 sm:text-sm">
+                    <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                    <span class="truncate">Descuento</span>
+                </button>
             </div>
+
+            @include('facturacion._numpad')
         </div>
     </div>
 
     {{-- COLUMNA DERECHA: PRODUCTOS Y PAGO --}}
-    <div class="flex min-h-[36rem] min-w-0 flex-1 flex-col bg-white sm:min-h-0">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
 
-        <div class="shrink-0 space-y-2 border-b border-slate-200 bg-white p-3">
-            <div class="flex items-center gap-2 overflow-x-auto pb-1 text-[11px] text-slate-500" aria-label="Atajos de teclado del punto de venta">
+        <div class="shrink-0 space-y-2 border-b border-slate-200 bg-white p-2.5 sm:p-3">
+            <div class="flex items-center gap-2 overflow-x-auto text-[11px] text-slate-500" aria-label="Atajos de teclado del punto de venta">
                 <button type="button" onclick="showShortcutHelp()" class="shrink-0 rounded-md bg-slate-800 px-2 py-1 font-semibold text-white" title="Ver todos los atajos">F1 Atajos</button>
-                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F2</b> Buscar</span>
-                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F3</b> Cliente</span>
-                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F4</b> Apartar</span>
-                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F6</b> Recuperar</span>
-                <span class="shrink-0 rounded-md bg-indigo-50 px-2 py-1 font-semibold text-indigo-700"><b>F9</b> Cobrar</span>
-                <span class="shrink-0 rounded-md bg-slate-100 px-2 py-1"><b>F10</b> Corte</span>
+                <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 lg:inline"><b>F2</b> Buscar</span>
+                <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 lg:inline"><b>F3</b> Cliente</span>
+                <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 2xl:inline"><b>F4</b> Apartar</span>
+                <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 2xl:inline"><b>F6</b> Recuperar</span>
+                <span class="hidden shrink-0 rounded-md bg-indigo-50 px-2 py-1 font-semibold text-indigo-700 lg:inline"><b>F9</b> Cobrar</span>
+                <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 2xl:inline"><b>F10</b> Corte</span>
+                <div class="ml-auto hidden shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-gradient-to-r from-white to-teal-50 px-3 py-1 shadow-sm lg:flex"
+                     data-pos-application-brand
+                     aria-label="EsteliPOS, desarrollado por Northlink Microsystem">
+                    <img src="{{ asset('images/northlink-logo-login.png') }}"
+                         alt="Logo de {{ config('northlink.name') }}"
+                         class="h-7 w-auto max-w-[6.5rem] object-contain">
+                    <span class="h-6 w-px bg-slate-200" aria-hidden="true"></span>
+                    <div>
+                        <p class="text-sm font-black leading-none tracking-tight text-teal-700">{{ config('northlink.product') }}</p>
+                        <p class="mt-0.5 text-[8px] font-bold uppercase leading-none tracking-[0.08em] text-slate-500">{{ config('northlink.name') }}</p>
+                    </div>
+                </div>
             </div>
             <div>
-                <label for="productSearch" class="mb-1 block text-xs font-semibold text-slate-600">Buscar producto</label>
+                <label for="productSearch" class="mb-1 hidden text-xs font-semibold text-slate-600 sm:block">Buscar producto</label>
                 <div class="relative">
                     <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m1.35-5.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/>
                     </svg>
                     <input type="search" id="productSearch" placeholder="Nombre o código de barras; Enter para agregar..."
-                        class="input-with-leading-icon w-full rounded-xl border border-slate-300 py-2.5 pr-4 text-sm focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600" autocomplete="off">
+                        class="input-with-leading-icon w-full rounded-xl border border-slate-300 py-2 pr-4 text-sm focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 sm:py-2.5" autocomplete="off">
                 </div>
             </div>
             <div class="flex min-w-0 flex-col gap-2 sm:flex-row">
@@ -138,19 +137,19 @@
                         <option value="{{ $wh->id }}">{{ $wh->name }}{{ $wh->is_default ? ' · Principal' : '' }}</option>
                     @endforeach
                 </select>
-                <button type="button" onclick="applyOrderDiscount()" class="shrink-0 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200" title="Descuento global">% Descuento</button>
+                <button type="button" onclick="applyOrderDiscount()" class="shrink-0 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100" title="Descuento global">% Descuento</button>
             </div>
-            <p id="warehouseHint" class="text-[11px] text-slate-500">Si no eliges bodega, el sistema descuenta de la que tenga stock disponible.</p>
+            <p id="warehouseHint" class="hidden text-[11px] text-slate-500 xl:block">Si no eliges bodega, el sistema descuenta de la que tenga stock disponible.</p>
             <div id="categoryTabs" class="flex gap-2 overflow-x-auto pb-1"></div>
         </div>
 
-        <div id="productsGrid" class="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4">
+        <div id="productsGrid" class="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-2 sm:p-3 lg:p-4">
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5"></div>
         </div>
 
-        <div class="max-h-[50%] shrink-0 space-y-2 overflow-y-auto border-t border-slate-200 bg-white p-4">
-            <label class="block text-sm font-semibold text-slate-700">Método de Pago</label>
-            <div class="grid grid-cols-2 gap-2">
+        <div class="pos-pay-dock shrink-0 space-y-2 border-t border-slate-200 bg-white p-3">
+            <label class="block text-xs font-semibold text-slate-700 sm:text-sm">Método de Pago</label>
+            <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
                 @foreach([
                     ['cash', 'Efectivo', 'Pago en efectivo', 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z'],
                     ['card', 'Tarjeta', 'Crédito / débito', 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z'],
@@ -164,7 +163,7 @@
                     </div>
                     <div class="min-w-0">
                         <p class="font-semibold text-slate-800 truncate">{{ $title }}</p>
-                        <p class="text-xs text-slate-500 truncate">{{ $sub }}</p>
+                        <p class="pos-pay-sub text-xs text-slate-500 truncate">{{ $sub }}</p>
                     </div>
                 </button>
                 @endforeach
@@ -188,7 +187,7 @@
             </div>
 
             <button type="button" id="payBtn" onclick="initiatePayment()"
-                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
+                class="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 font-bold text-white shadow-lg transition-all hover:bg-indigo-700">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 <span>PAGAR (F9)</span>
                 <span id="payBtnAmount">C$ 0.00</span>
@@ -315,18 +314,18 @@
             <div class="p-4 space-y-4">
                 <div class="flex gap-2">
                     <button type="button" onclick="setDiscountType('percentage')" id="discountTypePercentage"
-                        class="flex-1 py-2 px-4 rounded-xl font-semibold border-2 border-amber-500 bg-amber-50 text-amber-700">
+                        class="flex-1 rounded-xl border-2 border-teal-600 bg-teal-50 px-4 py-2 font-semibold text-teal-800">
                         Porcentaje %
                     </button>
                     <button type="button" onclick="setDiscountType('fixed')" id="discountTypeFixed"
-                        class="flex-1 py-2 px-4 rounded-xl font-semibold border-2 border-slate-200 text-slate-600 hover:border-slate-300">
+                        class="flex-1 rounded-xl border-2 border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:border-slate-300">
                         Monto Fijo C$
                     </button>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1" id="discountInputLabel">Porcentaje de descuento</label>
-                    <input type="number" id="discountValue" step="0.01" min="0" placeholder="0" 
-                        class="w-full px-4 py-3 text-xl font-bold border-2 border-slate-200 rounded-xl focus:border-amber-500 focus:outline-none text-center bg-slate-50">
+                    <label class="mb-1 block text-sm font-semibold text-slate-700" id="discountInputLabel">Porcentaje de descuento</label>
+                    <input type="number" id="discountValue" step="0.01" min="0" placeholder="0"
+                        class="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-center text-xl font-bold focus:border-teal-600 focus:outline-none">
                 </div>
                 <div class="bg-slate-50 rounded-xl p-4">
                     <div class="flex justify-between text-sm text-slate-600 mb-2">
@@ -345,7 +344,7 @@
             </div>
             <div class="p-4 border-t border-slate-200 space-y-2">
                 <button type="button" onclick="applyInvoiceDiscount()"
-                    class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 rounded-xl">Aplicar Descuento</button>
+                    class="w-full rounded-xl bg-teal-600 py-2 font-semibold text-white hover:bg-teal-700">Aplicar Descuento</button>
                 <button type="button" onclick="removeInvoiceDiscount()"
                     class="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 rounded-xl">Eliminar Descuento</button>
                 <button type="button" onclick="document.getElementById('discountModal').classList.add('hidden')"
@@ -536,6 +535,10 @@ document.addEventListener('DOMContentLoaded', function() {
             name: u.name,
             factor_to_base: parseFloat(u.factor_to_base ?? 1) || 1,
             price: parseFloat(u.price ?? 0),
+            price_breaks: (u.price_breaks || []).map(tier => ({
+                min_quantity: parseFloat(tier.min_quantity),
+                price: parseFloat(tier.price),
+            })),
             stock: parseFloat(u.stock ?? 0),
             is_default: !!u.is_default,
         })),
@@ -596,6 +599,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function productUnit(product, unitId) {
         return (product.sale_units || []).find(u => u.id == unitId) || product.sale_units?.[0];
+    }
+
+    function tierPrice(unit, quantity) {
+        const eligible = (unit?.price_breaks || [])
+            .filter(tier => tier.min_quantity <= quantity)
+            .sort((a, b) => b.min_quantity - a.min_quantity)[0];
+        return eligible ? eligible.price : parseFloat(unit?.price ?? 0);
+    }
+
+    function nextTierHint(unit, quantity) {
+        const next = (unit?.price_breaks || [])
+            .filter(tier => tier.min_quantity > quantity)
+            .sort((a, b) => a.min_quantity - b.min_quantity)[0];
+        if (!next) return '';
+        return `Agrega ${formatQty(next.min_quantity - quantity)} más y paga ${formatMoney(next.price)} c/u`;
+    }
+
+    function refreshTicketTierPrices() {
+        ticket.forEach(item => {
+            const product = products.find(candidate => candidate.id == item.product_id);
+            const unit = product ? productUnit(product, item.unit_id) : null;
+            if (unit) item.price = tierPrice(unit, parseFloat(item.quantity) || 1);
+        });
     }
 
     window.cardUnitId = function(productId) {
@@ -792,15 +818,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const label = document.getElementById('discountInputLabel');
         
         if (type === 'percentage') {
-            percentageBtn.classList.add('border-amber-500', 'bg-amber-50', 'text-amber-700');
+            percentageBtn.classList.add('border-teal-600', 'bg-teal-50', 'text-teal-800');
             percentageBtn.classList.remove('border-slate-200', 'text-slate-600');
-            fixedBtn.classList.remove('border-amber-500', 'bg-amber-50', 'text-amber-700');
+            fixedBtn.classList.remove('border-teal-600', 'bg-teal-50', 'text-teal-800');
             fixedBtn.classList.add('border-slate-200', 'text-slate-600');
             label.textContent = 'Porcentaje de descuento';
         } else {
-            fixedBtn.classList.add('border-amber-500', 'bg-amber-50', 'text-amber-700');
+            fixedBtn.classList.add('border-teal-600', 'bg-teal-50', 'text-teal-800');
             fixedBtn.classList.remove('border-slate-200', 'text-slate-600');
-            percentageBtn.classList.remove('border-amber-500', 'bg-amber-50', 'text-amber-700');
+            percentageBtn.classList.remove('border-teal-600', 'bg-teal-50', 'text-teal-800');
             percentageBtn.classList.add('border-slate-200', 'text-slate-600');
             label.textContent = 'Monto de descuento (C$)';
         }
@@ -945,8 +971,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const referenceCurrency = app.dataset.referenceCurrency || 'USD';
     const referenceRate = parseFloat(app.dataset.referenceRate || '0');
 
+    function roundMoney(v) {
+        const amount = parseFloat(v || 0);
+
+        return Math.round((amount + Number.EPSILON) * 100) / 100;
+    }
+
     function formatMoney(v) {
-        return companySymbol + ' ' + parseFloat(v || 0).toFixed(2);
+        return companySymbol + ' ' + roundMoney(v).toFixed(2);
     }
 
     function toReferenceAmount(v) {
@@ -1132,6 +1164,26 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    function revealTicketLine(index) {
+        requestAnimationFrame(() => {
+            const scroller = document.getElementById('ticketScroller');
+            const row = scroller?.querySelector(`[data-ticket-idx="${index}"]`);
+            if (!scroller || !row) {
+                return;
+            }
+
+            row.classList.add('ticket-line--fresh');
+            const rowBox = row.getBoundingClientRect();
+            const viewBox = scroller.getBoundingClientRect();
+            const padding = 8;
+            if (rowBox.bottom > viewBox.bottom - padding) {
+                scroller.scrollTop += rowBox.bottom - viewBox.bottom + padding;
+            } else if (rowBox.top < viewBox.top + padding) {
+                scroller.scrollTop -= viewBox.top - rowBox.top + padding;
+            }
+        });
+    }
+
     function renderTicket() {
         const container = document.getElementById('ticketItems');
         const emptyMsg = document.getElementById('emptyTicket');
@@ -1146,8 +1198,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         emptyMsg.classList.add('hidden');
+        refreshTicketTierPrices();
         container.innerHTML = ticket.map((item, idx) => `
-            <div onclick="selectTicketItem(${idx})" class="p-3 cursor-pointer transition-colors group border-b border-slate-100 ${selectedItemIndex === idx ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : 'hover:bg-slate-50'}">
+            <div onclick="selectTicketItem(${idx})" data-ticket-idx="${idx}" class="p-3 cursor-pointer transition-colors group border-b border-slate-100 ${selectedItemIndex === idx ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : 'hover:bg-slate-50'}">
                 <div class="flex justify-between items-start gap-2">
                     <div class="flex-1 min-w-0">
                         <p class="font-semibold text-slate-900 text-sm truncate">${item.name}</p>
@@ -1165,6 +1218,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             ${item.discount > 0 ? `<span class="text-red-600">-${item.discount}%</span>` : ''}
                             ${item.source_warehouse_name ? `<span class="text-indigo-600">${item.source_warehouse_name}</span>` : ''}
                         </div>
+                        ${(() => {
+                            const product = products.find(p => p.id == item.product_id);
+                            const hint = nextTierHint(productUnit(product, item.unit_id), parseFloat(item.quantity) || 1);
+                            return hint ? `<p class="mt-1 text-[11px] font-semibold text-emerald-700">${hint}</p>` : '';
+                        })()}
                     </div>
                     <div class="text-right shrink-0">
                         <p class="font-bold text-slate-900 text-sm">${formatMoney(lineSubtotal(item))}</p>
@@ -1190,6 +1248,7 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedItemIndex = idx;
         padBuffer = String(ticket[idx].quantity);
         renderTicket();
+        expandPosPad();
     };
 
     window.addProductToTicket = function(productId, qty = 1, unitId = null) {
@@ -1226,25 +1285,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (existing) {
             existing.quantity = newQty;
+            existing.price = tierPrice(unit, newQty);
             existing.max_stock = maxQty;
             existing.source_warehouse_id = product.preferred_warehouse_id || selectedWarehouseId;
             existing.source_warehouse_name = product.preferred_warehouse_name || null;
-        } else {
-            ticket.push({
-                product_id: productId,
-                unit_id: resolvedUnitId,
-                unit_label: unit?.abbreviation ?? product.unit_label,
-                name: product.name,
-                price: unitPrice,
-                quantity: qty,
-                discount: product.discount_pct || 0,
-                tax_rate: product.tax_rate,
-                max_stock: maxQty,
-                source_warehouse_id: product.preferred_warehouse_id || selectedWarehouseId,
-                source_warehouse_name: product.preferred_warehouse_name || null,
-            });
+            renderTicket();
+            revealTicketLine(existingIdx);
+            return;
         }
+
+        ticket.push({
+            product_id: productId,
+            unit_id: resolvedUnitId,
+            unit_label: unit?.abbreviation ?? product.unit_label,
+            name: product.name,
+            price: tierPrice(unit, qty),
+            quantity: qty,
+            discount: product.discount_pct || 0,
+            tax_rate: product.tax_rate,
+            max_stock: maxQty,
+            source_warehouse_id: product.preferred_warehouse_id || selectedWarehouseId,
+            source_warehouse_name: product.preferred_warehouse_name || null,
+        });
         renderTicket();
+        revealTicketLine(ticket.length - 1);
     };
 
     window.changeTicketUnit = function(idx, unitId) {
@@ -1264,7 +1328,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const mergedIdx = otherIdx > idx ? otherIdx - 1 : otherIdx;
             const merged = ticket[mergedIdx];
             const maxQty = maxPresentationQty(product, unit, mergedIdx);
-            merged.price = unit.price;
+            merged.price = tierPrice(unit, merged.quantity);
             merged.unit_id = unit.id;
             merged.unit_label = unit.abbreviation;
             merged.max_stock = maxQty;
@@ -1277,7 +1341,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const maxQty = maxPresentationQty(product, unit, idx);
         item.unit_id = unit.id;
         item.unit_label = unit.abbreviation;
-        item.price = unit.price;
+        item.price = tierPrice(unit, item.quantity);
         item.max_stock = maxQty;
         if (item.quantity > maxQty) item.quantity = maxQty;
         renderTicket();
@@ -1312,11 +1376,33 @@ document.addEventListener('DOMContentLoaded', function() {
         renderTicket();
     };
 
+    function setPosPadOpen(open) {
+        const pad = document.getElementById('posNumpad');
+        const toggle = document.getElementById('posPadToggle');
+        if (!pad) return;
+        pad.classList.toggle('pos-pad--open', open);
+        if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open && selectedItemIndex >= 0) {
+            window.setTimeout(() => revealTicketLine(selectedItemIndex), 280);
+        }
+    }
+
+    window.togglePosPad = function() {
+        const pad = document.getElementById('posNumpad');
+        if (!pad) return;
+        setPosPadOpen(!pad.classList.contains('pos-pad--open'));
+    };
+
+    window.expandPosPad = function() {
+        setPosPadOpen(true);
+    };
+
     window.padInput = function(key) {
         if (selectedItemIndex < 0) {
             alert('Selecciona un producto del ticket para editar cantidad');
             return;
         }
+        expandPosPad();
         if (padBuffer === '0' && key !== '.') padBuffer = key;
         else padBuffer += key;
         document.getElementById('selectedItemQty').textContent = padBuffer || '0';
@@ -1327,6 +1413,23 @@ document.addEventListener('DOMContentLoaded', function() {
         if (selectedItemIndex >= 0) {
             document.getElementById('selectedItemQty').textContent = padBuffer || '0';
         }
+    };
+
+    window.padAdjust = function(delta) {
+        if (selectedItemIndex < 0) return;
+        const item = ticket[selectedItemIndex];
+        const product = products.find(p => p.id == item.product_id);
+        const maxStock = maxPresentationQty(product, productUnit(product, item.unit_id), selectedItemIndex);
+        const current = parseFloat(padBuffer || item.quantity) || 1;
+        const next = Math.round((current + delta) * 100) / 100;
+        if (next < 0.01) return;
+        if (next > maxStock) {
+            alert(`Stock máximo: ${formatQty(maxStock)} ${item.unit_label || ''} (hay ${formatQty(product?.total_stock ?? 0)} ${product?.base_unit_label || 'und'})`);
+            return;
+        }
+        item.quantity = next;
+        padBuffer = String(next);
+        renderTicket();
     };
 
     window.padConfirm = function() {

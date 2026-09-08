@@ -4,45 +4,40 @@
 
 @section('content')
 
-<div class="space-y-4">
+<div class="ex-shell">
 
     @include('inventario._hub-nav')
 
-    <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-            <h2 class="text-lg font-bold text-slate-900">Dashboard de inventario</h2>
-            <p class="text-xs text-slate-500">Análisis · últimos {{ $periodDays }} días</p>
-        </div>
-        <div class="flex gap-1.5">
-            <a href="{{ route('inventario.index') }}" class="btn-outline text-xs py-1.5">Catálogo</a>
+    <x-ui.command-hero
+        kicker="Bodega"
+        title="Dashboard de inventario"
+        :subtitle="'Análisis · últimos ' . $periodDays . ' días'"
+        metric-label="Valor inventario"
+        :metric-value="'C$ ' . number_format($stats['total_inventory_value'], 0)"
+        :stats="[
+            ['label' => 'Entradas', 'value' => '+' . number_format($movementStats['entries'])],
+            ['label' => 'Salidas', 'value' => '−' . number_format($movementStats['exits'])],
+            ['label' => 'Productos', 'value' => number_format($stats['total_products'] ?? 0)],
+        ]"
+        :compact="true"
+    >
+        <x-slot:actions>
+            <a href="{{ route('inventario.index') }}" class="ex-btn">Catálogo</a>
             @if(auth()->user()?->isAdmin() && count($discrepancies) > 0)
             <form action="{{ route('inventario.reconcile') }}" method="POST" onsubmit="return confirm('¿Corregir {{ count($discrepancies) }} discrepancias?')">
                 @csrf
-                <button type="submit" class="btn-primary text-xs py-1.5">Reconciliar</button>
+                <button type="submit" class="ex-btn ex-btn--solid">Reconciliar</button>
             </form>
             @endif
-        </div>
-    </div>
+        </x-slot:actions>
+    </x-ui.command-hero>
 
-    {{-- KPIs --}}
-    <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <div class="rounded-lg bg-indigo-600 px-3 py-2.5 text-white">
-            <p class="text-[10px] uppercase opacity-80">Valor inventario</p>
-            <p class="text-lg font-bold">C$ {{ number_format($stats['total_inventory_value'], 0) }}</p>
-        </div>
-        <div class="rounded-lg bg-emerald-600 px-3 py-2.5 text-white">
-            <p class="text-[10px] uppercase opacity-80">Entradas</p>
-            <p class="text-lg font-bold">+{{ number_format($movementStats['entries']) }}</p>
-        </div>
-        <div class="rounded-lg bg-red-500 px-3 py-2.5 text-white">
-            <p class="text-[10px] uppercase opacity-80">Salidas</p>
-            <p class="text-lg font-bold">−{{ number_format($movementStats['exits']) }}</p>
-        </div>
-        <div class="rounded-lg bg-slate-700 px-3 py-2.5 text-white">
-            <p class="text-[10px] uppercase opacity-80">Balance neto</p>
-            @php $net = $movementStats['entries'] - $movementStats['exits']; @endphp
-            <p class="text-lg font-bold">{{ $net >= 0 ? '+' : '' }}{{ number_format($net) }}</p>
-        </div>
+    @php $net = $movementStats['entries'] - $movementStats['exits']; @endphp
+    <div class="ex-kpis ex-kpis--4">
+        <x-ui.command-kpi label="Valor inventario" :value="'C$ ' . number_format($stats['total_inventory_value'], 0)" />
+        <x-ui.command-kpi label="Entradas" :value="'+' . number_format($movementStats['entries'])" />
+        <x-ui.command-kpi label="Salidas" :value="'−' . number_format($movementStats['exits'])" />
+        <x-ui.command-kpi label="Balance neto" :value="($net >= 0 ? '+' : '') . number_format($net)" />
     </div>
 
     @if(count($discrepancies) > 0)

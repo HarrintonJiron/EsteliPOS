@@ -15,7 +15,11 @@ class SaleDetail extends Model
         'sale_id',
         'product_id',
         'unit_id',
+        'price_list_item_id',
+        'price_min_quantity',
         'quantity',
+        'unit_factor',
+        'base_quantity',
         'price',
         'discount_percentage',
         'discount_amount',
@@ -28,6 +32,8 @@ class SaleDetail extends Model
     {
         return [
             'quantity' => 'decimal:4',
+            'unit_factor' => 'decimal:6',
+            'base_quantity' => 'decimal:4',
             'price' => 'decimal:2',
             'discount_percentage' => 'decimal:2',
             'discount_amount' => 'decimal:2',
@@ -50,5 +56,10 @@ class SaleDetail extends Model
     public function unit()
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    public function priceListItem()
+    {
+        return $this->belongsTo(PriceListItem::class);
     }
 }

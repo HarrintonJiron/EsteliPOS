@@ -1,7 +1,8 @@
 <?php
 
-use App\Models\User;
+use App\Models\RepairOrder;
 use App\Models\Role;
+use App\Models\User;
 use Database\Seeders\ConfigurationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -27,9 +28,9 @@ describe('repair order lock handling', function () {
         ]);
 
         $response->assertRedirect();
-        $this->assertDatabaseHas('repair_orders', [
-            'lock_type' => 'pattern',
-            'device_password' => '1-2-5-8-9',
-        ]);
+        $order = RepairOrder::query()->firstOrFail();
+        expect($order->lock_type)->toBe('pattern')
+            ->and($order->device_password)->toBe('1-2-5-8-9')
+            ->and($order->getRawOriginal('device_password'))->not->toBe('1-2-5-8-9');
     });
 });

@@ -20,7 +20,7 @@
         @foreach($locationRows as $index => $row)
             <div data-location-row class="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 sm:grid-cols-[1fr_1fr_8rem_auto]">
                 <div class="flex min-w-0 gap-1">
-                    <select name="locations[{{ $index }}][warehouse_id]" data-location-warehouse @if($index === 0) id="{{ $warehouseSelectId }}" @endif class="select-field min-w-0 py-1.5 text-sm" required>
+                    <select name="locations[{{ $index }}][warehouse_id]" data-location-warehouse @if($index === 0) id="{{ $warehouseSelectId }}" aria-label="Bodega del stock inicial" @else aria-label="Bodega adicional del stock inicial" @endif class="select-field min-w-0 py-1.5 text-sm" required>
                         @foreach($warehouses as $warehouse)
                             <option value="{{ $warehouse->id }}" data-code="{{ $warehouse->code }}" data-name="{{ $warehouse->name }}" @selected(($row['warehouse_id'] ?? null) == $warehouse->id)>{{ $warehouse->name }}</option>
                         @endforeach

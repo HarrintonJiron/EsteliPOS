@@ -100,7 +100,7 @@ class DashboardService
         ];
 
         $summary = [
-            'profit_estimate' => round($salesStats['month'] - $purchaseStats['month'], 2),
+            'profit_estimate' => $this->grossProfitBetween($startOfMonth, $endOfMonth),
             'period_label' => $startOfMonth->translatedFormat('F Y'),
             'month' => $startOfMonth->format('Y-m'),
         ];
@@ -164,9 +164,23 @@ class DashboardService
                 'month' => $start->format('Y-m'),
                 'sales' => round($sales, 2),
                 'purchases' => round($purchases, 2),
-                'profit' => round($sales - $purchases, 2),
+                'profit' => $hasVentas ? $this->grossProfitBetween($start, $end) : 0,
             ];
         })->values()->all();
+    }
+
+    private function grossProfitBetween(Carbon $start, Carbon $end): float
+    {
+        $row = DB::table('sale_details')
+            ->join('sales', 'sale_details.sale_id', '=', 'sales.id')
+            ->join('products', 'sale_details.product_id', '=', 'products.id')
+            ->whereBetween('sales.date', [$start, $end])
+            ->where('sales.status', 'completed')
+            ->selectRaw('SUM(sale_details.subtotal) as revenue')
+            ->selectRaw('SUM(COALESCE(sale_details.base_quantity, sale_details.quantity) * products.purchase_price) as cost')
+            ->first();
+
+        return round((float) ($row->revenue ?? 0) - (float) ($row->cost ?? 0), 2);
     }
 
     /**

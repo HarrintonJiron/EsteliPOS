@@ -30,6 +30,17 @@
                 </div>
 
                 <div class="space-y-3 p-4">
+                    @if($branches->isNotEmpty())
+                    <div>
+                        <label for="branch_id" class="mb-1 block text-sm font-semibold text-slate-700">Sucursal o punto de caja</label>
+                        <select id="branch_id" name="branch_id" class="input-field w-full">
+                            <option value="">Casa matriz / sin asignar</option>
+                            @foreach($branches as $branch)
+                                <option value="{{ $branch->id }}" @selected(old('branch_id') == $branch->id)>{{ $branch->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @endif
                     <div>
                         <label for="opening_amount" class="mb-1 block text-sm font-semibold text-slate-700">¿Con cuánto efectivo abre?</label>
                         <div class="relative">
@@ -79,6 +90,7 @@
                         <p class="truncate text-xs text-slate-500">
                             {{ $openSession->opened_at?->format('H:i') ?? '—' }}
                             @if($openSession->openedBy) · {{ $openSession->openedBy->name }} @endif
+                            @if($openSession->branch) · {{ $openSession->branch->name }} @endif
                             · {{ $now->format('d/m/Y') }}
                         </p>
                     </div>

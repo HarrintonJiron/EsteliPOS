@@ -8,6 +8,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class CompanySettingsService
@@ -86,14 +87,14 @@ class CompanySettingsService
 
         try {
             if ($companyLogo) {
-                $nextCompanyLogo = $this->imageProcessing->storePublicImage($companyLogo, 'company', 1200, 1200);
+                $nextCompanyLogo = $this->storeLogo($companyLogo, 'company_logo', 1200, 1200);
                 $newFiles[] = $nextCompanyLogo;
             } elseif ($data['remove_company_logo'] ?? false) {
                 $nextCompanyLogo = '';
             }
 
             if ($ticketLogo) {
-                $nextTicketLogo = $this->imageProcessing->storePublicImage($ticketLogo, 'company', 800, 800);
+                $nextTicketLogo = $this->storeLogo($ticketLogo, 'ticket_logo', 800, 800);
                 $newFiles[] = $nextTicketLogo;
             } elseif ($data['remove_ticket_logo'] ?? false) {
                 $nextTicketLogo = '';
@@ -148,6 +149,19 @@ class CompanySettingsService
         }
 
         return '/media/'.$publicPath;
+    }
+
+    private function storeLogo(UploadedFile $file, string $field, int $maxWidth, int $maxHeight): string
+    {
+        try {
+            return $this->imageProcessing->storePublicImage($file, 'company', $maxWidth, $maxHeight);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            throw ValidationException::withMessages([
+                $field => 'No se pudo procesar el logo. Use una imagen JPG, PNG, WebP o GIF de hasta 8 MB y 20 megapíxeles.',
+            ]);
+        }
     }
 
     private function deleteReplacedFile(?string $oldPath, ?string $newPath): void

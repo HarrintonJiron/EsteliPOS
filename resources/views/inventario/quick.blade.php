@@ -93,7 +93,7 @@
             </div>
             <div>
                 <label class="mb-1 block text-xs text-slate-500">Unidad</label>
-                <select name="base_unit_id" class="select-field py-1.5 text-sm">
+                <select name="base_unit_id" id="quickBaseUnit" class="select-field py-1.5 text-sm">
                     @foreach($units ?? [] as $unit)
                         <option value="{{ $unit->id }}" @selected(old('base_unit_id', $units->firstWhere('abbreviation', 'und')?->id) == $unit->id)>
                             {{ $unit->abbreviation }}
@@ -124,6 +124,65 @@
             'warehouseSelectId' => 'quickWarehouse',
             'shelfSelectId' => 'quickShelf',
         ])
+
+        <details class="rounded-xl border border-indigo-200 bg-indigo-50/50 p-3" @if(old('presentation_unit_id')) open @endif>
+            <summary class="cursor-pointer list-none">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <p class="text-sm font-semibold text-indigo-950">+ Agregar caja, ristra u otra presentación</p>
+                        <p class="text-xs text-indigo-700">Opcional · se configura junto con el producto</p>
+                    </div>
+                    <span class="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase text-indigo-700">Presentación</span>
+                </div>
+            </summary>
+
+            <div class="mt-3 space-y-3 border-t border-indigo-100 pt-3">
+                <div class="grid gap-2 sm:grid-cols-[1fr_auto_6rem_auto_1fr] sm:items-end">
+                    <div>
+                        <label for="quickPresentationUnit" class="mb-1 block text-xs font-medium text-slate-600">Presentación</label>
+                        <select name="presentation_unit_id" id="quickPresentationUnit" class="select-field py-2 text-sm">
+                            <option value="">No agregar</option>
+                            @foreach($units ?? [] as $unit)
+                                <option value="{{ $unit->id }}" data-name="{{ $unit->name }}" @selected(old('presentation_unit_id') == $unit->id)>{{ $unit->name }} ({{ $unit->abbreviation }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <span class="pb-2 text-sm font-semibold text-slate-700">contiene</span>
+                    <div>
+                        <label for="quickPresentationQty" class="sr-only">Cantidad contenida</label>
+                        <input id="quickPresentationQty" name="presentation_quantity" type="number" min="0.000001" step="0.000001" value="{{ old('presentation_quantity', 12) }}" class="input-field py-2 text-center text-sm font-bold">
+                    </div>
+                    <span class="pb-2 text-sm font-semibold text-slate-700">de</span>
+                    <div id="quickBaseUnitLabel" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">unidad base</div>
+                </div>
+
+                <div id="quickPresentationPreview" class="rounded-lg bg-white px-3 py-2 text-xs text-indigo-900" aria-live="polite">
+                    Seleccione una presentación para comprobar la conversión.
+                </div>
+
+                <div class="grid gap-2 sm:grid-cols-2">
+                    <div>
+                        <label for="quickPresentationPrice" class="mb-1 block text-xs text-slate-500">Precio de venta (opcional)</label>
+                        <input id="quickPresentationPrice" name="presentation_sale_price" type="number" min="0" step="0.01" value="{{ old('presentation_sale_price') }}" placeholder="Automático" class="input-field py-1.5 text-sm">
+                    </div>
+                    <div>
+                        <label for="quickPresentationBarcode" class="mb-1 block text-xs text-slate-500">Código de barras (opcional)</label>
+                        <input id="quickPresentationBarcode" name="presentation_barcode" value="{{ old('presentation_barcode') }}" placeholder="Código de la caja o paquete" class="input-field py-1.5 text-sm">
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-600">
+                    <label class="inline-flex items-center gap-1.5"><input type="checkbox" name="presentation_use_for_purchase" value="1" checked class="rounded border-slate-300"> Comprar</label>
+                    <label class="inline-flex items-center gap-1.5"><input type="checkbox" name="presentation_use_for_sale" value="1" checked class="rounded border-slate-300"> Vender</label>
+                    <label class="inline-flex items-center gap-1.5"><input type="checkbox" name="presentation_default_purchase" value="1" class="rounded border-slate-300"> Predeterminada al comprar</label>
+                    <label class="inline-flex items-center gap-1.5"><input type="checkbox" name="presentation_default_sale" value="1" class="rounded border-slate-300"> Predeterminada al vender</label>
+                    <label class="inline-flex items-center gap-1.5"><input type="checkbox" name="presentation_allow_fraction" value="1" class="rounded border-slate-300"> Permitir fracciones</label>
+                </div>
+                @error('presentation_unit_id')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+                @error('presentation_quantity')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+                @error('presentation_barcode')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+            </div>
+        </details>
 
         <div class="grid grid-cols-[auto_1fr] gap-3 items-center rounded-lg border border-dashed border-slate-200 p-2">
             <div class="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100 flex items-center justify-center">
@@ -159,6 +218,33 @@ document.addEventListener('DOMContentLoaded', function() {
     const lookupBase = document.getElementById('quickApp').dataset.lookupUrl;
     const warehouseInput = document.getElementById('quickWarehouse');
     const shelfInput = document.getElementById('quickShelf');
+    const baseUnitInput = document.getElementById('quickBaseUnit');
+    const presentationUnitInput = document.getElementById('quickPresentationUnit');
+    const presentationQtyInput = document.getElementById('quickPresentationQty');
+    const presentationPreview = document.getElementById('quickPresentationPreview');
+    const baseUnitLabel = document.getElementById('quickBaseUnitLabel');
+
+    function updatePresentationPreview() {
+        const baseOption = baseUnitInput?.selectedOptions[0];
+        const presentationOption = presentationUnitInput?.selectedOptions[0];
+        const quantity = parseFloat(presentationQtyInput?.value || '0');
+        const baseName = baseOption?.textContent?.trim() || 'unidad base';
+        const presentationName = presentationOption?.dataset.name;
+        if (baseUnitLabel) baseUnitLabel.textContent = baseName;
+        Array.from(presentationUnitInput?.options || []).forEach((option) => {
+            option.disabled = option.value !== '' && option.value === baseUnitInput?.value;
+        });
+        if (presentationUnitInput?.selectedOptions[0]?.disabled) presentationUnitInput.value = '';
+        if (!presentationName || !Number.isFinite(quantity) || quantity <= 0) {
+            if (presentationPreview) presentationPreview.textContent = 'Seleccione una presentación para comprobar la conversión.';
+            return;
+        }
+        if (presentationPreview) presentationPreview.textContent = `1 ${presentationName} agregará o descontará ${quantity.toLocaleString('es-NI', { maximumFractionDigits: 6 })} ${baseName} del inventario.`;
+    }
+    baseUnitInput?.addEventListener('change', updatePresentationPreview);
+    presentationUnitInput?.addEventListener('change', updatePresentationPreview);
+    presentationQtyInput?.addEventListener('input', updatePresentationPreview);
+    updatePresentationPreview();
 
     function filterShelves() {
         const warehouseId = warehouseInput?.value || '';

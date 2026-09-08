@@ -52,7 +52,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Categoría *</label>
-                    <select name="category_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <select name="category_id" aria-label="Categoría" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                         <option value="">Seleccione...</option>
                         @foreach($categories as $category)
                             <option value="{{ $category->id }}" {{ old('category_id') == $category->id ? 'selected' : '' }}>
@@ -64,7 +64,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Unidad de medida *</label>
-                    <select name="base_unit_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <select name="base_unit_id" aria-label="Unidad de medida" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                         <option value="">Seleccione...</option>
                         @foreach($units ?? [] as $u)
                             <option value="{{ $u->id }}" @selected(old('base_unit_id', $units->firstWhere('abbreviation', 'und')?->id) == $u->id)>
@@ -114,6 +114,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Precio de Compra (C$) *</label>
                     <input type="number" name="purchase_price" id="create_purchase_price"
+                           aria-label="Precio de compra"
                            value="{{ old('purchase_price') }}" step="0.01" min="0" required
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
@@ -121,6 +122,7 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Precio de Venta (C$) *</label>
                     <input type="number" name="sale_price" id="create_sale_price"
+                           aria-label="Precio de venta"
                            value="{{ old('sale_price') }}" step="0.01" min="0" required
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
@@ -141,13 +143,13 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Stock Mínimo (alerta)</label>
-                    <input type="number" name="low_stock_threshold" value="{{ old('low_stock_threshold', 10) }}" min="1"
+                    <input type="number" name="low_stock_threshold" aria-label="Stock mínimo" value="{{ old('low_stock_threshold', 10) }}" min="1"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Estado</label>
-                    <select name="status" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <select name="status" aria-label="Estado" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                         <option value="active" {{ old('status', 'active') == 'active' ? 'selected' : '' }}>Activo</option>
                         <option value="inactive" {{ old('status') == 'inactive' ? 'selected' : '' }}>Inactivo</option>
                         <option value="discontinued" {{ old('status') == 'discontinued' ? 'selected' : '' }}>Descontinuado</option>
@@ -156,7 +158,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Impuesto (IVA)</label>
-                    <select name="tax_id" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                    <select name="tax_id" aria-label="Impuesto" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                         <option value="">Usar impuesto predeterminado</option>
                         @foreach($taxes as $tax)
                             <option value="{{ $tax->id }}" {{ old('tax_id') == $tax->id ? 'selected' : '' }}>
@@ -233,7 +235,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Fecha de vencimiento</label>
-                    <input type="date" name="expiry_date" value="{{ old('expiry_date') }}"
+                    <input type="date" name="expiry_date" aria-label="Fecha de vencimiento" value="{{ old('expiry_date') }}"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
@@ -272,9 +274,12 @@
         </div>
 
         <div class="flex flex-col items-end gap-2 sm:flex-row sm:justify-end sm:items-center">
-            <p class="text-xs text-gray-500 sm:mr-auto">Al guardar, el formulario se limpia para seguir agregando productos.</p>
+            <p class="text-xs text-gray-500 sm:mr-auto">Puedes seguir agregando productos o configurar sus cajas, ristras y otras presentaciones.</p>
             <a href="{{ route('inventario.index') }}" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">Volver al listado</a>
-            <button type="submit" class="bg-slate-800 text-white px-6 py-2 rounded-lg hover:bg-green-800 shadow">
+            <button type="submit" name="configure_presentations" value="1" class="btn-primary px-6 py-2">
+                Guardar y configurar presentaciones
+            </button>
+            <button type="submit" class="bg-slate-800 text-white px-6 py-2 rounded-lg hover:bg-slate-700 shadow">
                 Guardar y seguir
             </button>
         </div>

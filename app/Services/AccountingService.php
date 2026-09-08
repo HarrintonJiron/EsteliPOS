@@ -12,6 +12,8 @@ use App\Models\OperationalExpense;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
+use App\Models\SupplierPayment;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Database\Seeders\AccountingSeeder;
 use Illuminate\Support\Facades\DB;
@@ -268,6 +270,30 @@ class AccountingService
     }
 
     /**
+     * Pago de una cuenta por pagar: conserva intacto el asiento de la compra.
+     */
+    public function recordSupplierPayment(SupplierPayment $payment): JournalEntry
+    {
+        $creditAccount = $payment->payment_type === 'transfer'
+            ? $this->account(self::ACC_BANCO)
+            : $this->account(self::ACC_CAJA);
+        $reference = $payment->reference ?: 'PAGO-COMPRA-'.$payment->purchase_id;
+
+        return $this->createEntry([
+            'date' => $payment->paid_at->toDateString(),
+            'concept' => 'Pago a proveedor por compra #'.$payment->purchase_id,
+            'reference' => $reference,
+            'source_type' => SupplierPayment::class,
+            'source_id' => $payment->id,
+            'user_id' => $payment->user_id,
+            'lines' => [
+                ['account_id' => $this->account(self::ACC_PROVEEDORES)->id, 'detail' => $reference, 'debit' => $payment->amount, 'credit' => 0],
+                ['account_id' => $creditAccount->id, 'detail' => $reference, 'debit' => 0, 'credit' => $payment->amount],
+            ],
+        ], post: true);
+    }
+
+    /**
      * Asiento automático de un ajuste de inventario, valorizado al costo de compra del producto.
      */
     public function recordInventoryAdjustment(InventoryAdjustment $adjustment): ?JournalEntry
@@ -368,6 +394,10 @@ class AccountingService
 
     private function assertPeriodOpen(string $date): void
     {
+        $parsed = CarbonImmutable::parse($date);
+        FiscalPeriod::forMonth($parsed->year, $parsed->month);
+        FiscalPeriod::forYear($parsed->year);
+
         if (FiscalPeriod::isDateClosed($date)) {
             throw new \RuntimeException("No se puede crear, contabilizar o anular movimientos en un período contable cerrado ({$date}).");
         }

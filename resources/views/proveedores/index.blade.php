@@ -4,46 +4,32 @@
 
 @section('content')
 
-<div class="space-y-6">
+<div class="ex-shell">
 
-    {{-- Encabezado --}}
-    <div class="flex justify-between items-center">
-        <div>
-            <h1 class="page-title">Proveedores</h1>
-            <p class="page-subtitle">Catálogo y control de compras</p>
-        </div>
+    <x-ui.command-hero
+        kicker="Abastecimiento"
+        title="Proveedores"
+        subtitle="Catálogo y control de compras"
+        metric-label="Proveedores"
+        :metric-value="number_format($stats['total_suppliers'])"
+        :meta="[$stats['active_suppliers'] . ' activos', $stats['suppliers_with_credit'] . ' con crédito']"
+        :stats="[
+            ['label' => 'Activos', 'value' => number_format($stats['active_suppliers'])],
+            ['label' => 'Inactivos', 'value' => number_format($stats['inactive_suppliers'])],
+            ['label' => 'Con crédito', 'value' => number_format($stats['suppliers_with_credit'])],
+        ]"
+    >
+        <x-slot:actions>
+            <a href="{{ route('proveedores.export') }}" class="ex-btn">Exportar</a>
+            <a href="{{ route('proveedores.create') }}" class="ex-btn ex-btn--solid">+ Nuevo proveedor</a>
+        </x-slot:actions>
+    </x-ui.command-hero>
 
-        <div class="flex space-x-2">
-            <a href="{{ route('proveedores.export') }}" class="btn-outline text-sm">
-                📥 Exportar
-            </a>
-            <a href="{{ route('proveedores.create') }}" class="btn-primary">
-                + Nuevo Proveedor
-            </a>
-        </div>
-    </div>
-
-    {{-- Estadísticas --}}
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="card p-4 border-l-4 border-indigo-500">
-            <p class="text-xs text-slate-500">Total Proveedores</p>
-            <p class="text-2xl font-bold text-indigo-600">{{ $stats['total_suppliers'] }}</p>
-        </div>
-
-        <div class="card p-4 border-l-4 border-emerald-500">
-            <p class="text-xs text-slate-500">Activos</p>
-            <p class="text-2xl font-bold text-emerald-600">{{ $stats['active_suppliers'] }}</p>
-        </div>
-
-        <div class="card p-4 border-l-4 border-slate-500">
-            <p class="text-xs text-slate-500">Inactivos</p>
-            <p class="text-2xl font-bold text-slate-600">{{ $stats['inactive_suppliers'] }}</p>
-        </div>
-
-        <div class="card p-4 border-l-4 border-violet-500">
-            <p class="text-xs text-slate-500">Con Crédito</p>
-            <p class="text-2xl font-bold text-violet-600">{{ $stats['suppliers_with_credit'] }}</p>
-        </div>
+    <div class="ex-kpis ex-kpis--4">
+        <x-ui.command-kpi label="Total" :value="number_format($stats['total_suppliers'])" />
+        <x-ui.command-kpi label="Activos" :value="number_format($stats['active_suppliers'])" />
+        <x-ui.command-kpi label="Inactivos" :value="number_format($stats['inactive_suppliers'])" />
+        <x-ui.command-kpi label="Con crédito" :value="number_format($stats['suppliers_with_credit'])" />
     </div>
 
     {{-- Filtros --}}

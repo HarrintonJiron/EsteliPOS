@@ -125,7 +125,7 @@
 <main class="receipt" data-paper-width="80mm">
     <header class="center">
         @if($receiptLogoUrl)
-            <img src="{{ $receiptLogoUrl }}" alt="Logo de {{ $companyProfile['company_name'] }}" class="ticket-logo">
+            <img src="{{ $receiptLogoUrl }}" alt="Logo de {{ $companyProfile['company_name'] }}" class="ticket-logo" loading="eager" decoding="sync" onerror="this.remove()">
         @endif
         <div class="company-name">{{ $companyProfile['company_name'] }}</div>
         @if($companyProfile['company_ruc'])<div class="company-line">RUC: {{ $companyProfile['company_ruc'] }}</div>@endif

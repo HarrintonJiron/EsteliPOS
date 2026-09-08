@@ -9,23 +9,41 @@
     $hasCompras = $dashboardModules->contains('compras');
     $hasClientes = $dashboardModules->contains('clientes');
     $hasReportes = $dashboardModules->contains('reportes');
+    $heroMetricLabel = $hasVentas ? 'Ventas del mes' : ($hasInventario ? 'Inventario' : 'Operación');
+    $heroMetricValue = $hasVentas
+        ? 'C$ '.number_format($salesStats['month'], 0)
+        : ($hasInventario ? 'C$ '.number_format($inventoryStats['inventory_value'], 0) : (string) ($customerStats['total_clients'] ?? '—'));
+    $heroMeta = $hasVentas
+        ? [$salesStats['count_today'].' facturas hoy', 'Ticket C$ '.number_format($salesStats['average_ticket'], 0)]
+        : [];
+    $heroStats = array_values(array_filter([
+        $hasVentas ? ['label' => 'Hoy', 'value' => 'C$ '.number_format($salesStats['today'], 0)] : null,
+        $hasCompras ? ['label' => 'Compras', 'value' => 'C$ '.number_format($purchaseStats['month'], 0)] : null,
+        $hasInventario ? ['label' => 'Productos', 'value' => number_format($inventoryStats['total_products'])] : null,
+    ]));
 @endphp
 
-<div class="page-shell">
+<div class="ex-shell">
 
-    <x-ui.page-header
-        title="Dashboard General"
+    <x-ui.command-hero
+        kicker="Sala de control"
+        :title="$companyProfile['company_name'] ?? 'Dashboard'"
         :subtitle="'Resumen ejecutivo · ' . $summary['period_label'] . ' · ' . now()->format('d/m/Y H:i')"
+        :metric-label="$heroMetricLabel"
+        :metric-value="$heroMetricValue"
+        :meta="$heroMeta"
+        :stats="$heroStats"
     >
         <x-slot:actions>
             @if($hasVentas)
-                <a href="{{ route('facturacion.pos') }}" class="btn-primary btn-sm">Punto de Venta</a>
+                <a href="{{ route('facturacion.pos') }}" class="ex-btn ex-btn--solid">Punto de Venta</a>
             @endif
             @if($hasReportes)
-                <a href="{{ route('reportes.index') }}" class="btn-outline btn-sm">Ver reportes</a>
+                <a href="{{ route('reportes.index') }}" class="ex-btn">Ver reportes</a>
             @endif
+            <a href="{{ route('analitica.index') }}" class="ex-btn">Analítica</a>
         </x-slot:actions>
-    </x-ui.page-header>
+    </x-ui.command-hero>
 
     {{-- Alertas --}}
     @if(count($alerts) > 0)
@@ -45,78 +63,27 @@
     @endif
 
     {{-- KPIs principales --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="ex-kpis {{ ($hasVentas && $hasCompras) ? '' : 'ex-kpis--4' }}">
         @if($hasVentas)
-        <div class="card p-5 relative overflow-hidden border-t-4 border-indigo-500">
-            <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-indigo-500/10"></div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Ventas hoy</p>
-            <p class="mt-2 text-3xl font-bold text-indigo-700">C$ {{ number_format($salesStats['today'], 2) }}</p>
-            <p class="mt-1 text-sm text-slate-500">{{ $salesStats['count_today'] }} facturas</p>
-        </div>
-        <div class="card p-5 relative overflow-hidden border-t-4 border-emerald-500">
-            <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-500/10"></div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Ventas del mes</p>
-            <p class="mt-2 text-3xl font-bold text-emerald-700">C$ {{ number_format($salesStats['month'], 2) }}</p>
-            <p class="mt-1 text-sm text-slate-500">Ticket prom. C$ {{ number_format($salesStats['average_ticket'], 2) }}</p>
-        </div>
+        <x-ui.command-kpi label="Ventas hoy" :value="'C$ ' . number_format($salesStats['today'], 0)" :meta="$salesStats['count_today'] . ' facturas'" />
+        <x-ui.command-kpi label="Ventas del mes" :value="'C$ ' . number_format($salesStats['month'], 0)" :meta="'Ticket C$ ' . number_format($salesStats['average_ticket'], 0)" />
         @endif
-
         @if($hasCompras)
-        <div class="card p-5 relative overflow-hidden border-t-4 border-rose-500">
-            <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-rose-500/10"></div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Compras del mes</p>
-            <p class="mt-2 text-3xl font-bold text-rose-700">C$ {{ number_format($purchaseStats['month'], 2) }}</p>
-            <p class="mt-1 text-sm text-slate-500">{{ $purchaseStats['count_month'] }} órdenes</p>
-        </div>
+        <x-ui.command-kpi label="Compras del mes" :value="'C$ ' . number_format($purchaseStats['month'], 0)" :meta="$purchaseStats['count_month'] . ' órdenes'" />
         @endif
-
         @if($hasVentas && $hasCompras)
-        <div class="card p-5 relative overflow-hidden border-t-4 border-violet-500">
-            <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-violet-500/10"></div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Margen estimado</p>
-            <p class="mt-2 text-3xl font-bold {{ $summary['profit_estimate'] >= 0 ? 'text-violet-700' : 'text-red-600' }}">
-                C$ {{ number_format($summary['profit_estimate'], 2) }}
-            </p>
-            <p class="mt-1 text-sm text-slate-500">Ventas − compras del mes</p>
-        </div>
+        <x-ui.command-kpi label="Margen bruto estimado" :value="'C$ ' . number_format($summary['profit_estimate'], 0)" meta="Ventas netas − costo actual de lo vendido" />
         @elseif($hasInventario)
-        <div class="card p-5 relative overflow-hidden border-t-4 border-violet-500">
-            <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-violet-500/10"></div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Valor inventario</p>
-            <p class="mt-2 text-3xl font-bold text-violet-700">C$ {{ number_format($inventoryStats['inventory_value'], 0) }}</p>
-            <p class="mt-1 text-sm text-slate-500">{{ $inventoryStats['total_products'] }} productos</p>
-        </div>
+        <x-ui.command-kpi label="Valor inventario" :value="'C$ ' . number_format($inventoryStats['inventory_value'], 0)" :meta="$inventoryStats['total_products'] . ' productos'" />
         @elseif($hasClientes)
-        <div class="card p-5 relative overflow-hidden border-t-4 border-amber-500">
-            <div class="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-amber-500/10"></div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Clientes</p>
-            <p class="mt-2 text-3xl font-bold text-amber-700">{{ $customerStats['total_clients'] }}</p>
-            <p class="mt-1 text-sm text-slate-500">+{{ $customerStats['new_this_month'] }} este mes</p>
-        </div>
+        <x-ui.command-kpi label="Clientes" :value="number_format($customerStats['total_clients'])" :meta="'+' . $customerStats['new_this_month'] . ' este mes'" />
         @endif
-    </div>
-
-    {{-- KPIs secundarios --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
         @if($hasInventario)
-        <div class="card p-4">
-            <p class="text-xs text-slate-500">Stock bajo</p>
-            <p class="text-xl font-bold {{ $inventoryStats['low_stock'] > 0 ? 'text-amber-600' : 'text-emerald-600' }}">{{ $inventoryStats['low_stock'] }}</p>
-        </div>
-        <div class="card p-4">
-            <p class="text-xs text-slate-500">Vencidos</p>
-            <p class="text-xl font-bold {{ $inventoryStats['expired'] > 0 ? 'text-red-600' : 'text-emerald-600' }}">{{ $inventoryStats['expired'] }}</p>
-        </div>
+        <x-ui.command-kpi label="Stock bajo" :value="number_format($inventoryStats['low_stock'])" />
+        <x-ui.command-kpi label="Vencidos" :value="number_format($inventoryStats['expired'])" />
         @endif
         @if($hasVentas)
-        <div class="card p-4">
-            <p class="text-xs text-slate-500">Facturas pendientes</p>
-            <p class="text-xl font-bold text-blue-600">{{ $salesStats['pending'] }}</p>
-        </div>
-        <div class="card p-4">
-            <p class="text-xs text-slate-500">Facturas del mes</p>
-            <p class="text-xl font-bold text-slate-800">{{ $salesStats['count_month'] }}</p>
-        </div>
+        <x-ui.command-kpi label="Pendientes" :value="number_format($salesStats['pending'])" />
         @endif
     </div>
 

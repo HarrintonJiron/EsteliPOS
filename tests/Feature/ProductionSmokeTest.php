@@ -40,7 +40,10 @@ test('administrator can reach core operational screens', function (string $route
     'proformas' => ['proformas.index'],
     'reparaciones' => ['reparaciones.index'],
     'planilla' => ['planilla.index'],
+    'rrhh' => ['rrhh.hub'],
     'nomina' => ['nomina.index'],
+    'analitica' => ['analitica.index'],
+    'sucursales' => ['sucursales.index'],
     'reportes' => ['reportes.index'],
     'settings' => ['settings.index'],
 ]);
@@ -69,6 +72,7 @@ test('new production tables exist after migrations', function () {
         ->and(Schema::hasTable('loans'))->toBeTrue()
         ->and(Schema::hasTable('bonuses'))->toBeTrue()
         ->and(Schema::hasTable('deductions'))->toBeTrue()
+        ->and(Schema::hasTable('branches'))->toBeTrue()
         ->and(Schema::hasColumn('sales', 'amount_paid'))->toBeTrue()
         ->and(Schema::hasColumn('sales', 'change_amount'))->toBeTrue()
         ->and(Schema::hasColumn('repair_orders', 'warranty_enabled'))->toBeTrue();

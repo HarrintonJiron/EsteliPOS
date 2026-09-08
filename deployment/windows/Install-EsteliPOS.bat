@@ -6,7 +6,7 @@ title EsteliPOS - Instalador Northlink
 :: ---------------------------------------------------------------------------
 ::  Instalador principal - doble clic o "Ejecutar como administrador"
 ::  Uso: Instalar-EsteliPOS.bat [IIS|Simple]
-::  Sin parametros abre el asistente grafico.
+::  Sin parametros abre el menu de consola.
 
 set "SCRIPT_DIR=%~dp0"
 set "PROJECT_ROOT=%SCRIPT_DIR%..\.."
@@ -19,14 +19,7 @@ if /i "%~1"=="SIMPLE" goto :profile_simple
 if /i "%~1"=="Verify" goto :verify_only
 if not "%~1"=="" goto :bad_arg
 
-if exist "%SCRIPT_DIR%Install-EsteliPOS-GUI.ps1" goto :gui
 goto :menu
-
-:gui
-call :ensure_admin
-if errorlevel 1 exit /b 1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File "%SCRIPT_DIR%Install-EsteliPOS-GUI.ps1"
-exit /b %ERRORLEVEL%
 
 :bad_arg
 echo.
@@ -96,6 +89,7 @@ if errorlevel 1 exit /b 1
 call :print_header
 echo   Perfil seleccionado: %SERVER_PROFILE%
 echo   Carpeta del sistema: %CD%
+echo   Datos iniciales: demostracion para instalacion y entrenamiento.
 echo.
 echo   El proceso puede tardar varios minutos.
 if /i "%SERVER_PROFILE%"=="IIS" (

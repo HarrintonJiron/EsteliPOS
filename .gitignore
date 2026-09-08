@@ -3,6 +3,8 @@
 .env
 .env.backup
 .env.production
+.env.*
+!.env.example
 .phpactor.json
 .phpunit.result.cache
 /.fleet
@@ -24,6 +26,7 @@
 /coverage/
 /playwright-report/
 /test-results/
+/backups/
 /storage/browser-qa/
 /deployment/parche*.zip
 /deployment/parche*.zip.sha256

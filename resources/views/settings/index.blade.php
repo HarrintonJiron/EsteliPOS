@@ -3,46 +3,26 @@
 @section('title', 'Configuración')
 
 @section('content')
-<div class="space-y-6" id="settings-dashboard">
-    <nav class="flex items-center gap-2 text-sm text-slate-500" aria-label="Breadcrumb">
-        <a href="{{ route('dashboard.general') }}" class="hover:text-indigo-600">Inicio</a>
-        <span aria-hidden="true">/</span>
-        <span class="font-medium text-slate-800" aria-current="page">Configuración</span>
-    </nav>
+<div class="ex-shell" id="settings-dashboard">
+    <x-ui.command-hero
+        kicker="Centro administrativo"
+        title="Configura el negocio desde un solo lugar"
+        subtitle="Las funciones terminadas están disponibles. Las demás están identificadas como “Próximamente” y se completarán en la versión 2.0."
+        metric-label="Funciones disponibles"
+        :metric-value="$stats['configured_sections'] . '/' . $stats['total_sections']"
+        :stats="[
+            ['label' => 'Usuarios', 'value' => $stats['active_users'] . '/' . $stats['total_users']],
+            ['label' => 'Módulos', 'value' => $stats['active_modules'] . '/' . $stats['total_modules']],
+            ['label' => 'Atención', 'value' => (string) $stats['attention']],
+        ]"
+    />
 
-    <section class="overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-6 text-white shadow-lg sm:p-8">
-        <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div class="max-w-2xl">
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300">Centro administrativo</p>
-                <h1 class="mt-2 text-2xl font-bold sm:text-3xl">Configura el negocio desde un solo lugar</h1>
-                <p class="mt-3 text-sm leading-6 text-slate-300 sm:text-base">Las funciones terminadas están disponibles. Las demás están identificadas como “Próximamente” y se completarán en la versión 2.0.</p>
-            </div>
-            <div class="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                <p class="text-xs text-slate-300">Funciones disponibles</p>
-                <p class="mt-1 text-2xl font-bold">{{ $stats['configured_sections'] }}/{{ $stats['total_sections'] }}</p>
-                <p class="text-xs text-slate-300">resto previsto para la versión 2.0</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Resumen de configuración">
-        <div class="card border-l-4 border-indigo-500 p-4">
-            <p class="text-xs font-medium text-slate-500">Usuarios activos</p>
-            <p class="mt-1 text-2xl font-bold text-slate-900">{{ $stats['active_users'] }}<span class="text-sm font-medium text-slate-400">/{{ $stats['total_users'] }}</span></p>
-        </div>
-        <div class="card border-l-4 border-emerald-500 p-4">
-            <p class="text-xs font-medium text-slate-500">Módulos activos</p>
-            <p class="mt-1 text-2xl font-bold text-slate-900">{{ $stats['active_modules'] }}<span class="text-sm font-medium text-slate-400">/{{ $stats['total_modules'] }}</span></p>
-        </div>
-        <div class="card border-l-4 border-violet-500 p-4">
-            <p class="text-xs font-medium text-slate-500">Secciones accesibles</p>
-            <p class="mt-1 text-2xl font-bold text-slate-900">{{ $stats['configured_sections'] }}<span class="text-sm font-medium text-slate-400">/{{ $stats['total_sections'] }}</span></p>
-        </div>
-        <div class="card border-l-4 {{ $stats['attention'] > 0 ? 'border-amber-500' : 'border-emerald-500' }} p-4">
-            <p class="text-xs font-medium text-slate-500">Requieren atención</p>
-            <p class="mt-1 text-2xl font-bold {{ $stats['attention'] > 0 ? 'text-amber-600' : 'text-emerald-600' }}">{{ $stats['attention'] }}</p>
-        </div>
-    </section>
+    <div class="ex-kpis ex-kpis--4">
+        <x-ui.command-kpi label="Usuarios activos" :value="$stats['active_users'] . '/' . $stats['total_users']" />
+        <x-ui.command-kpi label="Módulos activos" :value="$stats['active_modules'] . '/' . $stats['total_modules']" />
+        <x-ui.command-kpi label="Secciones accesibles" :value="$stats['configured_sections'] . '/' . $stats['total_sections']" />
+        <x-ui.command-kpi label="Requieren atención" :value="(string) $stats['attention']" />
+    </div>
 
     <section class="card p-4 sm:p-5" aria-label="Buscar y filtrar configuraciones">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

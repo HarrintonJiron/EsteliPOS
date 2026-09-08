@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\OpenCashRegisterRequest;
 use App\Models\Arqueo;
+use App\Models\Branch;
 use App\Models\CajaSession;
 use App\Models\CreditPayment;
 use App\Models\OperationalExpense;
@@ -25,8 +26,8 @@ class ArqueoController extends Controller
         $today = Carbon::today()->toDateString();
 
         $openSession = CajaSession::query()
-            ->with('openedBy')
-            ->whereDate('date', $today)
+            ->with(['openedBy', 'branch'])
+            ->where('opened_by', request()->user()?->id)
             ->where('status', 'open')
             ->first();
 
@@ -34,7 +35,8 @@ class ArqueoController extends Controller
 
         if ($openSession) {
             $cashSalesTotal = (float) Sale::query()
-                ->whereDate('date', $today)
+                ->where(fn ($query) => $query->where('caja_session_id', $openSession->id)
+                    ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $openSession->opened_by)->whereDate('date', $today)))
                 ->where('status', 'completed')
                 ->where('payment_type', 'cash')
                 ->sum('total');
@@ -42,26 +44,34 @@ class ArqueoController extends Controller
             $operationalExpensesCashTotal = (float) OperationalExpense::query()
                 ->registered()
                 ->cash()
-                ->whereDate('expense_date', $today)
+                ->where('caja_session_id', $openSession->id)
                 ->sum('amount');
 
             $creditPaymentsTotal = (float) CreditPayment::query()
-                ->whereDate('payment_date', $today)
+                ->where(fn ($query) => $query->where('caja_session_id', $openSession->id)
+                    ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $openSession->opened_by)->whereDate('payment_date', $today)))
+                ->sum('amount');
+            $cashCreditPaymentsTotal = (float) CreditPayment::query()
+                ->where(fn ($query) => $query->where('caja_session_id', $openSession->id)
+                    ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $openSession->opened_by)->whereDate('payment_date', $today)))
+                ->where('payment_type', 'cash')
                 ->sum('amount');
 
             $salesCount = (int) Sale::query()
-                ->whereDate('date', $today)
+                ->where(fn ($query) => $query->where('caja_session_id', $openSession->id)
+                    ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $openSession->opened_by)->whereDate('date', $today)))
                 ->where('status', 'completed')
                 ->count();
 
             $openingAmount = (float) $openSession->opening_amount;
-            $expectedCashTotal = $openingAmount + $cashSalesTotal - $operationalExpensesCashTotal;
+            $expectedCashTotal = $openingAmount + $cashSalesTotal + $cashCreditPaymentsTotal - $operationalExpensesCashTotal;
 
             $closingSummary = [
                 'opening_amount' => $openingAmount,
                 'cash_sales_total' => $cashSalesTotal,
                 'operational_expenses_cash_total' => $operationalExpensesCashTotal,
                 'credit_payments_total' => $creditPaymentsTotal,
+                'cash_credit_payments_total' => $cashCreditPaymentsTotal,
                 'sales_count' => $salesCount,
                 'expected_cash_total' => $expectedCashTotal,
             ];
@@ -72,13 +82,14 @@ class ArqueoController extends Controller
             'openSession' => $openSession,
             'closingSummary' => $closingSummary,
             'denominations' => [1000, 500, 200, 100, 50, 20, 10, 5, 1],
+            'branches' => Branch::query()->where('is_active', true)->orderBy('name')->get(),
         ]);
     }
 
     public function open(OpenCashRegisterRequest $request): RedirectResponse
     {
         $date = Carbon::today();
-        $existing = CajaSession::query()->where('status', 'open')->first();
+        $existing = CajaSession::currentForUser($request->user()?->id);
 
         if ($existing) {
             return redirect()
@@ -92,13 +103,14 @@ class ArqueoController extends Controller
                     'date' => $date->toDateString(),
                     'opened_at' => Carbon::now(),
                     'opened_by' => $request->user()?->id,
+                    'branch_id' => $request->validated('branch_id'),
                     'opening_amount' => $request->validated('opening_amount'),
                     'status' => 'open',
                     'open_guard' => 'OPEN',
                 ]);
             });
         } catch (QueryException $exception) {
-            if (CajaSession::query()->where('status', 'open')->exists()) {
+            if (CajaSession::currentForUser($request->user()?->id)) {
                 return redirect()
                     ->route('arqueo.index')
                     ->with('warning', 'La caja ya fue abierta desde otra computadora o tablet.');
@@ -141,9 +153,15 @@ class ArqueoController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if ($cajaSession->status !== 'open' || $cajaSession->open_guard !== 'OPEN') {
+            if ($cajaSession->status !== 'open' || $cajaSession->open_guard !== 'C'.$cajaSession->opened_by) {
                 throw ValidationException::withMessages([
                     'caja_session_id' => 'Esta caja ya fue cerrada desde otra computadora o tablet.',
+                ]);
+            }
+
+            if ($cajaSession->opened_by !== $request->user()?->id && ! $request->user()?->isAdmin()) {
+                throw ValidationException::withMessages([
+                    'caja_session_id' => 'No puede cerrar la caja de otro cajero.',
                 ]);
             }
 
@@ -154,7 +172,8 @@ class ArqueoController extends Controller
             }
 
             $sales = Sale::query()
-                ->whereDate('date', $date->toDateString())
+                ->where(fn ($query) => $query->where('caja_session_id', $cajaSession->id)
+                    ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $cajaSession->opened_by)->whereDate('date', $date->toDateString())))
                 ->where('status', 'completed')
                 ->with('client', 'details')
                 ->get();
@@ -169,14 +188,18 @@ class ArqueoController extends Controller
                 ];
             });
 
-            $creditPayments = CreditPayment::whereDate('payment_date', $date->toDateString())->with('client')->get();
+            $creditPayments = CreditPayment::query()
+                ->where(fn ($query) => $query->where('caja_session_id', $cajaSession->id)
+                    ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $cajaSession->opened_by)->whereDate('payment_date', $date->toDateString())))
+                ->with('client')->get();
             $creditPaymentsTotal = $creditPayments->sum('amount');
+            $cashCreditPaymentsTotal = $creditPayments->where('payment_type', 'cash')->sum('amount');
 
             $operationalExpenses = OperationalExpense::query()
                 ->with(['user', 'cajaSession'])
                 ->registered()
                 ->cash()
-                ->whereDate('expense_date', $date->toDateString())
+                ->where('caja_session_id', $cajaSession->id)
                 ->get();
             $operationalExpensesCashTotal = (float) $operationalExpenses->sum('amount');
 
@@ -193,7 +216,7 @@ class ArqueoController extends Controller
             }
 
             $openingAmount = (float) $cajaSession->opening_amount;
-            $cashMovementsTotal = (float) ($byType['cash']['total'] ?? 0) - $operationalExpensesCashTotal;
+            $cashMovementsTotal = (float) ($byType['cash']['total'] ?? 0) + $cashCreditPaymentsTotal - $operationalExpensesCashTotal;
             $cashTotal = $openingAmount + $cashMovementsTotal;
             $difference = $physicalTotal - $cashTotal;
 
@@ -224,7 +247,7 @@ class ArqueoController extends Controller
 
             return compact(
                 'sales', 'totalSalesCount', 'totalSalesAmount', 'byType', 'creditPayments',
-                'creditPaymentsTotal', 'operationalExpenses', 'operationalExpensesCashTotal',
+                'creditPaymentsTotal', 'cashCreditPaymentsTotal', 'operationalExpenses', 'operationalExpensesCashTotal',
                 'openingAmount', 'cashMovementsTotal', 'cashTotal', 'physicalTotal',
                 'physicalCounts', 'arqueo'
             );

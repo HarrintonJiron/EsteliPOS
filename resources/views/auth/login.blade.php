@@ -1,7 +1,9 @@
 @php
     $systemName = $companyProfile['system_name'] ?? 'EsteliPOS';
-    $developerName = 'Northlink Microsystem';
-    $northlinkLogoUrl = asset('images/northlink-logo.png');
+    $productName = config('northlink.product', 'EsteliPOS');
+    $developerName = config('northlink.name');
+    $developerWebsite = config('northlink.website');
+    $northlinkLogoUrl = asset('images/northlink-logo-login.png');
 @endphp
 <!DOCTYPE html>
 <html lang="es">
@@ -66,7 +68,7 @@
             position: absolute;
             inset: 0;
             background:
-                url('{{ asset('images/login-hero.jpg') }}') center / cover no-repeat;
+                url('{{ asset('images/login-hero-nicaragua-v2.png') }}') center / cover no-repeat;
             transform: scale(1.02);
             animation: login-kenburns 22s ease-in-out infinite alternate;
         }
@@ -131,8 +133,8 @@
         }
 
         .login-hero-northlink img {
-            max-height: min(37.5rem, 42vh);
-            max-width: min(100%, 90vw);
+            max-height: 6.25rem;
+            max-width: min(100%, 30rem);
             width: auto;
             height: auto;
             object-fit: contain;
@@ -141,12 +143,23 @@
         }
 
         .login-hero-product {
-            margin: 1.25rem 0 0;
-            font-size: clamp(1.5rem, 3vw, 2.25rem);
-            font-weight: 700;
-            letter-spacing: -0.03em;
+            margin: 0 0 0.75rem;
+            font-size: clamp(3rem, 6vw, 5.25rem);
+            font-weight: 900;
+            line-height: 0.95;
+            letter-spacing: -0.065em;
             text-transform: none;
-            color: rgba(255, 255, 255, 0.9);
+            color: #fff;
+            text-shadow: 0 5px 30px rgba(0, 0, 0, 0.35);
+        }
+
+        .login-hero-developer {
+            margin: 0 0 0.65rem;
+            font-size: 0.6875rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.68);
         }
 
         .login-hero-body {
@@ -264,8 +277,8 @@
         }
 
         .login-brand-northlink img {
-            max-height: 4.25rem;
-            max-width: min(100%, 16rem);
+            max-height: 5.75rem;
+            max-width: min(100%, 22rem);
             width: auto;
             height: auto;
             object-fit: contain;
@@ -465,6 +478,19 @@
             font-size: 0.625rem;
             color: #94a3b8;
         }
+
+        .login-support-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            margin-top: 0.65rem;
+            color: var(--login-primary-dark);
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .login-support-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -475,10 +501,11 @@
             <div class="login-hero-overlay"></div>
             <div class="login-hero-content">
                 <div class="login-hero-brand">
+                    <p class="login-hero-product">{{ $productName }}</p>
+                    <p class="login-hero-developer">Sistema de punto de venta</p>
                     <div class="login-hero-northlink">
                         <img src="{{ $northlinkLogoUrl }}" alt="{{ $developerName }}">
                     </div>
-                    <p class="login-hero-product">{{ $systemName }}</p>
                 </div>
 
                 <div class="login-hero-body">
@@ -515,9 +542,9 @@
                     <div class="login-brand-northlink">
                         <img src="{{ $northlinkLogoUrl }}" alt="{{ $developerName }}">
                     </div>
-                    <h1 class="login-brand-system">{{ $systemName }}</h1>
+                    <h1 class="login-brand-system">{{ $productName }}</h1>
                     <p class="login-brand-tagline">Punto de venta para PYMEs nicaragüenses</p>
-                    <p class="login-brand-byline">{{ $developerName }}</p>
+                    <p class="login-brand-byline">Desarrollado por {{ $developerName }}</p>
                 </div>
 
                 <div class="login-welcome">
@@ -618,7 +645,10 @@
 
                 <div class="login-footer" data-developer-credit>
                     <p>© {{ date('Y') }} {{ $developerName }} · Estelí, Nicaragua</p>
-                    <p class="login-credit">{{ $systemName }} · Hecho en Nicaragua</p>
+                    <p class="login-credit">{{ $productName }} · Sistema desarrollado por {{ $developerName }}</p>
+                    <a class="login-support-link" href="{{ $developerWebsite }}" target="_blank" rel="noopener noreferrer">
+                        Contactar a Northlink <span aria-hidden="true">↗</span>
+                    </a>
                 </div>
             </div>
         </main>

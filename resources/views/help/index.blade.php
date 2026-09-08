@@ -3,19 +3,21 @@
 @section('title', 'Centro de ayuda')
 
 @section('content')
-<div class="space-y-6" id="help-center">
-    <section class="overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-950 via-slate-900 to-cyan-950 p-6 text-white shadow-lg sm:p-8">
-        <div class="max-w-3xl">
-            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Ayuda sin Internet</p>
-            <h1 class="mt-2 text-2xl font-bold sm:text-3xl">¿Cómo podemos ayudarte?</h1>
-            <p class="mt-3 text-sm leading-6 text-slate-300 sm:text-base">Busca una tarea o un problema común. Las respuestas explican pasos seguros y cuándo debes comunicarte con el administrador.</p>
-            <div class="relative mt-6 max-w-2xl">
-                <label for="help-search" class="sr-only">Buscar en el centro de ayuda</label>
+<div class="ex-shell" id="help-center">
+    <x-ui.command-hero
+        kicker="Ayuda sin Internet"
+        title="¿Cómo podemos ayudarte?"
+        subtitle="Busca una tarea o un problema común. Las respuestas explican pasos seguros y cuándo debes comunicarte con el administrador."
+        :live="false"
+    >
+        <x-slot:body>
+            <label for="help-search" class="sr-only">Buscar en el centro de ayuda</label>
+            <div class="relative">
                 <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m1.35-5.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/></svg>
                 <input id="help-search" type="search" class="input-field input-with-leading-icon !bg-white !py-3 !text-slate-900 shadow-sm outline-none ring-cyan-400 placeholder:text-slate-400 focus:ring-2" placeholder="Ejemplo: no imprime el ticket" autocomplete="off">
             </div>
-        </div>
-    </section>
+        </x-slot:body>
+    </x-ui.command-hero>
 
     <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Temas de ayuda">
         <button type="button" class="help-category rounded-xl bg-indigo-600 px-4 py-3 text-left text-sm font-semibold text-white shadow-sm" data-help-category="all" aria-pressed="true">Todos los temas</button>
@@ -61,6 +63,28 @@
             <div class="text-3xl" aria-hidden="true">🔎</div>
             <h3 class="mt-3 font-semibold text-slate-900">No encontramos esa pregunta</h3>
             <p class="mt-1 text-sm text-slate-500">Prueba palabras más cortas o consulta con el administrador del sistema.</p>
+        </div>
+    </section>
+
+    <section id="northlink-contact" class="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="grid lg:grid-cols-[1.15fr_.85fr]">
+            <div class="bg-gradient-to-br from-slate-950 via-slate-900 to-teal-950 p-6 text-white sm:p-8">
+                <p class="text-xs font-bold uppercase tracking-[0.18em] text-teal-300">Soporte oficial</p>
+                <h2 class="mt-2 text-2xl font-black tracking-tight">{{ config('northlink.product') }}</h2>
+                <p class="mt-1 text-sm font-semibold text-teal-200">Desarrollado por {{ config('northlink.name') }}</p>
+                <p class="mt-3 max-w-xl text-sm leading-6 text-slate-300">Diseñamos, instalamos y damos soporte a {{ config('northlink.product') }} desde {{ config('northlink.location') }}. Estamos disponibles para instalación, capacitación, respaldo y diagnóstico.</p>
+                <p class="mt-5 text-xs font-semibold text-slate-400">{{ config('northlink.product') }} · Tecnología creada para el comercio nicaragüense</p>
+            </div>
+            <div class="flex flex-col justify-center gap-3 p-6 sm:p-8">
+                <a href="{{ config('northlink.website') }}" target="_blank" rel="noopener noreferrer" class="btn-primary justify-center">Visitar northlinkni.com</a>
+                @if(config('northlink.support_email'))
+                    <a href="mailto:{{ config('northlink.support_email') }}" class="btn-outline justify-center">{{ config('northlink.support_email') }}</a>
+                @endif
+                @if(config('northlink.whatsapp'))
+                    <a href="https://wa.me/{{ preg_replace('/\D+/', '', config('northlink.whatsapp')) }}" target="_blank" rel="noopener noreferrer" class="btn-outline justify-center">Contactar por WhatsApp</a>
+                @endif
+                <p class="text-center text-xs leading-5 text-slate-500">Al solicitar ayuda, comparte la pantalla, hora y mensaje exacto. Nunca envíes contraseñas.</p>
+            </div>
         </div>
     </section>
 

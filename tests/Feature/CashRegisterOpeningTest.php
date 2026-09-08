@@ -3,6 +3,7 @@
 use App\Models\Arqueo;
 use App\Models\CajaSession;
 use App\Models\Client;
+use App\Models\CreditPayment;
 use App\Models\Role;
 use App\Models\Sale;
 use App\Models\User;
@@ -152,4 +153,26 @@ test('the same cash session cannot be closed twice', function () {
         ->assertSessionHasErrors('caja_session_id');
 
     expect(Arqueo::query()->where('caja_session_id', $session->id)->count())->toBe(1);
+});
+
+test('cash credit payments increase expected physical cash but transfers do not', function () {
+    $admin = cashRegisterAdmin();
+    $session = CajaSession::query()->create([
+        'date' => now()->toDateString(),
+        'opened_at' => now(),
+        'opened_by' => $admin->id,
+        'opening_amount' => 100,
+        'status' => 'open',
+    ]);
+    $client = Client::query()->create(['name' => 'Cliente abono', 'phone' => '88881111']);
+    CreditPayment::query()->create(['client_id' => $client->id, 'user_id' => $admin->id, 'amount' => 50, 'payment_type' => 'cash', 'payment_date' => now()]);
+    CreditPayment::query()->create(['client_id' => $client->id, 'user_id' => $admin->id, 'amount' => 75, 'payment_type' => 'transfer', 'payment_date' => now()]);
+
+    $this->actingAs($admin)->post(route('arqueo.run'), [
+        'date' => now()->toDateString(),
+        'caja_session_id' => $session->id,
+        'physical_counts' => [['amount' => 50, 'qty' => 3]],
+    ])->assertOk();
+
+    expect((float) Arqueo::query()->firstOrFail()->cash_total)->toBe(150.0);
 });

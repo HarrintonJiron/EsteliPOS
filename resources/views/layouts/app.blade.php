@@ -40,6 +40,44 @@
         }
         body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
 
+        .app-header-brand {
+            display: none;
+            min-width: 0;
+            align-items: center;
+            justify-content: center;
+            gap: 0.65rem;
+            padding: 0.25rem 0.85rem;
+            border: 1px solid rgba(203, 213, 225, 0.85);
+            border-radius: 0.85rem;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(240, 253, 250, 0.88));
+            box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06);
+        }
+        .app-header-brand img {
+            width: auto;
+            height: 2rem;
+            max-width: 7.25rem;
+            object-fit: contain;
+        }
+        .app-header-brand-product {
+            font-size: 0.95rem;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -0.035em;
+            color: #0f766e;
+        }
+        .app-header-brand-company {
+            margin-top: 0.18rem;
+            font-size: 0.56rem;
+            font-weight: 700;
+            line-height: 1;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+        @media (min-width: 1280px) {
+            .app-header-brand { display: flex; }
+        }
+
         /* ── Sidebar (layout-specific) ── */
         #app-sidebar {
             position: fixed;
@@ -286,6 +324,8 @@
                             'items' => [
                                 ['route' => 'facturacion.pos', 'label' => 'Punto de Venta', 'icon' => 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z', 'highlight' => true],
                                 ['route' => 'dashboard.general', 'label' => 'Dashboard', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'],
+                                ['route' => 'analitica.index', 'label' => 'Analítica gerencial', 'icon' => 'M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z'],
+                                ['route' => 'sucursales.index', 'label' => 'Sucursales', 'icon' => 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', 'match' => 'sucursales.*'],
                             ],
                         ],
                         [
@@ -304,7 +344,7 @@
                                 ['route' => 'clientes.index', 'label' => 'Clientes', 'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', 'match' => 'clientes.*'],
                                 ['route' => 'proveedores.index', 'label' => 'Proveedores', 'icon' => 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', 'match' => 'proveedores.*'],
                                 ['route' => 'creditos.index', 'label' => 'Créditos', 'icon' => 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z', 'match' => 'creditos.*'],
-                                ['route' => 'planilla.index', 'label' => 'Planilla', 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', 'match' => ['planilla.*', 'nomina.*', 'leave.*', 'loans.*', 'bonuses.*', 'deductions.*', 'employees.*']],
+                                ['route' => 'rrhh.hub', 'label' => 'Recursos humanos', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', 'match' => ['rrhh.*', 'planilla.*', 'nomina.*', 'leave.*', 'loans.*', 'bonuses.*', 'deductions.*', 'employees.*']],
                             ],
                         ],
                     ];
@@ -314,7 +354,7 @@
                         'proformas.index' => 'proformas', 'reparaciones.index' => 'reparaciones',
                         'inventario.index' => 'inventario', 'proveedores.index' => 'proveedores',
                         'compras.index' => 'compras', 'clientes.index' => 'clientes',
-                        'creditos.index' => 'creditos', 'planilla.index' => 'planilla',
+                        'creditos.index' => 'creditos', 'planilla.index' => 'planilla', 'rrhh.hub' => 'planilla',
                     ];
                     $canViewDashboard = auth()->user()?->isAdmin() || auth()->user()?->hasPermission('dashboard.view');
                 @endphp
@@ -322,7 +362,7 @@
                 @foreach($navSections as $section)
                     @php
                         $visibleItems = collect($section['items'])->filter(function ($item) use ($moduleByRoute, $accessibleModuleSlugs, $canViewDashboard) {
-                            if ($item['route'] === 'dashboard.general') {
+                            if (in_array($item['route'], ['dashboard.general', 'analitica.index', 'sucursales.index'], true)) {
                                 return (bool) $canViewDashboard;
                             }
 
@@ -423,6 +463,11 @@
 
             {{-- User footer --}}
             <div class="sidebar-footer flex flex-col gap-3 border-t {{ $sidebarBorder }} p-3">
+                <a href="{{ route('help.index') }}#northlink-contact"
+                   class="sidebar-user-meta rounded-lg px-2 py-1.5 text-center text-[10px] leading-4 text-slate-400 transition hover:bg-white/5 hover:text-indigo-200"
+                   data-tooltip="Soporte Northlink">
+                    Desarrollado por <strong class="font-semibold text-slate-300">{{ config('northlink.name') }}</strong>
+                </a>
                 <div class="sidebar-user-card flex items-center gap-3 rounded-xl bg-white/5 px-2.5 py-2.5">
                     <div class="sidebar-user-avatar flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 font-bold uppercase shadow-lg shadow-indigo-500/20 transition-all duration-280">
                         {{ strtoupper(substr(auth()->user()?->name ?? 'U', 0, 1)) }}
@@ -472,6 +517,15 @@
                             <nav class="breadcrumb hidden sm:flex" aria-label="Breadcrumb">@yield('breadcrumb')</nav>
                         @endif
                         <h1 class="truncate text-lg font-semibold text-slate-800">@yield('title')</h1>
+                    </div>
+                </div>
+
+                <div class="app-header-brand" data-application-brand aria-label="EsteliPOS, desarrollado por Northlink Microsystem">
+                    <img src="{{ asset('images/northlink-logo-login.png') }}" alt="Logo de {{ config('northlink.name') }}">
+                    <span class="h-7 w-px shrink-0 bg-slate-200" aria-hidden="true"></span>
+                    <div class="min-w-0">
+                        <p class="app-header-brand-product">{{ config('northlink.product') }}</p>
+                        <p class="app-header-brand-company">{{ config('northlink.name') }}</p>
                     </div>
                 </div>
 

@@ -92,6 +92,7 @@ if ($LanAddress) {
 if ($PhpPath) {
     Set-Location $ProjectRoot
     & $PhpPath artisan about
+    & $PhpPath artisan migrate:status --no-ansi
 }
 
 Read-Host "Presiona Enter para cerrar"

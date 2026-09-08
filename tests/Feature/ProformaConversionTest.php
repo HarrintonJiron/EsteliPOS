@@ -4,6 +4,7 @@ use App\Http\Controllers\ProformaController;
 use App\Models\Client;
 use App\Models\Proforma;
 use App\Models\User;
+use App\Services\AccountingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 
@@ -32,6 +33,9 @@ test('converting a proforma without a client creates a generic client sale', fun
     ]);
 
     $this->actingAs($user);
+    $accounting = Mockery::mock(AccountingService::class);
+    $accounting->shouldReceive('recordSale')->once();
+    app()->instance(AccountingService::class, $accounting);
 
     $response = app(ProformaController::class)->convertToSale(new Request(['payment_type' => 'cash']), $proforma->id);
 

@@ -13,14 +13,12 @@ class OperationalExpenseService
 {
     private const DEFAULT_EXPENSE_ACCOUNT = '6.1.99';
 
-    public function __construct(private readonly AccountingService $accounting)
-    {
-    }
+    public function __construct(private readonly AccountingService $accounting) {}
 
     public function create(array $data, User $actor): OperationalExpense
     {
         return DB::transaction(function () use ($data, $actor) {
-            $data = $this->normalizePayload($data);
+            $data = $this->normalizePayload([...$data, 'user_id' => $actor->id]);
 
             $expense = OperationalExpense::create([
                 ...$data,
@@ -124,6 +122,7 @@ class OperationalExpenseService
             $cajaSessionId = CajaSession::query()
                 ->whereDate('date', $expenseDate)
                 ->where('status', 'open')
+                ->when($data['user_id'] ?? $expense?->user_id, fn ($query, $userId) => $query->where('opened_by', $userId))
                 ->orderByDesc('opened_at')
                 ->value('id');
         }

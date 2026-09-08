@@ -10,6 +10,9 @@ class Proforma extends Model
         'proforma_number',
         'client_id',
         'user_id',
+        'price_list_id',
+        'price_list_name',
+        'sale_id',
         'client_name',
         'client_phone',
         'client_email',
@@ -42,6 +45,16 @@ class Proforma extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function priceList()
+    {
+        return $this->belongsTo(PriceList::class);
+    }
+
+    public function sale()
+    {
+        return $this->belongsTo(Sale::class);
+    }
+
     public function details()
     {
         return $this->hasMany(ProformaDetail::class);
@@ -50,24 +63,24 @@ class Proforma extends Model
     public function statusLabel(): string
     {
         return match ($this->status) {
-            'draft'    => 'Borrador',
-            'sent'     => 'Enviada',
+            'draft' => 'Borrador',
+            'sent' => 'Enviada',
             'accepted' => 'Aceptada',
             'rejected' => 'Rechazada',
-            'expired'  => 'Expirada',
-            default    => ucfirst($this->status),
+            'expired' => 'Expirada',
+            default => ucfirst($this->status),
         };
     }
 
     public function statusColor(): string
     {
         return match ($this->status) {
-            'draft'    => 'bg-slate-100 text-slate-700',
-            'sent'     => 'bg-blue-100 text-blue-700',
+            'draft' => 'bg-slate-100 text-slate-700',
+            'sent' => 'bg-blue-100 text-blue-700',
             'accepted' => 'bg-green-100 text-green-700',
             'rejected' => 'bg-red-100 text-red-700',
-            'expired'  => 'bg-amber-100 text-amber-700',
-            default    => 'bg-slate-100 text-slate-700',
+            'expired' => 'bg-amber-100 text-amber-700',
+            default => 'bg-slate-100 text-slate-700',
         };
     }
 }

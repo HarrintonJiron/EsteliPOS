@@ -1,13 +1,75 @@
 @extends('layouts.app')
 @section('title', 'Dashboard Contable')
 @section('content')
-<div class="space-y-6">
-@include('contabilidad._tabs')
-<div class="flex flex-wrap justify-between items-end gap-4"><div><h1 class="page-title">Dashboard Contable</h1><p class="page-subtitle">Resumen financiero de {{ $periodLabel }}</p></div><form method="GET" class="flex gap-2"><input type="month" name="month" value="{{ $month }}" class="input-field"><button class="btn-primary">Actualizar</button></form></div>
-@php $cards=[['Utilidad del mes',$profit,'emerald'],['Ventas',$sales,'blue'],['Compras',$purchases,'amber'],['Ingresos contables',$income,'indigo'],['Egresos contables',$expenses,'rose'],['Caja',$cash,'cyan'],['Banco',$bank,'sky'],['Cuentas por cobrar',$receivables,'violet'],['Cuentas por pagar',$payables,'orange'],['Capital',$capital,'slate']]; @endphp
-<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">@foreach($cards as [$label,$value,$color])<div class="card p-4 border-t-4 border-{{ $color }}-500"><p class="text-xs uppercase tracking-wide text-slate-500">{{ $label }}</p><p class="mt-2 text-xl font-bold {{ $value < 0 ? 'text-red-600' : 'text-slate-800' }}">C$ {{ number_format($value,2) }}</p></div>@endforeach</div>
-<div class="card p-5"><div class="flex justify-between items-center mb-4"><div><h2 class="font-semibold text-slate-800">Tendencia de 12 meses</h2><p class="text-xs text-slate-500">Ingresos, egresos y utilidad contable</p></div><div class="flex gap-4 text-xs"><span class="text-indigo-600">● Ingresos</span><span class="text-rose-600">● Egresos</span><span class="text-emerald-600">● Utilidad</span></div></div><div class="h-80"><canvas id="accountingChart"></canvas></div></div>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4"><a href="{{ route('contabilidad.estado-resultados.index',['date_from'=>$dateFrom,'date_to'=>$dateTo]) }}" class="card p-4 hover:border-indigo-400"><strong>Estado de Resultados</strong><p class="text-sm text-slate-500">Detalle de la utilidad del período</p></a><a href="{{ route('contabilidad.balance-general.index',['as_of_date'=>$dateTo]) }}" class="card p-4 hover:border-indigo-400"><strong>Balance General</strong><p class="text-sm text-slate-500">Activos, pasivos y patrimonio</p></a><a href="{{ route('contabilidad.flujo-caja.index',['date_from'=>$dateFrom,'date_to'=>$dateTo]) }}" class="card p-4 hover:border-indigo-400"><strong>Flujo de Caja</strong><p class="text-sm text-slate-500">Entradas y salidas de efectivo</p></a></div>
+@php
+    $cards = [
+        ['Utilidad del mes', $profit],
+        ['Ventas', $sales],
+        ['Compras', $purchases],
+        ['Ingresos contables', $income],
+        ['Egresos contables', $expenses],
+        ['Caja', $cash],
+        ['Banco', $bank],
+        ['Cuentas por cobrar', $receivables],
+        ['Cuentas por pagar', $payables],
+        ['Capital', $capital],
+    ];
+@endphp
+<div class="ex-shell accounting-workspace">
+    @include('contabilidad._tabs')
+
+    <x-ui.command-hero
+        kicker="Finanzas"
+        title="Dashboard contable"
+        :subtitle="'Resumen financiero de ' . $periodLabel"
+        metric-label="Utilidad del mes"
+        :metric-value="'C$ ' . number_format($profit, 0)"
+        :stats="[
+            ['label' => 'Ventas', 'value' => 'C$ ' . number_format($sales, 0)],
+            ['label' => 'Compras', 'value' => 'C$ ' . number_format($purchases, 0)],
+            ['label' => 'Caja', 'value' => 'C$ ' . number_format($cash, 0)],
+        ]"
+    >
+        <x-slot:actions>
+            <form method="GET" class="flex gap-2">
+                <input type="month" name="month" value="{{ $month }}" class="input-field">
+                <button class="ex-btn ex-btn--solid">Actualizar</button>
+            </form>
+        </x-slot:actions>
+    </x-ui.command-hero>
+
+    <div class="accounting-pulse">
+        @foreach($cards as $index => [$label, $value])
+            <article class="accounting-pulse__card accounting-pulse__card--{{ $index % 5 }}"><span class="accounting-pulse__label">{{ $label }}</span><strong>C$ {{ number_format($value, 0) }}</strong><span class="accounting-pulse__line"></span></article>
+        @endforeach
+    </div>
+
+    <div class="ex-panel">
+        <div class="ex-panel__head">
+            <div>
+                <h2>Tendencia de 12 meses</h2>
+                <p>Ingresos, egresos y utilidad contable</p>
+            </div>
+        </div>
+        <div class="ex-chart ex-chart--trend accounting-chart" style="height: 22rem">
+            <canvas id="accountingChart"></canvas>
+        </div>
+    </div>
+
+    <nav class="ex-shortcuts" style="grid-template-columns: repeat(3, minmax(0, 1fr))">
+        <a href="{{ route('contabilidad.estado-resultados.index', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="ex-shortcut">
+            <strong>Estado de resultados</strong>
+            <span>Detalle de la utilidad del período</span>
+        </a>
+        <a href="{{ route('contabilidad.balance-general.index', ['as_of_date' => $dateTo]) }}" class="ex-shortcut">
+            <strong>Balance general</strong>
+            <span>Activos, pasivos y patrimonio</span>
+        </a>
+        <a href="{{ route('contabilidad.flujo-caja.index', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="ex-shortcut">
+            <strong>Flujo de caja</strong>
+            <span>Entradas y salidas de efectivo</span>
+        </a>
+    </nav>
 </div>
 @push('scripts')
 <script>

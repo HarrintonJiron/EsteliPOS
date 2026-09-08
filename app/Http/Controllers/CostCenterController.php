@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\CostCenterRequest;
 use App\Models\CostCenter;
+use App\Services\ExecutiveAnalyticsService;
 use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 class CostCenterController extends Controller
 {
+    public function __construct(private ExecutiveAnalyticsService $analytics) {}
+
     public function index(Request $request)
     {
         $query = CostCenter::orderBy('code');
@@ -29,6 +33,14 @@ class CostCenterController extends Controller
         return view('contabilidad.centros-costo.index', [
             'costCenters' => $costCenters,
             'types' => CostCenter::TYPES,
+        ]);
+    }
+
+    public function analytics(): View
+    {
+        return view('contabilidad.centros-costo.analytics', [
+            'rows' => $this->analytics->costCenterScorecard(now()->startOfYear(), now()),
+            'year' => now()->year,
         ]);
     }
 

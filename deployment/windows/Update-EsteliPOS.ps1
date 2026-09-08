@@ -49,6 +49,8 @@ $CopyMap = [ordered]@{}
 $CreatedDestinations = New-Object System.Collections.Generic.List[string]
 $TempDir = $null
 $NestedTempDir = $null
+$script:UpdateStep = 0
+$script:UpdateStepTotal = $(if ($ServerProfile -eq "IIS") { 10 } else { 9 })
 
 $CurrentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $CurrentPrincipal = New-Object Security.Principal.WindowsPrincipal($CurrentIdentity)
@@ -57,7 +59,12 @@ if (-not $CurrentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
 }
 
 function Write-Step([string]$Message) {
-    Write-Host "`n==> $Message" -ForegroundColor Cyan
+    $script:UpdateStep++
+    $percent = [Math]::Min(100, [Math]::Floor(($script:UpdateStep / $script:UpdateStepTotal) * 100))
+    $filled = [Math]::Min(30, [Math]::Floor($percent / 100 * 30))
+    $bar = ("#" * $filled) + ("-" * (30 - $filled))
+    Write-Host ("`n[{0}] {1,3}%  Paso {2}/{3}" -f $bar, $percent, $script:UpdateStep, $script:UpdateStepTotal) -ForegroundColor Green
+    Write-Host "==> $Message" -ForegroundColor Cyan
 }
 
 function Invoke-EsteliPOSPhpFile([string]$PhpCode, [string[]]$Arguments = @()) {
@@ -363,6 +370,12 @@ try {
         throw "Se actualizaron muy pocos elementos ($UpdatedCount). Revise que el ZIP sea el paquete completo."
     }
 
+    # Esta edicion vuelve al instalador de consola estable. Elimina solamente
+    # launchers graficos conocidos que puedan quedar de una version anterior.
+    Remove-Item -LiteralPath (Join-Path $ProjectRoot "Instalar-EsteliPOS-Grafico.bat") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $ProjectRoot "deployment\windows\Install-EsteliPOS-GUI.ps1") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $ProjectRoot "deployment\windows\installer") -Recurse -Force -ErrorAction SilentlyContinue
+
     $InstalledVersionPath = Join-Path $ProjectRoot "VERSION"
     if (-not (Test-Path -LiteralPath $InstalledVersionPath)) {
         throw "VERSION no quedo instalado tras la copia."
@@ -397,6 +410,12 @@ try {
     & $PhpPath artisan route:clear
     & $PhpPath artisan optimize
     if ($LASTEXITCODE -ne 0) { throw "No se pudo optimizar la aplicacion." }
+
+    Write-Step "Verificando manejo de logos e imagenes"
+    & $PhpPath artisan app:verify-image-pipeline
+    if ($LASTEXITCODE -ne 0) {
+        throw "La prueba preventiva de imagenes fallo. Revise permisos de storage\app\public y PHP GD/fileinfo."
+    }
 
     Write-Step "Reaplicando arranque LAN, firewall, tarea y acceso directo"
     $StartScript = Join-Path $WindowsScriptsDir "Start-EsteliPOS.ps1"

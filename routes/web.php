@@ -8,6 +8,7 @@ use App\Http\Controllers\ArqueoController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BalanceSheetController;
 use App\Http\Controllers\BonusController;
+use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CashFlowController;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\CompraController;
@@ -20,10 +21,12 @@ use App\Http\Controllers\DeviceBrandController;
 use App\Http\Controllers\DiarioController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ExchangeRateController;
+use App\Http\Controllers\ExecutiveAnalyticsController;
 use App\Http\Controllers\FacturacionController;
 use App\Http\Controllers\FiscalPeriodController;
 use App\Http\Controllers\HelpCenterController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\HumanResourcesHubController;
 use App\Http\Controllers\IncomeStatementController;
 use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\JournalEntryController;
@@ -195,6 +198,29 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('permission:dashboard.view')
         ->name('dashboard.general');
 
+    Route::get('/analitica', ExecutiveAnalyticsController::class)
+        ->middleware('permission:dashboard.view')
+        ->name('analitica.index');
+
+    Route::get('/sucursales', [BranchController::class, 'index'])
+        ->middleware('permission:dashboard.view')
+        ->name('sucursales.index');
+    Route::get('/sucursales/crear', [BranchController::class, 'create'])
+        ->middleware('permission:settings.update')
+        ->name('sucursales.create');
+    Route::post('/sucursales', [BranchController::class, 'store'])
+        ->middleware('permission:settings.update')
+        ->name('sucursales.store');
+    Route::get('/sucursales/{branch}', [BranchController::class, 'show'])
+        ->middleware('permission:dashboard.view')
+        ->name('sucursales.show');
+    Route::get('/sucursales/{branch}/editar', [BranchController::class, 'edit'])
+        ->middleware('permission:settings.update')
+        ->name('sucursales.edit');
+    Route::put('/sucursales/{branch}', [BranchController::class, 'update'])
+        ->middleware('permission:settings.update')
+        ->name('sucursales.update');
+
     Route::middleware('module:proveedores')->group(function () {
         Route::middleware('permission:proveedores.view')->group(function () {
             Route::get('/proveedores', [ProveedorController::class, 'index'])->name('proveedores.index');
@@ -252,6 +278,19 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/planilla', [PlanillaController::class, 'index'])->middleware(['module:planilla', 'permission:planilla.view'])->name('planilla.index');
     Route::get('/planilla/charts', [PlanillaController::class, 'charts'])->middleware(['module:planilla', 'permission:planilla.view'])->name('planilla.charts');
+
+    Route::middleware(['module:planilla', 'permission:planilla.view'])->prefix('rrhh')->name('rrhh.')->group(function () {
+        Route::get('/', [HumanResourcesHubController::class, 'hub'])->name('hub');
+        Route::get('/directorio', [HumanResourcesHubController::class, 'directory'])->name('directory');
+        Route::get('/organigrama', [HumanResourcesHubController::class, 'organigram'])->name('organigram');
+        Route::get('/asistencia', [HumanResourcesHubController::class, 'attendance'])->name('attendance');
+        Route::post('/asistencia', [HumanResourcesHubController::class, 'storeAttendance'])->middleware('permission:planilla.edit')->name('attendance.store');
+        Route::get('/turnos', [HumanResourcesHubController::class, 'shifts'])->name('shifts');
+        Route::get('/aguinaldo', [HumanResourcesHubController::class, 'thirteenth'])->name('thirteenth');
+        Route::get('/inss', [HumanResourcesHubController::class, 'inss'])->name('inss');
+        Route::get('/evaluaciones', [HumanResourcesHubController::class, 'evaluations'])->name('evaluations');
+        Route::post('/evaluaciones', [HumanResourcesHubController::class, 'storeEvaluation'])->middleware('permission:planilla.edit')->name('evaluations.store');
+    });
 
     // Gestión de Empleados
     Route::middleware('module:planilla')->group(function () {
@@ -351,6 +390,7 @@ Route::middleware(['auth'])->group(function () {
         });
         Route::middleware('permission:proformas.create')->group(function () {
             Route::get('/proformas/nueva', [ProformaController::class, 'pos'])->name('proformas.pos');
+            Route::get('/proformas/productos', [ProformaController::class, 'products'])->name('proformas.products');
             Route::post('/proformas', [ProformaController::class, 'store'])->name('proformas.store');
         });
         Route::patch('/proformas/{id}/status', [ProformaController::class, 'updateStatus'])->whereNumber('id')->middleware('permission:proformas.edit')->name('proformas.status');
@@ -546,6 +586,7 @@ Route::middleware(['auth'])->group(function () {
 
         // Centros de Costo
         Route::get('/centros-costo', [CostCenterController::class, 'index'])->name('centros-costo.index');
+        Route::get('/centros-costo/analisis', [CostCenterController::class, 'analytics'])->name('centros-costo.analytics');
         Route::middleware(['permission:contabilidad.create'])->group(function () {
             Route::get('/centros-costo/create', [CostCenterController::class, 'create'])->name('centros-costo.create');
             Route::post('/centros-costo', [CostCenterController::class, 'store'])->name('centros-costo.store');

@@ -4,36 +4,37 @@
 
 @section('content')
 
-<div class="space-y-3" id="catalogApp" data-search-url="{{ route('inventario.index') }}">
+<div class="ex-shell" id="catalogApp" data-search-url="{{ route('inventario.index') }}">
 
     @include('inventario._hub-nav')
 
-    <div class="flex flex-wrap items-center justify-between gap-2">
-        <div>
-            <h2 class="text-lg font-bold text-slate-900">Catálogo de productos</h2>
-            <p class="text-xs text-slate-500">Búsqueda en tiempo real mientras escribes</p>
-        </div>
-        <div class="flex flex-wrap gap-1.5">
-            <a href="{{ route('inventario.export') }}" class="btn-outline text-xs py-1.5">Exportar</a>
-            <a href="{{ route('inventario.quick') }}" class="btn-primary text-xs py-1.5">+ Rápido</a>
-        </div>
-    </div>
+    <x-ui.command-hero
+        kicker="Bodega"
+        title="Catálogo de productos"
+        subtitle="Búsqueda en tiempo real mientras escribes"
+        metric-label="Valor al costo"
+        :metric-value="'C$ ' . number_format($stats['total_inventory_value'], 0)"
+        :meta="[$stats['total_products'] . ' productos', $stats['low_stock_count'] . ' en mínimo']"
+        :stats="[
+            ['label' => 'Bajo', 'value' => number_format($stats['low_stock_count'])],
+            ['label' => 'Sin stock', 'value' => number_format($stats['out_of_stock_count'])],
+            ['label' => 'Por vencer', 'value' => number_format($stats['expiring_soon_count'])],
+        ]"
+        :compact="true"
+    >
+        <x-slot:actions>
+            <a href="{{ route('inventario.export') }}" class="ex-btn">Exportar</a>
+            <a href="{{ route('inventario.quick') }}" class="ex-btn ex-btn--solid">+ Rápido</a>
+        </x-slot:actions>
+    </x-ui.command-hero>
 
-    {{-- KPIs compactos --}}
-    <div class="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        @foreach([
-            ['Productos', $stats['total_products'], 'text-indigo-600'],
-            ['Bajo', $stats['low_stock_count'], 'text-amber-600'],
-            ['Sin stock', $stats['out_of_stock_count'], 'text-red-600'],
-            ['Por vencer', $stats['expiring_soon_count'], 'text-orange-600'],
-            ['Costo', 'C$ '.number_format($stats['total_inventory_value'], 0), 'text-violet-700'],
-            ['Venta', 'C$ '.number_format($stats['total_sale_value'], 0), 'text-emerald-700'],
-        ] as [$label, $value, $color])
-        <div class="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
-            <p class="text-[10px] uppercase tracking-wide text-slate-500">{{ $label }}</p>
-            <p class="text-sm font-bold {{ $color }}">{{ $value }}</p>
-        </div>
-        @endforeach
+    <div class="ex-kpis">
+        <x-ui.command-kpi label="Productos" :value="number_format($stats['total_products'])" />
+        <x-ui.command-kpi label="Bajo" :value="number_format($stats['low_stock_count'])" />
+        <x-ui.command-kpi label="Sin stock" :value="number_format($stats['out_of_stock_count'])" />
+        <x-ui.command-kpi label="Por vencer" :value="number_format($stats['expiring_soon_count'])" />
+        <x-ui.command-kpi label="Costo" :value="'C$ ' . number_format($stats['total_inventory_value'], 0)" />
+        <x-ui.command-kpi label="Venta" :value="'C$ ' . number_format($stats['total_sale_value'], 0)" />
     </div>
 
     <div class="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">

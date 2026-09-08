@@ -22,6 +22,7 @@ class Employee extends Model
         'contract_type',
         'payment_frequency',
         'is_active',
+        'branch_id',
         'emergency_contact',
         'emergency_phone',
         'bank_account',
@@ -34,6 +35,11 @@ class Employee extends Model
         'hourly_rate' => 'decimal:2',
         'is_active' => 'boolean',
     ];
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
+    }
 
     public function leaveRequests()
     {
@@ -48,6 +54,16 @@ class Employee extends Model
     public function bonuses()
     {
         return $this->hasMany(Bonus::class);
+    }
+
+    public function attendanceRecords()
+    {
+        return $this->hasMany(AttendanceRecord::class);
+    }
+
+    public function performanceEvaluations()
+    {
+        return $this->hasMany(PerformanceEvaluation::class);
     }
 
     public function deductions()

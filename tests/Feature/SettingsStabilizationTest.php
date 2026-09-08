@@ -61,7 +61,7 @@ test('inactive administrators cannot access settings or log in', function () {
     $this->post(route('login'), [
         'email' => $user->email,
         'password' => 'secret-password',
-    ])->assertSessionHasErrors('email');
+    ])->assertSessionHasErrors('login');
 
     $this->assertGuest();
 });

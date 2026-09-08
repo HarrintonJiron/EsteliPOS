@@ -5,6 +5,12 @@
         'inventory' => 'Estado del inventario',
         'kardex' => 'Kardex de movimientos',
         'profit' => 'Análisis de rentabilidad',
+        'abc' => 'Clasificación ABC de productos',
+        'aging' => 'Antigüedad de cartera',
+        'slow' => 'Productos de lenta rotación',
+        'top_clients' => 'Clientes con mayor compra',
+        'sellers' => 'Desempeño de vendedores',
+        'categories' => 'Ventas por categoría',
     ];
 @endphp
 
@@ -186,6 +192,154 @@
                         </tr>
                     @empty
                         <tr><td colspan="6">@include('reportes._empty')</td></tr>
+                    @endforelse
+                </tbody>
+
+            @elseif($reportType === 'abc')
+                <thead>
+                    <tr>
+                        <th>Clase</th>
+                        <th>Código</th>
+                        <th>Producto</th>
+                        <th class="text-right">Cantidad</th>
+                        <th class="text-right">Ventas</th>
+                        <th class="text-right">%</th>
+                        <th class="text-right">Acum.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($data as $row)
+                        <tr>
+                            <td>
+                                <span class="{{ $row->class === 'A' ? 'badge-success' : ($row->class === 'B' ? 'badge-warning' : 'badge-info') }}">{{ $row->class }}</span>
+                            </td>
+                            <td class="font-mono text-xs">{{ $row->code }}</td>
+                            <td class="font-medium">{{ $row->name }}</td>
+                            <td class="text-right">{{ number_format($row->quantity, 0) }}</td>
+                            <td class="text-right font-semibold">C$ {{ number_format($row->total, 2) }}</td>
+                            <td class="text-right">{{ number_format($row->share, 1) }}%</td>
+                            <td class="text-right text-slate-500">{{ number_format($row->cumulative_share, 1) }}%</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="7">@include('reportes._empty')</td></tr>
+                    @endforelse
+                </tbody>
+
+            @elseif($reportType === 'aging')
+                <thead>
+                    <tr>
+                        <th>Factura</th>
+                        <th>Cliente</th>
+                        <th>Vencimiento</th>
+                        <th class="text-right">Días</th>
+                        <th>Tramo</th>
+                        <th class="text-right">Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($data as $row)
+                        <tr>
+                            <td class="font-medium">{{ $row->invoice }}</td>
+                            <td>{{ $row->client }}</td>
+                            <td>{{ $row->due_date?->format('d/m/Y') ?? '—' }}</td>
+                            <td class="text-right">{{ $row->days }}</td>
+                            <td>
+                                <span class="{{ $row->bucket === 'Al día' ? 'badge-success' : ($row->bucket === 'Más de 90' ? 'badge-danger' : 'badge-warning') }}">{{ $row->bucket }}</span>
+                            </td>
+                            <td class="text-right font-semibold">C$ {{ number_format($row->due, 2) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="6">@include('reportes._empty')</td></tr>
+                    @endforelse
+                </tbody>
+
+            @elseif($reportType === 'slow')
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Producto</th>
+                        <th>Categoría</th>
+                        <th class="text-right">Stock</th>
+                        <th class="text-right">Valor inmovilizado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($data as $product)
+                        <tr>
+                            <td>{{ $product->code ?? '—' }}</td>
+                            <td class="font-medium">{{ $product->name }}</td>
+                            <td>{{ $product->category?->name ?? '—' }}</td>
+                            <td class="text-right">{{ $product->stock }} {{ $product->unit }}</td>
+                            <td class="text-right font-semibold">C$ {{ number_format($product->stock * $product->purchase_price, 2) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5">@include('reportes._empty')</td></tr>
+                    @endforelse
+                </tbody>
+
+            @elseif($reportType === 'top_clients')
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th class="text-right">Tickets</th>
+                        <th class="text-right">Total</th>
+                        <th class="text-right">Promedio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($data as $row)
+                        <tr>
+                            <td class="font-medium">{{ $row->name }}</td>
+                            <td class="text-right">{{ number_format($row->tickets) }}</td>
+                            <td class="text-right font-semibold">C$ {{ number_format($row->total, 2) }}</td>
+                            <td class="text-right">C$ {{ number_format($row->average, 2) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4">@include('reportes._empty')</td></tr>
+                    @endforelse
+                </tbody>
+
+            @elseif($reportType === 'sellers')
+                <thead>
+                    <tr>
+                        <th>Vendedor / caja</th>
+                        <th class="text-right">Tickets</th>
+                        <th class="text-right">Ventas</th>
+                        <th class="text-right">Ticket promedio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($data as $row)
+                        <tr>
+                            <td class="font-medium">{{ $row->name }}</td>
+                            <td class="text-right">{{ number_format($row->tickets) }}</td>
+                            <td class="text-right font-semibold">C$ {{ number_format($row->total, 2) }}</td>
+                            <td class="text-right">C$ {{ number_format($row->average, 2) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4">@include('reportes._empty')</td></tr>
+                    @endforelse
+                </tbody>
+
+            @elseif($reportType === 'categories')
+                <thead>
+                    <tr>
+                        <th>Categoría</th>
+                        <th class="text-right">Cantidad</th>
+                        <th class="text-right">Ventas</th>
+                        <th class="text-right">Participación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($data as $row)
+                        <tr>
+                            <td class="font-medium">{{ $row->name }}</td>
+                            <td class="text-right">{{ number_format($row->quantity, 0) }}</td>
+                            <td class="text-right font-semibold">C$ {{ number_format($row->total, 2) }}</td>
+                            <td class="text-right">{{ number_format($row->share, 1) }}%</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4">@include('reportes._empty')</td></tr>
                     @endforelse
                 </tbody>
             @endif

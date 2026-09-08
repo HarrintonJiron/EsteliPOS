@@ -19,6 +19,7 @@ use App\Services\AccountingService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
 use App\Services\PricingService;
+use App\Services\PurchaseCostingService;
 use App\Services\UnitConversionService;
 use Database\Seeders\ConfigurationSeeder;
 use Database\Seeders\InventoryCatalogSeeder;
@@ -53,6 +54,8 @@ test('admin can browse inventory hub pages', function () {
     $this->actingAs($admin)->get(route('inventario.dashboard'))->assertOk()->assertSee('Dashboard de inventario');
     $this->actingAs($admin)->get(route('inventario.warehouses.index'))->assertOk()->assertSee('Bodegas');
     $this->actingAs($admin)->get(route('inventario.price-lists.index'))->assertOk()->assertSee('Listas de precios');
+    $priceList = PriceList::query()->where('code', 'GENERAL')->firstOrFail();
+    $this->actingAs($admin)->get(route('inventario.price-lists.show', $priceList))->assertOk()->assertSee('Guardar escala');
     $this->actingAs($admin)->get(route('inventario.units.index'))->assertOk()->assertSee('Unidades de medida');
 });
 
@@ -79,6 +82,47 @@ test('quick product registration can set wholesale price on mayor list', functio
         ->where('price_list_id', $mayorList->id)
         ->where('product_id', $product->id)
         ->value('unit_price'))->toEqual(85.0);
+});
+
+test('quick product registration can create its first presentation', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+    $category = Category::firstOrCreate(['name' => 'Abarrotes rápidos']);
+    $und = Unit::query()->where('abbreviation', 'und')->firstOrFail();
+    $caja = Unit::query()->where('abbreviation', 'caja')->firstOrFail();
+
+    $this->actingAs($admin)
+        ->get(route('inventario.quick'))
+        ->assertOk()
+        ->assertSee('Agregar caja, ristra u otra presentación');
+
+    $this->actingAs($admin)->post(route('inventario.quick-store'), [
+        'code' => 'RAP-CAJA-001',
+        'name' => 'Jabón rápido en caja',
+        'sale_price' => 8,
+        'purchase_price' => 5,
+        'stock' => 72,
+        'category_id' => $category->id,
+        'base_unit_id' => $und->id,
+        'presentation_unit_id' => $caja->id,
+        'presentation_quantity' => 36,
+        'presentation_sale_price' => 270,
+        'presentation_barcode' => '7441000000369',
+        'presentation_use_for_purchase' => 1,
+        'presentation_use_for_sale' => 1,
+        'presentation_default_purchase' => 1,
+    ])->assertRedirect(route('inventario.index'))->assertSessionHasNoErrors();
+
+    $product = Product::query()->where('code', 'RAP-CAJA-001')->firstOrFail();
+    $conversion = $product->unitConversions()->firstOrFail();
+
+    expect((int) $conversion->unit_id)->toBe($caja->id)
+        ->and((int) $conversion->equals_unit_id)->toBe($und->id)
+        ->and((float) $conversion->factor_to_base)->toBe(36.0)
+        ->and((float) $conversion->sale_price)->toBe(270.0)
+        ->and($conversion->barcode)->toBe('7441000000369')
+        ->and($conversion->is_default_purchase_unit)->toBeTrue()
+        ->and((float) $product->fresh()->stock)->toBe(72.0);
 });
 
 test('catalog search updates results while typing', function () {
@@ -148,6 +192,8 @@ test('product conversion can express one carga equals two quintales', function (
         ->firstOrFail();
 
     expect((float) $conversion->factor_to_base)->toBe(2.0)
+        ->and((int) $conversion->equals_unit_id)->toBe($qq->id)
+        ->and((float) $conversion->equals_quantity)->toBe(2.0)
         ->and((bool) $conversion->is_default_sale_unit)->toBeTrue();
 
     $service = app(UnitConversionService::class);
@@ -198,7 +244,7 @@ test('soap can be bought in boxes and sold as ristras without duplicating the pr
         ->get(route('inventario.show', $product->id).'?conversiones=1')
         ->assertOk()
         ->assertSee('Cómo se vende')
-        ->assertSee('Una')
+        ->assertSee('Agregar otra presentación')
         ->assertSee('contiene')
         ->assertSee('1 ristra')
         ->assertSee('Predeterminada');
@@ -356,6 +402,52 @@ test('the default sale unit can be changed for the pos', function () {
         ->and($catalog['default_unit_id'])->toBe($und->id);
 });
 
+test('scanning a presentation barcode selects that presentation in the pos', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+    $und = Unit::query()->where('abbreviation', 'und')->firstOrFail();
+    $caja = Unit::query()->where('abbreviation', 'caja')->firstOrFail();
+    $category = Category::firstOrCreate(['name' => 'Abarrotes']);
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Aceite en caja',
+        'code' => 'ACEITE-CAJA',
+        'purchase_price' => 40,
+        'sale_price' => 50,
+        'stock' => 120,
+        'unit' => 'und',
+        'base_unit_id' => $und->id,
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($admin)->post(route('inventario.conversions.store', $product->id), [
+        'unit_id' => $caja->id,
+        'equals_base_qty' => 12,
+        'equals_unit_id' => $und->id,
+        'sale_price' => 570,
+        'barcode' => '7441000000123',
+        'usage_options' => 1,
+        'use_for_purchase' => 1,
+        'use_for_sale' => 1,
+        'is_default_purchase_unit' => 1,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $purchaseUnits = app(PurchaseCostingService::class)->purchaseUnitsFor(
+        $product->fresh(['baseUnit', 'unitConversions.unit'])
+    );
+
+    expect($purchaseUnits[0]['id'])->toBe($caja->id)
+        ->and($purchaseUnits[0]['is_default_purchase_unit'])->toBeTrue();
+
+    $this->actingAs($admin)
+        ->getJson(route('facturacion.pos-products', ['search' => '7441000000123']))
+        ->assertOk()
+        ->assertJsonCount(1)
+        ->assertJsonPath('0.code', 'ACEITE-CAJA')
+        ->assertJsonPath('0.default_unit_id', $caja->id)
+        ->assertJsonPath('0.default_unit_label', 'caja');
+});
+
 test('unit conversion converts sand from cubic meters to sacks', function () {
     $this->seed(InventoryCatalogSeeder::class);
 
@@ -456,7 +548,58 @@ test('pos applies client price list and warehouse stock', function () {
 
     $sale = Sale::query()->with('details')->latest('id')->firstOrFail();
     expect($sale->warehouse_id)->toBe($warehouse->id)
-        ->and((float) $sale->details->first()->price)->toBe(250.0);
+        ->and((float) $sale->details->first()->price)->toBe(250.0)
+        ->and($sale->price_list_id)->toBe($mayorList->id)
+        ->and($sale->price_list_name)->toBe($mayorList->name)
+        ->and($sale->details->first()->price_list_item_id)->not->toBeNull()
+        ->and((float) $sale->details->first()->price_min_quantity)->toBe(1.0);
+});
+
+test('price lists apply the highest eligible quantity tier', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+
+    $list = PriceList::query()->where('code', 'MAYOR')->firstOrFail();
+    $unit = Unit::query()->where('abbreviation', 'und')->firstOrFail();
+    $category = Category::firstOrCreate(['name' => 'Abarrotes']);
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Jabón por unidad',
+        'code' => 'JAB-TIER-001',
+        'purchase_price' => 6,
+        'sale_price' => 12,
+        'stock' => 100,
+        'unit' => 'und',
+        'base_unit_id' => $unit->id,
+        'status' => 'active',
+    ]);
+
+    foreach ([[1, 12], [6, 11], [12, 10]] as [$minimum, $price]) {
+        PriceListItem::query()->create([
+            'price_list_id' => $list->id,
+            'product_id' => $product->id,
+            'unit_id' => $unit->id,
+            'min_quantity' => $minimum,
+            'unit_price' => $price,
+        ]);
+    }
+
+    $pricing = app(PricingService::class);
+
+    expect($pricing->resolveUnitPrice($product, $list->id, $unit->id, 1))->toBe(12.0)
+        ->and($pricing->resolveUnitPrice($product, $list->id, $unit->id, 5))->toBe(12.0)
+        ->and($pricing->resolveUnitPrice($product, $list->id, $unit->id, 6))->toBe(11.0)
+        ->and($pricing->resolveUnitPrice($product, $list->id, $unit->id, 11))->toBe(11.0)
+        ->and($pricing->resolveUnitPrice($product, $list->id, $unit->id, 12))->toBe(10.0);
+});
+
+test('expired assigned price list falls back to the valid default list', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+
+    $default = PriceList::query()->where('code', 'GENERAL')->firstOrFail();
+    $expired = PriceList::query()->where('code', 'MAYOR')->firstOrFail();
+    $expired->update(['valid_to' => now()->subDay()]);
+
+    expect(app(PricingService::class)->resolvePriceList($expired->id)?->id)->toBe($default->id);
 });
 
 test('pos shows product available when stock is in another warehouse', function () {

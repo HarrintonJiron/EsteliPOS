@@ -1,6 +1,8 @@
 <?php
 
+use App\Console\Commands\ImportClientInventoryCommand;
 use App\Console\Commands\InstallProductionCommand;
+use App\Console\Commands\VerifyImagePipelineCommand;
 use App\Http\Middleware\ApplySystemSettings;
 use App\Http\Middleware\CheckModule;
 use App\Http\Middleware\CheckPermission;
@@ -22,6 +24,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withCommands([
         InstallProductionCommand::class,
+        ImportClientInventoryCommand::class,
+        VerifyImagePipelineCommand::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(prepend: [ApplySystemSettings::class]);

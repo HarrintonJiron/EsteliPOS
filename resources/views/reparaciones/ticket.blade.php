@@ -70,7 +70,7 @@
     @php($receiptLogoUrl = $companyProfile['ticket_logo_url'] ?: $companyProfile['company_logo_url'])
     
     @if($receiptLogoUrl)
-        <img src="{{ $receiptLogoUrl }}" alt="Logo de {{ $companyProfile['company_name'] }}" class="ticket-logo">
+        <img src="{{ $receiptLogoUrl }}" alt="Logo de {{ $companyProfile['company_name'] }}" class="ticket-logo" loading="eager" decoding="sync" onerror="this.remove()">
     @endif
     
     <div class="shop-name">{{ $companyProfile['company_name'] }}</div>

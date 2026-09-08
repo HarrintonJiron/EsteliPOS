@@ -62,6 +62,11 @@ class Purchase extends Model
         return $this->hasMany(PurchaseDetail::class);
     }
 
+    public function supplierPayment()
+    {
+        return $this->hasOne(SupplierPayment::class);
+    }
+
     public function affectsInventory(): bool
     {
         return in_array($this->status, ['pending', 'completed'], true);

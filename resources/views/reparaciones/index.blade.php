@@ -11,42 +11,42 @@
     ])->filter(fn ($key) => request()->filled($key) || ($key === 'overdue_only' && request()->boolean('overdue_only')))->count();
 @endphp
 
-<div class="space-y-5">
+<div class="ex-shell">
 
-    {{-- Header --}}
-    <div class="flex flex-wrap justify-between items-start gap-3">
-        <div>
-            <h1 class="page-title">Dashboard de Reparaciones</h1>
-            <p class="page-subtitle">Panel operativo del taller · entregas, estados y seguimiento</p>
-        </div>
-        <div class="flex flex-wrap gap-2">
+    <x-ui.command-hero
+        kicker="Taller"
+        title="Reparaciones"
+        subtitle="Panel operativo · entregas, estados y seguimiento"
+        metric-label="Órdenes activas"
+        :metric-value="number_format($stats['in_repair'] + $stats['received'] + $stats['ready'])"
+        :meta="[$stats['overdue'] . ' atrasadas', $stats['due_today'] . ' entregan hoy']"
+        :stats="[
+            ['label' => 'Listos', 'value' => number_format($stats['ready'])],
+            ['label' => 'Atrasadas', 'value' => number_format($stats['overdue'])],
+            ['label' => 'Gastos mes', 'value' => 'C$ ' . number_format($expenseStats['month_total'] ?? 0, 0)],
+        ]"
+    >
+        <x-slot:actions>
             @if(auth()->user()?->isAdmin() || auth()->user()?->hasPermission('reparaciones.view_expenses'))
-                <a href="{{ route('reparaciones.gastos.index') }}" class="btn-secondary text-sm">Gastos operativos</a>
+                <a href="{{ route('reparaciones.gastos.index') }}" class="ex-btn">Gastos operativos</a>
             @endif
-            <a href="{{ route('reparaciones.create') }}" class="btn-primary text-sm">
-                + Nueva orden
-            </a>
-        </div>
-    </div>
+            <a href="{{ route('reparaciones.create') }}" class="ex-btn ex-btn--solid">+ Nueva orden</a>
+        </x-slot:actions>
+    </x-ui.command-hero>
 
     @if(session('success'))
         <div class="card p-3 bg-green-50 border border-green-200 text-green-800 text-sm">{{ session('success') }}</div>
     @endif
 
-    {{-- KPIs --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-        <x-ui.stat-card label="Total órdenes" :value="$stats['total']" accent="#64748b" />
-        <x-ui.stat-card label="Recibidos" :value="$stats['received']" accent="#3b82f6" value-class="text-blue-600" />
-        <x-ui.stat-card label="En proceso" :value="$stats['in_repair']" accent="#6366f1" value-class="text-indigo-600" />
-        <x-ui.stat-card label="Listos" :value="$stats['ready']" accent="#22c55e" value-class="text-green-600" />
-        <x-ui.stat-card label="Entregados" :value="$stats['delivered']" accent="#10b981" value-class="text-emerald-600" />
-        <x-ui.stat-card label="Entregan hoy" :value="$stats['due_today']" accent="#f59e0b" value-class="text-amber-600" />
-        <x-ui.stat-card label="Atrasadas" :value="$stats['overdue']" accent="#ef4444" value-class="text-red-600" />
-        <div class="kpi-card" style="--kpi-accent: #f43f5e">
-            <p class="kpi-label">Gastos del mes</p>
-            <p class="kpi-value text-rose-600 text-lg">C$ {{ number_format($expenseStats['month_total'] ?? 0, 0) }}</p>
-            <p class="kpi-meta">{{ $expenseStats['month_count'] ?? 0 }} registros</p>
-        </div>
+    <div class="ex-kpis ex-kpis--8">
+        <x-ui.command-kpi label="Total órdenes" :value="number_format($stats['total'])" />
+        <x-ui.command-kpi label="Recibidos" :value="number_format($stats['received'])" />
+        <x-ui.command-kpi label="En proceso" :value="number_format($stats['in_repair'])" />
+        <x-ui.command-kpi label="Listos" :value="number_format($stats['ready'])" />
+        <x-ui.command-kpi label="Entregados" :value="number_format($stats['delivered'])" />
+        <x-ui.command-kpi label="Entregan hoy" :value="number_format($stats['due_today'])" />
+        <x-ui.command-kpi label="Atrasadas" :value="number_format($stats['overdue'])" />
+        <x-ui.command-kpi label="Gastos del mes" :value="'C$ ' . number_format($expenseStats['month_total'] ?? 0, 0)" :meta="($expenseStats['month_count'] ?? 0) . ' registros'" />
     </div>
 
     {{-- Filtros --}}

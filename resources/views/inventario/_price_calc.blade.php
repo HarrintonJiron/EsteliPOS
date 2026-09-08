@@ -17,7 +17,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
             <label class="block text-xs text-amber-700 font-medium mb-1">Método</label>
-            <select id="calcMethod_{{ $saleInputId }}" class="w-full px-3 py-2 text-sm border border-amber-300 rounded-lg bg-white focus:outline-none focus:border-amber-500">
+            <select id="calcMethod_{{ $saleInputId }}" aria-label="Método para calcular el precio de venta" class="w-full px-3 py-2 text-sm border border-amber-300 rounded-lg bg-white focus:outline-none focus:border-amber-500">
                 <option value="manual">Manual (sin cálculo automático)</option>
                 <option value="markup" selected>Markup % sobre costo &nbsp;·&nbsp; PV = PC × (1 + %)</option>
                 <option value="margin">Margen de utilidad % &nbsp;·&nbsp; PV = PC ÷ (1 − %)</option>
@@ -30,6 +30,7 @@
                 Markup (%)
             </label>
             <input type="number" id="calcRate_{{ $saleInputId }}"
+                aria-labelledby="calcRateLabel_{{ $saleInputId }}"
                 value="30" step="0.01" min="0"
                 class="w-full px-3 py-2 text-sm border border-amber-300 rounded-lg bg-white focus:outline-none focus:border-amber-500 font-semibold text-amber-900">
         </div>

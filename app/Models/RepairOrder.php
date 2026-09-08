@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Services\CompanySettingsService;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Crypt;
 
 class RepairOrder extends Model
 {
@@ -51,6 +53,24 @@ class RepairOrder extends Model
         'delivered_date' => 'date',
         'warranty_enabled' => 'boolean',
     ];
+
+    public function getDevicePasswordAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($value);
+        } catch (DecryptException) {
+            return $value;
+        }
+    }
+
+    public function setDevicePasswordAttribute(?string $value): void
+    {
+        $this->attributes['device_password'] = filled($value) ? Crypt::encryptString($value) : null;
+    }
 
     public function client()
     {

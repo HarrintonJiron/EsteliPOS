@@ -5,10 +5,9 @@ title EsteliPOS - Instalador
 
 :: Instalador desde la raiz del paquete extraido (carpeta EsteliPOS)
 :: Uso:
-::   Instalar-EsteliPOS.bat              -> asistente grafico
+::   Instalar-EsteliPOS.bat              -> menu de consola
 ::   Instalar-EsteliPOS.bat IIS
 ::   Instalar-EsteliPOS.bat Simple
-::   Instalar-EsteliPOS-Grafico.bat      -> mismo asistente grafico
 
 cd /d "%~dp0"
 
@@ -62,15 +61,6 @@ if not "%~1"=="" (
     echo.
     pause
     exit /b 1
-)
-
-if exist "%~dp0deployment\windows\Install-EsteliPOS-GUI.ps1" (
-    if exist "%~dp0Instalar-EsteliPOS-Grafico.bat" (
-        call "%~dp0Instalar-EsteliPOS-Grafico.bat"
-        exit /b %ERRORLEVEL%
-    )
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File "%~dp0deployment\windows\Install-EsteliPOS-GUI.ps1"
-    exit /b %ERRORLEVEL%
 )
 
 :delegate

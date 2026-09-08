@@ -74,16 +74,6 @@
             @if($order->accessories)<p class="text-xs text-slate-600">Accesorios: {{ $order->accessories }}</p>@endif
         </div>
     </div>
-    @php
-        $pdfLockType = $order->lock_type ?? ($order->device_password ? (preg_match('/^[1-9](?:-[1-9])*$/', $order->device_password) ? 'pattern' : 'password') : 'none');
-    @endphp
-    @if($order->device_password && $pdfLockType === 'pattern')
-    <div class="mb-5">
-        <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Patrón de desbloqueo</p>
-        <x-pattern-viewer :pattern="$order->device_password" />
-    </div>
-    @endif
-
     {{-- Diagnosis section --}}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
         <div>

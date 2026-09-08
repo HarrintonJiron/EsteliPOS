@@ -4,33 +4,31 @@
 
 @section('content')
 
-<div class="space-y-6">
+<div class="ex-shell">
 
-    <div class="flex flex-wrap justify-between items-start gap-4">
-        <div>
-            <h2 class="page-title">Gestión de Créditos</h2>
-            <p class="page-subtitle">Cartera, límites y abonos de clientes</p>
-        </div>
-        <a href="{{ route('creditos.report') }}" class="btn-primary text-sm">Reporte Completo</a>
-    </div>
+    <x-ui.command-hero
+        kicker="Cartera"
+        title="Créditos"
+        subtitle="Cartera, límites y abonos de clientes"
+        metric-label="Cartera pendiente"
+        :metric-value="'C$ ' . number_format($portfolio['balance_total'], 0)"
+        :meta="[$portfolio['clients_with_credit'] . ' clientes', 'Vencida C$ ' . number_format($portfolio['overdue_total'], 0)]"
+        :stats="[
+            ['label' => 'Vencida', 'value' => 'C$ ' . number_format($portfolio['overdue_total'], 0)],
+            ['label' => 'Con crédito', 'value' => number_format($portfolio['clients_with_credit'])],
+            ['label' => 'Sobre límite', 'value' => number_format($portfolio['over_limit_count'])],
+        ]"
+    >
+        <x-slot:actions>
+            <a href="{{ route('creditos.report') }}" class="ex-btn ex-btn--solid">Reporte completo</a>
+        </x-slot:actions>
+    </x-ui.command-hero>
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="card p-4 border-l-4 border-indigo-500">
-            <p class="text-xs text-slate-500">Cartera Pendiente</p>
-            <p class="text-xl font-bold text-indigo-600">C$ {{ number_format($portfolio['balance_total'], 2) }}</p>
-        </div>
-        <div class="card p-4 border-l-4 border-red-500">
-            <p class="text-xs text-slate-500">Vencida</p>
-            <p class="text-xl font-bold text-red-600">C$ {{ number_format($portfolio['overdue_total'], 2) }}</p>
-        </div>
-        <div class="card p-4 border-l-4 border-violet-500">
-            <p class="text-xs text-slate-500">Clientes con Crédito</p>
-            <p class="text-xl font-bold text-violet-600">{{ $portfolio['clients_with_credit'] }}</p>
-        </div>
-        <div class="card p-4 border-l-4 border-amber-500">
-            <p class="text-xs text-slate-500">Sobre Límite</p>
-            <p class="text-xl font-bold text-amber-600">{{ $portfolio['over_limit_count'] }}</p>
-        </div>
+    <div class="ex-kpis ex-kpis--4">
+        <x-ui.command-kpi label="Cartera pendiente" :value="'C$ ' . number_format($portfolio['balance_total'], 0)" />
+        <x-ui.command-kpi label="Vencida" :value="'C$ ' . number_format($portfolio['overdue_total'], 0)" />
+        <x-ui.command-kpi label="Con crédito" :value="number_format($portfolio['clients_with_credit'])" />
+        <x-ui.command-kpi label="Sobre límite" :value="number_format($portfolio['over_limit_count'])" />
     </div>
 
     <div class="flex gap-1 overflow-x-auto border-b border-slate-200">

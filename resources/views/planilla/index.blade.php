@@ -9,50 +9,36 @@
     $charts = $dashboard['charts'];
 @endphp
 
-<div class="space-y-6">
+<div class="ex-shell">
     @include('planilla._nav')
 
-    <div class="flex flex-wrap items-end justify-between gap-4">
-        <div>
-            <h1 class="page-title">Dashboard de Planilla</h1>
-            <p id="dashboardPageSubtitle" class="page-subtitle">Resumen de nómina, personal y pendientes · {{ $dashboard['period_label'] }}</p>
-        </div>
+    <x-ui.command-hero
+        kicker="Nómina"
+        title="Dashboard de planilla"
+        :subtitle="'Resumen de personal y pendientes · ' . $dashboard['period_label']"
+        subtitle-id="dashboardPageSubtitle"
+        metric-label="Nómina neta"
+        :metric-value="'C$ ' . number_format($totals['net_salary'], 0)"
+        :meta="[$stats['active_employees'] . ' activos']"
+        :stats="[
+            ['label' => 'Activos', 'value' => number_format($stats['active_employees'])],
+            ['label' => 'Deducciones', 'value' => 'C$ ' . number_format($totals['total_deductions'], 0)],
+            ['label' => 'Bruto', 'value' => 'C$ ' . number_format($totals['gross_salary'], 0)],
+        ]"
+    >
+        <x-slot:actions>
+            <form method="GET" class="flex items-center gap-2" data-chart-filter>
+                <input id="payrollMonthFilter" type="month" name="month" value="{{ $selectedMonth }}" class="input-field w-auto">
+                <button type="submit" class="ex-btn ex-btn--solid">Actualizar</button>
+            </form>
+        </x-slot:actions>
+    </x-ui.command-hero>
 
-        <form method="GET" class="flex items-center gap-2" data-chart-filter>
-            <input id="payrollMonthFilter" type="month" name="month" value="{{ $selectedMonth }}" class="input-field w-auto">
-            <button type="submit" class="btn-primary">Actualizar</button>
-        </form>
-    </div>
-
-    {{-- KPIs principales --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div class="card p-5 relative overflow-hidden">
-            <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-indigo-500/10"></div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Empleados activos</p>
-            <p class="mt-2 text-3xl font-bold text-slate-800" data-dashboard-stat="active-employees">{{ $stats['active_employees'] }}</p>
-            <p class="mt-1 text-sm text-slate-500">{{ $stats['inactive_employees'] }} inactivos · {{ $stats['total_employees'] }} total</p>
-        </div>
-
-        <div class="card p-5 relative overflow-hidden">
-            <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-emerald-500/10"></div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Nómina neta del mes</p>
-            <p class="mt-2 text-3xl font-bold text-emerald-700" data-dashboard-stat="net-salary">C$ {{ number_format($totals['net_salary'], 2) }}</p>
-            <p class="mt-1 text-sm text-slate-500">Bruto C$ {{ number_format($totals['gross_salary'], 2) }}</p>
-        </div>
-
-        <div class="card p-5 relative overflow-hidden">
-            <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-rose-500/10"></div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Deducciones del mes</p>
-            <p class="mt-2 text-3xl font-bold text-rose-700" data-dashboard-stat="total-deductions">C$ {{ number_format($totals['total_deductions'], 2) }}</p>
-            <p class="mt-1 text-sm text-slate-500">INSS + IR + otras + préstamos</p>
-        </div>
-
-        <div class="card p-5 relative overflow-hidden">
-            <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-amber-500/10"></div>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Pendientes de aprobación</p>
-            <p class="mt-2 text-3xl font-bold text-amber-700" data-dashboard-stat="pending-total">{{ $stats['pending_total'] }}</p>
-            <p class="mt-1 text-sm text-slate-500">Permisos, préstamos, bonos y deducciones</p>
-        </div>
+    <div class="ex-kpis ex-kpis--4">
+        <x-ui.command-kpi label="Empleados activos" :value="number_format($stats['active_employees'])" :meta="$stats['inactive_employees'] . ' inactivos · ' . $stats['total_employees'] . ' total'" stat="active-employees" />
+        <x-ui.command-kpi label="Nómina neta" :value="'C$ ' . number_format($totals['net_salary'], 0)" :meta="'Bruto C$ ' . number_format($totals['gross_salary'], 0)" stat="net-salary" />
+        <x-ui.command-kpi label="Deducciones" :value="'C$ ' . number_format($totals['total_deductions'], 0)" meta="INSS + IR + otras + préstamos" stat="total-deductions" />
+        <x-ui.command-kpi label="Pendientes de aprobación" :value="number_format($stats['pending_total'])" meta="Permisos, préstamos, bonos y deducciones" stat="pending-total" />
     </div>
 
     {{-- Accesos rápidos / alertas --}}

@@ -4,19 +4,21 @@
 
 @section('content')
 
-<div class="space-y-6">
+<div class="ex-shell">
 
     @include('contabilidad._tabs')
 
-    <div class="flex flex-wrap justify-between items-start gap-4">
-        <div>
-            <h1 class="page-title">Contabilidad · Centros de Costo</h1>
-            <p class="page-subtitle">Sucursales, departamentos, proyectos y áreas para análisis de gastos</p>
-        </div>
-        <div class="flex gap-2">
-            <a href="{{ route('contabilidad.centros-costo.create') }}" class="btn-primary">+ Nuevo Centro de Costo</a>
-        </div>
-    </div>
+    <x-ui.command-hero
+        kicker="Contabilidad"
+        title="Centros de costo"
+        subtitle="Sucursales, departamentos, proyectos y áreas para análisis de gastos"
+        :compact="true"
+    >
+        <x-slot:actions>
+            <a href="{{ route('contabilidad.centros-costo.analytics') }}" class="ex-btn">Análisis gerencial</a>
+            <a href="{{ route('contabilidad.centros-costo.create') }}" class="ex-btn ex-btn--solid">+ Nuevo centro</a>
+        </x-slot:actions>
+    </x-ui.command-hero>
 
     <form method="GET" class="card p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
         <input type="text" name="search" value="{{ request('search') }}" placeholder="Buscar por código o nombre..." class="input-field md:col-span-2">

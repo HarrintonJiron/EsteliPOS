@@ -2,6 +2,7 @@
 
 use App\Models\Account;
 use App\Models\Bonus;
+use App\Models\Branch;
 use App\Models\Client;
 use App\Models\CostCenter;
 use App\Models\CreditPayment;
@@ -122,6 +123,14 @@ function resolveProductionRouteParameters(array $parameterNames, string $routeNa
             'role' => Role::query()->value('id'),
             'paymentId' => CreditPayment::query()->value('id'),
             'warehouse' => Warehouse::query()->value('id'),
+            'branch' => Branch::query()->value('id') ?? Branch::query()->create([
+                'code' => 'SUC-QA',
+                'name' => 'Casa matriz QA',
+                'type' => 'matriz',
+                'city' => 'Estelí',
+                'share_percent' => 100,
+                'is_active' => true,
+            ])->id,
             'priceList' => PriceList::query()->value('id'),
             'item' => PriceListItem::query()->value('id'),
             'conversion' => ProductUnitConversion::query()->value('id'),

@@ -17,6 +17,7 @@ use App\Services\CompanySettingsService;
 use App\Services\InvoiceTaxDisplayService;
 use App\Services\ModuleAccessService;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -53,11 +54,13 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.app', function ($view): void {
             $view->with('accessibleModuleSlugs', app(ModuleAccessService::class)->accessibleSlugs(auth()->user()));
-            $view->with('quickSwitchUsers', User::query()
-                ->where('is_active', true)
-                ->whereNotNull('pin_hash')
-                ->orderBy('name')
-                ->get(['id', 'name', 'username', 'profile_photo']));
+            $view->with('quickSwitchUsers', Schema::hasColumn('users', 'pin_hash')
+                ? User::query()
+                    ->where('is_active', true)
+                    ->whereNotNull('pin_hash')
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'username', 'profile_photo'])
+                : collect());
 
             if (! array_key_exists('backNavigation', $view->getData())) {
                 $view->with('backNavigation', app(BackNavigationService::class)->resolve());

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Http\Middleware\ApplySystemSettings;
 use App\Models\Module;
 use App\Models\NumberSequence;
 use App\Models\Permission;
@@ -201,5 +202,7 @@ class ConfigurationSeeder extends Seeder
 
         // Catálogo de cuentas contables por defecto
         $this->call(ChartOfAccountsSeeder::class);
+
+        ApplySystemSettings::apply();
     }
 }

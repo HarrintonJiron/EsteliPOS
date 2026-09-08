@@ -3,7 +3,7 @@
     'label',
     'currentUrl' => null,
     'help' => 'Cualquier tamaño. Se optimiza automáticamente.',
-    'max' => '20 MB',
+    'max' => '8 MB',
     'removeName' => null,
 ])
 
@@ -74,15 +74,37 @@
             const status = wrapper.querySelector('[data-image-status]');
             const filename = wrapper.querySelector('[data-image-filename]');
             const remove = wrapper.querySelector('[data-image-remove]');
+            const maxBytes = 8 * 1024 * 1024;
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+            const showError = message => {
+                input.value = '';
+                preview.removeAttribute('src');
+                preview.classList.add('hidden');
+                placeholder?.classList.remove('hidden');
+                status.textContent = 'Archivo inválido';
+                status.className = 'rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-semibold text-red-700';
+                filename.textContent = message;
+                filename.classList.add('text-red-600');
+            };
 
             const showFile = file => {
                 if (!file) return;
+                if (!allowedTypes.includes(file.type)) {
+                    showError('Use una imagen JPG, PNG, WebP o GIF.');
+                    return;
+                }
+                if (file.size > maxBytes) {
+                    showError('La imagen supera el máximo de 8 MB.');
+                    return;
+                }
                 preview.src = URL.createObjectURL(file);
                 preview.classList.remove('hidden');
                 placeholder?.classList.add('hidden');
                 status.textContent = 'Nueva imagen';
                 status.className = 'rounded-full bg-indigo-100 px-2.5 py-1 text-[10px] font-semibold text-indigo-700';
                 filename.textContent = file.name;
+                filename.classList.remove('text-red-600');
                 if (remove) remove.checked = false;
             };
 

@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasColumn('users', 'pin_hash')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table): void {
             $table->string('pin_hash')->nullable()->after('password');
         });
@@ -15,6 +19,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasColumn('users', 'pin_hash')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table): void {
             $table->dropColumn('pin_hash');
         });

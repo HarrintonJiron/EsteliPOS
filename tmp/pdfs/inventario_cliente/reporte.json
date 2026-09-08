@@ -1,0 +1,57 @@
+{
+  "source": "Inventario Agosto 2026.xlsx (1).pdf",
+  "pages": 173,
+  "rows": 4094,
+  "unique_codes": 4094,
+  "duplicate_codes": [],
+  "categories": {
+    "Abarrotes": 2882,
+    "Algodón y Tela": 12,
+    "Alimentos Preparados": 15,
+    "Aluminio": 25,
+    "Bebidas": 23,
+    "Botanas": 24,
+    "Carnes y Embutidos": 15,
+    "Dulces": 55,
+    "Enlatados": 23,
+    "Harinas": 8,
+    "Higiene personal": 429,
+    "Juguetes": 31,
+    "Limpieza": 82,
+    "Medicamento": 60,
+    "Metales": 12,
+    "Uso Domestico": 112,
+    "Utiles escolares": 62,
+    "Vidrio": 4,
+    "otros": 71,
+    "plasticos": 149
+  },
+  "positive_stock": 1459,
+  "zero_stock": 2633,
+  "negative_stock": [
+    {
+      "source_page": 38,
+      "category": "Abarrotes",
+      "code": "670",
+      "name": "Arroz Doña Maria 65%",
+      "sale_price": 11.8,
+      "source_initial_stock": -4.5,
+      "source_total_stock": -4.5,
+      "import_stock": 0,
+      "requires_review": "negative_stock"
+    },
+    {
+      "source_page": 126,
+      "category": "Carnes y Embutidos",
+      "code": "368",
+      "name": "Pierna pelada",
+      "sale_price": 29.0,
+      "source_initial_stock": -1.0,
+      "source_total_stock": -1.0,
+      "import_stock": 0,
+      "requires_review": "negative_stock"
+    }
+  ],
+  "fractional_stock": 55,
+  "purchase_cost_available": false
+}

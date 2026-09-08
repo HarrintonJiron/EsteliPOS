@@ -4,17 +4,31 @@
 
 @section('content')
 
-<div class="space-y-6">
+<div class="ex-shell">
 
-    <div class="flex justify-between items-center">
-        <div>
-            <h2 class="page-title">Gestión de Facturas</h2>
-            <p class="page-subtitle">Administra las ventas realizadas desde el POS</p>
-        </div>
-        <a href="{{ route('facturacion.pos') }}" class="btn-primary">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            Nueva Venta (POS)
-        </a>
+    <x-ui.command-hero
+        kicker="Ventas"
+        title="Facturación"
+        subtitle="Administra las ventas realizadas desde el POS"
+        metric-label="Ventas del mes"
+        :metric-value="'C$ ' . number_format($stats['month_total'], 0)"
+        :meta="[$stats['month_count'] . ' facturas']"
+        :stats="[
+            ['label' => 'Hoy', 'value' => 'C$ ' . number_format($stats['today_total'], 0)],
+            ['label' => 'Tickets', 'value' => number_format($stats['month_count'])],
+            ['label' => 'Pendientes', 'value' => number_format($stats['pending'])],
+        ]"
+    >
+        <x-slot:actions>
+            <a href="{{ route('facturacion.pos') }}" class="ex-btn ex-btn--solid">Nueva venta (POS)</a>
+        </x-slot:actions>
+    </x-ui.command-hero>
+
+    <div class="ex-kpis ex-kpis--4">
+        <x-ui.command-kpi label="Hoy" :value="'C$ ' . number_format($stats['today_total'], 0)" />
+        <x-ui.command-kpi label="Mes" :value="'C$ ' . number_format($stats['month_total'], 0)" />
+        <x-ui.command-kpi label="Facturas" :value="number_format($stats['month_count'])" />
+        <x-ui.command-kpi label="Pendientes" :value="number_format($stats['pending'])" />
     </div>
 
     <div class="card p-4">

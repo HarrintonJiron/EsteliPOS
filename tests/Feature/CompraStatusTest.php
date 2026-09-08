@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Role;
 use App\Models\Supplier;
+use App\Models\SupplierPayment;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -139,7 +140,18 @@ test('a credit purchase can be paid without moving stock twice and then canceled
     expect($paid->status)->toBe('completed')
         ->and($paid->payment_type)->toBe('cash')
         ->and((float) $context['product']->fresh()->stock)->toBe(4.0)
-        ->and(postedPurchaseCreditAccount($paid))->toBe('1.1.01');
+        ->and(postedPurchaseCreditAccount($paid))->toBe('2.1.01');
+
+    $payment = SupplierPayment::query()->where('purchase_id', $paid->id)->firstOrFail();
+    $paymentEntry = JournalEntry::query()
+        ->with('lines.account')
+        ->where('source_type', SupplierPayment::class)
+        ->where('source_id', $payment->id)
+        ->where('status', JournalEntry::STATUS_POSTED)
+        ->firstOrFail();
+
+    expect($paymentEntry->lines->firstWhere('account.code', '2.1.01')?->debit)->toBe('80.00')
+        ->and($paymentEntry->lines->firstWhere('account.code', '1.1.01')?->credit)->toBe('80.00');
 
     $this->actingAs($context['admin'])
         ->from(route('compras.show', $context['purchase']->id))
@@ -149,7 +161,9 @@ test('a credit purchase can be paid without moving stock twice and then canceled
 
     expect($context['purchase']->fresh()->status)->toBe('canceled')
         ->and((float) $context['product']->fresh()->stock)->toBe(0.0)
-        ->and(JournalEntry::query()->where('source_type', Purchase::class)->where('source_id', $context['purchase']->id)->where('status', JournalEntry::STATUS_POSTED)->exists())->toBeFalse();
+        ->and(JournalEntry::query()->where('source_type', Purchase::class)->where('source_id', $context['purchase']->id)->where('status', JournalEntry::STATUS_POSTED)->exists())->toBeFalse()
+        ->and($payment->fresh()->status)->toBe('canceled')
+        ->and($paymentEntry->fresh()->status)->toBe(JournalEntry::STATUS_VOIDED);
 });
 
 test('a canceled purchase cannot be paid from the status action', function () {

@@ -59,12 +59,16 @@ if [[ "$allow_dirty" == true ]]; then
         --exclude='vendor' \
         --exclude='releases' \
         --exclude='.env' \
-        --exclude='.env.backup' \
+        --exclude='.env.backup*' \
         --exclude='.env.production' \
+        --exclude='backups' \
         --exclude='public/build' \
         --exclude='public/hot' \
         --exclude='storage/logs/*.log' \
+        --exclude='storage/app/***' \
         --exclude='storage/browser-qa' \
+        --exclude='deployment/client-inventory' \
+        --exclude='tmp' \
         --exclude='.playwright' \
         --exclude='.DS_Store' \
         --exclude='composer.phar' \
@@ -92,17 +96,16 @@ if [[ -f "$stage_dir/package.json" ]] && [[ -f "$stage_dir/package-lock.json" ]]
 fi
 
 php "$stage_dir/artisan" list --raw | grep -q '^app:install-production'
+php "$stage_dir/artisan" list --raw | grep -q '^app:verify-image-pipeline'
 
 for required_path in \
     "$stage_dir/Instalar-EsteliPOS.bat" \
-    "$stage_dir/Instalar-EsteliPOS-Grafico.bat" \
     "$stage_dir/Actualizar-EsteliPOS.bat" \
     "$stage_dir/Abrir-EsteliPOS.bat" \
     "$stage_dir/Reparar-EsteliPOS-LAN.bat" \
     "$stage_dir/.env.production.example" \
     "$stage_dir/public/web.config" \
     "$stage_dir/deployment/windows/Install-EsteliPOS.bat" \
-    "$stage_dir/deployment/windows/Install-EsteliPOS-GUI.ps1" \
     "$stage_dir/deployment/windows/Actualizar-EsteliPOS.bat" \
     "$stage_dir/deployment/windows/Update-EsteliPOS.ps1" \
     "$stage_dir/deployment/windows/Start-EsteliPOS.ps1" \
@@ -154,7 +157,15 @@ if [[ ! -f "$stage_dir/public/build/manifest.json" || ! -f "$stage_dir/public/cs
 fi
 
 rm -rf "$stage_dir/node_modules" "$stage_dir/tests" "$stage_dir/.github"
+rm -rf "$stage_dir/storage/app" "$stage_dir/deployment/client-inventory"
+rm -f "$stage_dir/scripts/extract-client-inventory.py"
+mkdir -p "$stage_dir/storage/app/private" "$stage_dir/storage/app/public"
+rm -f "$stage_dir/Instalar-EsteliPOS-Grafico.bat" "$stage_dir/deployment/build-installer-exe.ps1"
+rm -f "$stage_dir/deployment/windows/Install-EsteliPOS-GUI.ps1"
+rm -rf "$stage_dir/deployment/windows/installer"
 rm -f "$stage_dir/phpunit.xml" "$stage_dir/setup-windows.ps1" "$stage_dir/composer.phar"
+rm -f "$stage_dir"/bootstrap/cache/config.php "$stage_dir"/bootstrap/cache/events.php \
+    "$stage_dir"/bootstrap/cache/routes-*.php
 rm -rf "$stage_dir/storage/framework/cache/data/"* "$stage_dir/storage/framework/views/"*
 
 package_path="$release_dir/EsteliPOSProduccion1.0.zip"
@@ -182,25 +193,45 @@ fi
 
 delivery_path="$release_dir/parche1.0.zip"
 produccion_path="$release_dir/produccion1.0.zip"
-rm -f "$delivery_path" "$produccion_path" "$release_dir/produccion.zip" "$release_dir/produccion2.0.zip" "$release_dir/produccion3.0.zip"
+console_path="$release_dir/EsteliPOS-Consola-$release_version.zip"
+console_installer="$work_dir/INSTALAR-CONSOLA.bat"
+cp -f "$release_dir/INSTALAR.bat" "$console_installer"
+rm -f "$delivery_path" "$produccion_path" "$console_path" "$release_dir/produccion.zip" "$release_dir/produccion2.0.zip" "$release_dir/produccion3.0.zip"
 (
     cd "$release_dir"
-    zip -j "$delivery_path" EsteliPOSProduccion1.0.zip EsteliPOSProduccion1.0.zip.sha256 INSTALAR.bat
+    zip -j "$delivery_path" EsteliPOSProduccion1.0.zip EsteliPOSProduccion1.0.zip.sha256 INSTALAR.bat "$console_installer"
 )
 cp -f "$delivery_path" "$produccion_path"
+cp -f "$delivery_path" "$console_path"
 rm -f "$package_path" "$package_path.sha256"
+
+if command -v shasum >/dev/null 2>&1; then
+    (
+        cd "$release_dir"
+        shasum -a 256 "$(basename "$delivery_path")" > "$(basename "$delivery_path").sha256"
+        shasum -a 256 "$(basename "$produccion_path")" > "$(basename "$produccion_path").sha256"
+        shasum -a 256 "$(basename "$console_path")" > "$(basename "$console_path").sha256"
+    )
+elif command -v sha256sum >/dev/null 2>&1; then
+    (
+        cd "$release_dir"
+        sha256sum "$(basename "$delivery_path")" > "$(basename "$delivery_path").sha256"
+        sha256sum "$(basename "$produccion_path")" > "$(basename "$produccion_path").sha256"
+        sha256sum "$(basename "$console_path")" > "$(basename "$console_path").sha256"
+    )
+fi
 
 package_size="$(du -h "$delivery_path" | awk '{print $1}')"
 echo ""
 echo "Paquete generado: $delivery_path"
 echo "Copia identica:   $produccion_path"
+echo "Nombre inequivoco: $console_path"
 echo "Tamano: $package_size"
 echo "Contenido: INSTALAR.bat + EsteliPOSProduccion1.0.zip + checksum"
 echo ""
 echo "Enviar al tecnico:"
-echo "  1. deployment/produccion1.0.zip  (recomendado / actualizador definitivo)"
-echo "     o deployment/parche1.0.zip    (mismo contenido)"
-echo "  2. Extraer y DOBLE CLIC en INSTALAR.bat  (recomendado)"
+echo "  1. deployment/EsteliPOS-Consola-$release_version.zip  (recomendado)"
+echo "  2. Extraer en una carpeta NUEVA y ejecutar INSTALAR-CONSOLA.bat"
 echo "  3. Alternativa manual: extraer EsteliPOSProduccion1.0.zip y Instalar-EsteliPOS.bat"
 echo "  4. ACTUALIZAR sin perder datos:"
 echo "     Actualizar-EsteliPOS.bat C:\\ruta\\produccion1.0.zip"

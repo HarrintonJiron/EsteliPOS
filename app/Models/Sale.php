@@ -13,7 +13,10 @@ class Sale extends Model
         'invoice_number',
         'client_id',
         'user_id',
+        'caja_session_id',
         'warehouse_id',
+        'price_list_id',
+        'price_list_name',
         'billing_name',
         'billing_business_name',
         'billing_document_type',
@@ -54,9 +57,19 @@ class Sale extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function cajaSession()
+    {
+        return $this->belongsTo(CajaSession::class);
+    }
+
     public function warehouse()
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    public function priceList()
+    {
+        return $this->belongsTo(PriceList::class);
     }
 
     public function details()

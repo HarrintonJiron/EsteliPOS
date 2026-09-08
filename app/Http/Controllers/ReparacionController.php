@@ -427,6 +427,8 @@ class ReparacionController extends Controller
                 if (! $deliveredTime && ! $order->delivered_time) {
                     $deliveredTime = now()->format('H:i');
                 }
+                $validated['device_password'] = null;
+                $validated['lock_type'] = 'none';
             }
 
             $order->update([

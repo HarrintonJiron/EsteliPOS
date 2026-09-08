@@ -355,7 +355,7 @@ class InventarioController extends Controller
             'sale_price' => 'required|numeric|min:0',
             'wholesale_price' => 'nullable|numeric|min:0',
             'purchase_price' => 'nullable|numeric|min:0',
-            'stock' => 'nullable|integer|min:0',
+            'stock' => 'nullable|numeric|min:0',
             'locations' => 'nullable|array|min:1',
             'locations.*.warehouse_id' => 'required_with:locations|integer|distinct|exists:warehouses,id',
             'locations.*.shelf_id' => 'nullable|integer|exists:warehouse_shelves,id',
@@ -366,12 +366,29 @@ class InventarioController extends Controller
             'warehouse_id' => 'nullable|exists:warehouses,id',
             'shelf_id' => 'nullable|exists:warehouse_shelves,id',
             'low_stock_threshold' => 'nullable|integer|min:1',
+            'presentation_unit_id' => 'nullable|exists:units,id|different:base_unit_id',
+            'presentation_quantity' => 'nullable|required_with:presentation_unit_id|numeric|min:0.000001',
+            'presentation_sale_price' => 'nullable|numeric|min:0',
+            'presentation_barcode' => 'nullable|string|max:100|unique:product_unit_conversions,barcode',
+            'presentation_use_for_purchase' => 'boolean',
+            'presentation_use_for_sale' => 'boolean',
+            'presentation_default_purchase' => 'boolean',
+            'presentation_default_sale' => 'boolean',
+            'presentation_allow_fraction' => 'boolean',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
         ]);
 
         $categoryId = $validated['category_id'] ?? Category::query()->value('id');
         if (! $categoryId) {
             return back()->withErrors(['category_id' => 'Crea al menos una categoría antes de registrar productos.']);
+        }
+
+        if (! empty($validated['presentation_unit_id'])
+            && ! $request->boolean('presentation_use_for_purchase')
+            && ! $request->boolean('presentation_use_for_sale')) {
+            return back()->withErrors([
+                'presentation_unit_id' => 'Indica si la presentación se utilizará para comprar, vender o ambas.',
+            ])->withInput();
         }
 
         $purchasePrice = $validated['purchase_price'] ?? round($validated['sale_price'] * 0.85, 2);
@@ -407,6 +424,25 @@ class InventarioController extends Controller
                 }
 
                 $this->assignProductLocation($product, $location['warehouse_id'], $location['shelf']);
+            }
+
+            if (! empty($validated['presentation_unit_id'])) {
+                ProductUnitConversion::query()->create([
+                    'product_id' => $product->id,
+                    'unit_id' => (int) $validated['presentation_unit_id'],
+                    'equals_unit_id' => $baseUnit?->id,
+                    'equals_quantity' => (float) $validated['presentation_quantity'],
+                    'factor_to_base' => (float) $validated['presentation_quantity'],
+                    'sale_price' => $validated['presentation_sale_price'] ?? null,
+                    'use_for_purchase' => $request->boolean('presentation_use_for_purchase'),
+                    'use_for_sale' => $request->boolean('presentation_use_for_sale'),
+                    'is_default_purchase_unit' => $request->boolean('presentation_default_purchase'),
+                    'is_default_sale_unit' => $request->boolean('presentation_default_sale'),
+                    'allow_fraction' => $request->boolean('presentation_allow_fraction'),
+                    'barcode' => filled($validated['presentation_barcode'] ?? null)
+                        ? trim((string) $validated['presentation_barcode'])
+                        : null,
+                ]);
             }
 
             $product = $product->fresh();
@@ -516,8 +552,13 @@ class InventarioController extends Controller
             throw $exception;
         }
 
-        return redirect()
-            ->route('inventario.create')
+        if ($request->boolean('configure_presentations')) {
+            return redirect()
+                ->route('inventario.show', ['id' => $product->id, 'conversiones' => 1])
+                ->with('success', "Producto «{$product->name}» guardado. Configure ahora cómo se compra y se vende.");
+        }
+
+        return redirect()->route('inventario.create')
             ->with('success', "Producto «{$product->name}» guardado. Puede agregar el siguiente.");
     }
 
@@ -527,6 +568,7 @@ class InventarioController extends Controller
             'category',
             'baseUnit',
             'unitConversions.unit',
+            'unitConversions.equalsUnit',
             'warehouseStocks.warehouse',
             'inventoryMovements.user',
             'inventoryMovements.warehouse',
@@ -616,7 +658,12 @@ class InventarioController extends Controller
             'equals_unit_id' => 'nullable|exists:units,id|different:unit_id',
             'factor_to_base' => 'nullable|numeric|min:0.000001',
             'sale_price' => 'nullable|numeric|min:0',
+            'barcode' => 'nullable|string|max:100',
+            'use_for_purchase' => 'boolean',
+            'use_for_sale' => 'boolean',
+            'is_default_purchase_unit' => 'boolean',
             'is_default_sale_unit' => 'boolean',
+            'allow_fraction' => 'boolean',
         ], [
             'unit_id.required' => 'Selecciona la presentación (ej. ristra o caja).',
             'equals_base_qty.min' => 'Indica cuánto contiene 1 de esa presentación.',
@@ -653,6 +700,28 @@ class InventarioController extends Controller
         $altUnit = Unit::query()->find($validated['unit_id']);
         $equalsUnit = Unit::query()->find($equalsUnitId);
 
+        $barcode = trim((string) ($validated['barcode'] ?? '')) ?: null;
+        if ($barcode && ProductUnitConversion::query()
+            ->where('barcode', $barcode)
+            ->where(fn ($query) => $query
+                ->where('product_id', '!=', $product->id)
+                ->orWhere('unit_id', '!=', (int) $validated['unit_id']))
+            ->exists()) {
+            return back()->withErrors(['barcode' => 'Este código de barras ya pertenece a otra presentación.'])->withInput();
+        }
+
+        $hasUsageOptions = $request->boolean('usage_options');
+        $useForPurchase = $hasUsageOptions ? $request->boolean('use_for_purchase') : true;
+        $useForSale = $hasUsageOptions ? $request->boolean('use_for_sale') : true;
+
+        if (! $useForPurchase && ! $useForSale) {
+            return back()->withErrors(['use_for_sale' => 'La presentación debe usarse para compra, venta o ambas.'])->withInput();
+        }
+
+        if ($request->boolean('is_default_purchase_unit')) {
+            $product->unitConversions()->update(['is_default_purchase_unit' => false]);
+        }
+
         if ($request->boolean('is_default_sale_unit')) {
             $product->unitConversions()->update(['is_default_sale_unit' => false]);
         }
@@ -660,9 +729,16 @@ class InventarioController extends Controller
         ProductUnitConversion::query()->updateOrCreate(
             ['product_id' => $product->id, 'unit_id' => $validated['unit_id']],
             [
+                'equals_unit_id' => $equalsUnitId,
+                'equals_quantity' => $equalsQty,
                 'factor_to_base' => $factorToBase,
                 'sale_price' => $validated['sale_price'] ?? null,
+                'use_for_purchase' => $useForPurchase,
+                'use_for_sale' => $useForSale,
+                'is_default_purchase_unit' => $request->boolean('is_default_purchase_unit'),
                 'is_default_sale_unit' => $request->boolean('is_default_sale_unit'),
+                'allow_fraction' => $request->boolean('allow_fraction'),
+                'barcode' => $barcode,
             ]
         );
 

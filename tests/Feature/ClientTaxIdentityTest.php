@@ -19,6 +19,17 @@ function adminWithModules(): User
     return $user;
 }
 
+test('the full client form exposes accessible names for operational fields', function () {
+    $admin = adminWithModules();
+
+    $this->actingAs($admin)->get(route('clientes.create'))
+        ->assertOk()
+        ->assertSee('aria-label="Nombre"', false)
+        ->assertSee('aria-label="Tipo de cliente"', false)
+        ->assertSee('aria-label="Límite de crédito"', false)
+        ->assertSee('aria-label="Mora máxima"', false);
+});
+
 test('it creates a natural person client with cedula and blocks duplicates', function () {
     $admin = adminWithModules();
 

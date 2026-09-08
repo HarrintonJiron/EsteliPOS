@@ -3,22 +3,25 @@
 @section('title', 'Proformas / Cotizaciones')
 
 @section('content')
-<div class="mx-auto max-w-6xl">
+<div class="ex-shell">
 
-    {{-- Header --}}
-    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <h1 class="text-2xl font-bold text-slate-900">Proformas / Cotizaciones</h1>
-            <p class="text-sm text-slate-500 mt-0.5">Gestión de cotizaciones y presupuestos</p>
-        </div>
-        <a href="{{ route('proformas.pos') }}"
-           class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow transition-all">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-            </svg>
-            Nueva Proforma
-        </a>
-    </div>
+    <x-ui.command-hero
+        kicker="Cotizaciones"
+        title="Proformas"
+        subtitle="Gestión de cotizaciones y presupuestos"
+        metric-label="Monto del mes"
+        :metric-value="'C$ ' . number_format($stats['month_total'], 0)"
+        :meta="[$stats['month_count'] . ' documentos', $stats['open'] . ' abiertas']"
+        :stats="[
+            ['label' => 'Abiertas', 'value' => number_format($stats['open'])],
+            ['label' => 'Aceptadas', 'value' => number_format($stats['accepted'])],
+            ['label' => 'Este mes', 'value' => number_format($stats['month_count'])],
+        ]"
+    >
+        <x-slot:actions>
+            <a href="{{ route('proformas.pos') }}" class="ex-btn ex-btn--solid">Nueva proforma</a>
+        </x-slot:actions>
+    </x-ui.command-hero>
 
     {{-- Alerts --}}
     @if(session('success'))
@@ -84,21 +87,25 @@
                         </span>
                     </td>
                     <td class="px-4 py-3">
-                        <div class="flex items-center justify-center gap-2">
-                            <a href="{{ route('proformas.show', $proforma->id) }}" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Ver">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        <div class="table-actions justify-center">
+                            <a href="{{ route('proformas.show', $proforma->id) }}" class="row-action row-action--view" title="Ver">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                <span>Ver</span>
                             </a>
-                            <a href="{{ route('proformas.pdf', $proforma->id) }}" target="_blank" class="p-1.5 text-slate-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition" title="PDF">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                            <a href="{{ route('proformas.pdf', $proforma->id) }}" target="_blank" class="row-action row-action--pdf" title="PDF">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                <span>PDF</span>
                             </a>
-                            <a href="{{ route('proformas.ticket', $proforma->id) }}" target="_blank" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Ticket">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            <a href="{{ route('proformas.ticket', $proforma->id) }}" target="_blank" class="row-action row-action--ticket" title="Ticket">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                                <span>Ticket</span>
                             </a>
                             <form action="{{ route('proformas.destroy', $proforma->id) }}" method="POST"
                                   onsubmit="return confirm('¿Eliminar esta proforma?')">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Eliminar">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                <button type="submit" class="row-action row-action--danger" title="Eliminar">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    <span>Eliminar</span>
                                 </button>
                             </form>
                         </div>

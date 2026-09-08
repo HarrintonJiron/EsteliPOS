@@ -35,11 +35,11 @@
         aria-modal="true"
         aria-labelledby="presentationModalTitle"
     >
-        <div class="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl">
+        <div class="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white shadow-xl">
             <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <div>
-                    <h2 id="presentationModalTitle" class="text-lg font-semibold text-slate-900">Cómo se vende</h2>
-                    <p class="text-xs text-slate-500">1 producto · stock en {{ $baseUnitLabel }}</p>
+                    <h2 id="presentationModalTitle" class="text-lg font-semibold text-slate-900">Compra y venta por presentación</h2>
+                    <p class="text-xs text-slate-500">Cómo se vende y cómo se compra · inventario controlado en {{ $baseUnitLabel }}</p>
                 </div>
                 <button type="button" class="text-2xl leading-none text-slate-400 hover:text-slate-700" data-close-presentations aria-label="Cerrar">×</button>
             </div>
@@ -54,11 +54,33 @@
                 @if(! $product->base_unit_id)
                     <p class="text-sm text-amber-800">Elige la unidad en Editar y vuelve aquí.</p>
                 @else
+                    <div class="grid gap-2 sm:grid-cols-3" aria-label="Flujo de configuración">
+                        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                            <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-700">1 · Inventario</p>
+                            <p class="mt-1 text-sm font-semibold text-emerald-950">Se controla en {{ $baseUnitName }}</p>
+                        </div>
+                        <div class="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                            <p class="text-[10px] font-bold uppercase tracking-wide text-blue-700">2 · Compra</p>
+                            <p class="mt-1 text-sm font-semibold text-blue-950">Caja, saco o quintal</p>
+                        </div>
+                        <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+                            <p class="text-[10px] font-bold uppercase tracking-wide text-indigo-700">3 · Venta</p>
+                            <p class="mt-1 text-sm font-semibold text-indigo-950">Unidad, ristra o caja</p>
+                        </div>
+                    </div>
                     <div class="flex flex-wrap gap-1.5">
                         <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">1 {{ $baseUnitLabel }}</span>
                         @foreach($product->unitConversions as $conv)
                             <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                                1 {{ $conv->unit->abbreviation ?? '—' }} = {{ $formatFactor($conv->factor_to_base) }} {{ $baseUnitLabel }}
+                                1 {{ $conv->unit->abbreviation ?? '—' }} =
+                                @if($conv->equals_quantity && $conv->equalsUnit)
+                                    {{ $formatFactor($conv->equals_quantity) }} {{ $conv->equalsUnit->abbreviation }}
+                                    @if((int) $conv->equals_unit_id !== (int) $product->base_unit_id)
+                                        · {{ $formatFactor($conv->factor_to_base) }} {{ $baseUnitLabel }}
+                                    @endif
+                                @else
+                                    {{ $formatFactor($conv->factor_to_base) }} {{ $baseUnitLabel }}
+                                @endif
                             </span>
                         @endforeach
                     </div>
@@ -87,6 +109,8 @@
                                 <div>
                                     <span class="font-semibold text-slate-800">1 {{ $conv->unit->abbreviation ?? '—' }}</span>
                                     <span class="text-slate-500"> = {{ $formatFactor($conv->factor_to_base) }} {{ $baseUnitLabel }}</span>
+                                    @if($conv->use_for_purchase)<span class="ml-1 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">Compra</span>@endif
+                                    @if($conv->use_for_sale)<span class="ml-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">Venta</span>@endif
                                     @if($conv->is_default_sale_unit)
                                         <span class="ml-1 text-[10px] font-semibold uppercase text-indigo-600">Predeterminada</span>
                                     @endif
@@ -114,8 +138,11 @@
 
                     <form method="POST" action="{{ route('inventario.conversions.store', $product->id) }}" class="space-y-3" id="presentationForm">
                         @csrf
-                        <div class="flex flex-wrap items-center gap-2 text-sm">
-                            <span class="font-semibold text-slate-800">Una</span>
+                        <input type="hidden" name="usage_options" value="1">
+                        <div>
+                            <p class="mb-2 text-sm font-semibold text-slate-900">Agregar otra presentación</p>
+                            <div class="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 p-3 text-sm">
+                            <span class="font-semibold text-slate-800">1</span>
                             <select name="unit_id" id="tableAltUnit" class="select-field py-2" required @disabled($alternateUnits->isEmpty())>
                                 <option value="">…</option>
                                 @foreach($alternateUnits as $u)
@@ -126,14 +153,15 @@
                             <input type="number" step="0.000001" min="0.000001" name="equals_base_qty" id="tableEqualsQty" value="{{ old('equals_base_qty', '3') }}" class="input-field w-20 py-2 text-center font-mono font-bold" required @disabled($alternateUnits->isEmpty())>
                             <select name="equals_unit_id" id="tableEqualsUnit" class="select-field py-2" @disabled($alternateUnits->isEmpty())>
                                 @if($product->baseUnit)
-                                    <option value="{{ $product->baseUnit->id }}" data-name="{{ $product->baseUnit->name }}" @selected((int) old('equals_unit_id', $product->base_unit_id) === (int) $product->base_unit_id)>{{ $product->baseUnit->name }}</option>
+                                    <option value="{{ $product->baseUnit->id }}" data-name="{{ $product->baseUnit->name }}" data-factor="1" @selected((int) old('equals_unit_id', $product->base_unit_id) === (int) $product->base_unit_id)>{{ $product->baseUnit->name }}</option>
                                 @endif
                                 @foreach($product->unitConversions as $conv)
                                     @if($conv->unit)
-                                        <option value="{{ $conv->unit->id }}" data-name="{{ $conv->unit->name }}" @selected((int) old('equals_unit_id') === (int) $conv->unit->id)>{{ $conv->unit->name }}</option>
+                                        <option value="{{ $conv->unit->id }}" data-name="{{ $conv->unit->name }}" data-factor="{{ (float) $conv->factor_to_base }}" @selected((int) old('equals_unit_id') === (int) $conv->unit->id)>{{ $conv->unit->name }}</option>
                                     @endif
                                 @endforeach
                             </select>
+                            </div>
                         </div>
 
                         @if($presets !== [])
@@ -146,13 +174,45 @@
                             </div>
                         @endif
 
-                        <div class="flex flex-wrap items-center gap-2">
-                            <input type="number" step="0.01" min="0" name="sale_price" value="{{ old('sale_price') }}" class="input-field flex-1 py-2" placeholder="Precio (opcional)" @disabled($alternateUnits->isEmpty())>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <label for="presentationSalePrice" class="mb-1 block text-xs font-medium text-slate-600">Precio de venta de esta presentación</label>
+                                <input id="presentationSalePrice" type="number" step="0.01" min="0" name="sale_price" value="{{ old('sale_price') }}" class="input-field py-2" placeholder="Automático si se deja vacío" @disabled($alternateUnits->isEmpty())>
+                            </div>
                             <label class="inline-flex items-center gap-1.5 text-xs text-slate-600">
                                 <input type="checkbox" name="is_default_sale_unit" value="1" class="rounded border-slate-300" @checked(old('is_default_sale_unit')) @disabled($alternateUnits->isEmpty())>
                                 Predeterminada al vender
                             </label>
-                            <button type="submit" class="btn-primary text-sm" @disabled($alternateUnits->isEmpty())>Guardar</button>
+                        </div>
+                        <div class="rounded-xl bg-slate-50 p-3">
+                            <p class="mb-2 text-xs font-semibold text-slate-700">¿Dónde se utiliza esta presentación?</p>
+                            <div class="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-600">
+                                <label class="inline-flex items-center gap-1.5">
+                                    <input type="checkbox" name="use_for_purchase" value="1" class="rounded border-slate-300" @checked(old('use_for_purchase', true))>
+                                    Al comprar
+                                </label>
+                                <label class="inline-flex items-center gap-1.5">
+                                    <input type="checkbox" name="use_for_sale" value="1" class="rounded border-slate-300" @checked(old('use_for_sale', true))>
+                                    Al vender
+                                </label>
+                                <label class="inline-flex items-center gap-1.5">
+                                    <input type="checkbox" name="is_default_purchase_unit" value="1" class="rounded border-slate-300" @checked(old('is_default_purchase_unit'))>
+                                    Predeterminada al comprar
+                                </label>
+                                <label class="inline-flex items-center gap-1.5">
+                                    <input type="checkbox" name="allow_fraction" value="1" class="rounded border-slate-300" @checked(old('allow_fraction'))>
+                                    Permitir fracciones
+                                </label>
+                            </div>
+                            <label for="presentationBarcode" class="mt-3 block text-xs font-medium text-slate-600">Código de barras de esta presentación (opcional)</label>
+                            <input id="presentationBarcode" name="barcode" value="{{ old('barcode') }}" class="input-field mt-1 py-2" placeholder="Escanee o escriba el código">
+                            @error('barcode')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                        </div>
+                        <div id="presentationPreview" class="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950" aria-live="polite">
+                            Seleccione una presentación para ver cómo afectará el inventario.
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit" class="btn-primary px-5 py-2 text-sm" @disabled($alternateUnits->isEmpty())>Guardar presentación</button>
                         </div>
                     </form>
                 @endif
@@ -196,6 +256,25 @@
         const tableQty = document.getElementById('tableEqualsQty');
         const tableEqualsUnit = document.getElementById('tableEqualsUnit');
         const defaultCheck = document.querySelector('#presentationForm [name="is_default_sale_unit"]');
+        const preview = document.getElementById('presentationPreview');
+        const purchaseCheck = document.querySelector('#presentationForm [name="use_for_purchase"]');
+        const saleCheck = document.querySelector('#presentationForm [name="use_for_sale"]');
+
+        const updatePreview = () => {
+            if (!preview || !tableUnit || !tableQty || !tableEqualsUnit) return;
+            const presentation = tableUnit.selectedOptions[0]?.dataset.name;
+            const containedUnit = tableEqualsUnit.selectedOptions[0]?.dataset.name || '{{ $baseUnitName }}';
+            const containedQty = parseFloat(tableQty.value);
+            const containedFactor = parseFloat(tableEqualsUnit.selectedOptions[0]?.dataset.factor || '1');
+            if (!presentation || !Number.isFinite(containedQty) || containedQty <= 0) {
+                preview.textContent = 'Seleccione una presentación para ver cómo afectará el inventario.';
+                return;
+            }
+            const baseQty = containedQty * containedFactor;
+            const formatted = baseQty.toLocaleString('es-NI', { maximumFractionDigits: 4 });
+            const actions = [purchaseCheck?.checked ? 'comprar' : null, saleCheck?.checked ? 'vender' : null].filter(Boolean).join(' y ');
+            preview.textContent = `Comprobación: 1 ${presentation} contiene ${containedQty} ${containedUnit} y mueve ${formatted} {{ $baseUnitLabel }} del inventario${actions ? ` al ${actions}` : ''}.`;
+        };
 
         document.querySelectorAll('#presentationForm [data-unit-id]').forEach((button) => {
             button.addEventListener('click', () => {
@@ -203,8 +282,14 @@
                 if (tableQty) tableQty.value = button.dataset.qty || '';
                 if (tableEqualsUnit) tableEqualsUnit.value = button.dataset.equalsUnitId || '';
                 if (defaultCheck) defaultCheck.checked = button.dataset.default === '1';
+                updatePreview();
             });
         });
+        [tableUnit, tableQty, tableEqualsUnit, purchaseCheck, saleCheck].forEach((field) => {
+            field?.addEventListener('input', updatePreview);
+            field?.addEventListener('change', updatePreview);
+        });
+        updatePreview();
     })();
     </script>
     @endpush

@@ -36,8 +36,8 @@ class UpdateCompanySettingsRequest extends FormRequest
             'timezone' => ['required', 'timezone'],
             'date_format' => ['required', Rule::in(['d/m/Y', 'Y-m-d', 'm/d/Y'])],
             'language' => ['required', Rule::in(['es', 'en'])],
-            'company_logo' => ['nullable', 'file', 'mimes:jpeg,jpg,png,webp,gif,bmp', 'max:20480'],
-            'ticket_logo' => ['nullable', 'file', 'mimes:jpeg,jpg,png,webp,gif,bmp', 'max:20480'],
+            'company_logo' => ['nullable', 'file', 'mimes:jpeg,jpg,png,webp,gif', 'max:8192'],
+            'ticket_logo' => ['nullable', 'file', 'mimes:jpeg,jpg,png,webp,gif', 'max:8192'],
             'remove_company_logo' => ['boolean'],
             'remove_ticket_logo' => ['boolean'],
             'invoice_footer' => ['nullable', 'string', 'max:1000'],
@@ -53,9 +53,9 @@ class UpdateCompanySettingsRequest extends FormRequest
             'company_ruc.regex' => 'El RUC solo puede contener letras, números y guiones.',
             'company_phone.regex' => 'El teléfono contiene caracteres no permitidos.',
             'company_logo.mimes' => 'El logo principal debe ser una imagen (JPG, PNG, WebP o GIF).',
-            'company_logo.max' => 'El logo principal no puede superar 20 MB.',
+            'company_logo.max' => 'El logo principal no puede superar 8 MB.',
             'ticket_logo.mimes' => 'El logo para tickets debe ser una imagen (JPG, PNG, WebP o GIF).',
-            'ticket_logo.max' => 'El logo para tickets no puede superar 20 MB.',
+            'ticket_logo.max' => 'El logo para tickets no puede superar 8 MB.',
         ];
     }
 }

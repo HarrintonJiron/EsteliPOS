@@ -100,8 +100,8 @@ test('authorized administrator can open the reset risk screen', function () {
 
     $this->actingAs($admin)->get(route('settings.system-reset.create'))
         ->assertOk()
-        ->assertSee('Reiniciar el sistema')
-        ->assertSee('Sistema limpio')
+        ->assertSee('Entregar el sistema en limpio')
+        ->assertSee('Entregar en limpio')
         ->assertSee('Ambiente de demostración')
         ->assertSee('REINICIAR SISTEMA')
         ->assertSee('system-reset-submit');
@@ -113,9 +113,9 @@ test('reset card is only shown on settings dashboard to users with the dedicated
 
     $this->actingAs($authorized)->get(route('settings.index'))
         ->assertOk()
-        ->assertSee('Ambiente de pruebas');
+        ->assertSee('Entregar en limpio');
 
     $this->actingAs($unauthorized)->get(route('settings.index'))
         ->assertOk()
-        ->assertDontSee('Ambiente de pruebas');
+        ->assertDontSee('Entregar en limpio');
 });

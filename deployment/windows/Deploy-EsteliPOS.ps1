@@ -32,9 +32,17 @@ if ([string]::IsNullOrWhiteSpace($AdminPassword) -and -not [string]::IsNullOrWhi
 $PhpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
 $PhpPath = if ($PhpCommand) { $PhpCommand.Source } else { "" }
 $InstallLogPath = Get-EsteliPOSInstallLogPath
+$script:InstallStep = 0
+$script:InstallStepTotal = $(if ($ServerProfile -eq "IIS") { 13 } else { 11 })
+if ($SetStaticIp) { $script:InstallStepTotal++ }
 
 function Write-Step([string]$Message) {
-    Write-Host "`n==> $Message" -ForegroundColor Cyan
+    $script:InstallStep++
+    $percent = [Math]::Min(100, [Math]::Floor(($script:InstallStep / $script:InstallStepTotal) * 100))
+    $filled = [Math]::Min(30, [Math]::Floor($percent / 100 * 30))
+    $bar = ("#" * $filled) + ("-" * (30 - $filled))
+    Write-Host ("`n[{0}] {1,3}%  Paso {2}/{3}" -f $bar, $percent, $script:InstallStep, $script:InstallStepTotal) -ForegroundColor Green
+    Write-Host "==> $Message" -ForegroundColor Cyan
     Write-InstallLogLine -LogPath $InstallLogPath -Line "[PASO] $Message"
 }
 
@@ -313,6 +321,12 @@ try {
         } catch {
             Stop-WithError $_.Exception.Message -ExitCode 15
         }
+    }
+
+    Write-Step "Verificando manejo de logos e imagenes"
+    & $PhpPath artisan app:verify-image-pipeline
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithError "La prueba preventiva de imagenes fallo. Revise permisos de storage\app\public y PHP GD/fileinfo." -ExitCode 24
     }
 
     Write-Step "Guardando configuracion de red y acceso LAN"

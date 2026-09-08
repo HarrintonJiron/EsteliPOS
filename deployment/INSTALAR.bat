@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul 2>&1
-title EsteliPOS - Instalador facil
+title EsteliPOS - Instalador de consola
 
 :: ============================================================================
-::  INSTALADOR A PRUEBA DE ERRORES
+::  INSTALADOR DE CONSOLA A PRUEBA DE ERRORES
 ::  Uso: doble clic en INSTALAR.bat (junto a EsteliPOSProduccion1.0.zip)
 ::  - Extrae el paquete si hace falta
 ::  - Instala NUEVO o ACTUALIZA sin borrar datos
@@ -51,7 +51,7 @@ if /i "%DAMAGED%"=="1" (
 cls
 echo.
 echo  ============================================================
-echo    ESTELIPOS - INSTALADOR FACIL
+echo    ESTELIPOS - INSTALADOR DE CONSOLA
 echo    Northlink Microsystem  ^|  Version final 1.0
 echo  ============================================================
 echo.
@@ -61,60 +61,59 @@ if defined OUTER_ZIP if not defined PACKAGE_ZIP echo   Paquete:           !OUTER
 echo   Destino:            %TARGET_DIR%
 echo.
 
-if exist "%TARGET_DIR%\deployment\windows\Install-EsteliPOS-GUI.ps1" goto :gui_ready
-if /i "%EXISTING%"=="1" goto :legacy_existing
+if /i "%EXISTING%"=="1" goto :existing_menu
 
 echo   No hay instalacion previa con datos en %TARGET_DIR%
-echo   Se abrira el asistente grafico despues de extraer el paquete.
+echo   Capacitacion: incluye productos, clientes, compras y ventas demo.
+echo   Al terminar use Configuracion ^> Entregar en limpio.
 echo.
-choice /c SN /n /m "Continuar? [S/N]: "
-if errorlevel 2 exit /b 0
+echo   [1] Instalar con IIS  ^(RECOMENDADO para varias cajas^)
+echo   [2] Instalar modo Simple ^(una caja o prueba^)
+echo   [Q] Cancelar
+echo.
+choice /c 12Q /n /m "Opcion [1/2/Q]: "
+if errorlevel 3 exit /b 0
+if errorlevel 2 goto :new_simple
 set "MODE=INSTALL_IIS"
+goto :new_selected
+:new_simple
+set "MODE=INSTALL_SIMPLE"
+:new_selected
 call :prepare_install_folder
 if errorlevel 1 (
     pause
     exit /b 3
 )
-goto :do_gui
+goto :do_install
 
-:gui_ready
-if /i "%EXISTING%"=="1" (
-    echo   Se detecto una instalacion EXISTENTE con datos.
-    echo   El asistente grafico le permitira actualizar o reinstalar servicios.
-) else (
-    echo   Se abrira el asistente grafico de instalacion.
-)
-echo.
-choice /c SN /n /m "Continuar? [S/N]: "
-if errorlevel 2 exit /b 0
-if /i "%EXISTING%"=="1" (set "MODE=UPDATE") else (set "MODE=INSTALL_IIS")
-call :prepare_install_folder
-if errorlevel 1 (
-    pause
-    exit /b 3
-)
-goto :do_gui
-
-:legacy_existing
+:existing_menu
 echo   Se detecto una instalacion EXISTENTE con datos.
 echo   Elija con cuidado:
 echo.
 echo   [1] ACTUALIZAR  ^(recomendado - conserva ventas e inventario^)
 echo   [2] Reinstalar IIS sobre la misma carpeta
 echo       ^(NO borra la base de datos, pero reinstala servicios^)
+echo   [3] Reinstalar modo Simple sin borrar la base
 echo   [Q] Cancelar
 echo.
-choice /c 12Q /n /m "Opcion [1/2/Q]: "
-if errorlevel 3 exit /b 0
-if errorlevel 2 (
-    set "MODE=INSTALL_IIS"
-) else (
-    set "MODE=UPDATE"
-)
+choice /c 123Q /n /m "Opcion [1/2/3/Q]: "
+if errorlevel 4 exit /b 0
+if errorlevel 3 goto :existing_simple
+if errorlevel 2 goto :existing_iis
+set "MODE=UPDATE"
+goto :existing_selected
+:existing_iis
+set "MODE=INSTALL_IIS"
+goto :existing_selected
+:existing_simple
+set "MODE=INSTALL_SIMPLE"
+:existing_selected
 echo.
 echo  ------------------------------------------------------------
 if /i "%MODE%"=="UPDATE" (
     echo   Accion: ACTUALIZAR sin perder datos
+) else if /i "%MODE%"=="INSTALL_SIMPLE" (
+    echo   Accion: Reinstalacion de servicios en modo Simple
 ) else (
     echo   Accion: Reinstalacion de servicios IIS
 )
@@ -132,21 +131,11 @@ if /i "%MODE%"=="UPDATE" goto :do_update
 goto :do_install
 
 :: ---------------------------------------------------------------------------
-:do_gui
+:do_verify
 echo.
-echo  ==> Abriendo asistente grafico...
+echo  ==> Verificando dependencias, PHP, SQLite y recursos...
 echo.
-set "GUI_PS=%TARGET_DIR%\deployment\windows\Install-EsteliPOS-GUI.ps1"
-if not exist "%GUI_PS%" (
-    echo [ERROR] Falta Install-EsteliPOS-GUI.ps1 en %TARGET_DIR%
-    echo Se intentara el instalador de consola.
-    if /i "%EXISTING%"=="1" goto :do_update
-    goto :do_install
-)
-set "ZIP_ARG="
-if defined PACKAGE_ZIP set "ZIP_ARG=-UpdateZip ""%PACKAGE_ZIP%"""
-if not defined ZIP_ARG if defined OUTER_ZIP set "ZIP_ARG=-UpdateZip ""%OUTER_ZIP%"""
-powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File "%GUI_PS%" -ProjectRoot "%TARGET_DIR%" %ZIP_ARG%
+call "%TARGET_DIR%\Instalar-EsteliPOS.bat" Verify
 set "EC=%ERRORLEVEL%"
 goto :finish
 
@@ -204,6 +193,17 @@ if not "%EC%"=="0" (
     echo  ============================================================
     pause
     exit /b %EC%
+)
+
+if /i "%MODE%"=="VERIFY" (
+    echo  ============================================================
+    echo   VERIFICACION COMPLETADA
+    echo  ============================================================
+    echo   El equipo y el paquete superaron la revision previa.
+    echo   Ejecute nuevamente INSTALAR.bat para instalar.
+    echo  ============================================================
+    pause
+    exit /b 0
 )
 
 echo  ============================================================

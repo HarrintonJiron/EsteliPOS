@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CajaSession;
 use App\Models\Category;
 use App\Models\Client;
 use App\Models\NumberSequence;
@@ -11,8 +12,11 @@ use App\Models\ProformaDetail;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
+use App\Services\AccountingService;
+use App\Services\CreditService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
+use App\Services\PricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -20,8 +24,11 @@ use Throwable;
 class ProformaController extends Controller
 {
     public function __construct(
+        private AccountingService $accounting,
+        private CreditService $credit,
         private InventoryService $inventoryService,
         private PosCatalogService $posCatalog,
+        private PricingService $pricing,
     ) {}
 
     private function defaultTaxRate(): float
@@ -54,8 +61,22 @@ class ProformaController extends Controller
     {
         $requested = collect($items)
             ->filter(fn (array $item): bool => isset($item['product_id']))
-            ->groupBy(fn (array $item): int => (int) $item['product_id'])
-            ->map(fn ($lines): float => $lines->sum(fn (array $item): float => max(0, (float) ($item['quantity'] ?? 0))));
+            ->map(function (array $item): array {
+                $product = Product::query()->with(['baseUnit', 'unitConversions.unit'])->find($item['product_id']);
+                if (! $product) {
+                    return ['product_id' => (int) $item['product_id'], 'quantity' => 0];
+                }
+                $line = $this->posCatalog->resolveSaleLine(
+                    $product,
+                    max(0, (float) ($item['quantity'] ?? 0)),
+                    isset($item['unit_id']) ? (int) $item['unit_id'] : null,
+                    null,
+                );
+
+                return ['product_id' => $product->id, 'quantity' => $line['base_quantity']];
+            })
+            ->groupBy('product_id')
+            ->map(fn ($lines): float => $lines->sum('quantity'));
 
         if ($requested->isEmpty()) {
             return [];
@@ -112,25 +133,46 @@ class ProformaController extends Controller
         }
 
         $proformas = $query->paginate(15)->withQueryString();
+        $stats = [
+            'month_total' => (float) Proforma::query()->whereBetween('date', [now()->startOfMonth(), now()->endOfMonth()])->sum('total'),
+            'month_count' => (int) Proforma::query()->whereBetween('date', [now()->startOfMonth(), now()->endOfMonth()])->count(),
+            'accepted' => (int) Proforma::query()->where('status', 'accepted')->count(),
+            'open' => (int) Proforma::query()->whereIn('status', ['draft', 'sent'])->count(),
+        ];
 
-        return view('proformas.index', compact('proformas'));
+        return view('proformas.index', compact('proformas', 'stats'));
     }
 
     public function pos()
     {
-        $products = Product::with(['category', 'tax'])
+        $products = Product::with(['category', 'tax', 'baseUnit', 'unitConversions.unit', 'warehouseStocks.warehouse'])
             ->where('status', 'active')
             ->orderBy('name')
             ->get()
-            ->each(function (Product $product) {
-                $product->setAttribute('effective_tax_rate', $product->effectiveTaxRate());
-            });
+            ->map(fn (Product $product) => $this->posCatalog->serializeProduct($product));
 
         $clients = Client::orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
         $defaultTaxRate = $this->defaultTaxRate();
 
         return view('proformas.pos', compact('products', 'clients', 'categories', 'defaultTaxRate'));
+    }
+
+    public function products(Request $request)
+    {
+        $validated = $request->validate([
+            'client_id' => 'nullable|integer|exists:clients,id',
+        ]);
+        $priceListId = $this->posCatalog->resolvePriceListId($validated['client_id'] ?? null);
+
+        return response()->json(
+            Product::with(['category', 'tax', 'baseUnit', 'unitConversions.unit', 'warehouseStocks.warehouse'])
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (Product $product) => $this->posCatalog->serializeProduct($product, null, $priceListId))
+                ->values()
+        );
     }
 
     public function store(Request $request)
@@ -140,6 +182,7 @@ class ProformaController extends Controller
             'items' => 'required|json',
             'notes' => 'nullable|string|max:500',
             'expiry_days' => 'nullable|integer|min:1|max:365',
+            'order_discount_pct' => 'nullable|numeric|min:0|max:100',
         ]);
 
         $items = json_decode($validated['items'], true);
@@ -156,6 +199,7 @@ class ProformaController extends Controller
         DB::transaction(function () use ($validated, $items, &$proforma, $userId, $defaultTaxRate) {
             $clientId = $validated['client_id'] ?? null;
             $client = $clientId ? Client::find($clientId) : null;
+            $resolvedPriceList = $this->pricing->resolvePriceList($client?->price_list_id);
 
             $expiryDays = (int) ($validated['expiry_days'] ?? 15);
 
@@ -163,6 +207,8 @@ class ProformaController extends Controller
                 'proforma_number' => $this->nextProformaNumber(),
                 'client_id' => $client?->id,
                 'user_id' => $userId,
+                'price_list_id' => $resolvedPriceList?->id,
+                'price_list_name' => $resolvedPriceList?->name,
                 'client_name' => $client?->name ?? 'Cliente General',
                 'client_phone' => $client?->phone,
                 'client_email' => $client?->email,
@@ -180,16 +226,23 @@ class ProformaController extends Controller
 
             $linesTotal = 0.0;
             $taxTotal = 0.0;
+            $orderDiscountPct = (float) ($validated['order_discount_pct'] ?? 0);
 
             foreach ($items as $item) {
                 $quantity = (float) ($item['quantity'] ?? 1);
-                $price = (float) ($item['price'] ?? 0);
                 $discountPct = min(100, max(0, (float) ($item['discount'] ?? 0)));
-                $subtotal = $price * $quantity * (1 - $discountPct / 100);
 
                 $product = Product::query()
-                    ->with('tax')
-                    ->find($item['product_id'] ?? null);
+                    ->with(['tax', 'baseUnit', 'unitConversions.unit'])
+                    ->findOrFail($item['product_id'] ?? null);
+                $line = $this->posCatalog->resolveSaleLine(
+                    $product,
+                    $quantity,
+                    isset($item['unit_id']) ? (int) $item['unit_id'] : null,
+                    $resolvedPriceList?->id,
+                );
+                $price = $line['price'];
+                $subtotal = $price * $quantity * (1 - $discountPct / 100) * (1 - $orderDiscountPct / 100);
 
                 $rate = $product?->effectiveTaxRate() ?? $defaultTaxRate;
                 $lineTax = $subtotal * $rate;
@@ -198,6 +251,11 @@ class ProformaController extends Controller
                     'proforma_id' => $proforma->id,
                     'product_id' => $product?->id,
                     'product_name' => $product?->name ?? ($item['name'] ?? 'Producto'),
+                    'unit_id' => $line['unit_id'],
+                    'unit_factor' => $line['unit_factor'],
+                    'base_quantity' => $line['base_quantity'],
+                    'price_list_item_id' => $line['price_list_item_id'],
+                    'price_min_quantity' => $line['price_min_quantity'],
                     'quantity' => $quantity,
                     'price' => $price,
                     'discount' => $discountPct,
@@ -280,6 +338,10 @@ class ProformaController extends Controller
 
         try {
             DB::transaction(function () use ($proforma, $paymentType, &$sale, $request) {
+                $proforma = Proforma::query()->with('details.product')->lockForUpdate()->findOrFail($proforma->id);
+                if ($proforma->sale_id) {
+                    throw new \RuntimeException('Esta proforma ya fue convertida en factura.');
+                }
                 $userId = $request->user()?->id ?? 1;
 
                 $clientId = $proforma->client_id;
@@ -304,6 +366,12 @@ class ProformaController extends Controller
                 $invoiceNumber = NumberSequence::getNext('factura');
 
                 $status = $paymentType === 'credit' ? 'pending' : 'completed';
+                $client = Client::query()
+                    ->when($paymentType === 'credit', fn ($query) => $query->lockForUpdate())
+                    ->findOrFail($clientId);
+                if ($paymentType === 'credit' && ! $this->credit->canGrantCredit($client, (float) $proforma->total)) {
+                    throw new \RuntimeException('El cliente no tiene crédito disponible suficiente para esta proforma.');
+                }
 
                 $warehouseId = $this->posCatalog->resolveWarehouseId(null);
 
@@ -311,12 +379,16 @@ class ProformaController extends Controller
                     'invoice_number' => $invoiceNumber,
                     'client_id' => $clientId,
                     'user_id' => $userId,
+                    'caja_session_id' => CajaSession::currentForUser($userId)?->id,
                     'warehouse_id' => $warehouseId,
+                    'price_list_id' => $proforma->price_list_id,
+                    'price_list_name' => $proforma->price_list_name,
                     'billing_name' => $proforma->client_name ?: 'Cliente General',
                     'billing_phone' => $proforma->client_phone,
                     'billing_email' => $proforma->client_email,
                     'billing_address' => $proforma->client_address,
                     'date' => now(),
+                    'due_date' => $paymentType === 'credit' ? $this->credit->dueDateForClient($client) : null,
                     'payment_type' => $paymentType,
                     'tax_included' => $proforma->tax_included,
                     'tax_rate' => $proforma->tax_rate,
@@ -331,7 +403,12 @@ class ProformaController extends Controller
                     SaleDetail::create([
                         'sale_id' => $sale->id,
                         'product_id' => $detail->product_id,
+                        'unit_id' => $detail->unit_id,
+                        'price_list_item_id' => $detail->price_list_item_id,
+                        'price_min_quantity' => $detail->price_min_quantity,
                         'quantity' => $detail->quantity,
+                        'unit_factor' => $detail->unit_factor,
+                        'base_quantity' => $detail->base_quantity,
                         'price' => $detail->price,
                         'subtotal' => $detail->subtotal,
                     ]);
@@ -341,7 +418,7 @@ class ProformaController extends Controller
                         if ($product) {
                             $this->inventoryService->stockOut(
                                 $product,
-                                (float) $detail->quantity,
+                                (float) ($detail->base_quantity ?? $detail->quantity),
                                 'proforma_sale:'.$sale->id,
                                 'Venta desde Proforma '.$proforma->proforma_number,
                                 $userId,
@@ -353,7 +430,8 @@ class ProformaController extends Controller
                 }
 
                 // Mark proforma as accepted
-                $proforma->update(['status' => 'accepted']);
+                $this->accounting->recordSale($sale->fresh('details'));
+                $proforma->update(['status' => 'accepted', 'sale_id' => $sale->id]);
             });
 
             return redirect()->route('facturacion.show', $sale->id)

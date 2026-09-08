@@ -14,9 +14,7 @@ use Illuminate\View\View;
 
 class OperationalExpenseController extends Controller
 {
-    public function __construct(private readonly OperationalExpenseService $service)
-    {
-    }
+    public function __construct(private readonly OperationalExpenseService $service) {}
 
     public function index(Request $request): View
     {
@@ -118,11 +116,12 @@ class OperationalExpenseController extends Controller
         $defaultSession = CajaSession::query()
             ->whereDate('date', now()->toDateString())
             ->where('status', 'open')
+            ->where('opened_by', auth()->id())
             ->orderByDesc('opened_at')
             ->first();
 
         return [
-            'cajaSessions' => CajaSession::query()->orderByDesc('date')->orderByDesc('opened_at')->get(),
+            'cajaSessions' => CajaSession::query()->where('opened_by', auth()->id())->orderByDesc('date')->orderByDesc('opened_at')->get(),
             'repairOrders' => RepairOrder::query()->orderByDesc('id')->limit(100)->get(['id', 'order_number', 'client_name']),
             'expenseAccounts' => Account::query()->postable()->ofMainGroup('gastos')->orderBy('code')->get(),
             'defaultCajaSession' => $defaultSession,

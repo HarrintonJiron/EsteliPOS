@@ -18,6 +18,7 @@ class OpenCashRegisterRequest extends FormRequest
     {
         return [
             'opening_amount' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
         ];
     }
 

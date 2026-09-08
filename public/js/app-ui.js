@@ -143,7 +143,7 @@ function initializeDataGrids() {
                 const input = document.createElement('input');
                 input.type = columnTypes[index] === 'date' ? 'date' : 'search';
                 input.className = 'ui-data-grid-filter';
-                input.placeholder = `Filtrar ${label}`;
+                input.placeholder = 'Filtrar';
                 input.setAttribute('aria-label', `Filtrar columna ${label}`);
                 input.addEventListener('input', () => {
                     state.filters[index] = normalizeText(input.value);
@@ -217,6 +217,7 @@ function initializeDataGrids() {
         }
 
         renderDataGrid();
+        fitDataGridToContent(table, headers, originalRows, columnTypes);
     });
 }
 
@@ -227,6 +228,39 @@ function isDataGridCandidate(table) {
 
     const headers = Array.from(table.tHead.rows[0]?.cells || []);
     return headers.length > 1 && headers.some((header) => header.textContent.trim());
+}
+
+function fitDataGridToContent(table, headers, originalRows, columnTypes) {
+    const filterCells = Array.from(table.querySelectorAll('.ui-data-grid-filters th'));
+
+    headers.forEach((header, index) => {
+        const label = header.textContent.replace(/[↕↑↓]/g, '').trim();
+        const isActions = /acci[oó]n|opci[oó]n/i.test(label);
+        const longest = originalRows.reduce((current, row) => {
+            const value = cellValue(row, index);
+            return value.length > current.length ? value : current;
+        }, label);
+        const isDate = columnTypes[index] === 'date';
+        const chars = isDate
+            ? 14
+            : Math.min(36, Math.max(isActions ? 8 : 5, longest.length + 1));
+        const minWidth = isDate ? '11rem' : `${chars}ch`;
+
+        header.style.width = isActions ? '1%' : 'auto';
+        header.style.minWidth = minWidth;
+
+        const filterCell = filterCells[index];
+        if (filterCell) {
+            filterCell.style.minWidth = minWidth;
+            filterCell.style.width = isActions ? '1%' : 'auto';
+        }
+
+        const filter = filterCell?.querySelector('input');
+        if (filter) {
+            filter.style.width = '100%';
+            filter.style.minWidth = '0';
+        }
+    });
 }
 
 function cellValue(row, index) {

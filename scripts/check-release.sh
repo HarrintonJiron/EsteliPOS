@@ -17,7 +17,7 @@ tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/estelipos-release.XXXXXX")"
 trap 'rm -rf "$tmp_dir"' EXIT
 
 outer_entries="$(unzip -Z1 "$archive")"
-for required in INSTALAR.bat EsteliPOSProduccion1.0.zip EsteliPOSProduccion1.0.zip.sha256; do
+for required in INSTALAR.bat INSTALAR-CONSOLA.bat EsteliPOSProduccion1.0.zip EsteliPOSProduccion1.0.zip.sha256; do
     grep -Fxq "$required" <<< "$outer_entries" || { echo "error: falta $required" >&2; exit 1; }
 done
 
@@ -39,6 +39,14 @@ source_version="$(tr -d '\r\n' < VERSION)"
 unzip -Z1 "$inner" > "$tmp_dir/inner-entries.txt"
 if grep -Eq '^EsteliPOS/(\.env$|\.env\.backup($|-)|\.env\.production$|\.env\.local$|database/database\.sqlite([.-]|$)|node_modules/|tests/)' "$tmp_dir/inner-entries.txt"; then
     echo "error: el paquete contiene datos o archivos de desarrollo prohibidos" >&2
+    exit 1
+fi
+if grep -Eq '^EsteliPOS/deployment/client-inventory/|^EsteliPOS/scripts/extract-client-inventory\.py$|inventario-cisve-4094' "$tmp_dir/inner-entries.txt"; then
+    echo "error: el paquete contiene el inventario real del cliente" >&2
+    exit 1
+fi
+if grep -E '^EsteliPOS/storage/app/' "$tmp_dir/inner-entries.txt" | grep -Ev '/$' >/dev/null; then
+    echo "error: el paquete contiene archivos persistentes de storage/app" >&2
     exit 1
 fi
 

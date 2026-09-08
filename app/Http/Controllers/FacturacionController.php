@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SaleRequest;
 use App\Models\AuditLog;
+use App\Models\CajaSession;
 use App\Models\Category;
 use App\Models\Client;
 use App\Models\NumberSequence;
@@ -18,6 +19,7 @@ use App\Services\CreditOverrideService;
 use App\Services\CreditService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
+use App\Services\PricingService;
 use App\Services\PurchaseCostingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,6 +37,7 @@ class FacturacionController extends Controller
         private CreditOverrideService $creditOverrides,
         private PosCatalogService $posCatalog,
         private PurchaseCostingService $purchaseCosting,
+        private PricingService $pricing,
     ) {}
 
     private function nextInvoiceNumber(): string
@@ -63,8 +66,16 @@ class FacturacionController extends Controller
 
         $sales = $query->latest()->paginate($perPage);
         $clients = Client::orderBy('name')->get();
+        $monthStart = now()->startOfMonth()->toDateString();
+        $monthEnd = now()->endOfMonth()->toDateString();
+        $stats = [
+            'today_total' => (float) Sale::query()->whereDate('date', today())->where('status', 'completed')->sum('total'),
+            'month_total' => (float) Sale::query()->whereBetween('date', [$monthStart, $monthEnd])->where('status', 'completed')->sum('total'),
+            'month_count' => (int) Sale::query()->whereBetween('date', [$monthStart, $monthEnd])->where('status', 'completed')->count(),
+            'pending' => (int) Sale::query()->where('status', 'pending')->count(),
+        ];
 
-        return view('facturacion.index', compact('sales', 'clients'));
+        return view('facturacion.index', compact('sales', 'clients', 'stats'));
     }
 
     public function create()
@@ -95,12 +106,16 @@ class FacturacionController extends Controller
                     ?? ($client?->isCompany() ? 'ruc' : ($client?->cedula ? 'cedula' : null));
                 $billingDocumentNumber = $data['billing_ruc']
                     ?? ($billingDocumentType === 'cedula' ? $client?->cedula : $client?->ruc);
+                $resolvedPriceList = $this->pricing->resolvePriceList($client?->price_list_id);
 
                 $sale = Sale::create([
                     'invoice_number' => $invoiceNumber,
                     'client_id' => $data['client_id'],
                     'user_id' => $data['user_id'],
+                    'caja_session_id' => CajaSession::currentForUser($data['user_id'])?->id,
                     'warehouse_id' => $this->posCatalog->resolveWarehouseId($data['warehouse_id'] ?? null),
+                    'price_list_id' => $resolvedPriceList?->id,
+                    'price_list_name' => $resolvedPriceList?->name,
                     'billing_name' => $data['billing_name'],
                     'billing_business_name' => $data['billing_business_name'] ?? null,
                     'billing_document_type' => $billingDocumentType,
@@ -124,7 +139,7 @@ class FacturacionController extends Controller
                 $subtotalExcl = 0;
                 $taxTotal = 0;
                 $taxIncluded = (bool) $sale->tax_included;
-                $priceListId = $client?->price_list_id;
+                $priceListId = $resolvedPriceList?->id;
 
                 foreach ($data['items'] as $item) {
                     $product = Product::query()
@@ -151,7 +166,11 @@ class FacturacionController extends Controller
                         'sale_id' => $sale->id,
                         'product_id' => $item['product_id'],
                         'unit_id' => $line['unit_id'],
+                        'price_list_item_id' => $line['price_list_item_id'],
+                        'price_min_quantity' => $line['price_min_quantity'],
                         'quantity' => $line['quantity'],
+                        'unit_factor' => $line['unit_factor'],
+                        'base_quantity' => $line['base_quantity'],
                         'price' => $line['price'],
                         'subtotal' => $lineGross,
                         'tax_rate' => $rate,
@@ -261,10 +280,13 @@ class FacturacionController extends Controller
                 $sale->details()->delete();
 
                 // Update sale
+                $resolvedPriceList = $this->pricing->resolvePriceList($client?->price_list_id);
                 $sale->update([
                     'invoice_number' => $data['invoice_number'] ?? $sale->invoice_number,
                     'client_id' => $data['client_id'],
                     'warehouse_id' => $this->posCatalog->resolveWarehouseId($data['warehouse_id'] ?? $sale->warehouse_id),
+                    'price_list_id' => $resolvedPriceList?->id,
+                    'price_list_name' => $resolvedPriceList?->name,
                     'billing_name' => $data['billing_name'],
                     'billing_business_name' => $data['billing_business_name'] ?? null,
                     'billing_document_type' => $billingDocumentType,
@@ -285,7 +307,7 @@ class FacturacionController extends Controller
                 $subtotalExcl = 0;
                 $taxTotal = 0;
                 $taxIncluded = (bool) $sale->tax_included;
-                $priceListId = $client?->price_list_id;
+                $priceListId = $resolvedPriceList?->id;
 
                 foreach ($data['items'] as $item) {
                     $product = Product::query()
@@ -312,7 +334,11 @@ class FacturacionController extends Controller
                         'sale_id' => $sale->id,
                         'product_id' => $item['product_id'],
                         'unit_id' => $line['unit_id'],
+                        'price_list_item_id' => $line['price_list_item_id'],
+                        'price_min_quantity' => $line['price_min_quantity'],
                         'quantity' => $line['quantity'],
+                        'unit_factor' => $line['unit_factor'],
+                        'base_quantity' => $line['base_quantity'],
                         'price' => $line['price'],
                         'subtotal' => $lineGross,
                         'tax_rate' => $rate,
@@ -449,7 +475,10 @@ class FacturacionController extends Controller
                 $q->where(function ($inner) use ($search) {
                     $inner->where('code', $search)
                         ->orWhere('code', 'like', $search.'%')
-                        ->orWhere('name', 'like', '%'.$search.'%');
+                        ->orWhere('name', 'like', '%'.$search.'%')
+                        ->orWhereHas('unitConversions', fn ($conversion) => $conversion
+                            ->where('barcode', $search)
+                            ->where('use_for_sale', true));
                 });
             })
             ->orderByRaw('CASE WHEN code = ? THEN 0 ELSE 1 END', [$search])
@@ -458,7 +487,25 @@ class FacturacionController extends Controller
             ->get();
 
         return response()->json(
-            $query->map(fn (Product $product) => $this->posCatalog->serializeProduct($product, $warehouseId, $priceListId))
+            $query->map(function (Product $product) use ($warehouseId, $priceListId, $search) {
+                $serialized = $this->posCatalog->serializeProduct($product, $warehouseId, $priceListId);
+                $scanned = $search !== ''
+                    ? $product->unitConversions->first(fn ($conversion) => $conversion->use_for_sale && $conversion->barcode === $search)
+                    : null;
+
+                if ($scanned) {
+                    $serialized['default_unit_id'] = $scanned->unit_id;
+                    $serialized['default_unit_label'] = $scanned->unit?->abbreviation ?? $product->baseUnitLabel();
+                    $serialized['sale_units'] = collect($serialized['sale_units'])
+                        ->map(function (array $unit) use ($scanned): array {
+                            $unit['is_default'] = (int) $unit['id'] === (int) $scanned->unit_id;
+
+                            return $unit;
+                        })->all();
+                }
+
+                return $serialized;
+            })
         );
     }
 
@@ -614,14 +661,18 @@ class FacturacionController extends Controller
                 $preferredWarehouseId = isset($validated['warehouse_id'])
                     ? (int) $validated['warehouse_id']
                     : null;
-                $priceListId = $client->price_list_id;
+                $resolvedPriceList = $this->pricing->resolvePriceList($client->price_list_id);
+                $priceListId = $resolvedPriceList?->id;
                 $saleWarehouseId = null;
 
                 $sale = Sale::create([
                     'invoice_number' => $invoiceNumber,
                     'client_id' => $client->id,
                     'user_id' => $userId,
+                    'caja_session_id' => CajaSession::currentForUser($userId)?->id,
                     'warehouse_id' => $this->posCatalog->resolveWarehouseId($preferredWarehouseId),
+                    'price_list_id' => $resolvedPriceList?->id,
+                    'price_list_name' => $resolvedPriceList?->name,
                     'billing_name' => $client->name,
                     'billing_business_name' => $client->business_name ?? null,
                     'billing_document_type' => $client->isCompany() ? 'ruc' : ($client->cedula ? 'cedula' : null),
@@ -673,7 +724,11 @@ class FacturacionController extends Controller
                         'sale_id' => $sale->id,
                         'product_id' => $item['product_id'],
                         'unit_id' => $line['unit_id'],
+                        'price_list_item_id' => $line['price_list_item_id'],
+                        'price_min_quantity' => $line['price_min_quantity'],
                         'quantity' => $line['quantity'],
+                        'unit_factor' => $line['unit_factor'],
+                        'base_quantity' => $line['base_quantity'],
                         'price' => $line['price'],
                         'discount_percentage' => $discountPct,
                         'discount_amount' => round($lineDiscountAmount, 2),

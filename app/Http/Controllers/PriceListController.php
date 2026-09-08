@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
-use App\Models\Unit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -55,15 +54,29 @@ class PriceListController extends Controller
     public function show(PriceList $priceList): View
     {
         $items = PriceListItem::query()
-            ->with(['product', 'unit'])
+            ->with(['product.unitConversions', 'unit'])
             ->where('price_list_id', $priceList->id)
             ->orderBy('product_id')
             ->paginate(30);
 
-        $products = Product::query()->where('status', 'active')->orderBy('name')->get(['id', 'name', 'code', 'sale_price', 'base_unit_id']);
-        $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
+        $products = Product::query()->with(['baseUnit:id,name,abbreviation', 'unitConversions' => fn ($query) => $query->where('use_for_sale', true)->with('unit:id,name,abbreviation')])
+            ->where('status', 'active')->orderBy('name')->get(['id', 'name', 'code', 'sale_price', 'purchase_price', 'base_unit_id']);
+        $productOptions = $products->map(fn (Product $product) => [
+            'id' => $product->id,
+            'units' => collect([[
+                'id' => $product->baseUnit?->id,
+                'label' => ($product->baseUnit?->name ?? 'Unidad base').' · '.($product->baseUnit?->abbreviation ?? 'base'),
+                'public_price' => (float) $product->sale_price,
+                'cost' => (float) $product->purchase_price,
+            ]])->merge($product->unitConversions->map(fn ($conversion) => [
+                'id' => $conversion->unit?->id,
+                'label' => ($conversion->unit?->name ?? 'Presentación').' · '.($conversion->unit?->abbreviation ?? ''),
+                'public_price' => (float) ($conversion->sale_price ?? ((float) $product->sale_price * (float) $conversion->factor_to_base)),
+                'cost' => (float) $product->purchase_price * (float) $conversion->factor_to_base,
+            ]))->filter(fn (array $unit) => $unit['id'])->unique('id')->values(),
+        ]);
 
-        return view('inventario.price-lists.show', compact('priceList', 'items', 'products', 'units'));
+        return view('inventario.price-lists.show', compact('priceList', 'items', 'products', 'productOptions'));
     }
 
     public function edit(PriceList $priceList): View
@@ -105,15 +118,21 @@ class PriceListController extends Controller
             'min_quantity' => 'nullable|numeric|min:0.0001',
         ]);
 
+        $product = Product::query()->with('unitConversions')->findOrFail($validated['product_id']);
+        $unitId = isset($validated['unit_id']) ? (int) $validated['unit_id'] : (int) $product->base_unit_id;
+        $validUnit = $unitId === (int) $product->base_unit_id
+            || $product->unitConversions->contains(fn ($conversion) => (int) $conversion->unit_id === $unitId && $conversion->use_for_sale);
+        abort_unless($validUnit, 422, 'La presentación seleccionada no está habilitada para este producto.');
+
         PriceListItem::query()->updateOrCreate(
             [
                 'price_list_id' => $priceList->id,
                 'product_id' => $validated['product_id'],
-                'unit_id' => $validated['unit_id'] ?? null,
+                'unit_id' => $unitId,
+                'min_quantity' => $validated['min_quantity'] ?? 1,
             ],
             [
                 'unit_price' => $validated['unit_price'],
-                'min_quantity' => $validated['min_quantity'] ?? 1,
             ]
         );
 

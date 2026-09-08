@@ -85,6 +85,12 @@ test('pos preview receives the effective product tax instead of a fixed fifteen 
 
     $response->assertOk()
         ->assertSee('id="taxLabel"', false)
+        ->assertSee('Math.round((amount + Number.EPSILON) * 100) / 100', false)
+        ->assertSee('id="posNumpad"', false)
+        ->assertSee('id="ticketScroller"', false)
+        ->assertSee('revealTicketLine', false)
+        ->assertSee('Teclado')
+        ->assertSee('togglePosPad', false)
         ->assertSee('F1 Atajos')
         ->assertSee("e.key === 'F9'", false)
         ->assertSee('requestSubmit()', false)
@@ -138,6 +144,8 @@ test('pos persists the same exempt total shown by its preview', function () {
         ->assertSee('size: 80mm auto', false)
         ->assertSee('max-width: 68mm; max-height: 44mm', false)
         ->assertSee('company/main-logo.png', false)
+        ->assertSee('loading="eager" decoding="sync"', false)
+        ->assertSee('onerror="this.remove()"', false)
         ->assertSee('RUC: RUC-TEST-001')
         ->assertSee('Imprimir ticket 80 mm');
 });

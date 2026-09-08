@@ -17,9 +17,10 @@
         <a href="{{ route('inventario.price-lists.show', $list) }}" class="card p-4 block hover:ring-2 hover:ring-indigo-200">
             <div class="flex justify-between">
                 <h3 class="font-bold">{{ $list->name }}</h3>
-                @if($list->is_default)<span class="badge-success text-xs">Default</span>@endif
+                <span class="{{ $list->isCurrentlyValid() ? 'badge-success' : 'badge-danger' }} text-xs">{{ $list->isCurrentlyValid() ? 'Vigente' : 'No vigente' }}</span>
             </div>
-            <p class="text-xs text-slate-500 mt-1">{{ $list->code }} · {{ $list->items_count }} precios</p>
+            <p class="text-xs text-slate-500 mt-1">{{ $list->code }} · {{ $list->items_count }} escalas @if($list->is_default) · Predeterminada @endif</p>
+            @if($list->valid_from || $list->valid_to)<p class="text-xs text-slate-400 mt-2">Vigencia: {{ $list->valid_from?->format('d/m/Y') ?? 'siempre' }} — {{ $list->valid_to?->format('d/m/Y') ?? 'sin vencimiento' }}</p>@endif
         </a>
         @endforeach
     </div>

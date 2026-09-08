@@ -70,7 +70,7 @@ class UnitConversionService
         }
 
         foreach ($product->unitConversions as $conversion) {
-            if ($conversion->unit === null) {
+            if ($conversion->unit === null || ! $conversion->use_for_sale) {
                 continue;
             }
 

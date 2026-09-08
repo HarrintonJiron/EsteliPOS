@@ -77,3 +77,23 @@ test('proforma store does not apply fifteen percent when tax is disabled', funct
         ->and((float) $proforma->tax_total)->toBe(0.0)
         ->and((float) $proforma->total)->toBe(100.0);
 });
+
+test('proforma ignores a manipulated browser price', function () {
+    $admin = proformaTaxAdmin();
+    Tax::query()->update(['is_default' => false, 'is_active' => false]);
+    Tax::create(['code' => 'EXENTO-PRICE', 'name' => 'Exento', 'rate' => 0, 'is_default' => true, 'is_active' => true]);
+    $product = proformaTaxProduct();
+
+    $this->actingAs($admin)->post(route('proformas.store'), [
+        'items' => json_encode([[
+            'product_id' => $product->id,
+            'quantity' => 2,
+            'price' => 0.01,
+            'discount' => 0,
+        ]]),
+    ])->assertRedirect();
+
+    $proforma = Proforma::query()->with('details')->latest('id')->firstOrFail();
+    expect((float) $proforma->subtotal)->toBe(200.0)
+        ->and((float) $proforma->details->first()->price)->toBe(100.0);
+});

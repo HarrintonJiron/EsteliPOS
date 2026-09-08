@@ -28,6 +28,9 @@ test('pro product can be created without lot expiry or agrochemical fields', fun
         ->get(route('inventario.create'))
         ->assertOk()
         ->assertSee('Lote, vencimiento y agroquímicos')
+        ->assertSee('aria-label="Categoría"', false)
+        ->assertSee('aria-label="Precio de venta"', false)
+        ->assertSee('aria-label="Bodega del stock inicial"', false)
         ->assertSee('Opcional');
 
     $this->actingAs($admin)->post(route('inventario.store'), [

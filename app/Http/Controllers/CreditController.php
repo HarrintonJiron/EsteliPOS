@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CajaSession;
 use App\Models\Client;
 use App\Models\CreditPayment;
 use App\Models\Sale;
@@ -96,6 +97,7 @@ class CreditController extends Controller
                     'notes' => $validated['notes'],
                     'payment_date' => now(),
                     'user_id' => $request->user()->id,
+                    'caja_session_id' => CajaSession::currentForUser($request->user()->id)?->id,
                 ]);
 
                 $this->accountingService->recordCreditPayment($payment);

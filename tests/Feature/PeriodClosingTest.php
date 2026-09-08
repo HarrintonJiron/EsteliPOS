@@ -6,6 +6,7 @@ use App\Models\JournalEntry;
 use App\Models\User;
 use App\Services\AccountingService;
 use App\Services\PeriodClosingService;
+use Carbon\CarbonImmutable;
 use Database\Seeders\AccountingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -67,4 +68,24 @@ test('future periods cannot be closed', function () {
 
     expect(fn () => $this->closing->closeMonth($future, $this->user))
         ->toThrow(RuntimeException::class, 'todavía no ha finalizado');
+});
+
+test('posting an entry creates its monthly and annual fiscal periods', function () {
+    $date = now()->subMonth()->toDateString();
+    $cash = Account::query()->where('code', '1.1.01')->firstOrFail();
+    $income = Account::query()->where('code', '7.2')->firstOrFail();
+
+    $this->accounting->createEntry([
+        'date' => $date,
+        'concept' => 'Alta automática de períodos',
+        'user_id' => $this->user->id,
+        'lines' => [
+            ['account_id' => $cash->id, 'debit' => 100, 'credit' => 0],
+            ['account_id' => $income->id, 'debit' => 0, 'credit' => 100],
+        ],
+    ], post: true);
+
+    $parsed = CarbonImmutable::parse($date);
+    expect(FiscalPeriod::monthly()->where('year', $parsed->year)->where('month', $parsed->month)->exists())->toBeTrue()
+        ->and(FiscalPeriod::annual()->where('year', $parsed->year)->exists())->toBeTrue();
 });

@@ -52,6 +52,7 @@ class PosCatalogService
                 'name' => $unit->name,
                 'factor_to_base' => (float) $entry['factor_to_base'],
                 'price' => $this->pricing->resolveUnitPrice($product, $priceListId, $unit->id),
+                'price_breaks' => $this->pricing->priceBreaks($product, $priceListId, $unit->id),
                 'stock' => round($unitStock, 4),
                 'is_default' => false,
             ];
@@ -64,6 +65,7 @@ class PosCatalogService
                 'name' => $product->baseUnit->name,
                 'factor_to_base' => 1.0,
                 'price' => $this->pricing->resolveUnitPrice($product, $priceListId, $product->baseUnit->id),
+                'price_breaks' => $this->pricing->priceBreaks($product, $priceListId, $product->baseUnit->id),
                 'stock' => round($sellableStock, 4),
                 'is_default' => true,
             ];
@@ -195,18 +197,36 @@ class PosCatalogService
     }
 
     /**
-     * @return array{unit_id: ?int, quantity: float, base_quantity: float, price: float}
+     * @return array{unit_id: ?int, quantity: float, unit_factor: float, base_quantity: float, price: float}
      */
     public function resolveSaleLine(Product $product, float $quantity, ?int $unitId, ?int $priceListId): array
     {
         $resolvedUnitId = $unitId ?: $product->base_unit_id;
+        $conversion = $resolvedUnitId && (int) $resolvedUnitId !== (int) $product->base_unit_id
+            ? $product->unitConversions->firstWhere('unit_id', $resolvedUnitId)
+            : null;
+
+        if ($resolvedUnitId && (int) $resolvedUnitId !== (int) $product->base_unit_id && (! $conversion || ! $conversion->use_for_sale)) {
+            throw new \RuntimeException('La presentación seleccionada no está habilitada para venta.');
+        }
+
+        if ($conversion && ! $conversion->allow_fraction && abs($quantity - round($quantity)) > 0.000001) {
+            throw new \RuntimeException("La presentación {$conversion->unit?->abbreviation} solo admite cantidades enteras.");
+        }
+
         $baseQuantity = $this->units->convertToBase($product, $quantity, $resolvedUnitId);
+        $unitFactor = $quantity > 0 ? round($baseQuantity / $quantity, 6) : 1.0;
+        $resolvedPrice = $this->pricing->resolvePrice($product, $priceListId, $resolvedUnitId, $quantity);
 
         return [
             'unit_id' => $resolvedUnitId,
             'quantity' => $quantity,
+            'unit_factor' => $unitFactor,
             'base_quantity' => $baseQuantity,
-            'price' => $this->pricing->resolveUnitPrice($product, $priceListId, $resolvedUnitId),
+            'price' => $resolvedPrice['price'],
+            'price_list_id' => $resolvedPrice['price_list_id'],
+            'price_list_item_id' => $resolvedPrice['price_list_item_id'],
+            'price_min_quantity' => $resolvedPrice['min_quantity'],
         ];
     }
 
@@ -241,6 +261,14 @@ class PosCatalogService
 
     public function saleDetailBaseQuantity(SaleDetail $detail): float
     {
+        if ($detail->base_quantity !== null) {
+            return (float) $detail->base_quantity;
+        }
+
+        if ($detail->unit_factor !== null) {
+            return round((float) $detail->quantity * (float) $detail->unit_factor, 4);
+        }
+
         $product = $detail->relationLoaded('product') ? $detail->product : Product::query()->find($detail->product_id);
 
         if ($product === null) {

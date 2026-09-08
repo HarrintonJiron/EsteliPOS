@@ -163,7 +163,7 @@ test('a detail from another proforma cannot be removed through a different paren
         ->assertNotFound();
 
     expect(PurchaseDetail::query()->count())->toBe(2);
-})->todo('El controlador captura la excepción HTTP 404 como RuntimeException y la convierte en redirección 302.');
+});
 
 test('canceling an open proforma has no inventory or accounting side effects', function () {
     $context = proformaAuditContext();

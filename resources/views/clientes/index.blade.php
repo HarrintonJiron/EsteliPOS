@@ -4,36 +4,32 @@
 
 @section('content')
 
-<div class="space-y-6">
+<div class="ex-shell">
 
-    <div class="flex flex-wrap justify-between items-start gap-4">
-        <div>
-            <h1 class="page-title">Clientes</h1>
-            <p class="page-subtitle">Registro tributario y control de crédito de clientes</p>
-        </div>
-        <div class="flex gap-2">
-            <a href="{{ route('creditos.index') }}" class="btn-outline text-sm">Ver Créditos</a>
-            <button onclick="document.getElementById('modalCliente').classList.remove('hidden')" class="btn-primary">+ Cliente Rápido</button>
-        </div>
-    </div>
+    <x-ui.command-hero
+        kicker="Cartera"
+        title="Clientes"
+        subtitle="Registro tributario y control de crédito"
+        metric-label="Cartera total"
+        :metric-value="'C$ ' . number_format($stats['portfolio']['balance_total'], 0)"
+        :meta="[$stats['total'] . ' clientes', $stats['with_credit'] . ' con crédito']"
+        :stats="[
+            ['label' => 'Clientes', 'value' => number_format($stats['total'])],
+            ['label' => 'Con crédito', 'value' => number_format($stats['with_credit'])],
+            ['label' => 'Sobre límite', 'value' => number_format($stats['over_limit'])],
+        ]"
+    >
+        <x-slot:actions>
+            <a href="{{ route('creditos.index') }}" class="ex-btn">Ver créditos</a>
+            <button type="button" onclick="document.getElementById('modalCliente').classList.remove('hidden')" class="ex-btn ex-btn--solid">+ Cliente rápido</button>
+        </x-slot:actions>
+    </x-ui.command-hero>
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="card p-4 border-l-4 border-indigo-500">
-            <p class="text-xs text-slate-500">Total Clientes</p>
-            <p class="text-2xl font-bold text-indigo-600">{{ $stats['total'] }}</p>
-        </div>
-        <div class="card p-4 border-l-4 border-violet-500">
-            <p class="text-xs text-slate-500">Con Crédito</p>
-            <p class="text-2xl font-bold text-violet-600">{{ $stats['with_credit'] }}</p>
-        </div>
-        <div class="card p-4 border-l-4 border-amber-500">
-            <p class="text-xs text-slate-500">Cartera Total</p>
-            <p class="text-lg font-bold text-amber-600">C$ {{ number_format($stats['portfolio']['balance_total'], 0) }}</p>
-        </div>
-        <div class="card p-4 border-l-4 border-red-500">
-            <p class="text-xs text-slate-500">Sobre Límite</p>
-            <p class="text-2xl font-bold text-red-600">{{ $stats['over_limit'] }}</p>
-        </div>
+    <div class="ex-kpis ex-kpis--4">
+        <x-ui.command-kpi label="Total clientes" :value="number_format($stats['total'])" />
+        <x-ui.command-kpi label="Con crédito" :value="number_format($stats['with_credit'])" />
+        <x-ui.command-kpi label="Cartera" :value="'C$ ' . number_format($stats['portfolio']['balance_total'], 0)" />
+        <x-ui.command-kpi label="Sobre límite" :value="number_format($stats['over_limit'])" />
     </div>
 
     <form method="GET" class="card p-4">

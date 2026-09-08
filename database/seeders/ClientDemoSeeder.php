@@ -26,6 +26,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 
 class ClientDemoSeeder extends Seeder
 {
@@ -34,25 +35,27 @@ class ClientDemoSeeder extends Seeder
     public function run(): void
     {
         if (Product::query()->exists()) {
-            $this->command?->warn('Ya hay productos; no se duplican los datos de demostración.');
+            $this->command?->warn('Ya hay productos; no se duplican catálogo, ventas ni compras.');
+            $this->seedProductImages();
+        } else {
+            mt_srand(20260817);
 
-            return;
+            Setting::set('company_name', 'Ferretería El Roble (Demo)', 'string', 'general');
+            Setting::set('company_address', 'Costado norte del mercado, Estelí, Nicaragua', 'string', 'general');
+            Setting::set('company_phone', '2713-4500', 'string', 'general');
+            Setting::set('company_ruc', 'J0310000123456', 'string', 'general');
+
+            $this->seedCategories();
+            $this->seedSuppliers();
+            $this->seedClients();
+            $this->seedProducts();
+            $this->seedRetailPresentations();
+            $this->seedPurchases();
+            $this->seedSales();
+            $this->seedProductImages();
         }
 
-        mt_srand(20260817);
-
-        Setting::set('company_name', 'Ferretería El Roble (Demo)', 'string', 'general');
-        Setting::set('company_address', 'Costado norte del mercado, Estelí, Nicaragua', 'string', 'general');
-        Setting::set('company_phone', '2713-4500', 'string', 'general');
-        Setting::set('company_ruc', 'J0310000123456', 'string', 'general');
-
-        $this->seedCategories();
-        $this->seedSuppliers();
-        $this->seedClients();
-        $this->seedProducts();
-        $this->seedRetailPresentations();
-        $this->seedPurchases();
-        $this->seedSales();
+        $this->call(ClientDemoOperationalSeeder::class);
     }
 
     private function seedCategories(): void
@@ -65,6 +68,10 @@ class ClientDemoSeeder extends Seeder
             ['name' => 'Pintura', 'description' => 'Pinturas, brochas, rodillos y thinner'],
             ['name' => 'Jardinería', 'description' => 'Mangueras, machetes y productos de patio'],
             ['name' => 'Limpieza', 'description' => 'Cloro, detergentes y utensilios de aseo'],
+            ['name' => 'Soldadura', 'description' => 'Electrodos, caretas y consumibles de soldar'],
+            ['name' => 'Seguridad', 'description' => 'EPP, candados, cadenas y señalización'],
+            ['name' => 'Cerrajería', 'description' => 'Cerraduras, bisagras, manijas y cilindros'],
+            ['name' => 'Techos', 'description' => 'Láminas, canales, caballetes y clavos de zinc'],
             ['name' => 'Miscelánea', 'description' => 'Artículos de mostrador y consumo diario'],
         ] as $category) {
             Category::query()->updateOrCreate(
@@ -83,8 +90,12 @@ class ClientDemoSeeder extends Seeder
             ['code' => 'SUP-004', 'name' => 'Pinturas Estelí', 'business_name' => 'Pinturas Estelí', 'ruc' => 'J0310000000004', 'contact_name' => 'Carmen Silva', 'phone' => '8888-1004', 'email' => 'carmen@pinturasesteli.com', 'city' => 'Estelí', 'address' => 'Barrio El Calvario', 'type' => 'minorista', 'payment_condition' => 'contado', 'credit_limit' => 0],
             ['code' => 'SUP-005', 'name' => 'Electro Norte', 'business_name' => 'Electro Norte', 'ruc' => 'J0310000000005', 'contact_name' => 'Luis Méndez', 'phone' => '8888-1005', 'email' => 'luis@electronorte.com', 'city' => 'León', 'address' => 'Carretera a Chinandega', 'type' => 'mayorista', 'payment_condition' => 'credito_15', 'credit_limit' => 90000],
             ['code' => 'SUP-006', 'name' => 'PVC y Conexiones', 'business_name' => 'PVC y Conexiones S.A.', 'ruc' => 'J0310000000006', 'contact_name' => 'Diana Flores', 'phone' => '8888-1006', 'email' => 'diana@pvcconexiones.com', 'city' => 'Managua', 'address' => 'Mercado Oriental', 'type' => 'mayorista', 'payment_condition' => 'credito_30', 'credit_limit' => 110000],
-            ['code' => 'SUP-007', 'name' => 'Insumos Agro S.A.', 'business_name' => 'Insumos Agro S.A.', 'ruc' => 'J0310000000007', 'contact_name' => 'José Ortega', 'phone' => '8888-1007', 'email' => 'jose@insumosagro.com', 'city' => 'Estelí', 'address' => 'Carretera a Condega', 'type' => 'mayorista', 'payment_condition' => 'credito_30', 'credit_limit' => 120000],
+            ['code' => 'SUP-007', 'name' => 'Aceros del Norte', 'business_name' => 'Aceros del Norte S.A.', 'ruc' => 'J0310000000007', 'contact_name' => 'José Ortega', 'phone' => '8888-1007', 'email' => 'jose@acerosnorte.com', 'city' => 'Estelí', 'address' => 'Carretera a Condega', 'type' => 'mayorista', 'payment_condition' => 'credito_30', 'credit_limit' => 180000],
             ['code' => 'SUP-008', 'name' => 'Limpieza Total', 'business_name' => 'Limpieza Total', 'ruc' => 'J0310000000008', 'contact_name' => 'Martha López', 'phone' => '8888-1008', 'email' => 'martha@limpiezatotal.com', 'city' => 'Masaya', 'address' => 'Bodega La Esperanza', 'type' => 'minorista', 'payment_condition' => 'contado', 'credit_limit' => 0],
+            ['code' => 'SUP-009', 'name' => 'Soldaduras Centro', 'business_name' => 'Soldaduras Centro', 'ruc' => 'J0310000000009', 'contact_name' => 'Héctor Blandón', 'phone' => '8888-1009', 'email' => 'hector@soldadurascentro.com', 'city' => 'Managua', 'address' => 'Mercado Israel Lewites', 'type' => 'mayorista', 'payment_condition' => 'credito_15', 'credit_limit' => 70000],
+            ['code' => 'SUP-010', 'name' => 'Techos y Láminas SA', 'business_name' => 'Techos y Láminas S.A.', 'ruc' => 'J0310000000010', 'contact_name' => 'Norma Zelaya', 'phone' => '8888-1010', 'email' => 'norma@techosylaminas.com', 'city' => 'Estelí', 'address' => 'Salida a Sébaco', 'type' => 'mayorista', 'payment_condition' => 'credito_30', 'credit_limit' => 160000],
+            ['code' => 'SUP-011', 'name' => 'Cerrajería La Llave', 'business_name' => 'Cerrajería La Llave', 'ruc' => 'J0310000000011', 'contact_name' => 'Oscar Medina', 'phone' => '8888-1011', 'email' => 'oscar@lallave.com', 'city' => 'Estelí', 'address' => 'Barrio El Rosario', 'type' => 'minorista', 'payment_condition' => 'contado', 'credit_limit' => 0],
+            ['code' => 'SUP-012', 'name' => 'Seguridad Industrial NI', 'business_name' => 'Seguridad Industrial NI', 'ruc' => 'J0310000000012', 'contact_name' => 'Paola Herrera', 'phone' => '8888-1012', 'email' => 'paola@seguridadni.com', 'city' => 'Managua', 'address' => 'Carretera a Masaya', 'type' => 'mayorista', 'payment_condition' => 'credito_15', 'credit_limit' => 85000],
         ];
 
         foreach ($suppliers as $supplier) {
@@ -116,6 +127,24 @@ class ClientDemoSeeder extends Seeder
             ['code' => 'CLI-016', 'name' => 'Municipalidad de Condega', 'client_type' => Client::TYPE_COMPANY, 'business_name' => 'Alcaldía de Condega', 'ruc' => 'J0310000100006', 'phone' => '2719-2200', 'email' => 'condega@demo.local', 'address' => 'Parque central, Condega', 'credit_enabled' => true, 'credit_limit' => 100000, 'credit_days' => 45],
             ['code' => 'CLI-017', 'name' => 'Electricista López', 'client_type' => Client::TYPE_NATURAL, 'cedula' => '161-170282-0011L', 'phone' => '7766-5555', 'email' => 'electricista@demo.local', 'address' => 'Barrio El Rosario', 'credit_enabled' => true, 'credit_limit' => 15000, 'credit_days' => 15],
             ['code' => 'CLI-018', 'name' => 'Agropecuaria La Esperanza', 'client_type' => Client::TYPE_COMPANY, 'business_name' => 'Agropecuaria La Esperanza', 'ruc' => 'J0310000100007', 'phone' => '2713-1600', 'email' => 'esperanza@demo.local', 'address' => 'Pueblo Nuevo', 'credit_enabled' => true, 'credit_limit' => 60000, 'credit_days' => 30],
+            ['code' => 'CLI-019', 'name' => 'Plomero Ramírez', 'client_type' => Client::TYPE_NATURAL, 'cedula' => '161-210176-0012M', 'phone' => '7655-1212', 'email' => 'plomero@demo.local', 'address' => 'Barrio El Calvario', 'credit_enabled' => true, 'credit_limit' => 10000, 'credit_days' => 15],
+            ['code' => 'CLI-020', 'name' => 'Pintor Mejía', 'client_type' => Client::TYPE_NATURAL, 'cedula' => '161-040288-0013N', 'phone' => '7544-2323', 'email' => 'pintor@demo.local', 'address' => 'Oscar Gamez', 'credit_enabled' => true, 'credit_limit' => 9000, 'credit_days' => 15],
+            ['code' => 'CLI-021', 'name' => 'Soldador Cruz', 'client_type' => Client::TYPE_NATURAL, 'cedula' => '161-120165-0014P', 'phone' => '7433-3434', 'email' => 'soldador@demo.local', 'address' => 'Salida a Managua', 'credit_enabled' => true, 'credit_limit' => 14000, 'credit_days' => 15],
+            ['code' => 'CLI-022', 'name' => 'Doña Elena Ruiz', 'client_type' => Client::TYPE_NATURAL, 'cedula' => '161-090160-0015Q', 'phone' => '7322-4545', 'email' => 'elena.ruiz@demo.local', 'address' => 'Barrio 16 de Julio', 'credit_enabled' => false, 'credit_limit' => 0, 'credit_days' => 0],
+            ['code' => 'CLI-023', 'name' => 'Don Félix Blandón', 'client_type' => Client::TYPE_NATURAL, 'cedula' => '161-280150-0016R', 'phone' => '7211-5656', 'email' => 'felix.blandon@demo.local', 'address' => 'La Trinidad', 'credit_enabled' => true, 'credit_limit' => 8000, 'credit_days' => 30],
+            ['code' => 'CLI-024', 'name' => 'Constructora San Ramón', 'client_type' => Client::TYPE_COMPANY, 'business_name' => 'Constructora San Ramón', 'ruc' => 'J0310000100008', 'phone' => '2713-1700', 'email' => 'sanramon@demo.local', 'address' => 'Carretera a Condega', 'credit_enabled' => true, 'credit_limit' => 200000, 'credit_days' => 45],
+            ['code' => 'CLI-025', 'name' => 'Remodelaciones El Norte', 'client_type' => Client::TYPE_COMPANY, 'business_name' => 'Remodelaciones El Norte', 'ruc' => 'J0310000100009', 'phone' => '2713-1800', 'email' => 'elnorte@demo.local', 'address' => 'Centro, Estelí', 'credit_enabled' => true, 'credit_limit' => 75000, 'credit_days' => 30],
+            ['code' => 'CLI-026', 'name' => 'Herrería Los Hermanos', 'client_type' => Client::TYPE_COMPANY, 'business_name' => 'Herrería Los Hermanos', 'ruc' => 'J0310000100010', 'phone' => '2713-1900', 'email' => 'herreria@demo.local', 'address' => 'Barrio El Recreo', 'credit_enabled' => true, 'credit_limit' => 35000, 'credit_days' => 15],
+            ['code' => 'CLI-027', 'name' => 'Taller de Soldadura El Arco', 'client_type' => Client::TYPE_COMPANY, 'business_name' => 'Taller de Soldadura El Arco', 'ruc' => 'J0310000100011', 'phone' => '2713-2000', 'email' => 'arco@demo.local', 'address' => 'Zona industrial', 'credit_enabled' => true, 'credit_limit' => 28000, 'credit_days' => 15],
+            ['code' => 'CLI-028', 'name' => 'Alcaldía de Pueblo Nuevo', 'client_type' => Client::TYPE_COMPANY, 'business_name' => 'Alcaldía de Pueblo Nuevo', 'ruc' => 'J0310000100012', 'phone' => '2719-3300', 'email' => 'pueblonuevo@demo.local', 'address' => 'Parque central, Pueblo Nuevo', 'credit_enabled' => true, 'credit_limit' => 120000, 'credit_days' => 45],
+            ['code' => 'CLI-029', 'name' => 'Iglesia San Francisco', 'client_type' => Client::TYPE_COMPANY, 'business_name' => 'Parroquia San Francisco', 'ruc' => 'J0310000100013', 'phone' => '2713-2100', 'email' => 'sanfrancisco@demo.local', 'address' => 'Barrio El Calvario', 'credit_enabled' => true, 'credit_limit' => 25000, 'credit_days' => 30],
+            ['code' => 'CLI-030', 'name' => 'Colegio Santa Lucía', 'client_type' => Client::TYPE_COMPANY, 'business_name' => 'Colegio Santa Lucía', 'ruc' => 'J0310000100014', 'phone' => '2713-2200', 'email' => 'santalucia@demo.local', 'address' => 'Barrio El Rosario', 'credit_enabled' => true, 'credit_limit' => 40000, 'credit_days' => 30],
+            ['code' => 'CLI-031', 'name' => 'Karla Espinoza', 'client_type' => Client::TYPE_NATURAL, 'cedula' => '161-150395-0017S', 'phone' => '7100-6767', 'email' => 'karla.espinoza@demo.local', 'address' => 'Villa Libertad', 'credit_enabled' => false, 'credit_limit' => 0, 'credit_days' => 0],
+            ['code' => 'CLI-032', 'name' => 'Ernesto Palacios', 'client_type' => Client::TYPE_NATURAL, 'cedula' => '161-060278-0018T', 'phone' => '7099-7878', 'email' => 'ernesto.palacios@demo.local', 'address' => 'San Nicolás', 'credit_enabled' => true, 'credit_limit' => 16000, 'credit_days' => 30],
+            ['code' => 'CLI-033', 'name' => 'Yadira Moreno', 'client_type' => Client::TYPE_NATURAL, 'cedula' => '161-220490-0019U', 'phone' => '6988-8989', 'email' => 'yadira.moreno@demo.local', 'address' => 'Condega', 'credit_enabled' => true, 'credit_limit' => 11000, 'credit_days' => 15],
+            ['code' => 'CLI-034', 'name' => 'Mantenimiento Hospitalario', 'client_type' => Client::TYPE_COMPANY, 'business_name' => 'Servicios Hospitalarios Estelí', 'ruc' => 'J0310000100015', 'phone' => '2713-2300', 'email' => 'hospital@demo.local', 'address' => 'Hospital regional', 'credit_enabled' => true, 'credit_limit' => 90000, 'credit_days' => 30],
+            ['code' => 'CLI-035', 'name' => 'Gasolinera El Cruce', 'client_type' => Client::TYPE_COMPANY, 'business_name' => 'Gasolinera El Cruce', 'ruc' => 'J0310000100016', 'phone' => '2713-2400', 'email' => 'elcruce@demo.local', 'address' => 'Empalme a León', 'credit_enabled' => true, 'credit_limit' => 45000, 'credit_days' => 15],
+            ['code' => 'CLI-036', 'name' => 'Don Chico Gámez', 'client_type' => Client::TYPE_NATURAL, 'cedula' => '161-010148-0020V', 'phone' => '6877-9090', 'email' => 'chico.gamez@demo.local', 'address' => 'Barrio 14 de Abril', 'credit_enabled' => false, 'credit_limit' => 0, 'credit_days' => 0],
         ];
 
         $priceListId = PriceList::default()?->id;
@@ -426,9 +455,146 @@ class ClientDemoSeeder extends Seeder
             ['Agua embotellada 1 L', 'Botella de agua potable', 1.20, 2.00, 80, 'und'],
             ['Gaseosa 2 L', 'Gaseosa embotellada', 3.80, 5.50, 40, 'und'],
             ['Pilas AA x4', 'Paquete de pilas alcalinas', 6.00, 9.00, 35, 'und'],
+            ['Pilas AAA x4', 'Paquete de pilas AAA', 6.00, 9.00, 30, 'und'],
             ['Fósforos caja', 'Caja de fósforos', 1.00, 2.00, 60, 'und'],
             ['Cinta masking tape', 'Cinta de enmascarar 1"', 3.50, 5.50, 30, 'und'],
+            ['Pegamento instantáneo', 'Pega loca 3 g', 2.50, 4.00, 48, 'und'],
+            ['WD-40 8 oz', 'Lubricante multiuso', 18.00, 28.00, 16, 'und'],
+            ['Aceite 3-en-1', 'Aceite para herramientas', 8.00, 12.50, 22, 'und'],
         ]);
+
+        $add('Ferretería', 'HER', [
+            ['Esmeriladora 4.5"', 'Esmeril angular 750W', 85.00, 130.00, 10, 'und'],
+            ['Sierra circular 7 1/4"', 'Sierra circular para madera', 140.00, 210.00, 6, 'und'],
+            ['Lijadora orbital', 'Lijadora eléctrica 1/4 hoja', 70.00, 105.00, 8, 'und'],
+            ['Pistola de calor', 'Pistola de calor 1500W', 45.00, 68.00, 9, 'und'],
+            ['Juego dados 40 pzas', 'Juego de dados milimétricos', 55.00, 85.00, 12, 'und'],
+            ['Juego llaves combinadas', 'Juego 8-19 mm', 48.00, 72.00, 14, 'und'],
+            ['Cutter industrial', 'Cutter con navajas de recambio', 6.00, 9.50, 36, 'und'],
+            ['Navajas para cutter x10', 'Repuesto de navajas', 3.00, 5.00, 50, 'caja'],
+            ['Escuadra de carpintero', 'Escuadra de acero 12"', 12.00, 18.00, 20, 'und'],
+            ['Flexómetro 10 m', 'Cinta métrica reforzada 10 m', 14.00, 21.00, 18, 'und'],
+            ['Prensa C 4"', 'Prensa de carpintero', 16.00, 24.00, 15, 'und'],
+            ['Prensa C 6"', 'Prensa de carpintero 6 pulgadas', 22.00, 33.00, 12, 'und'],
+            ['Cincel 1/2"', 'Cincel para concreto', 9.00, 14.00, 22, 'und'],
+            ['Combo 3 lb', 'Combo con mango de fibra', 28.00, 42.00, 10, 'und'],
+            ['Pala ancha', 'Pala de corte para obra', 26.00, 39.00, 14, 'und'],
+            ['Carretillo 90 L', 'Carretillo metálico para obra', 95.00, 145.00, 8, 'und'],
+            ['Escalera tijera 6 peldaños', 'Escalera de aluminio', 110.00, 165.00, 6, 'und'],
+            ['Cuerda de nylon 10 m', 'Cuerda trenzada 8 mm', 12.00, 18.00, 24, 'und'],
+            ['Grapadora de tapicería', 'Engrapadora manual', 18.00, 27.00, 11, 'und'],
+            ['Silicona neutra gris', 'Tubo de silicona para intemperie', 11.00, 16.50, 28, 'und'],
+            ['Espuma expandible', 'Espuma de poliuretano 500 ml', 16.00, 24.00, 18, 'und'],
+            ['Cinta doble cara', 'Cinta de montaje 1"', 5.50, 8.50, 26, 'und'],
+        ]);
+
+        foreach (['1/4"', '5/16"', '3/8"', '1/2"', '5/8"', '3/4"', '1"'] as $index => $size) {
+            $items[] = [
+                'category' => 'Ferretería',
+                'code' => sprintf('TUE-%03d', $index + 1),
+                'name' => 'Tuerca hexagonal '.$size,
+                'description' => 'Caja de tuercas galvanizadas '.$size,
+                'purchase_price' => 4.00 + ($index * 0.70),
+                'sale_price' => 6.50 + ($index * 1.00),
+                'stock' => 80 - ($index * 4),
+                'unit' => 'caja',
+            ];
+            $items[] = [
+                'category' => 'Ferretería',
+                'code' => sprintf('ARA-%03d', $index + 1),
+                'name' => 'Arandela plana '.$size,
+                'description' => 'Caja de arandelas '.$size,
+                'purchase_price' => 2.80 + ($index * 0.40),
+                'sale_price' => 4.50 + ($index * 0.60),
+                'stock' => 90 - ($index * 3),
+                'unit' => 'caja',
+            ];
+        }
+
+        $add('Soldadura', 'SOL', [
+            ['Electrodo 6011 1/8"', 'Libra de electrodo 6011', 18.00, 27.00, 40, 'lb'],
+            ['Electrodo 6013 3/32"', 'Libra de electrodo 6013', 17.00, 26.00, 36, 'lb'],
+            ['Electrodo 7018 1/8"', 'Libra de electrodo 7018', 22.00, 33.00, 28, 'lb'],
+            ['Careta para soldar', 'Careta con vidrio oscuro', 35.00, 52.00, 12, 'und'],
+            ['Careta electrónica', 'Careta de oscurecimiento automático', 95.00, 145.00, 5, 'und'],
+            ['Guantes de carnaza', 'Par de guantes para soldar', 14.00, 22.00, 20, 'und'],
+            ['Cepillo de alambre', 'Cepillo para escoria', 6.50, 10.00, 24, 'und'],
+            ['Martillo de picar', 'Martillo para escoria', 12.00, 18.00, 16, 'und'],
+            ['Disco de corte 4.5"', 'Disco para metal', 4.50, 7.50, 80, 'und'],
+            ['Disco flap 4.5"', 'Disco flap grano 80', 8.00, 12.50, 40, 'und'],
+            ['Disco de desbaste 4.5"', 'Disco para desbaste de metal', 6.00, 9.50, 36, 'und'],
+            ['Alambre MIG 0.8 mm 1 kg', 'Rollo de alambre para MIG', 28.00, 42.00, 10, 'kg'],
+            ['Gas para soldar (alquiler cilindro)', 'Depósito por recarga demostración', 40.00, 60.00, 4, 'und'],
+        ]);
+
+        $add('Seguridad', 'SEG', [
+            ['Casco de seguridad', 'Casco industrial color amarillo', 18.00, 28.00, 20, 'und'],
+            ['Lentes de seguridad', 'Lentes transparentes antiimpacto', 8.00, 12.50, 30, 'und'],
+            ['Tapones auditivos', 'Par de tapones de espuma', 2.00, 3.50, 60, 'und'],
+            ['Mascarilla N95 x10', 'Caja de mascarillas', 12.00, 18.00, 25, 'caja'],
+            ['Chaleco reflectivo', 'Chaleco de alta visibilidad', 15.00, 24.00, 18, 'und'],
+            ['Botas de hule #40', 'Botas para obra', 32.00, 48.00, 12, 'und'],
+            ['Botas de hule #42', 'Botas para obra', 32.00, 48.00, 14, 'und'],
+            ['Arnés de seguridad', 'Arnés con línea de vida 1.8 m', 85.00, 130.00, 6, 'und'],
+            ['Cono de señalización', 'Cono naranja 70 cm', 22.00, 34.00, 10, 'und'],
+            ['Cinta de peligro 100 m', 'Cinta de acordonamiento', 9.00, 14.00, 16, 'und'],
+            ['Extintor PQS 10 lb', 'Extintor recargable', 95.00, 145.00, 8, 'und'],
+            ['Cadena 1/4" x metro', 'Cadena galvanizada', 12.00, 18.00, 40, 'm'],
+            ['Candado laminado 60 mm', 'Candado de alta seguridad', 32.00, 48.00, 18, 'und'],
+        ]);
+
+        $add('Cerrajería', 'CER', [
+            ['Cerradura de pomo', 'Pomo para recámara', 28.00, 42.00, 16, 'und'],
+            ['Cerradura de palanca', 'Cerradura para baño', 24.00, 36.00, 14, 'und'],
+            ['Cilindro de 60 mm', 'Cilindro con 3 llaves', 18.00, 27.00, 20, 'und'],
+            ['Pasador de puerta 4"', 'Pasador de hierro', 8.00, 12.00, 30, 'und'],
+            ['Aldaba con candado', 'Aldaba reforzada', 12.00, 18.00, 22, 'und'],
+            ['Bisagra 3" par', 'Par de bisagras para ventana', 5.00, 8.00, 40, 'und'],
+            ['Bisagra 4" par', 'Par de bisagras para puerta', 7.00, 11.00, 36, 'und'],
+            ['Pistón hidráulico', 'Cierra puertas hidráulico', 45.00, 68.00, 8, 'und'],
+            ['Tope de puerta', 'Tope de hule con tornillo', 3.50, 5.50, 40, 'und'],
+            ['Mirilla para puerta', 'Mirilla 180°', 9.00, 14.00, 15, 'und'],
+            ['Llave inglesa 8"', 'Llave para cerrajería', 16.00, 24.00, 12, 'und'],
+            ['Juego ganzúas demostración', 'Juego de llaves blank', 22.00, 35.00, 4, 'und'],
+        ]);
+
+        $add('Techos', 'TEC', [
+            ['Lámina zinc cal. 26 3.05 m', 'Lámina acanalada estándar', 88.00, 128.00, 24, 'pln'],
+            ['Lámina zinc cal. 28 3.05 m', 'Lámina económica', 72.00, 108.00, 20, 'pln'],
+            ['Caballete galvanizado', 'Caballete para cumbrera', 28.00, 42.00, 16, 'und'],
+            ['Canaleta 4 m', 'Canal de lluvia galvanizada', 42.00, 64.00, 12, 'und'],
+            ['Bajante 3"', 'Tubo bajante de agua lluvia', 18.00, 27.00, 18, 'und'],
+            ['Clavo de zinc 3"', 'Libra de clavos con empacadura', 9.00, 14.00, 40, 'lb'],
+            ['Tornillo autoperforante x100', 'Tornillos para lámina', 16.00, 24.00, 30, 'caja'],
+            ['Sellador de techos galón', 'Impermeabilizante acrílico', 38.00, 58.00, 14, 'gal'],
+            ['Malla sombra 4x4 m', 'Malla raschel 70%', 32.00, 48.00, 10, 'und'],
+        ]);
+
+        foreach (['15A', '20A', '30A', '40A', '50A'] as $index => $amp) {
+            $items[] = [
+                'category' => 'Electricidad',
+                'code' => sprintf('BRK-%03d', $index + 1),
+                'name' => 'Breaker '.$amp,
+                'description' => 'Interruptor termomagnético '.$amp,
+                'purchase_price' => 16.00 + ($index * 4.00),
+                'sale_price' => 24.00 + ($index * 6.00),
+                'stock' => 30 - ($index * 3),
+                'unit' => 'und',
+            ];
+        }
+
+        foreach (['blanco', 'marfil', 'gris', 'azul cielo'] as $index => $color) {
+            $items[] = [
+                'category' => 'Pintura',
+                'code' => sprintf('CUB-%03d', $index + 1),
+                'name' => 'Pintura látex cubeta 5 gal '.$color,
+                'description' => 'Cubeta de pintura vinílica '.$color,
+                'purchase_price' => 95.00,
+                'sale_price' => 145.00,
+                'stock' => 8,
+                'unit' => 'und',
+            ];
+        }
 
         return $items;
     }
@@ -460,6 +626,18 @@ class ClientDemoSeeder extends Seeder
                 'is_default_sale_unit' => false,
             ]
         );
+
+        $foco = Product::query()->where('name', 'Foco LED 9W')->first();
+        if ($foco !== null && $caja !== null) {
+            ProductUnitConversion::query()->updateOrCreate(
+                ['product_id' => $foco->id, 'unit_id' => $caja->id],
+                [
+                    'factor_to_base' => 12,
+                    'sale_price' => 84,
+                    'is_default_sale_unit' => false,
+                ]
+            );
+        }
     }
 
     private function seedPurchases(): void
@@ -475,9 +653,10 @@ class ClientDemoSeeder extends Seeder
             return;
         }
 
-        for ($index = 0; $index < 18; $index++) {
-            $date = Carbon::now()->subDays(90 - ($index * 4));
+        for ($index = 0; $index < 40; $index++) {
+            $date = Carbon::now()->subDays(120 - ($index * 3));
             $supplier = $suppliers[$index % $suppliers->count()];
+            $onCredit = $index % 5 === 0;
             $purchase = Purchase::query()->create([
                 'supplier_id' => $supplier->id,
                 'user_id' => $user->id,
@@ -486,7 +665,8 @@ class ClientDemoSeeder extends Seeder
                 'subtotal' => 0,
                 'tax_total' => 0,
                 'total' => 0,
-                'status' => 'completed',
+                'status' => $onCredit ? 'pending' : 'completed',
+                'payment_type' => $onCredit ? 'credit' : ['cash', 'transfer', 'cash'][$index % 3],
                 'currency' => 'NIO',
             ]);
             $purchase->forceFill([
@@ -496,9 +676,9 @@ class ClientDemoSeeder extends Seeder
 
             $subtotal = 0.0;
             $taxTotal = 0.0;
-            $lines = collect($products->random(min(4, $products->count())));
+            $lines = collect($products->random(min(6, $products->count())));
             foreach ($lines as $product) {
-                $quantity = mt_rand(8, 24);
+                $quantity = mt_rand(10, 30);
                 $price = (float) $product->purchase_price;
                 $lineNet = round($quantity * $price, 2);
                 $lineTax = round($lineNet * $taxRate, 2);
@@ -548,8 +728,8 @@ class ClientDemoSeeder extends Seeder
             return;
         }
 
-        for ($index = 0; $index < 48; $index++) {
-            $date = Carbon::now()->subDays(60 - $index);
+        for ($index = 0; $index < 130; $index++) {
+            $date = Carbon::now()->subDays(120 - $index);
             $client = $clients[$index % $clients->count()];
             $useCredit = $client->credit_enabled && ($index % 3 !== 0);
             $invoiceNumber = NumberSequence::getNext('factura');
@@ -584,7 +764,7 @@ class ClientDemoSeeder extends Seeder
 
             $subtotalExcl = 0.0;
             $taxTotal = 0.0;
-            $lineCount = 1 + ($index % 4);
+            $lineCount = 2 + ($index % 5);
             $lines = collect($products->random(min($lineCount, $products->count())));
             foreach ($lines as $product) {
                 $available = $warehouse
@@ -594,7 +774,7 @@ class ClientDemoSeeder extends Seeder
                     continue;
                 }
 
-                $quantity = min(mt_rand(1, 4), (int) floor($available));
+                $quantity = min(mt_rand(1, 6), (int) floor($available));
                 if ($quantity < 1) {
                     continue;
                 }
@@ -658,6 +838,106 @@ class ClientDemoSeeder extends Seeder
         }
     }
 
+    private function seedProductImages(): void
+    {
+        $sourceDir = database_path('seeders/assets/products');
+        Storage::disk('public')->makeDirectory('products');
+
+        foreach ($this->demoImageCatalog() as $filename) {
+            $source = $sourceDir.DIRECTORY_SEPARATOR.$filename;
+            if (! is_file($source)) {
+                continue;
+            }
+
+            copy($source, Storage::disk('public')->path('products/'.$filename));
+        }
+
+        $available = array_values(array_filter(
+            $this->demoImageCatalog(),
+            fn (string $filename): bool => Storage::disk('public')->exists('products/'.$filename)
+        ));
+
+        if ($available === []) {
+            $this->command?->warn('No se encontraron fotos de demostración en database/seeders/assets/products.');
+
+            return;
+        }
+
+        Product::query()->with('category')->orderBy('id')->get()->each(function (Product $product) use ($available): void {
+            $filename = $this->demoImageForProduct($product, $available);
+            $product->forceFill(['image_url' => 'products/'.$filename])->saveQuietly();
+        });
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function demoImageCatalog(): array
+    {
+        return [
+            'hammer' => 'demo-hammer.jpg',
+            'screwdriver' => 'demo-screwdriver.jpg',
+            'drill' => 'demo-drill.jpg',
+            'screws' => 'demo-screws.jpg',
+            'cement' => 'demo-cement.jpg',
+            'rebar' => 'demo-rebar.jpg',
+            'pvc' => 'demo-pvc.jpg',
+            'paint' => 'demo-paint.jpg',
+            'electrical' => 'demo-electrical.jpg',
+            'welding' => 'demo-welding.jpg',
+            'safety' => 'demo-safety.jpg',
+            'lock' => 'demo-lock.jpg',
+            'roof' => 'demo-roof.jpg',
+            'cleaning' => 'demo-cleaning.jpg',
+            'garden' => 'demo-garden.jpg',
+        ];
+    }
+
+    /**
+     * @param  list<string>  $available
+     */
+    private function demoImageForProduct(Product $product, array $available): string
+    {
+        $haystack = mb_strtolower(($product->name ?? '').' '.($product->category?->name ?? ''));
+        $catalog = $this->demoImageCatalog();
+
+        $key = match (true) {
+            str_contains($haystack, 'martillo') || str_contains($haystack, 'combo') || str_contains($haystack, 'cincel') => 'hammer',
+            str_contains($haystack, 'destornillador') || str_contains($haystack, 'llave') || str_contains($haystack, 'alicate') || str_contains($haystack, 'pinza') || str_contains($haystack, 'dados') => 'screwdriver',
+            str_contains($haystack, 'taladro') || str_contains($haystack, 'esmeril') || str_contains($haystack, 'sierra') || str_contains($haystack, 'lijadora') || str_contains($haystack, 'pistola de calor') => 'drill',
+            str_contains($haystack, 'tornillo') || str_contains($haystack, 'clavo') || str_contains($haystack, 'tuerca') || str_contains($haystack, 'arandela') || str_contains($haystack, 'broca') || str_contains($haystack, 'grapas') => 'screws',
+            str_contains($haystack, 'cemento') || str_contains($haystack, 'arena') || str_contains($haystack, 'piedr') || str_contains($haystack, 'cal ') => 'cement',
+            str_contains($haystack, 'varilla') || str_contains($haystack, 'alambre') || str_contains($haystack, 'malla') => 'rebar',
+            str_contains($haystack, 'pvc') || str_contains($haystack, 'tubo') || str_contains($haystack, 'codo') || str_contains($haystack, 'tee ') || str_contains($haystack, 'tefl') || str_contains($haystack, 'sifón') || str_contains($haystack, 'plomer') => 'pvc',
+            str_contains($haystack, 'pintura') || str_contains($haystack, 'brocha') || str_contains($haystack, 'rodillo') || str_contains($haystack, 'thinner') || str_contains($haystack, 'lija') || str_contains($haystack, 'masilla') => 'paint',
+            str_contains($haystack, 'cable') || str_contains($haystack, 'breaker') || str_contains($haystack, 'foco') || str_contains($haystack, 'tomacorriente') || str_contains($haystack, 'apagador') || str_contains($haystack, 'electric') || str_contains($haystack, 'extensión') || str_contains($haystack, 'canaleta') => 'electrical',
+            str_contains($haystack, 'solda') || str_contains($haystack, 'electrodo') || str_contains($haystack, 'disco') || str_contains($haystack, 'careta') => 'welding',
+            str_contains($haystack, 'casco') || str_contains($haystack, 'lentes') || str_contains($haystack, 'guante') || str_contains($haystack, 'chaleco') || str_contains($haystack, 'bota') || str_contains($haystack, 'arnés') || str_contains($haystack, 'extintor') || str_contains($haystack, 'seguridad') => 'safety',
+            str_contains($haystack, 'candado') || str_contains($haystack, 'cerradura') || str_contains($haystack, 'bisagra') || str_contains($haystack, 'manija') || str_contains($haystack, 'cerraj') || str_contains($haystack, 'pasador') || str_contains($haystack, 'cilindro') => 'lock',
+            str_contains($haystack, 'lámina') || str_contains($haystack, 'zinc') || str_contains($haystack, 'techo') || str_contains($haystack, 'canal') || str_contains($haystack, 'caballete') || str_contains($haystack, 'bajante') => 'roof',
+            str_contains($haystack, 'cloro') || str_contains($haystack, 'escoba') || str_contains($haystack, 'trapeador') || str_contains($haystack, 'jabón') || str_contains($haystack, 'detergente') || str_contains($haystack, 'limpieza') || str_contains($haystack, 'cubo') => 'cleaning',
+            str_contains($haystack, 'machete') || str_contains($haystack, 'manguera') || str_contains($haystack, 'pala') || str_contains($haystack, 'piocha') || str_contains($haystack, 'jard') || str_contains($haystack, 'regadera') => 'garden',
+            default => match ($product->category?->name) {
+                'Ferretería' => 'hammer',
+                'Construcción' => 'cement',
+                'Plomería' => 'pvc',
+                'Electricidad' => 'electrical',
+                'Pintura' => 'paint',
+                'Jardinería' => 'garden',
+                'Limpieza' => 'cleaning',
+                'Soldadura' => 'welding',
+                'Seguridad' => 'safety',
+                'Cerrajería' => 'lock',
+                'Techos' => 'roof',
+                default => 'hammer',
+            },
+        };
+
+        $filename = $catalog[$key] ?? 'demo-hammer.jpg';
+
+        return in_array($filename, $available, true) ? $filename : $available[0];
+    }
+
     /**
      * @param  Collection<string, int>  $unitMap
      */
@@ -665,6 +945,7 @@ class ClientDemoSeeder extends Seeder
     {
         $abbrev = strtolower(trim($unit));
         $key = match (true) {
+            in_array($abbrev, ['lb', 'libra'], true) => 'lb',
             in_array($abbrev, ['kg', 'kilo'], true) => 'kg',
             in_array($abbrev, ['lt', 'l', 'litro'], true) => 'lt',
             in_array($abbrev, ['gal', 'galon', 'galón'], true) => 'gal',

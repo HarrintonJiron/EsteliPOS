@@ -5,7 +5,7 @@
     @include('inventario._hub-nav')
     <div class="flex flex-wrap items-start justify-between gap-3">
         <div><h1 class="page-title">Estantes</h1><p class="page-subtitle">Ubicaciones internas de productos dentro de cada bodega</p></div>
-        <a href="{{ route('inventario.shelves.create') }}" class="btn-primary text-sm">+ Nuevo estante</a>
+        <a href="{{ route('inventario.shelves.create') }}" class="btn-primary text-sm">+ Agregar nuevo estante</a>
     </div>
     @if(session('success'))<div class="card bg-green-50 p-3 text-sm text-green-800">{{ session('success') }}</div>@endif
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">

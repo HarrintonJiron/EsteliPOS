@@ -31,18 +31,18 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Nombre *</label>
-                    <input name="name" value="{{ old('name') }}" required class="input-field">
+                    <input name="name" aria-label="Nombre" value="{{ old('name') }}" required class="input-field">
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Tipo de cliente *</label>
-                    <select name="client_type" id="clientType" class="select-field" required onchange="toggleClientTaxFields()">
+                    <select name="client_type" id="clientType" aria-label="Tipo de cliente" class="select-field" required onchange="toggleClientTaxFields()">
                         <option value="natural" {{ old('client_type', 'natural') === 'natural' ? 'selected' : '' }}>Persona Natural</option>
                         <option value="company" {{ old('client_type') === 'company' ? 'selected' : '' }}>Empresa</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Teléfono</label>
-                    <input name="phone" value="{{ old('phone') }}" class="input-field">
+                    <input name="phone" aria-label="Teléfono" value="{{ old('phone') }}" class="input-field">
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Código interno</label>
@@ -50,7 +50,7 @@
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Email</label>
-                    <input name="email" type="email" value="{{ old('email') }}" class="input-field">
+                    <input name="email" aria-label="Email" type="email" value="{{ old('email') }}" class="input-field">
                 </div>
                 <div class="md:col-span-2" id="businessNameField">
                     <label class="block text-sm text-slate-600 mb-1">Razón social</label>
@@ -70,22 +70,22 @@
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Departamento</label>
-                    <input name="department" value="{{ old('department') }}" class="input-field">
+                    <input name="department" aria-label="Departamento" value="{{ old('department') }}" class="input-field">
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Municipio</label>
-                    <input name="municipality" value="{{ old('municipality') }}" class="input-field">
+                    <input name="municipality" aria-label="Municipio" value="{{ old('municipality') }}" class="input-field">
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Estado del cliente</label>
-                    <select name="status" class="select-field">
+                    <select name="status" aria-label="Estado del cliente" class="select-field">
                         <option value="active" {{ old('status', 'active') === 'active' ? 'selected' : '' }}>Activo</option>
                         <option value="inactive" {{ old('status') === 'inactive' ? 'selected' : '' }}>Inactivo</option>
                     </select>
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-sm text-slate-600 mb-1">Dirección</label>
-                    <textarea name="address" rows="2" class="input-field">{{ old('address') }}</textarea>
+                    <textarea name="address" aria-label="Dirección" rows="2" class="input-field">{{ old('address') }}</textarea>
                 </div>
             </div>
         </div>
@@ -94,7 +94,7 @@
             <h2 class="font-semibold text-slate-800">Lista de precios</h2>
             <div>
                 <label class="block text-sm text-slate-600 mb-1">Precios en POS / facturación</label>
-                <select name="price_list_id" class="select-field">
+                <select name="price_list_id" aria-label="Lista de precios" class="select-field">
                     <option value="">Lista general (default)</option>
                     @foreach($priceLists ?? [] as $list)
                         <option value="{{ $list->id }}" @selected(old('price_list_id') == $list->id)>{{ $list->name }} ({{ $list->code }})</option>
@@ -114,12 +114,12 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Límite de crédito (C$)</label>
-                    <input type="number" name="credit_limit" step="0.01" min="0" value="{{ old('credit_limit', 5000) }}" class="input-field">
+                    <input type="number" name="credit_limit" aria-label="Límite de crédito" step="0.01" min="0" value="{{ old('credit_limit', 5000) }}" class="input-field">
                     <p class="text-xs text-slate-400 mt-1">Dejar en 0 para crédito sin tope</p>
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Plazo de pago (días)</label>
-                    <input type="number" name="credit_days" min="1" max="365" value="{{ old('credit_days', 30) }}" class="input-field">
+                    <input type="number" name="credit_days" aria-label="Plazo de pago en días" min="1" max="365" value="{{ old('credit_days', 30) }}" class="input-field">
                     <p class="text-xs text-slate-400 mt-1">Fecha límite al facturar a crédito</p>
                 </div>
             </div>
@@ -140,19 +140,19 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">% mora por día vencido</label>
-                    <input type="number" name="mora_rate" step="0.01" min="0" max="100"
+                    <input type="number" name="mora_rate" aria-label="Porcentaje de mora por día" step="0.01" min="0" max="100"
                            value="{{ old('mora_rate', 0.5) }}" class="input-field">
                     <p class="text-xs text-slate-400 mt-1">Ej: 0.5 = 0.5% diario</p>
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Días de gracia</label>
-                    <input type="number" name="mora_grace_days" min="0" max="90"
+                    <input type="number" name="mora_grace_days" aria-label="Días de gracia" min="0" max="90"
                            value="{{ old('mora_grace_days', 0) }}" class="input-field">
                     <p class="text-xs text-slate-400 mt-1">Días extra antes de aplicar mora</p>
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-1">Mora máxima (% del principal)</label>
-                    <input type="number" name="mora_max_pct" step="0.01" min="0" max="100"
+                    <input type="number" name="mora_max_pct" aria-label="Mora máxima" step="0.01" min="0" max="100"
                            value="{{ old('mora_max_pct', 30) }}" class="input-field">
                     <p class="text-xs text-slate-400 mt-1">0 = sin tope de mora</p>
                 </div>

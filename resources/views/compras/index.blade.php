@@ -3,39 +3,32 @@
 @section('title', 'Compras a proveedores')
 
 @section('content')
-<div class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-            <h1 class="page-title">Compras</h1>
-            <p class="page-subtitle">Registra compras recibidas o pedidos en proceso sin afectar existencias</p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-            <a href="{{ route('compras.proformas.create') }}" class="btn-outline">Proforma compras</a>
-            <a href="{{ route('compras.create') }}" class="btn-primary">+ Nueva compra</a>
-        </div>
-    </div>
+<div class="ex-shell">
+    <x-ui.command-hero
+        kicker="Abastecimiento"
+        title="Compras"
+        subtitle="La mercadería entra al inventario; el pago puede ser de contado o a crédito"
+        metric-label="Este mes"
+        :metric-value="$companySymbol . ' ' . number_format($stats['month_total'], 0)"
+        :meta="[$stats['completed_count'] . ' pagadas', $stats['pending_count'] . ' por pagar', $stats['ordered_count'] . ' pedidos']"
+        :stats="[
+            ['label' => 'Pagadas', 'value' => number_format($stats['completed_count'])],
+            ['label' => 'Por pagar', 'value' => number_format($stats['pending_count'])],
+            ['label' => 'Invertido', 'value' => $companySymbol . ' ' . number_format($stats['invested_total'], 0)],
+        ]"
+    >
+        <x-slot:actions>
+            <a href="{{ route('compras.proformas.create') }}" class="ex-btn">Proforma compras</a>
+            <a href="{{ route('compras.create') }}" class="ex-btn ex-btn--solid">+ Nueva compra</a>
+        </x-slot:actions>
+    </x-ui.command-hero>
 
-    <div class="grid grid-cols-2 gap-3 xl:grid-cols-5">
-        <div class="card p-4">
-            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Este mes</p>
-            <p class="mt-1 text-2xl font-bold text-slate-900">{{ $companySymbol }} {{ number_format($stats['month_total'], 2) }}</p>
-        </div>
-        <div class="card p-4">
-            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Pagadas</p>
-            <p class="mt-1 text-2xl font-bold text-emerald-600">{{ number_format($stats['completed_count']) }}</p>
-        </div>
-        <div class="card p-4">
-            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Por pagar</p>
-            <p class="mt-1 text-2xl font-bold text-amber-600">{{ number_format($stats['pending_count']) }}</p>
-        </div>
-        <div class="card p-4">
-            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Pedidos en proceso</p>
-            <p class="mt-1 text-2xl font-bold text-blue-600">{{ number_format($stats['ordered_count']) }}</p>
-        </div>
-        <div class="card p-4">
-            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Total invertido</p>
-            <p class="mt-1 text-2xl font-bold text-indigo-600">{{ $companySymbol }} {{ number_format($stats['invested_total'], 2) }}</p>
-        </div>
+    <div class="ex-kpis ex-kpis--4">
+        <x-ui.command-kpi label="Este mes" :value="$companySymbol . ' ' . number_format($stats['month_total'], 0)" />
+        <x-ui.command-kpi label="Pagadas" :value="number_format($stats['completed_count'])" />
+        <x-ui.command-kpi label="Por pagar" :value="number_format($stats['pending_count'])" />
+        <x-ui.command-kpi label="Pedidos en proceso" :value="number_format($stats['ordered_count'])" />
+        <x-ui.command-kpi label="Total invertido" :value="$companySymbol . ' ' . number_format($stats['invested_total'], 0)" />
     </div>
 
     <div class="card p-4">
