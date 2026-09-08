@@ -21,7 +21,8 @@ class PurchaseRequest extends FormRequest
             'supplier_id' => ['required', 'exists:suppliers,id'],
             'warehouse_id' => ['nullable', 'exists:warehouses,id'],
             'date' => ['required', 'date'],
-            'status' => ['nullable', 'in:pending,completed,canceled'],
+            'purchase_mode' => ['nullable', 'in:immediate,proforma'],
+            'status' => ['nullable', 'in:ordered,pending,completed,canceled'],
             'payment_type' => ['nullable', 'in:cash,transfer,credit'],
             'currency' => ['required', Rule::in(['NIO', 'USD', 'EUR'])],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
@@ -47,6 +48,7 @@ class PurchaseRequest extends FormRequest
             'items.*.quantity.min' => 'La cantidad debe ser mayor que cero.',
             'items.*.price.min' => 'El costo no puede ser negativo.',
             'payment_type.in' => 'Indica si la compra es de contado o a crédito.',
+            'purchase_mode.in' => 'Selecciona compra inmediata o pedido en proceso.',
         ];
     }
 
@@ -54,8 +56,15 @@ class PurchaseRequest extends FormRequest
     {
         $paymentType = $this->input('payment_type');
         $status = $this->input('status');
+        $purchaseMode = $this->input('purchase_mode');
 
-        if ($paymentType === 'credit') {
+        if ($purchaseMode === 'proforma' || $status === 'ordered') {
+            $purchaseMode = 'proforma';
+            $status = 'ordered';
+            $paymentType = in_array($paymentType, ['cash', 'transfer', 'credit'], true)
+                ? $paymentType
+                : 'credit';
+        } elseif ($paymentType === 'credit') {
             $status = 'pending';
         } elseif (in_array($paymentType, ['cash', 'transfer'], true) && $status !== 'canceled') {
             $status = 'completed';
@@ -67,6 +76,7 @@ class PurchaseRequest extends FormRequest
 
         $this->merge([
             'currency' => strtoupper((string) ($this->input('currency') ?: 'NIO')),
+            'purchase_mode' => $purchaseMode ?: 'immediate',
             'status' => $status,
             'payment_type' => $paymentType,
         ]);

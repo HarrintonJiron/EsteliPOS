@@ -701,9 +701,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch(`${app.dataset.productSearchUrl}?${params}`, { headers: { Accept: 'application/json' } });
             if (!response.ok) return;
             const remoteProducts = (await response.json()).map(normalizeProduct);
-            const known = new Map(products.map(product => [product.id, product]));
-            remoteProducts.forEach(product => known.set(product.id, product));
-            products = [...known.values()];
+            products = remoteProducts;
             ticket.forEach(item => {
                 const product = products.find(p => p.id == item.product_id);
                 if (!product) return;
@@ -726,7 +724,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const hint = document.getElementById('warehouseHint');
         if (hint) {
             hint.textContent = selectedWarehouseId
-                ? 'Preferencia fija: se intentará salir de esa bodega; si no hay stock, se usará otra automáticamente.'
+                ? 'Filtro fijo: solo se muestran y venden existencias de la bodega seleccionada.'
                 : 'Modo automático: el sistema descuenta de la bodega que tenga stock disponible.';
         }
     }
@@ -1353,6 +1351,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const grid = document.querySelector('#productsGrid > div');
         let filtered = products;
 
+        if (selectedWarehouseId) {
+            filtered = filtered.filter(product => (product.stocks_by_warehouse || []).some(stock =>
+                Number(stock.id) === Number(selectedWarehouseId) && parseFloat(stock.quantity || 0) > 0
+            ));
+        }
+
         if (currentCategory !== 'all') {
             filtered = filtered.filter(p => p.category_id == currentCategory);
         }
@@ -1372,11 +1376,9 @@ document.addEventListener('DOMContentLoaded', function() {
         grid.innerHTML = filtered.map(p => {
             const totalStock = parseFloat(p.total_stock ?? p.stock ?? 0);
             const warehouseStock = parseFloat(p.warehouse_stock ?? 0);
-            const lowStock = totalStock > 0 && totalStock <= 5;
-            const outStock = totalStock <= 0;
-            const otherWarehouseHint = !outStock && selectedWarehouseId && warehouseStock <= 0 && p.preferred_warehouse_name
-                ? `En ${p.preferred_warehouse_name}`
-                : null;
+            const availableStock = selectedWarehouseId ? warehouseStock : totalStock;
+            const lowStock = availableStock > 0 && availableStock <= 5;
+            const outStock = availableStock <= 0;
             const safeName = String(p.name).replace(/"/g, '&quot;');
             const imageBlock = p.image_url
                 ? `<img src="${p.image_url}" alt="${safeName}" class="w-full h-full object-cover" referrerpolicy="no-referrer"
@@ -1411,9 +1413,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p class="mt-0.5 text-[10px] ${outStock ? 'text-red-600 font-bold' : lowStock ? 'text-amber-600' : 'text-slate-500'}">
                             ${outStock
                                 ? 'Sin stock'
-                                : (otherWarehouseHint
-                                    ? `Hay ${formatQty(totalStock)} ${p.base_unit_label || 'und'} · ${otherWarehouseHint}`
-                                    : `Hay ${formatQty(totalStock)} ${p.base_unit_label || 'und'}${selectedWarehouseId ? ` · Bodega: ${formatQty(warehouseStock)}` : ''}`)}
+                                : `Hay ${formatQty(availableStock)} ${p.base_unit_label || 'und'}${selectedWarehouseId ? ' en esta bodega' : ''}`}
                         </p>
                     </div>
                 </button>

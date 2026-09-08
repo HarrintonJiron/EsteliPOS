@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Warehouse;
-use App\Models\WarehouseStock;
 use App\Models\WarehouseShelf;
+use App\Models\WarehouseStock;
 use App\Services\InventoryService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class WarehouseController extends Controller
@@ -59,7 +61,7 @@ class WarehouseController extends Controller
         return view('inventario.warehouses.create');
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'code' => 'required|string|max:20|unique:warehouses,code',
@@ -79,10 +81,17 @@ class WarehouseController extends Controller
             Warehouse::query()->update(['is_default' => false]);
         }
 
-        Warehouse::query()->create(array_merge($validated, [
+        $warehouse = Warehouse::query()->create(array_merge($validated, [
             'is_default' => $request->boolean('is_default'),
             'is_active' => true,
         ]));
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Bodega creada correctamente.',
+                'warehouse' => $warehouse->only(['id', 'code', 'name', 'is_default']),
+            ], 201);
+        }
 
         return redirect()->route('inventario.warehouses.index')->with('success', 'Bodega creada correctamente.');
     }
@@ -92,7 +101,7 @@ class WarehouseController extends Controller
         return view('inventario.warehouses.edit', compact('warehouse'));
     }
 
-    public function update(Request $request, Warehouse $warehouse): RedirectResponse
+    public function update(Request $request, Warehouse $warehouse): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'code' => 'required|string|max:20|unique:warehouses,code,'.$warehouse->id,
@@ -105,19 +114,29 @@ class WarehouseController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        if ($request->boolean('is_default')) {
+        $isDefault = $request->has('is_default') ? $request->boolean('is_default') : $warehouse->is_default;
+        $isActive = $request->has('is_active') ? $request->boolean('is_active') : $warehouse->is_active;
+
+        if ($isDefault) {
             Warehouse::query()->where('id', '!=', $warehouse->id)->update(['is_default' => false]);
         }
 
-        if (! $request->boolean('is_active') && $warehouse->is_default) {
+        if (! $isActive && $warehouse->is_default) {
             return back()->with('error', 'No puedes desactivar la bodega principal. Primero marca otra como principal.');
         }
 
         $warehouse->update([
             ...$validated,
-            'is_default' => $request->boolean('is_default'),
-            'is_active' => $request->boolean('is_active', true),
+            'is_default' => $isDefault,
+            'is_active' => $isActive,
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Bodega actualizada.',
+                'warehouse' => $warehouse->fresh()->only(['id', 'code', 'name', 'is_default']),
+            ]);
+        }
 
         return redirect()->route('inventario.warehouses.show', $warehouse)->with('success', 'Bodega actualizada.');
     }
@@ -177,7 +196,7 @@ class WarehouseController extends Controller
         ));
     }
 
-    public function storeShelf(Request $request, Warehouse $warehouse): RedirectResponse
+    public function storeShelf(Request $request, Warehouse $warehouse): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'code' => 'required|string|max:50|unique:warehouse_shelves,code,NULL,id,warehouse_id,'.$warehouse->id,
@@ -187,13 +206,69 @@ class WarehouseController extends Controller
             'code.unique' => 'Ese estante ya existe en esta bodega.',
         ]);
 
-        $warehouse->shelves()->create([
+        $shelf = $warehouse->shelves()->create([
             'code' => trim($validated['code']),
             'name' => filled($validated['name'] ?? null) ? trim($validated['name']) : null,
             'is_active' => true,
         ]);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Estante agregado correctamente.',
+                'shelf' => [
+                    'id' => $shelf->id,
+                    'warehouse_id' => $warehouse->id,
+                    'code' => $shelf->code,
+                    'name' => $shelf->name,
+                    'label' => $shelf->label(),
+                ],
+            ], 201);
+        }
+
         return back()->with('success', 'Estante agregado correctamente.');
+    }
+
+    public function updateShelf(Request $request, Warehouse $warehouse, WarehouseShelf $shelf): RedirectResponse|JsonResponse
+    {
+        abort_unless($shelf->warehouse_id === $warehouse->id, 404);
+
+        $validated = $request->validate([
+            'code' => 'required|string|max:50|unique:warehouse_shelves,code,'.$shelf->id.',id,warehouse_id,'.$warehouse->id,
+            'name' => 'nullable|string|max:120',
+        ], [
+            'code.required' => 'El código del estante es obligatorio.',
+            'code.unique' => 'Ese estante ya existe en esta bodega.',
+        ]);
+
+        $oldCode = $shelf->code;
+        DB::transaction(function () use ($shelf, $warehouse, $validated, $oldCode): void {
+            $shelf->update([
+                'code' => trim($validated['code']),
+                'name' => filled($validated['name'] ?? null) ? trim($validated['name']) : null,
+            ]);
+
+            if ($oldCode !== $shelf->code) {
+                WarehouseStock::query()
+                    ->where('warehouse_id', $warehouse->id)
+                    ->where('aisle', $oldCode)
+                    ->update(['aisle' => $shelf->code]);
+            }
+        });
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Estante actualizado.',
+                'shelf' => [
+                    'id' => $shelf->id,
+                    'warehouse_id' => $warehouse->id,
+                    'code' => $shelf->code,
+                    'name' => $shelf->name,
+                    'label' => $shelf->label(),
+                ],
+            ]);
+        }
+
+        return back()->with('success', 'Estante actualizado correctamente.');
     }
 
     public function destroyShelf(Warehouse $warehouse, WarehouseShelf $shelf): RedirectResponse

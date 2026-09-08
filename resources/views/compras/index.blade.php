@@ -7,12 +7,15 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h1 class="page-title">Compras</h1>
-            <p class="page-subtitle">La mercadería entra al inventario; el pago puede ser de contado o a crédito</p>
+            <p class="page-subtitle">Registra compras recibidas o pedidos en proceso sin afectar existencias</p>
         </div>
-        <a href="{{ route('compras.create') }}" class="btn-primary">+ Nueva compra</a>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('compras.proformas.create') }}" class="btn-outline">Proforma compras</a>
+            <a href="{{ route('compras.create') }}" class="btn-primary">+ Nueva compra</a>
+        </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <div class="grid grid-cols-2 gap-3 xl:grid-cols-5">
         <div class="card p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Este mes</p>
             <p class="mt-1 text-2xl font-bold text-slate-900">{{ $companySymbol }} {{ number_format($stats['month_total'], 2) }}</p>
@@ -24,6 +27,10 @@
         <div class="card p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Por pagar</p>
             <p class="mt-1 text-2xl font-bold text-amber-600">{{ number_format($stats['pending_count']) }}</p>
+        </div>
+        <div class="card p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Pedidos en proceso</p>
+            <p class="mt-1 text-2xl font-bold text-blue-600">{{ number_format($stats['ordered_count']) }}</p>
         </div>
         <div class="card p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Total invertido</p>
@@ -56,6 +63,7 @@
                     <option value="">Todos</option>
                     <option value="completed" @selected(request('status') === 'completed')>Pagada</option>
                     <option value="pending" @selected(request('status') === 'pending')>Por pagar</option>
+                    <option value="ordered" @selected(request('status') === 'ordered')>Pedido en proceso</option>
                     <option value="canceled" @selected(request('status') === 'canceled')>Anulada</option>
                 </select>
             </div>
@@ -86,6 +94,7 @@
                         @php
                             $statusLabel = $purchase->statusLabel();
                             $statusClass = match ($purchase->status) {
+                                'ordered' => 'badge-info',
                                 'completed' => 'badge-success',
                                 'pending' => 'badge-warning',
                                 default => 'badge-danger',

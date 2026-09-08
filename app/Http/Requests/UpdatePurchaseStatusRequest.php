@@ -17,8 +17,8 @@ class UpdatePurchaseStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', 'in:completed,canceled'],
-            'payment_type' => ['nullable', 'required_if:status,completed', 'in:cash,transfer'],
+            'status' => ['required', 'in:received,completed,canceled'],
+            'payment_type' => ['nullable', 'required_if:status,received,completed', 'in:cash,transfer,credit'],
         ];
     }
 
@@ -28,10 +28,10 @@ class UpdatePurchaseStatusRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'status.required' => 'Indica si vas a pagar o anular la compra.',
+            'status.required' => 'Indica si vas a recibir, pagar o anular la compra.',
             'status.in' => 'Acción no válida.',
-            'payment_type.required_if' => 'Indica si el pago es en efectivo o transferencia.',
-            'payment_type.in' => 'El pago solo puede ser en efectivo o transferencia.',
+            'payment_type.required_if' => 'Indica si la compra se recibe a crédito, en efectivo o por transferencia.',
+            'payment_type.in' => 'La forma de pago seleccionada no es válida.',
         ];
     }
 }

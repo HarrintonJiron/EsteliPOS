@@ -69,6 +69,10 @@ class Purchase extends Model
 
     public function isOnCredit(): bool
     {
+        if ($this->status === 'ordered') {
+            return false;
+        }
+
         return $this->status === 'pending' || $this->settlementType() === 'credit';
     }
 
@@ -88,6 +92,7 @@ class Purchase extends Model
     public function statusLabel(): string
     {
         return match ($this->status) {
+            'ordered' => 'Pedido en proceso',
             'completed' => 'Pagada',
             'pending' => 'Por pagar',
             default => 'Anulada',

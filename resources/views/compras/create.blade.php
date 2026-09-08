@@ -1,6 +1,8 @@
 @extends('layouts.app')
 
-@section('title', 'Nueva compra')
+@php($isPurchaseProforma = ($purchaseMode ?? 'immediate') === 'proforma')
+
+@section('title', $isPurchaseProforma ? 'Nueva proforma de compra' : 'Nueva compra')
 @section('main-class', 'p-0 overflow-hidden')
 @section('hide_back', true)
 
@@ -18,7 +20,8 @@
         'companySymbol' => $companySymbol,
         'exchangeRates' => $exchangeRates,
         'initialItems' => [],
-        'title' => 'Ingreso a inventario',
-        'submitLabel' => 'Registrar compra',
+        'purchaseMode' => $purchaseMode ?? 'immediate',
+        'title' => $isPurchaseProforma ? 'Proforma de compra' : 'Ingreso a inventario',
+        'submitLabel' => $isPurchaseProforma ? 'Guardar proforma' : 'Registrar compra',
     ])
 @endsection

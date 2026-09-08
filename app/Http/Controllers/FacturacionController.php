@@ -439,6 +439,12 @@ class FacturacionController extends Controller
             ->with(['category:id,name', 'tax:id,rate,is_active', 'baseUnit', 'unitConversions.unit', 'warehouseStocks.warehouse'])
             ->where('status', 'active')
             ->when(isset($validated['category_id']), fn ($q) => $q->where('category_id', $validated['category_id']))
+            ->when($warehouseId !== null, fn ($q) => $q->whereHas(
+                'warehouseStocks',
+                fn ($stockQuery) => $stockQuery
+                    ->where('warehouse_id', $warehouseId)
+                    ->where('quantity', '>', 0)
+            ))
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($inner) use ($search) {
                     $inner->where('code', $search)
@@ -448,7 +454,7 @@ class FacturacionController extends Controller
             })
             ->orderByRaw('CASE WHEN code = ? THEN 0 ELSE 1 END', [$search])
             ->orderBy('name')
-            ->limit(50)
+            ->limit($search === '' ? 300 : 50)
             ->get();
 
         return response()->json(

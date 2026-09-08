@@ -2,6 +2,8 @@
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\PurchaseDetail;
 use App\Models\Role;
 use App\Models\Supplier;
 use App\Models\User;
@@ -18,7 +20,7 @@ function comprasAdmin(): User
     return $user;
 }
 
-test('purchase product search returns any active inventory product', function () {
+test('purchase product search only returns active products linked to the selected supplier', function () {
     $admin = comprasAdmin();
     $category = Category::create(['name' => 'General']);
 
@@ -53,7 +55,7 @@ test('purchase product search returns any active inventory product', function ()
     ]));
 
     $response->assertSuccessful()
-        ->assertJsonFragment(['code' => 'VAR-038', 'price' => 45, 'has_supplier_price' => false]);
+        ->assertExactJson([]);
 
     $response = $this->actingAs($admin)->getJson(route('compras.products.search', [
         'search' => 'Cemento',
@@ -62,4 +64,67 @@ test('purchase product search returns any active inventory product', function ()
 
     $response->assertSuccessful()
         ->assertJsonFragment(['code' => 'CEM-001', 'price' => 230, 'has_supplier_price' => true]);
+
+    $this->actingAs($admin)->getJson(route('compras.products.search', [
+        'supplier_id' => $supplier->id,
+    ]))->assertSuccessful()
+        ->assertJsonFragment(['code' => 'CEM-001']);
+});
+
+test('purchase product search recognizes products bought historically from the supplier', function () {
+    $admin = comprasAdmin();
+    $category = Category::create(['name' => 'Histórico']);
+    $supplier = Supplier::create(['name' => 'Proveedor histórico', 'status' => 'active']);
+    $product = Product::create([
+        'category_id' => $category->id,
+        'name' => 'Producto histórico',
+        'code' => 'HIST-001',
+        'purchase_price' => 80,
+        'sale_price' => 100,
+        'stock' => 3,
+        'unit' => 'unidad',
+        'status' => 'active',
+    ]);
+    $purchase = Purchase::create([
+        'supplier_id' => $supplier->id,
+        'user_id' => $admin->id,
+        'date' => now()->toDateString(),
+        'subtotal' => 80,
+        'tax_total' => 0,
+        'total' => 80,
+        'status' => 'completed',
+        'payment_type' => 'cash',
+        'currency' => 'NIO',
+        'exchange_rate' => 1,
+        'foreign_subtotal' => 80,
+        'foreign_tax_total' => 0,
+        'foreign_total' => 80,
+    ]);
+    PurchaseDetail::create([
+        'purchase_id' => $purchase->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'base_quantity' => 1,
+        'price' => 80,
+        'subtotal' => 80,
+        'tax_rate' => 0,
+        'tax_amount' => 0,
+    ]);
+
+    $this->actingAs($admin)->getJson(route('compras.products.search', [
+        'supplier_id' => $supplier->id,
+    ]))->assertSuccessful()
+        ->assertJsonFragment([
+            'code' => 'HIST-001',
+            'price' => 80,
+        ]);
+});
+
+test('purchase product search requires a supplier', function () {
+    $admin = comprasAdmin();
+
+    $this->actingAs($admin)->getJson(route('compras.products.search', [
+        'search' => 'Cemento',
+    ]))->assertUnprocessable()
+        ->assertJsonValidationErrors(['supplier_id']);
 });

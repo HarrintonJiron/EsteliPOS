@@ -28,7 +28,7 @@ class AccountingDashboardService
 
         $sales = (float) Sale::whereNotIn('status', ['canceled', 'cancelled'])
             ->whereBetween('date', [$dateFrom, $dateTo])->sum('total');
-        $purchases = (float) Purchase::whereNotIn('status', ['canceled', 'cancelled'])
+        $purchases = (float) Purchase::whereIn('status', ['pending', 'completed'])
             ->whereBetween('date', [$dateFrom, $dateTo])->sum('total');
 
         $chart = collect(range(11, 0))->map(function (int $monthsAgo) use ($period) {

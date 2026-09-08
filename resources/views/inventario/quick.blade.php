@@ -80,34 +80,13 @@
             <p class="text-[11px] text-amber-600">No hay lista MAYOR activa; el precio mayorista no se aplicará en POS.</p>
         @endif
 
+        @include('inventario._initial_locations', [
+            'locationPrefix' => 'quickInitial',
+            'warehouseSelectId' => 'quickWarehouse',
+            'shelfSelectId' => 'quickShelf',
+        ])
+
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <div>
-                <label class="mb-1 block text-xs text-slate-500">Stock inicial</label>
-                <input type="number" name="stock" value="{{ old('stock', 0) }}" min="0" class="input-field py-1.5 text-sm">
-            </div>
-            <div>
-                <label class="mb-1 block text-xs text-slate-500">Bodega</label>
-                <select name="warehouse_id" id="quickWarehouse" class="select-field py-1.5 text-sm" required>
-                    @forelse($warehouses ?? [] as $warehouse)
-                        <option value="{{ $warehouse->id }}" @selected(old('warehouse_id', $warehouses->firstWhere('is_default', true)?->id ?? $warehouses->first()?->id) == $warehouse->id)>
-                            {{ $warehouse->name }}
-                        </option>
-                    @empty
-                        <option value="">Sin bodegas</option>
-                    @endforelse
-                </select>
-            </div>
-            <div>
-                <label class="mb-1 block text-xs text-slate-500">Estante</label>
-                <select name="shelf_id" id="quickShelf" class="select-field py-1.5 text-sm">
-                    <option value="">Sin asignar</option>
-                    @foreach($warehouses ?? [] as $warehouse)
-                        @foreach($warehouse->shelves as $shelf)
-                            <option value="{{ $shelf->id }}" data-warehouse="{{ $warehouse->id }}" @selected(old('shelf_id') == $shelf->id)>{{ $shelf->label() }}</option>
-                        @endforeach
-                    @endforeach
-                </select>
-            </div>
             <div>
                 <label class="mb-1 block text-xs text-slate-500">Alerta mín.</label>
                 <input type="number" name="low_stock_threshold" value="{{ old('low_stock_threshold', 5) }}" min="1" class="input-field py-1.5 text-sm">
@@ -139,6 +118,12 @@
                 </div>
             </div>
         </div>
+
+        @include('inventario._inline_location_creator', [
+            'locationPrefix' => 'quickLocation',
+            'warehouseSelectId' => 'quickWarehouse',
+            'shelfSelectId' => 'quickShelf',
+        ])
 
         <div class="grid grid-cols-[auto_1fr] gap-3 items-center rounded-lg border border-dashed border-slate-200 p-2">
             <div class="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100 flex items-center justify-center">

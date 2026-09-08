@@ -125,37 +125,19 @@
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Stock Inicial *</label>
-                    <input type="number" name="stock" value="{{ old('stock', 0) }}" min="0" required
-                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                </div>
+                @include('inventario._initial_locations', [
+                    'locationPrefix' => 'proInitial',
+                    'warehouseSelectId' => 'createWarehouse',
+                    'shelfSelectId' => 'createShelf',
+                    'locationWrapperClass' => 'md:col-span-3',
+                ])
 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Bodega del stock inicial *</label>
-                    <select name="warehouse_id" id="createWarehouse" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        @forelse($warehouses ?? [] as $warehouse)
-                            <option value="{{ $warehouse->id }}" @selected(old('warehouse_id', $warehouses->firstWhere('is_default', true)?->id ?? $warehouses->first()?->id) == $warehouse->id)>
-                                {{ $warehouse->name }}@if($warehouse->is_default) (principal)@endif
-                            </option>
-                        @empty
-                            <option value="">Sin bodegas activas</option>
-                        @endforelse
-                    </select>
-                    <p class="mt-1 text-xs text-gray-500">El stock inicial se registra en esta bodega.</p>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Estante</label>
-                    <select name="shelf_id" id="createShelf" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
-                        <option value="">Sin asignar</option>
-                        @foreach($warehouses ?? [] as $warehouse)
-                            @foreach($warehouse->shelves as $shelf)
-                                <option value="{{ $shelf->id }}" data-warehouse="{{ $warehouse->id }}" @selected(old('shelf_id') == $shelf->id)>{{ $shelf->label() }}</option>
-                            @endforeach
-                        @endforeach
-                    </select>
-                </div>
+                @include('inventario._inline_location_creator', [
+                    'locationPrefix' => 'proLocation',
+                    'warehouseSelectId' => 'createWarehouse',
+                    'shelfSelectId' => 'createShelf',
+                    'locationWrapperClass' => 'md:col-span-3',
+                ])
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Stock Mínimo (alerta)</label>

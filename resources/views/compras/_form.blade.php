@@ -11,6 +11,7 @@
     'companySymbol' => 'C$',
     'exchangeRates' => [],
     'initialItems' => [],
+    'purchaseMode' => 'immediate',
     'title',
     'submitLabel' => 'Registrar compra',
 ])
@@ -26,6 +27,7 @@
         'exchange_rate',
         $purchase?->exchange_rate ?? ($exchangeRates[$defaultCurrency] ?? 1),
     );
+    $defaultPurchaseMode = old('purchase_mode', $purchase?->status === 'ordered' ? 'proforma' : $purchaseMode);
 @endphp
 
 <div
@@ -61,7 +63,11 @@
                     class="mb-3"
                 />
                 <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    {{ $isEdit ? 'Editar compra' : 'Nueva compra' }}
+                    @if($isEdit)
+                        {{ $defaultPurchaseMode === 'proforma' ? 'Editar proforma de compra' : 'Editar compra' }}
+                    @else
+                        {{ $defaultPurchaseMode === 'proforma' ? 'Nueva proforma de compra' : 'Nueva compra' }}
+                    @endif
                 </p>
                 <h1 class="mt-1 text-xl font-bold text-slate-900">{{ $title }}</h1>
                 @if($isEdit)
@@ -147,6 +153,16 @@
                         </select>
                     </div>
                 </div>
+                <input type="hidden" name="purchase_mode" id="purchase_mode" value="{{ $defaultPurchaseMode }}">
+                @if($defaultPurchaseMode === 'proforma')
+                    <div class="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                        @if($isEdit)
+                            Pedido en proceso. Editarlo no ingresará existencias; utiliza “Confirmar ingreso” desde el detalle cuando llegue la mercadería.
+                        @else
+                            Esta proforma quedará como pedido en proceso. No ingresará existencias ni generará contabilidad hasta confirmar la recepción.
+                        @endif
+                    </div>
+                @endif
                 <p id="paymentHint" class="text-[11px] text-slate-500">
                     La mercadería entra al inventario al guardar. A crédito queda una deuda con el proveedor.
                 </p>
@@ -245,9 +261,10 @@
                         <input
                             type="search"
                             id="productSearch"
-                            placeholder="Buscar producto por nombre o código…"
+                            placeholder="Selecciona un proveedor para buscar productos"
                             class="input-field input-with-leading-icon text-base"
                             autocomplete="off"
+                            disabled
                         />
                         <div
                             id="searchResults"
@@ -255,12 +272,12 @@
                             role="listbox"
                         ></div>
                     </div>
-                    <button type="button" id="openQuickProduct" class="btn-outline shrink-0 justify-center whitespace-nowrap">
+                    <button type="button" id="openQuickProduct" class="btn-outline shrink-0 justify-center whitespace-nowrap" disabled>
                         <svg class="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                         Nuevo producto
                     </button>
                 </div>
-                <p id="searchHint" class="mt-2 text-xs text-slate-500">Busca en todo el inventario. Si el producto tiene costo del proveedor, se usa automáticamente.</p>
+                <p id="searchHint" class="mt-2 text-xs text-slate-500">Selecciona un proveedor para ver únicamente los productos asociados.</p>
             </div>
 
             <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
@@ -273,7 +290,7 @@
                         </svg>
                     </div>
                     <p class="text-base font-medium text-slate-700">Sin productos en la compra</p>
-                    <p class="mt-1 text-sm text-slate-500">Busca cualquier producto del inventario y agrégalo a la compra.</p>
+                    <p class="mt-1 text-sm text-slate-500">Selecciona un proveedor y agrega productos de su catálogo.</p>
                 </div>
             </div>
         </section>
@@ -414,6 +431,7 @@
     const supplierSearch = document.getElementById('supplierSearch');
     const supplierSearchEmpty = document.getElementById('supplierSearchEmpty');
     const paymentTypeSelect = document.getElementById('payment_type');
+    const purchaseModeSelect = document.getElementById('purchase_mode');
     const paymentHint = document.getElementById('paymentHint');
     const currencySelect = document.getElementById('currency');
     const exchangeRateInput = document.getElementById('exchange_rate');
@@ -444,6 +462,11 @@
             return;
         }
 
+        if (purchaseModeSelect?.value === 'proforma') {
+            paymentHint.textContent = 'El pedido queda en proceso. No mueve inventario ni contabilidad hasta confirmar que llegó la mercadería.';
+            return;
+        }
+
         paymentHint.textContent = paymentTypeSelect?.value === 'credit'
             ? 'La mercadería entra al inventario al guardar. El saldo queda a crédito con el proveedor.'
             : 'La mercadería entra al inventario y se registra como pagada de contado.';
@@ -464,8 +487,8 @@
         syncPaymentHint();
     };
 
-    supplierSelect?.addEventListener('change', suggestPaymentForSupplier);
     paymentTypeSelect?.addEventListener('change', syncPaymentHint);
+    purchaseModeSelect?.addEventListener('change', syncPaymentHint);
     syncPaymentHint();
 
     const quickModal = document.getElementById('quickProductModal');
@@ -567,9 +590,21 @@
     }
 
     function updateSearchState() {
-        searchHint.textContent = supplierSelect.value
-            ? 'Todo el inventario. Costo del proveedor cuando exista en su catálogo.'
-            : 'Todo el inventario. Selecciona proveedor para aplicar su costo de catálogo si existe.';
+        const hasSupplier = Boolean(supplierSelect.value);
+
+        searchInput.disabled = !hasSupplier;
+        openQuickBtn.disabled = !hasSupplier;
+        searchInput.placeholder = hasSupplier
+            ? 'Buscar productos de este proveedor…'
+            : 'Selecciona un proveedor para buscar productos';
+        searchHint.textContent = hasSupplier
+            ? 'Mostrando únicamente productos asociados al proveedor seleccionado.'
+            : 'Selecciona un proveedor para ver únicamente los productos asociados.';
+
+        if (!hasSupplier) {
+            searchInput.value = '';
+            hideResults();
+        }
     }
 
     function hideResults() {
@@ -585,11 +620,14 @@
 
         if (!products.length) {
             const term = escapeHtml(lastSearchTerm);
+            const createLabel = term
+                ? `Crear producto «${term}»`
+                : 'Crear un producto para este proveedor';
             searchResults.innerHTML = `
-                <div class="px-4 py-3 text-sm text-slate-500">Sin coincidencias en el inventario.</div>
+                <div class="px-4 py-3 text-sm text-slate-500">Este proveedor no tiene productos que coincidan.</div>
                 <button type="button" id="createFromSearch" class="flex w-full items-center gap-2 border-t border-slate-100 px-4 py-3 text-left text-sm font-medium text-indigo-700 hover:bg-indigo-50">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                    Crear producto «${term}»
+                    ${createLabel}
                 </button>
             `;
             searchResults.classList.remove('hidden');
@@ -630,15 +668,15 @@
     async function runSearch(term) {
         lastSearchTerm = term;
 
-        if (term.length < 2) {
+        if (!supplierSelect.value) {
             hideResults();
             return;
         }
 
-        const params = new URLSearchParams({ search: term });
-        if (supplierSelect.value) {
-            params.set('supplier_id', supplierSelect.value);
-        }
+        const params = new URLSearchParams({
+            search: term,
+            supplier_id: supplierSelect.value,
+        });
 
         const response = await fetch(`${searchUrl}?${params.toString()}`);
         const products = await response.json();
@@ -646,6 +684,11 @@
     }
 
     function addProduct(product) {
+        if (!supplierSelect.value) {
+            alert('Selecciona un proveedor antes de agregar productos.');
+            return;
+        }
+
         const existing = items.find((item) => item.id === product.id);
 
         if (existing) {
@@ -797,9 +840,13 @@
     }
 
     supplierSelect.addEventListener('change', () => {
+        const nextSupplierId = supplierSelect.value;
+        suggestPaymentForSupplier();
+        hideResults();
         updateSearchState();
-        if (searchInput.value.trim().length >= 2) {
-            runSearch(searchInput.value.trim());
+        searchInput.value = '';
+        if (nextSupplierId) {
+            runSearch('');
         }
     });
 
@@ -814,6 +861,12 @@
     searchInput.addEventListener('input', () => {
         clearTimeout(searchTimer);
         searchTimer = setTimeout(() => runSearch(searchInput.value.trim()), 220);
+    });
+
+    searchInput.addEventListener('focus', () => {
+        if (supplierSelect.value && searchResults.classList.contains('hidden')) {
+            runSearch(searchInput.value.trim());
+        }
     });
 
     searchInput.addEventListener('keydown', (event) => {
@@ -860,6 +913,13 @@
     });
 
     form.addEventListener('submit', (event) => {
+        if (!supplierSelect.value) {
+            event.preventDefault();
+            alert('Selecciona un proveedor antes de guardar la compra.');
+            supplierSelect.focus();
+            return;
+        }
+
         linesContainer.querySelectorAll('[data-qty]').forEach((input) => {
             const index = Number(input.dataset.qty);
             items[index].quantity = Math.max(0.0001, parseFloat(input.value) || 0.0001);
@@ -911,6 +971,12 @@
     }
 
     function openQuickProductModal(prefillName = '') {
+        if (!supplierSelect.value) {
+            alert('Selecciona un proveedor antes de crear un producto.');
+            supplierSelect.focus();
+            return;
+        }
+
         hideQuickError();
         quickForm.reset();
         quickNameInput.value = prefillName;
@@ -1001,6 +1067,11 @@
     quickForm?.addEventListener('submit', async (event) => {
         event.preventDefault();
         hideQuickError();
+
+        if (!supplierSelect.value) {
+            showQuickError('Selecciona un proveedor antes de crear el producto.');
+            return;
+        }
 
         if (!quickNameInput.value.trim()) {
             showQuickError('El nombre del producto es obligatorio.');

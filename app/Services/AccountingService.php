@@ -197,7 +197,7 @@ class AccountingService
      */
     public function recordPurchase(Purchase $purchase): ?JournalEntry
     {
-        if ($purchase->status === 'canceled' || (float) $purchase->total <= 0) {
+        if (! in_array($purchase->status, ['pending', 'completed'], true) || (float) $purchase->total <= 0) {
             return null;
         }
 

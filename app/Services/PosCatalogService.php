@@ -31,10 +31,9 @@ class PosCatalogService
             ? $product->stockInWarehouse($displayWarehouseId)
             : $totalStock;
 
-        // Si la bodega elegida no tiene stock pero sí hay en otra, mostrar el stock usable.
-        $sellableStock = $totalStock > 0
-            ? ($warehouseStock > 0 ? $warehouseStock : $totalStock)
-            : 0.0;
+        $sellableStock = $warehouseId !== null
+            ? max(0.0, $warehouseStock)
+            : max(0.0, $totalStock);
 
         $saleUnits = [];
         $defaultUnitId = null;

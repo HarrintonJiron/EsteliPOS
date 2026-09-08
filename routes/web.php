@@ -51,6 +51,7 @@ use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\WarehouseShelfController;
 use App\Http\Controllers\WarehouseTransferController;
 use Illuminate\Support\Facades\Route;
 
@@ -152,9 +153,16 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/inventario/bodegas/{warehouse}/edit', [WarehouseController::class, 'edit'])->middleware('permission:inventario.edit')->name('inventario.warehouses.edit');
         Route::put('/inventario/bodegas/{warehouse}', [WarehouseController::class, 'update'])->middleware('permission:inventario.edit')->name('inventario.warehouses.update');
         Route::post('/inventario/bodegas/{warehouse}/transferir', [WarehouseController::class, 'transfer'])->middleware('permission:inventario.adjust')->name('inventario.warehouses.transfer');
-        Route::post('/inventario/bodegas/{warehouse}/estantes', [WarehouseController::class, 'storeShelf'])->middleware('permission:inventario.edit')->name('inventario.warehouses.shelves.store');
+        Route::post('/inventario/bodegas/{warehouse}/estantes', [WarehouseController::class, 'storeShelf'])->middleware('permission:inventario.create')->name('inventario.warehouses.shelves.store');
+        Route::put('/inventario/bodegas/{warehouse}/estantes/{shelf}', [WarehouseController::class, 'updateShelf'])->middleware('permission:inventario.edit')->name('inventario.warehouses.shelves.update');
         Route::delete('/inventario/bodegas/{warehouse}/estantes/{shelf}', [WarehouseController::class, 'destroyShelf'])->middleware('permission:inventario.edit')->name('inventario.warehouses.shelves.destroy');
         Route::delete('/inventario/bodegas/{warehouse}', [WarehouseController::class, 'destroy'])->middleware('permission:inventario.delete')->name('inventario.warehouses.destroy');
+        Route::get('/inventario/estantes', [WarehouseShelfController::class, 'index'])->middleware('permission:inventario.view')->name('inventario.shelves.index');
+        Route::get('/inventario/estantes/nuevo', [WarehouseShelfController::class, 'create'])->middleware('permission:inventario.create')->name('inventario.shelves.create');
+        Route::post('/inventario/estantes', [WarehouseShelfController::class, 'store'])->middleware('permission:inventario.create')->name('inventario.shelves.store');
+        Route::get('/inventario/estantes/{shelf}', [WarehouseShelfController::class, 'show'])->middleware('permission:inventario.view')->name('inventario.shelves.show');
+        Route::get('/inventario/estantes/{shelf}/editar', [WarehouseShelfController::class, 'edit'])->middleware('permission:inventario.edit')->name('inventario.shelves.edit');
+        Route::put('/inventario/estantes/{shelf}', [WarehouseShelfController::class, 'update'])->middleware('permission:inventario.edit')->name('inventario.shelves.update');
         Route::get('/inventario/transferencias', [WarehouseTransferController::class, 'index'])->middleware('permission:inventario.view')->name('inventario.transfers.index');
         Route::post('/inventario/transferencias', [WarehouseTransferController::class, 'store'])->middleware('permission:inventario.adjust')->name('inventario.transfers.store');
         Route::get('/inventario/transferencias/stock', [WarehouseTransferController::class, 'stockAvailability'])->middleware('permission:inventario.view')->name('inventario.transfers.stock');
@@ -212,12 +220,16 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/compras/proveedores/rapido', [ProveedorController::class, 'quickStore'])->middleware('permission:compras.create')->name('compras.suppliers.quick-store');
         Route::get('/compras', [CompraController::class, 'index'])->middleware('permission:compras.view')->name('compras.index');
         Route::get('/compras/create', [CompraController::class, 'create'])->middleware('permission:compras.create')->name('compras.create');
-        Route::get('/compras/{id}', [CompraController::class, 'show'])->middleware('permission:compras.view')->name('compras.show');
+        Route::get('/compras/proformas/create', [CompraController::class, 'createProforma'])->middleware('permission:compras.create')->name('compras.proformas.create');
+        Route::get('/compras/proformas/{id}/ticket', [CompraController::class, 'proformaTicket'])->whereNumber('id')->middleware('permission:compras.view')->name('compras.proformas.ticket');
+        Route::get('/compras/proformas/{id}/pdf', [CompraController::class, 'proformaPdf'])->whereNumber('id')->middleware('permission:compras.view')->name('compras.proformas.pdf');
+        Route::delete('/compras/proformas/{id}/productos/{detailId}', [CompraController::class, 'destroyProformaDetail'])->whereNumber(['id', 'detailId'])->middleware('permission:compras.edit')->name('compras.proformas.details.destroy');
+        Route::get('/compras/{id}', [CompraController::class, 'show'])->whereNumber('id')->middleware('permission:compras.view')->name('compras.show');
         Route::post('/compras', [CompraController::class, 'store'])->middleware('permission:compras.create')->name('compras.store');
-        Route::get('/compras/{id}/edit', [CompraController::class, 'edit'])->middleware('permission:compras.edit')->name('compras.edit');
-        Route::match(['put', 'patch'], '/compras/{id}', [CompraController::class, 'update'])->middleware('permission:compras.edit')->name('compras.update');
-        Route::post('/compras/{id}/estado', [CompraController::class, 'updateStatus'])->middleware('permission:compras.edit')->name('compras.status');
-        Route::delete('/compras/{id}', [CompraController::class, 'destroy'])->middleware('permission:compras.delete')->name('compras.destroy');
+        Route::get('/compras/{id}/edit', [CompraController::class, 'edit'])->whereNumber('id')->middleware('permission:compras.edit')->name('compras.edit');
+        Route::match(['put', 'patch'], '/compras/{id}', [CompraController::class, 'update'])->whereNumber('id')->middleware('permission:compras.edit')->name('compras.update');
+        Route::post('/compras/{id}/estado', [CompraController::class, 'updateStatus'])->whereNumber('id')->middleware('permission:compras.edit')->name('compras.status');
+        Route::delete('/compras/{id}', [CompraController::class, 'destroy'])->whereNumber('id')->middleware('permission:compras.delete')->name('compras.destroy');
     });
 
     Route::middleware('module:clientes')->group(function () {

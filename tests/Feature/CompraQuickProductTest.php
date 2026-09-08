@@ -50,14 +50,32 @@ test('next product code endpoint returns a unique code', function () {
         ->assertJsonStructure(['code']);
 });
 
+test('quick product creation requires a selected supplier', function () {
+    $role = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrador', 'is_system' => true]);
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $admin->roles()->sync([$role->id]);
+    $category = Category::create(['name' => 'General']);
+
+    $this->actingAs($admin)->postJson(route('compras.products.quick-store'), [
+        'name' => 'Producto sin proveedor',
+        'purchase_price' => 5,
+        'category_id' => $category->id,
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors(['supplier_id']);
+
+    expect(Product::query()->where('name', 'Producto sin proveedor')->exists())->toBeFalse();
+});
+
 test('quick product creation requires a category when none exists', function () {
     $role = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrador', 'is_system' => true]);
     $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
     $admin->roles()->sync([$role->id]);
+    $supplier = Supplier::create(['name' => 'Proveedor sin categoría', 'status' => 'active']);
 
     $this->actingAs($admin)->postJson(route('compras.products.quick-store'), [
         'name' => 'Producto sin categoría',
         'purchase_price' => 5,
+        'supplier_id' => $supplier->id,
     ])->assertUnprocessable()
         ->assertJsonValidationErrors(['category_id']);
 });

@@ -356,6 +356,10 @@ class InventarioController extends Controller
             'wholesale_price' => 'nullable|numeric|min:0',
             'purchase_price' => 'nullable|numeric|min:0',
             'stock' => 'nullable|integer|min:0',
+            'locations' => 'nullable|array|min:1',
+            'locations.*.warehouse_id' => 'required_with:locations|integer|distinct|exists:warehouses,id',
+            'locations.*.shelf_id' => 'nullable|integer|exists:warehouse_shelves,id',
+            'locations.*.quantity' => 'required_with:locations|numeric|min:0',
             'category_id' => 'nullable|exists:categories,id',
             'unit' => 'nullable|string|max:50',
             'base_unit_id' => 'nullable|exists:units,id',
@@ -371,11 +375,9 @@ class InventarioController extends Controller
         }
 
         $purchasePrice = $validated['purchase_price'] ?? round($validated['sale_price'] * 0.85, 2);
-        $stock = (int) ($validated['stock'] ?? 0);
+        $locations = $this->initialLocations($validated);
         $imagePath = $request->file('image')?->store('products', 'public');
         $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
-        $warehouseId = isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null;
-        $shelf = $this->validatedShelf($validated['shelf_id'] ?? null, $warehouseId);
 
         try {
             $product = Product::create([
@@ -392,16 +394,19 @@ class InventarioController extends Controller
                 'image_url' => $imagePath,
             ]);
 
-            if ($stock > 0) {
-                $this->inventory->stockIn(
-                    $product,
-                    $stock,
-                    'quick_entry',
-                    'Stock inicial — registro rápido',
-                    $request->user()?->id,
-                    $warehouseId,
-                );
-                WarehouseStock::query()->where('product_id', $product->id)->where('warehouse_id', $warehouseId ?: Warehouse::default()?->id)->update(['aisle' => $shelf?->code]);
+            foreach ($locations as $location) {
+                if ($location['quantity'] > 0) {
+                    $this->inventory->stockIn(
+                        $product,
+                        $location['quantity'],
+                        'quick_entry',
+                        'Stock inicial — registro rápido',
+                        $request->user()?->id,
+                        $location['warehouse_id'],
+                    );
+                }
+
+                $this->assignProductLocation($product, $location['warehouse_id'], $location['shelf']);
             }
 
             $product = $product->fresh();
@@ -449,7 +454,11 @@ class InventarioController extends Controller
             'purchase_price' => 'required|numeric|min:0',
             'sale_price' => 'required|numeric|min:0',
             'tax_id' => 'nullable|exists:taxes,id',
-            'stock' => 'required|numeric|min:0',
+            'stock' => 'nullable|numeric|min:0|required_without:locations',
+            'locations' => 'nullable|array|min:1',
+            'locations.*.warehouse_id' => 'required_with:locations|integer|distinct|exists:warehouses,id',
+            'locations.*.shelf_id' => 'nullable|integer|exists:warehouse_shelves,id',
+            'locations.*.quantity' => 'required_with:locations|numeric|min:0',
             'unit' => 'nullable|string|max:50',
             'base_unit_id' => 'required|exists:units,id',
             'warehouse_id' => 'nullable|exists:warehouses,id',
@@ -468,11 +477,9 @@ class InventarioController extends Controller
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
         ]);
 
-        $stock = (float) $validated['stock'];
-        $warehouseId = isset($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null;
-        $shelf = $this->validatedShelf($validated['shelf_id'] ?? null, $warehouseId);
+        $locations = $this->initialLocations($validated);
         $validated['stock'] = 0;
-        unset($validated['image'], $validated['warehouse_id'], $validated['shelf_id']);
+        unset($validated['image'], $validated['warehouse_id'], $validated['shelf_id'], $validated['locations']);
         $validated['expiry_date'] = $validated['expiry_date'] ?? null;
 
         $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
@@ -487,16 +494,19 @@ class InventarioController extends Controller
         try {
             $product = Product::create($validated);
 
-            if ($stock > 0) {
-                $this->inventory->stockIn(
-                    $product,
-                    $stock,
-                    'initial_stock',
-                    'Stock inicial al crear producto',
-                    $request->user()?->id,
-                    $warehouseId,
-                );
-                WarehouseStock::query()->where('product_id', $product->id)->where('warehouse_id', $warehouseId ?: Warehouse::default()?->id)->update(['aisle' => $shelf?->code]);
+            foreach ($locations as $location) {
+                if ($location['quantity'] > 0) {
+                    $this->inventory->stockIn(
+                        $product,
+                        $location['quantity'],
+                        'initial_stock',
+                        'Stock inicial al crear producto',
+                        $request->user()?->id,
+                        $location['warehouse_id'],
+                    );
+                }
+
+                $this->assignProductLocation($product, $location['warehouse_id'], $location['shelf']);
             }
 
             $this->pricing->syncProductToDefaultList($product->fresh());
@@ -896,6 +906,42 @@ class InventarioController extends Controller
             ->where('warehouse_id', $warehouseId ?: Warehouse::default()?->id)
             ->where('is_active', true)
             ->firstOrFail();
+    }
+
+    private function assignProductLocation(Product $product, ?int $warehouseId, ?WarehouseShelf $shelf): void
+    {
+        $resolvedWarehouseId = $warehouseId ?: Warehouse::default()?->id;
+        if (! $resolvedWarehouseId) {
+            return;
+        }
+
+        $stock = WarehouseStock::query()->firstOrCreate(
+            ['product_id' => $product->id, 'warehouse_id' => $resolvedWarehouseId],
+            ['quantity' => 0]
+        );
+        $stock->update(['aisle' => $shelf?->code]);
+    }
+
+    /**
+     * @return list<array{warehouse_id: ?int, shelf: ?WarehouseShelf, quantity: float}>
+     */
+    private function initialLocations(array $validated): array
+    {
+        $rows = $validated['locations'] ?? [[
+            'warehouse_id' => $validated['warehouse_id'] ?? null,
+            'shelf_id' => $validated['shelf_id'] ?? null,
+            'quantity' => $validated['stock'] ?? 0,
+        ]];
+
+        return collect($rows)->map(function (array $row): array {
+            $warehouseId = isset($row['warehouse_id']) ? (int) $row['warehouse_id'] : null;
+
+            return [
+                'warehouse_id' => $warehouseId,
+                'shelf' => $this->validatedShelf($row['shelf_id'] ?? null, $warehouseId),
+                'quantity' => (float) ($row['quantity'] ?? 0),
+            ];
+        })->values()->all();
     }
 
     private function resolveBaseUnit(mixed $baseUnitId, ?string $abbreviation = null): ?Unit

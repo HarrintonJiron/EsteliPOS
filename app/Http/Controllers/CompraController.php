@@ -67,6 +67,7 @@ class CompraController extends Controller
                 ->sum('total'),
             'completed_count' => Purchase::query()->where('status', 'completed')->count(),
             'pending_count' => Purchase::query()->where('status', 'pending')->count(),
+            'ordered_count' => Purchase::query()->where('status', 'ordered')->count(),
             'invested_total' => (float) Purchase::query()
                 ->whereIn('status', ['pending', 'completed'])
                 ->sum('total'),
@@ -86,9 +87,16 @@ class CompraController extends Controller
 
     public function searchProducts(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
+        ], [
+            'supplier_id.required' => 'Selecciona un proveedor antes de buscar productos.',
+            'supplier_id.exists' => 'El proveedor seleccionado no existe.',
+        ]);
+
         return response()->json($this->resolvePurchaseProductSearch(
             trim($request->string('search')->toString()),
-            $request->filled('supplier_id') ? (int) $request->input('supplier_id') : null,
+            (int) $validated['supplier_id'],
         ));
     }
 
@@ -103,35 +111,36 @@ class CompraController extends Controller
     /**
      * @return list<array<string, mixed>>
      */
-    private function resolvePurchaseProductSearch(string $search, ?int $supplierId): array
+    private function resolvePurchaseProductSearch(string $search, int $supplierId): array
     {
-        if (strlen($search) < 2) {
-            return [];
-        }
-
         return Product::query()
-            ->with(['baseUnit', 'unitConversions.unit'])
+            ->with([
+                'baseUnit',
+                'unitConversions.unit',
+                'suppliers' => fn ($query) => $query->where('suppliers.id', $supplierId),
+            ])
             ->where('status', 'active')
-            ->where(function ($query) use ($search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('code', 'like', "%{$search}%");
+            ->where(function ($query) use ($supplierId) {
+                $query->whereHas('suppliers', fn ($supplierQuery) => $supplierQuery->where('suppliers.id', $supplierId))
+                    ->orWhereHas('purchaseDetails.purchase', function ($purchaseQuery) use ($supplierId) {
+                        $purchaseQuery->where('supplier_id', $supplierId)
+                            ->where('status', '!=', 'canceled');
+                    });
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($searchQuery) use ($search) {
+                    $searchQuery->where('name', 'like', "%{$search}%")
+                        ->orWhere('code', 'like', "%{$search}%");
+                });
             })
             ->orderBy('name')
             ->limit(15)
             ->get()
-            ->map(function (Product $product) use ($supplierId) {
-                $supplierPrice = null;
-
-                if ($supplierId) {
-                    $pivot = $product->suppliers()
-                        ->where('supplier_id', $supplierId)
-                        ->first()
-                        ?->pivot;
-
-                    if ($pivot?->purchase_price !== null) {
-                        $supplierPrice = (float) $pivot->purchase_price;
-                    }
-                }
+            ->map(function (Product $product) {
+                $pivot = $product->suppliers->first()?->pivot;
+                $supplierPrice = $pivot?->purchase_price !== null
+                    ? (float) $pivot->purchase_price
+                    : (float) ($product->purchase_price ?? 0);
 
                 $units = $this->purchaseCosting->purchaseUnitsFor($product);
 
@@ -139,8 +148,8 @@ class CompraController extends Controller
                     'id' => $product->id,
                     'name' => $product->name,
                     'code' => $product->code,
-                    'price' => $supplierPrice ?? (float) ($product->purchase_price ?? 0),
-                    'has_supplier_price' => $supplierPrice !== null,
+                    'price' => $supplierPrice,
+                    'has_supplier_price' => $pivot?->purchase_price !== null,
                     'base_unit_id' => $product->base_unit_id,
                     'base_unit' => $product->baseUnit?->abbreviation ?? $product->unit,
                     'units' => $units,
@@ -165,12 +174,13 @@ class CompraController extends Controller
             'purchase_price' => 'required|numeric|min:0',
             'sale_price' => 'nullable|numeric|min:0',
             'category_id' => 'nullable|exists:categories,id',
-            'supplier_id' => 'nullable|exists:suppliers,id',
+            'supplier_id' => 'required|exists:suppliers,id',
             'base_unit_id' => 'nullable|exists:units,id',
         ], [
             'name.required' => 'El nombre del producto es obligatorio.',
             'purchase_price.required' => 'Indica el costo de compra.',
             'code.unique' => 'Ese código ya existe en el inventario.',
+            'supplier_id.required' => 'Selecciona un proveedor antes de crear el producto.',
         ]);
 
         $categoryId = $validated['category_id'] ?? Category::query()->value('id');
@@ -187,7 +197,7 @@ class CompraController extends Controller
             ? (float) $validated['sale_price']
             : round($purchasePrice / 0.85, 2);
         $code = $validated['code'] ?? $this->inventoryService->nextProductCode();
-        $supplierId = isset($validated['supplier_id']) ? (int) $validated['supplier_id'] : null;
+        $supplierId = (int) $validated['supplier_id'];
         $baseUnit = isset($validated['base_unit_id'])
             ? Unit::query()->find($validated['base_unit_id'])
             : Unit::query()->where('abbreviation', 'und')->first();
@@ -208,11 +218,9 @@ class CompraController extends Controller
 
             $this->pricing->syncProductToDefaultList($product);
 
-            if ($supplierId) {
-                $product->suppliers()->syncWithoutDetaching([
-                    $supplierId => ['purchase_price' => $purchasePrice],
-                ]);
-            }
+            $product->suppliers()->syncWithoutDetaching([
+                $supplierId => ['purchase_price' => $purchasePrice],
+            ]);
 
             return $product->load(['baseUnit', 'unitConversions.unit']);
         });
@@ -225,7 +233,7 @@ class CompraController extends Controller
                 'name' => $product->name,
                 'code' => $product->code,
                 'price' => $purchasePrice,
-                'has_supplier_price' => $supplierId !== null,
+                'has_supplier_price' => true,
                 'base_unit_id' => $product->base_unit_id,
                 'base_unit' => $product->baseUnit?->abbreviation ?? $product->unit,
                 'units' => $this->purchaseCosting->purchaseUnitsFor($product),
@@ -235,7 +243,7 @@ class CompraController extends Controller
 
     public function show($id)
     {
-        $purchase = Purchase::with('details.product.baseUnit', 'details.unit', 'supplier', 'warehouse')->findOrFail($id);
+        $purchase = Purchase::with('details.product.baseUnit', 'details.unit', 'supplier', 'warehouse', 'user')->findOrFail($id);
 
         return view('compras.show', [
             'purchase' => $purchase,
@@ -244,9 +252,70 @@ class CompraController extends Controller
         ]);
     }
 
+    public function proformaTicket(int $id)
+    {
+        $purchase = $this->purchaseProforma($id);
+
+        return view('compras.ticket', [
+            'purchase' => $purchase,
+            'purchaseTotals' => $this->purchaseCosting->presentTotals($purchase),
+        ]);
+    }
+
+    public function proformaPdf(int $id)
+    {
+        $purchase = $this->purchaseProforma($id);
+
+        return view('compras.pdf', [
+            'purchase' => $purchase,
+            'purchaseTotals' => $this->purchaseCosting->presentTotals($purchase),
+        ]);
+    }
+
+    public function destroyProformaDetail(int $id, int $detailId)
+    {
+        try {
+            DB::transaction(function () use ($id, $detailId) {
+                $purchase = Purchase::query()->lockForUpdate()->findOrFail($id);
+
+                if ($purchase->status !== 'ordered') {
+                    throw new RuntimeException('Solo se pueden quitar productos de una proforma en proceso.');
+                }
+
+                $details = PurchaseDetail::query()
+                    ->where('purchase_id', $purchase->id)
+                    ->lockForUpdate()
+                    ->get();
+
+                $detail = $details->firstWhere('id', $detailId);
+                abort_unless($detail, 404);
+
+                if ($details->count() <= 1) {
+                    throw new RuntimeException('La proforma debe conservar al menos un producto. Puedes anularla si ya no la necesitas.');
+                }
+
+                $detail->delete();
+                $this->recalculatePurchaseTotals($purchase);
+            });
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Producto eliminado de la proforma.');
+    }
+
     public function create()
     {
-        return view('compras.create', $this->purchaseFormData());
+        return view('compras.create', array_merge($this->purchaseFormData(), [
+            'purchaseMode' => 'immediate',
+        ]));
+    }
+
+    public function createProforma()
+    {
+        return view('compras.create', array_merge($this->purchaseFormData(), [
+            'purchaseMode' => 'proforma',
+        ]));
     }
 
     public function store(PurchaseRequest $request)
@@ -293,7 +362,11 @@ class CompraController extends Controller
             return back()->withInput()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('compras.index')->with('success', 'Compra creada correctamente.');
+        $message = $data['purchase_mode'] === 'proforma'
+            ? 'Pedido proforma creado. El inventario se actualizará cuando confirmes la recepción.'
+            : 'Compra creada correctamente.';
+
+        return redirect()->route('compras.index')->with('success', $message);
     }
 
     public function edit($id)
@@ -305,21 +378,29 @@ class CompraController extends Controller
 
     public function updateStatus(UpdatePurchaseStatusRequest $request, int $id)
     {
-        $purchase = Purchase::query()->with('details.product')->findOrFail($id);
         $newStatus = (string) $request->validated('status');
         $paymentType = (string) ($request->validated('payment_type') ?? 'cash');
 
         try {
-            DB::transaction(function () use ($purchase, $newStatus, $paymentType) {
+            DB::transaction(function () use ($id, $newStatus, $paymentType) {
+                $purchase = Purchase::query()
+                    ->with('details.product')
+                    ->lockForUpdate()
+                    ->findOrFail($id);
+
                 $this->transitionPurchaseStatus($purchase, $newStatus, $paymentType);
             });
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        $message = $newStatus === 'completed'
-            ? 'Pago registrado. Se liquidó la deuda con el proveedor.'
-            : 'Compra anulada. Se revirtió el inventario.';
+        $message = match ($newStatus) {
+            'received' => $paymentType === 'credit'
+                ? 'Mercadería recibida e ingresada al inventario. La compra quedó por pagar.'
+                : 'Mercadería recibida e ingresada al inventario. La compra quedó pagada.',
+            'completed' => 'Pago registrado. Se liquidó la deuda con el proveedor.',
+            default => 'Compra anulada. Se revirtió el inventario cuando correspondía.',
+        };
 
         return back()->with('success', $message);
     }
@@ -434,6 +515,36 @@ class CompraController extends Controller
         ];
     }
 
+    private function purchaseProforma(int $id): Purchase
+    {
+        $purchase = Purchase::query()
+            ->with('details.product.baseUnit', 'details.unit', 'supplier', 'warehouse', 'user')
+            ->findOrFail($id);
+
+        abort_unless($purchase->status === 'ordered', 404);
+
+        return $purchase;
+    }
+
+    private function recalculatePurchaseTotals(Purchase $purchase): void
+    {
+        $details = PurchaseDetail::query()->where('purchase_id', $purchase->id)->get();
+        $foreignSubtotal = round((float) $details->sum('subtotal'), 2);
+        $foreignTaxTotal = round((float) $details->sum('tax_amount'), 2);
+        $exchangeRate = max((float) ($purchase->exchange_rate ?: 1), 0.000001);
+        $companySubtotal = $this->purchaseCosting->toCompanyAmount($foreignSubtotal, $exchangeRate);
+        $companyTaxTotal = $this->purchaseCosting->toCompanyAmount($foreignTaxTotal, $exchangeRate);
+
+        $purchase->update([
+            'subtotal' => $companySubtotal,
+            'tax_total' => $companyTaxTotal,
+            'total' => round($companySubtotal + $companyTaxTotal, 2),
+            'foreign_subtotal' => $foreignSubtotal,
+            'foreign_tax_total' => $foreignTaxTotal,
+            'foreign_total' => round($foreignSubtotal + $foreignTaxTotal, 2),
+        ]);
+    }
+
     /**
      * @param  list<array{product_id: int, quantity: float|int|string, price: float|int|string, unit_id?: int|null}>  $items
      */
@@ -477,6 +588,13 @@ class CompraController extends Controller
                 'tax_amount' => $lineTaxForeign,
             ]);
 
+            if ($resolved['base_quantity'] > 0) {
+                $unitCostCompany = round($lineNetCompany / $resolved['base_quantity'], 4);
+                $product->suppliers()->syncWithoutDetaching([
+                    $purchase->supplier_id => ['purchase_price' => $unitCostCompany],
+                ]);
+            }
+
             if ($affectInventory) {
                 $this->inventoryService->stockIn(
                     $product,
@@ -489,7 +607,6 @@ class CompraController extends Controller
             }
 
             if ($affectInventory && $resolved['base_quantity'] > 0) {
-                $unitCostCompany = round($lineNetCompany / $resolved['base_quantity'], 4);
                 $product->update(['purchase_price' => $unitCostCompany]);
             }
 
@@ -518,6 +635,13 @@ class CompraController extends Controller
     {
         $status = (string) ($data['status'] ?? $purchase?->status ?? 'completed');
         $paymentType = (string) ($data['payment_type'] ?? $purchase?->payment_type ?? '');
+
+        if ($status === 'ordered') {
+            return [
+                'status' => 'ordered',
+                'payment_type' => in_array($paymentType, ['cash', 'transfer', 'credit'], true) ? $paymentType : 'credit',
+            ];
+        }
 
         if ($status === 'canceled') {
             return [
@@ -583,6 +707,33 @@ class CompraController extends Controller
             $this->reversePurchaseInventory($purchase);
             $purchase->update(['status' => 'canceled']);
             $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra anulada');
+
+            return;
+        }
+
+        if ($current === 'ordered') {
+            if ($newStatus !== 'received') {
+                throw new RuntimeException('Este pedido debe confirmarse como recibido antes de registrarlo como compra.');
+            }
+
+            if ($this->purchaseHasStockEntry($purchase)) {
+                throw new RuntimeException('La mercadería de este pedido ya fue ingresada al inventario.');
+            }
+
+            $receivedStatus = $paymentType === 'credit' ? 'pending' : 'completed';
+            $receivedPaymentType = match ($paymentType) {
+                'credit' => 'credit',
+                'transfer' => 'transfer',
+                default => 'cash',
+            };
+
+            $this->applyPendingInventory($purchase);
+            $purchase->update([
+                'status' => $receivedStatus,
+                'payment_type' => $receivedPaymentType,
+            ]);
+            $this->assertSupplierCreditAvailable($purchase->fresh());
+            $this->accountingService->recordPurchase($purchase->fresh());
 
             return;
         }

@@ -519,6 +519,49 @@ test('pos shows product available when stock is in another warehouse', function 
         ->and((float) $product->stockInWarehouse($main->id))->toBe(0.0);
 });
 
+test('pos warehouse filter only returns products stocked in the selected warehouse', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+    $category = Category::firstOrCreate(['name' => 'Filtro POS por bodega']);
+    $main = Warehouse::query()->where('is_default', true)->firstOrFail();
+    $secondary = Warehouse::query()->where('is_default', false)->where('is_active', true)->firstOrFail();
+
+    $mainProduct = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto bodega principal',
+        'code' => 'POS-BOD-MAIN',
+        'purchase_price' => 10,
+        'sale_price' => 15,
+        'stock' => 0,
+        'unit' => 'und',
+        'status' => 'active',
+    ]);
+    $secondaryProduct = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto bodega secundaria',
+        'code' => 'POS-BOD-SECONDARY',
+        'purchase_price' => 10,
+        'sale_price' => 15,
+        'stock' => 0,
+        'unit' => 'und',
+        'status' => 'active',
+    ]);
+
+    app(InventoryService::class)->stockIn($mainProduct, 5, 'test', 'Stock principal', $admin->id, $main->id);
+    app(InventoryService::class)->stockIn($secondaryProduct, 7, 'test', 'Stock secundario', $admin->id, $secondary->id);
+
+    $response = $this->actingAs($admin)->getJson(route('facturacion.pos-products', [
+        'warehouse_id' => $secondary->id,
+        'category_id' => $category->id,
+    ]));
+
+    $response->assertOk()
+        ->assertJsonCount(1)
+        ->assertJsonPath('0.code', 'POS-BOD-SECONDARY')
+        ->assertJsonPath('0.warehouse_stock', 7)
+        ->assertJsonPath('0.stock', 7);
+});
+
 test('warehouse transfer moves stock between locations', function () {
     $this->seed(InventoryCatalogSeeder::class);
     $admin = inventoryAdmin();
@@ -558,7 +601,7 @@ test('warehouse transfer moves stock between locations', function () {
         ->and((float) $product->stockInWarehouse($to->id))->toBe(5.0);
 });
 
-test('warehouse can create shelves and quick registration assigns initial stock to one', function () {
+test('warehouse can create shelves and quick registration keeps the location with zero stock', function () {
     $this->seed(InventoryCatalogSeeder::class);
     $admin = inventoryAdmin();
     $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
@@ -576,17 +619,127 @@ test('warehouse can create shelves and quick registration assigns initial stock 
         'name' => 'Producto en estante',
         'sale_price' => 150,
         'purchase_price' => 100,
-        'stock' => 8,
+        'stock' => 0,
         'category_id' => $category->id,
         'warehouse_id' => $warehouse->id,
         'shelf_id' => $shelf->id,
     ])->assertRedirect()->assertSessionHasNoErrors();
 
     $product = Product::query()->where('code', 'EST-001')->firstOrFail();
-    expect(WarehouseStock::query()
+    $warehouseStock = WarehouseStock::query()
         ->where('warehouse_id', $warehouse->id)
         ->where('product_id', $product->id)
-        ->value('aisle'))->toBe('A-01');
+        ->firstOrFail();
+
+    expect($warehouseStock->aisle)->toBe('A-01')
+        ->and((float) $warehouseStock->quantity)->toBe(0.0);
+});
+
+test('quick and pro forms can create warehouses and shelves inline', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+
+    $this->actingAs($admin)->get(route('inventario.quick'))
+        ->assertOk()
+        ->assertSee('Agregar nueva bodega')
+        ->assertSee('Agregar nuevo estante')
+        ->assertDontSee('Editar bodega')
+        ->assertDontSee('Editar estante');
+
+    $this->actingAs($admin)->get(route('inventario.create'))
+        ->assertOk()
+        ->assertSee('Agregar nueva bodega')
+        ->assertSee('Agregar nuevo estante')
+        ->assertDontSee('Editar bodega')
+        ->assertDontSee('Editar estante');
+
+    $warehouseResponse = $this->actingAs($admin)->postJson(route('inventario.warehouses.store'), [
+        'code' => 'BOD-INLINE',
+        'name' => 'Bodega creada en producto',
+    ]);
+
+    $warehouseResponse->assertCreated()
+        ->assertJsonPath('warehouse.code', 'BOD-INLINE')
+        ->assertJsonPath('warehouse.name', 'Bodega creada en producto');
+
+    $warehouse = Warehouse::query()->where('code', 'BOD-INLINE')->firstOrFail();
+    $this->actingAs($admin)->postJson(route('inventario.warehouses.shelves.store', $warehouse), [
+        'code' => 'Z-01',
+        'name' => 'Estante inmediato',
+    ])->assertCreated()
+        ->assertJsonPath('shelf.warehouse_id', $warehouse->id)
+        ->assertJsonPath('shelf.label', 'Z-01 · Estante inmediato');
+
+    $this->actingAs($admin)->putJson(route('inventario.warehouses.update', $warehouse), [
+        'code' => 'BOD-INLINE-EDIT',
+        'name' => 'Bodega editada en producto',
+    ])->assertOk()
+        ->assertJsonPath('warehouse.code', 'BOD-INLINE-EDIT')
+        ->assertJsonPath('warehouse.name', 'Bodega editada en producto');
+
+    $shelf = WarehouseShelf::query()->where('warehouse_id', $warehouse->id)->where('code', 'Z-01')->firstOrFail();
+    $category = Category::firstOrCreate(['name' => 'Edición de estantes']);
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto ubicado antes de editar',
+        'code' => 'SHELF-EDIT-001',
+        'purchase_price' => 10,
+        'sale_price' => 15,
+        'stock' => 0,
+        'unit' => 'und',
+        'status' => 'active',
+    ]);
+    WarehouseStock::query()->create([
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 0,
+        'aisle' => 'Z-01',
+    ]);
+
+    $this->actingAs($admin)->putJson(route('inventario.warehouses.shelves.update', [$warehouse, $shelf]), [
+        'code' => 'Z-02',
+        'name' => 'Estante editado',
+    ])->assertOk()
+        ->assertJsonPath('shelf.label', 'Z-02 · Estante editado');
+
+    expect(WarehouseStock::query()->where('product_id', $product->id)->value('aisle'))->toBe('Z-02');
+});
+
+test('shelf module can create browse inspect and edit shelf records', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+    $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
+
+    $this->actingAs($admin)->get(route('inventario.shelves.index'))
+        ->assertOk()
+        ->assertSee('Estantes')
+        ->assertSee(route('inventario.shelves.index'), false)
+        ->assertSee('Agregar nuevo estante');
+
+    $this->actingAs($admin)->post(route('inventario.shelves.store'), [
+        'warehouse_id' => $warehouse->id,
+        'code' => 'MOD-01',
+        'name' => 'Estante del módulo',
+    ])->assertRedirect();
+
+    $shelf = WarehouseShelf::query()->where('warehouse_id', $warehouse->id)->where('code', 'MOD-01')->firstOrFail();
+    $this->actingAs($admin)->get(route('inventario.shelves.show', $shelf))
+        ->assertOk()
+        ->assertSee('MOD-01')
+        ->assertSee('Productos registrados');
+    $this->actingAs($admin)->get(route('inventario.shelves.edit', $shelf))
+        ->assertOk()
+        ->assertSee('Editar estante');
+
+    $this->actingAs($admin)->put(route('inventario.shelves.update', $shelf), [
+        'warehouse_id' => $warehouse->id,
+        'code' => 'MOD-02',
+        'name' => 'Estante actualizado',
+        'is_active' => true,
+    ])->assertRedirect(route('inventario.shelves.show', $shelf));
+
+    expect($shelf->fresh()->code)->toBe('MOD-02')
+        ->and($shelf->fresh()->name)->toBe('Estante actualizado');
 });
 
 test('pos sale deducts stock from default warehouse for legacy products', function () {
