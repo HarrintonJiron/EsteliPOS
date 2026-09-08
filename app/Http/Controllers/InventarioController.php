@@ -1,0 +1,1005 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\StoreUnitRequest;
+use App\Http\Requests\UpdateUnitRequest;
+use App\Models\Category;
+use App\Models\PriceList;
+use App\Models\Product;
+use App\Models\ProductUnitConversion;
+use App\Models\Tax;
+use App\Models\Unit;
+use App\Models\Warehouse;
+use App\Models\WarehouseShelf;
+use App\Models\WarehouseStock;
+use App\Services\InventoryService;
+use App\Services\PricingService;
+use App\Services\UnitConversionService;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\View\View;
+use InvalidArgumentException;
+use Throwable;
+
+class InventarioController extends Controller
+{
+    public function __construct(
+        private InventoryService $inventory,
+        private PricingService $pricing,
+        private UnitConversionService $units,
+    ) {}
+
+    public function index(Request $request): View
+    {
+        $perPage = max(1, min(35, (int) $request->query('per_page', 15)));
+        $viewMode = $request->query('view', 'list');
+        $periodDays = (int) $request->query('period', 30);
+        $salesSub = $this->inventory->salesStatsSubquery($periodDays);
+
+        $query = Product::query()->with(['category', 'baseUnit']);
+
+        if ($q = $request->query('q')) {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('name', 'like', "%{$q}%")
+                    ->orWhere('code', 'like', "%{$q}%")
+                    ->orWhere('lot', 'like', "%{$q}%")
+                    ->orWhere('active_ingredient', 'like', "%{$q}%");
+            });
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        if ($request->filled('stock_status')) {
+            match ($request->stock_status) {
+                'low' => $query->whereRaw('stock <= COALESCE(low_stock_threshold, 10)'),
+                'expired' => $query->whereNotNull('expiry_date')->whereDate('expiry_date', '<', now()),
+                'expiring_soon' => $query->whereNotNull('expiry_date')
+                    ->whereDate('expiry_date', '>=', now())
+                    ->whereDate('expiry_date', '<=', now()->addDays(30)),
+                'out_of_stock' => $query->where('stock', '<=', 0),
+                'discrepancy' => $query->whereIn('id', $this->discrepantProductIds()),
+                default => null,
+            };
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        } else {
+            $query->where('status', 'active');
+        }
+
+        if ($request->filled('location')) {
+            $query->where('location', 'like', '%'.$request->location.'%');
+        }
+
+        if ($request->filled('warehouse_id')) {
+            $warehouseId = (int) $request->warehouse_id;
+            $query->whereHas('warehouseStocks', fn ($q) => $q
+                ->where('warehouse_id', $warehouseId)
+                ->where('quantity', '>', 0));
+        }
+
+        if ($request->filled('base_unit_id')) {
+            $query->where('base_unit_id', $request->base_unit_id);
+        }
+
+        $query->leftJoinSub($salesSub, 'sales_stats', 'sales_stats.product_id', '=', 'products.id')
+            ->select('products.*')
+            ->selectRaw('COALESCE(sales_stats.sold_qty, 0) as sold_qty')
+            ->selectRaw('COALESCE(sales_stats.sold_revenue, 0) as sold_revenue')
+            ->selectRaw('COALESCE(sales_stats.sale_count, 0) as sale_count')
+            ->selectRaw('CASE WHEN products.stock > 0 THEN ROUND(COALESCE(sales_stats.sold_qty, 0) / products.stock, 2) ELSE 0 END as rotation_index');
+
+        match ($viewMode) {
+            'top_sellers' => $query->orderByDesc('sold_qty')->orderBy('name'),
+            'low_rotation' => $query->where('stock', '>', 0)->orderBy('rotation_index')->orderByDesc('stock'),
+            'dead_stock' => $query->where('stock', '>', 0)->whereRaw('COALESCE(sales_stats.sold_qty, 0) = 0')->orderByDesc('stock'),
+            'high_rotation' => $query->where('stock', '>', 0)->orderByDesc('rotation_index'),
+            default => $this->applySorting($query, $request),
+        };
+
+        $products = $query->paginate($perPage)->withQueryString();
+
+        $stats = $this->buildStats();
+        $movementStats = $this->inventory->movementStats($periodDays);
+        $categories = Category::select('id', 'name')->orderBy('name')->get();
+        $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
+        $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
+        $discrepancyCount = count($this->discrepantProductIds());
+
+        if ($request->ajax() || $request->boolean('live')) {
+            return view('inventario.partials.catalog-results', compact('products', 'viewMode'));
+        }
+
+        return view('inventario.index', compact(
+            'products', 'stats', 'categories', 'viewMode', 'periodDays',
+            'movementStats', 'discrepancyCount', 'warehouses', 'units'
+        ));
+    }
+
+    public function dashboard(): View
+    {
+        $periodDays = 30;
+        $salesSub = $this->inventory->salesStatsSubquery($periodDays);
+
+        $topSellers = Product::query()
+            ->with('category')
+            ->leftJoinSub($salesSub, 'sales_stats', 'sales_stats.product_id', '=', 'products.id')
+            ->where('products.status', 'active')
+            ->select('products.*')
+            ->selectRaw('COALESCE(sales_stats.sold_qty, 0) as sold_qty')
+            ->selectRaw('COALESCE(sales_stats.sold_revenue, 0) as sold_revenue')
+            ->orderByDesc('sold_qty')
+            ->limit(10)
+            ->get();
+
+        $lowRotation = Product::query()
+            ->with('category')
+            ->leftJoinSub($salesSub, 'sales_stats', 'sales_stats.product_id', '=', 'products.id')
+            ->where('products.status', 'active')
+            ->where('products.stock', '>', 0)
+            ->select('products.*')
+            ->selectRaw('COALESCE(sales_stats.sold_qty, 0) as sold_qty')
+            ->selectRaw('CASE WHEN products.stock > 0 THEN ROUND(COALESCE(sales_stats.sold_qty, 0) / products.stock, 2) ELSE 0 END as rotation_index')
+            ->orderBy('rotation_index')
+            ->orderByDesc('stock')
+            ->limit(10)
+            ->get();
+
+        $deadStock = Product::query()
+            ->with('category')
+            ->leftJoinSub($salesSub, 'sales_stats', 'sales_stats.product_id', '=', 'products.id')
+            ->where('products.status', 'active')
+            ->where('products.stock', '>', 0)
+            ->whereRaw('COALESCE(sales_stats.sold_qty, 0) = 0')
+            ->select('products.*')
+            ->orderByDesc('stock')
+            ->limit(10)
+            ->get();
+
+        $valueByCategory = Category::query()
+            ->with(['products' => fn ($q) => $q->where('status', 'active')])
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($cat) => (object) [
+                'name' => $cat->name,
+                'product_count' => $cat->products->count(),
+                'inventory_value' => $cat->products->sum(fn ($p) => $p->stock * $p->purchase_price),
+            ])
+            ->sortByDesc('inventory_value')
+            ->values();
+
+        $stats = $this->buildStats();
+        $movementStats = $this->inventory->movementStats($periodDays);
+        $discrepancies = $this->inventory->reconcileAll(false)['discrepancies'];
+        $warehouseSummary = $this->inventory->warehouseSummary();
+        $priceLists = PriceList::query()->where('is_active', true)->withCount('items')->get();
+        $movementTrend = $this->inventory->movementTrend($periodDays);
+        $stockHealth = $this->inventory->stockHealthBreakdown();
+        $topSellersChart = $topSellers->take(8)->map(fn ($p) => [
+            'label' => Str::limit($p->name, 22),
+            'value' => (int) $p->sold_qty,
+        ])->values();
+
+        return view('inventario.dashboard', compact(
+            'topSellers', 'lowRotation', 'deadStock', 'valueByCategory',
+            'stats', 'movementStats', 'discrepancies', 'periodDays', 'warehouseSummary', 'priceLists',
+            'movementTrend', 'stockHealth', 'topSellersChart'
+        ));
+    }
+
+    public function bulk(): View
+    {
+        $categories = Category::orderBy('name')->get();
+        $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
+        $warehouses = $this->activeWarehouses()->load('shelves');
+        $suggestedCode = $this->inventory->nextProductCode();
+
+        return view('inventario.bulk', compact('categories', 'units', 'warehouses', 'suggestedCode'));
+    }
+
+    public function bulkStore(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'default_category_id' => 'required|exists:categories,id',
+            'default_unit' => 'required|string|max:50',
+            'default_warehouse_id' => 'nullable|exists:warehouses,id',
+            'default_low_stock' => 'nullable|integer|min:1',
+            'products' => 'required|json',
+        ]);
+
+        $rows = json_decode($validated['products'], true);
+        if (! is_array($rows) || empty($rows)) {
+            return back()->withErrors(['products' => 'Agrega al menos un producto.']);
+        }
+
+        $created = 0;
+        $errors = [];
+        $userId = $request->user()?->id;
+        $warehouseId = isset($validated['default_warehouse_id']) ? (int) $validated['default_warehouse_id'] : null;
+
+        DB::transaction(function () use ($rows, $validated, &$created, &$errors, $userId, $warehouseId) {
+            foreach ($rows as $index => $row) {
+                $line = $index + 1;
+                $name = trim($row['name'] ?? '');
+                if ($name === '') {
+                    continue;
+                }
+
+                $code = trim($row['code'] ?? '') ?: $this->inventory->nextProductCode();
+                if (Product::where('code', $code)->exists()) {
+                    $errors[] = "Línea {$line}: el código «{$code}» ya existe.";
+
+                    continue;
+                }
+
+                $stock = max(0, (int) ($row['stock'] ?? 0));
+                $unitAbbreviation = $row['unit'] ?? $validated['default_unit'];
+                $baseUnit = Unit::query()->where('abbreviation', $unitAbbreviation)->first();
+                $product = Product::create([
+                    'category_id' => (int) ($row['category_id'] ?? $validated['default_category_id']),
+                    'name' => $name,
+                    'code' => $code,
+                    'purchase_price' => (float) ($row['purchase_price'] ?? 0),
+                    'sale_price' => (float) ($row['sale_price'] ?? 0),
+                    'stock' => 0,
+                    'unit' => $baseUnit?->abbreviation ?? $unitAbbreviation,
+                    'base_unit_id' => $baseUnit?->id,
+                    'low_stock_threshold' => (int) ($row['low_stock_threshold'] ?? $validated['default_low_stock'] ?? 10),
+                    'location' => $row['location'] ?? null,
+                    'status' => 'active',
+                ]);
+
+                if ($stock > 0) {
+                    $this->inventory->stockIn(
+                        $product,
+                        $stock,
+                        'bulk_import',
+                        'Stock inicial — carga masiva',
+                        $userId,
+                        $warehouseId,
+                    );
+                }
+
+                $created++;
+            }
+        });
+
+        if (! empty($errors)) {
+            return redirect()->route('inventario.bulk')
+                ->with('error', implode(' ', $errors))
+                ->with('success', "Se crearon {$created} productos.");
+        }
+
+        return redirect()->route('inventario.index')
+            ->with('success', "Carga masiva completada: {$created} productos registrados.");
+    }
+
+    public function reconcile(Request $request): RedirectResponse
+    {
+        if (! $request->user()?->isAdmin()) {
+            abort(403);
+        }
+
+        $result = $this->inventory->reconcileAll(true);
+
+        return redirect()->route('inventario.dashboard')
+            ->with('success', "Reconciliación completada. {$result['fixed']} productos corregidos.");
+    }
+
+    public function nextCode(Request $request): JsonResponse
+    {
+        $prefix = $request->query('prefix', 'PROD');
+
+        return response()->json([
+            'code' => $this->inventory->nextProductCode($prefix),
+        ]);
+    }
+
+    public function create(): View
+    {
+        $categories = Category::orderBy('name')->get();
+        $taxes = Tax::where('is_active', true)->orderBy('rate')->get();
+        $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
+        $warehouses = $this->activeWarehouses()->load('shelves');
+
+        return view('inventario.create', compact('categories', 'taxes', 'units', 'warehouses'));
+    }
+
+    public function quick(): View
+    {
+        $categories = Category::orderBy('name')->get();
+        $defaultCategory = $categories->first();
+        $wholesaleList = $this->pricing->wholesaleList();
+        $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
+        $warehouses = $this->activeWarehouses()->load('shelves');
+
+        return view('inventario.quick', compact('categories', 'defaultCategory', 'wholesaleList', 'units', 'warehouses'));
+    }
+
+    public function lookupCode(string $code): JsonResponse
+    {
+        $product = Product::with('category')->where('code', $code)->first();
+
+        if (! $product) {
+            return response()->json(['exists' => false]);
+        }
+
+        return response()->json([
+            'exists' => true,
+            'product' => [
+                'id' => $product->id,
+                'code' => $product->code,
+                'name' => $product->name,
+                'sale_price' => $product->sale_price,
+                'stock' => $product->stock,
+                'category' => $product->category?->name,
+                'url' => route('inventario.show', $product->id),
+            ],
+        ]);
+    }
+
+    public function quickStore(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|max:50|unique:products,code',
+            'name' => 'required|string|max:255',
+            'sale_price' => 'required|numeric|min:0',
+            'wholesale_price' => 'nullable|numeric|min:0',
+            'purchase_price' => 'nullable|numeric|min:0',
+            'stock' => 'nullable|integer|min:0',
+            'locations' => 'nullable|array|min:1',
+            'locations.*.warehouse_id' => 'required_with:locations|integer|distinct|exists:warehouses,id',
+            'locations.*.shelf_id' => 'nullable|integer|exists:warehouse_shelves,id',
+            'locations.*.quantity' => 'required_with:locations|numeric|min:0',
+            'category_id' => 'nullable|exists:categories,id',
+            'unit' => 'nullable|string|max:50',
+            'base_unit_id' => 'nullable|exists:units,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'shelf_id' => 'nullable|exists:warehouse_shelves,id',
+            'low_stock_threshold' => 'nullable|integer|min:1',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
+        ]);
+
+        $categoryId = $validated['category_id'] ?? Category::query()->value('id');
+        if (! $categoryId) {
+            return back()->withErrors(['category_id' => 'Crea al menos una categoría antes de registrar productos.']);
+        }
+
+        $purchasePrice = $validated['purchase_price'] ?? round($validated['sale_price'] * 0.85, 2);
+        $locations = $this->initialLocations($validated);
+        $imagePath = $request->file('image')?->store('products', 'public');
+        $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
+
+        try {
+            $product = Product::create([
+                'category_id' => $categoryId,
+                'name' => $validated['name'],
+                'code' => $validated['code'],
+                'purchase_price' => $purchasePrice,
+                'sale_price' => $validated['sale_price'],
+                'stock' => 0,
+                'unit' => $baseUnit?->abbreviation ?? ($validated['unit'] ?? 'und'),
+                'base_unit_id' => $baseUnit?->id,
+                'low_stock_threshold' => $validated['low_stock_threshold'] ?? 5,
+                'status' => 'active',
+                'image_url' => $imagePath,
+            ]);
+
+            foreach ($locations as $location) {
+                if ($location['quantity'] > 0) {
+                    $this->inventory->stockIn(
+                        $product,
+                        $location['quantity'],
+                        'quick_entry',
+                        'Stock inicial — registro rápido',
+                        $request->user()?->id,
+                        $location['warehouse_id'],
+                    );
+                }
+
+                $this->assignProductLocation($product, $location['warehouse_id'], $location['shelf']);
+            }
+
+            $product = $product->fresh();
+            $this->pricing->syncProductToDefaultList($product);
+
+            if (! empty($validated['wholesale_price']) && ($wholesaleList = $this->pricing->wholesaleList())) {
+                $this->pricing->syncProductToList($product, $wholesaleList, (float) $validated['wholesale_price']);
+            }
+        } catch (Throwable $exception) {
+            $this->deleteProductImage($imagePath);
+
+            throw $exception;
+        }
+
+        if ($request->boolean('add_another')) {
+            return redirect()->route('inventario.quick')
+                ->with('success', "«{$product->name}» guardado. Escanea el siguiente.");
+        }
+
+        return redirect()->route('inventario.index')
+            ->with('success', "Producto «{$product->name}» registrado correctamente.");
+    }
+
+    public function storeCategory(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100|unique:categories,name',
+        ]);
+
+        $category = Category::create([
+            'name' => $validated['name'],
+            'description' => null,
+        ]);
+
+        return response()->json(['id' => $category->id, 'name' => $category->name], 201);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'category_id' => 'required|exists:categories,id',
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:products',
+            'description' => 'nullable|string|max:1000',
+            'purchase_price' => 'required|numeric|min:0',
+            'sale_price' => 'required|numeric|min:0',
+            'tax_id' => 'nullable|exists:taxes,id',
+            'stock' => 'nullable|numeric|min:0|required_without:locations',
+            'locations' => 'nullable|array|min:1',
+            'locations.*.warehouse_id' => 'required_with:locations|integer|distinct|exists:warehouses,id',
+            'locations.*.shelf_id' => 'nullable|integer|exists:warehouse_shelves,id',
+            'locations.*.quantity' => 'required_with:locations|numeric|min:0',
+            'unit' => 'nullable|string|max:50',
+            'base_unit_id' => 'required|exists:units,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'shelf_id' => 'nullable|exists:warehouse_shelves,id',
+            'lot' => 'nullable|string|max:100',
+            'expiry_date' => 'nullable|date',
+            'location' => 'nullable|string|max:255',
+            'low_stock_threshold' => 'nullable|integer|min:1',
+            'registration_number' => 'nullable|string|max:100',
+            'active_ingredient' => 'nullable|string|max:255',
+            'concentration' => 'nullable|string|max:100',
+            'status' => 'required|in:active,inactive,discontinued',
+            'observations' => 'nullable|string|max:2000',
+            'discount_pct' => 'nullable|numeric|min:0|max:100',
+            'discount_label' => 'nullable|string|max:100',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
+        ]);
+
+        $locations = $this->initialLocations($validated);
+        $validated['stock'] = 0;
+        unset($validated['image'], $validated['warehouse_id'], $validated['shelf_id'], $validated['locations']);
+        $validated['expiry_date'] = $validated['expiry_date'] ?? null;
+
+        $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
+        $validated['base_unit_id'] = $baseUnit?->id;
+        $validated['unit'] = $baseUnit?->abbreviation ?? ($validated['unit'] ?? 'und');
+
+        $imagePath = $request->file('image')?->store('products', 'public');
+        if ($imagePath) {
+            $validated['image_url'] = $imagePath;
+        }
+
+        try {
+            $product = Product::create($validated);
+
+            foreach ($locations as $location) {
+                if ($location['quantity'] > 0) {
+                    $this->inventory->stockIn(
+                        $product,
+                        $location['quantity'],
+                        'initial_stock',
+                        'Stock inicial al crear producto',
+                        $request->user()?->id,
+                        $location['warehouse_id'],
+                    );
+                }
+
+                $this->assignProductLocation($product, $location['warehouse_id'], $location['shelf']);
+            }
+
+            $this->pricing->syncProductToDefaultList($product->fresh());
+        } catch (Throwable $exception) {
+            $this->deleteProductImage($imagePath);
+
+            throw $exception;
+        }
+
+        return redirect()
+            ->route('inventario.create')
+            ->with('success', "Producto «{$product->name}» guardado. Puede agregar el siguiente.");
+    }
+
+    public function show(int $id): View
+    {
+        $product = Product::with([
+            'category',
+            'baseUnit',
+            'unitConversions.unit',
+            'warehouseStocks.warehouse',
+            'inventoryMovements.user',
+            'inventoryMovements.warehouse',
+        ])->findOrFail($id);
+
+        if (! $product->base_unit_id) {
+            $resolvedUnitId = $this->resolveBaseUnit(null, $product->unit)?->id;
+            if ($resolvedUnitId) {
+                $product->forceFill([
+                    'base_unit_id' => $resolvedUnitId,
+                    'unit' => Unit::query()->whereKey($resolvedUnitId)->value('abbreviation') ?? $product->unit,
+                ])->saveQuietly();
+                $product->load('baseUnit');
+            }
+        }
+
+        $movements = $product->inventoryMovements()
+            ->with('user')
+            ->latest()
+            ->paginate(15);
+
+        $periodDays = 90;
+        $salesData = DB::table('sale_details')
+            ->join('sales', 'sales.id', '=', 'sale_details.sale_id')
+            ->where('sale_details.product_id', $product->id)
+            ->where('sales.status', 'completed')
+            ->where('sales.date', '>=', now()->subDays($periodDays))
+            ->selectRaw('COALESCE(SUM(sale_details.quantity), 0) as sold_qty')
+            ->selectRaw('COALESCE(SUM(sale_details.subtotal), 0) as sold_revenue')
+            ->selectRaw('COUNT(DISTINCT sale_details.sale_id) as sale_count')
+            ->first();
+
+        $soldQty = (int) ($salesData->sold_qty ?? 0);
+
+        $productStats = [
+            'total_movements' => $product->inventoryMovements()->count(),
+            'total_in' => (int) $product->inventoryMovements()->where('type', 'in')->sum('quantity'),
+            'total_out' => (int) $product->inventoryMovements()->where('type', 'out')->sum('quantity'),
+            'calculated_stock' => $product->calculatedStock(),
+            'has_discrepancy' => $product->hasStockDiscrepancy(),
+            'sold_qty' => $soldQty,
+            'sold_revenue' => (float) ($salesData->sold_revenue ?? 0),
+            'sale_count' => (int) ($salesData->sale_count ?? 0),
+            'rotation_index' => $product->rotationIndex($soldQty),
+            'last_movement' => $product->inventoryMovements()->latest()->first(),
+        ];
+
+        return view('inventario.show', compact('product', 'movements', 'productStats', 'periodDays'))
+            ->with('allUnits', Unit::query()->where('is_active', true)->orderBy('name')->get());
+    }
+
+    public function units(): View
+    {
+        $units = Unit::query()->withCount(['products', 'conversions'])->orderBy('unit_type')->orderBy('name')->get();
+        $unitTypes = Unit::typeOptions();
+
+        return view('inventario.units.index', compact('units', 'unitTypes'));
+    }
+
+    public function storeUnit(StoreUnitRequest $request): RedirectResponse
+    {
+        Unit::query()->create($request->validated());
+
+        return redirect()->route('inventario.units.index')->with('success', 'Unidad de medida creada.');
+    }
+
+    public function updateUnit(UpdateUnitRequest $request, Unit $unit): RedirectResponse
+    {
+        $unit->update($request->validated());
+
+        return redirect()->route('inventario.units.index')->with('success', 'Unidad de medida actualizada.');
+    }
+
+    public function storeUnitConversion(Request $request, int $id): RedirectResponse
+    {
+        $product = Product::with('baseUnit')->findOrFail($id);
+
+        if (! $product->base_unit_id) {
+            return back()->withErrors([
+                'unit_id' => 'Define primero la unidad base del producto (ej. quintal) antes de agregar conversiones.',
+            ]);
+        }
+
+        $validated = $request->validate([
+            'unit_id' => 'required|exists:units,id',
+            'equals_base_qty' => 'nullable|numeric|min:0.000001',
+            'equals_unit_id' => 'nullable|exists:units,id|different:unit_id',
+            'factor_to_base' => 'nullable|numeric|min:0.000001',
+            'sale_price' => 'nullable|numeric|min:0',
+            'is_default_sale_unit' => 'boolean',
+        ], [
+            'unit_id.required' => 'Selecciona la presentación (ej. ristra o caja).',
+            'equals_base_qty.min' => 'Indica cuánto contiene 1 de esa presentación.',
+            'equals_unit_id.different' => 'La equivalencia debe ser otra unidad, no la misma presentación.',
+        ]);
+
+        $equalsQty = (float) ($validated['equals_base_qty'] ?? $validated['factor_to_base'] ?? 0);
+        $equalsUnitId = isset($validated['equals_unit_id']) ? (int) $validated['equals_unit_id'] : (int) $product->base_unit_id;
+
+        if ($equalsQty <= 0) {
+            return back()->withErrors([
+                'equals_base_qty' => 'Ejemplo: 1 ristra = 3 unidades, o 1 caja = 12 ristras.',
+            ])->withInput();
+        }
+
+        if ((int) $validated['unit_id'] === (int) $product->base_unit_id) {
+            return back()->withErrors(['unit_id' => 'La presentación debe ser diferente a la unidad base.']);
+        }
+
+        try {
+            $factorToBase = $this->units->convertToBase($product, $equalsQty, $equalsUnitId);
+        } catch (InvalidArgumentException) {
+            return back()->withErrors([
+                'equals_unit_id' => 'Primero configura esa unidad (ej. ristra) y después la caja.',
+            ])->withInput();
+        }
+
+        if ($factorToBase <= 0) {
+            return back()->withErrors([
+                'equals_base_qty' => 'La equivalencia debe ser mayor que cero.',
+            ])->withInput();
+        }
+
+        $altUnit = Unit::query()->find($validated['unit_id']);
+        $equalsUnit = Unit::query()->find($equalsUnitId);
+
+        if ($request->boolean('is_default_sale_unit')) {
+            $product->unitConversions()->update(['is_default_sale_unit' => false]);
+        }
+
+        ProductUnitConversion::query()->updateOrCreate(
+            ['product_id' => $product->id, 'unit_id' => $validated['unit_id']],
+            [
+                'factor_to_base' => $factorToBase,
+                'sale_price' => $validated['sale_price'] ?? null,
+                'is_default_sale_unit' => $request->boolean('is_default_sale_unit'),
+            ]
+        );
+
+        $baseLabel = $product->baseUnitLabel();
+        $altLabel = $altUnit?->abbreviation ?? 'und';
+        $equalsLabel = $equalsUnit?->abbreviation ?? $baseLabel;
+        $formattedEquals = rtrim(rtrim(number_format($equalsQty, 6, '.', ''), '0'), '.') ?: '0';
+        $formattedBase = rtrim(rtrim(number_format($factorToBase, 6, '.', ''), '0'), '.') ?: '0';
+        $message = "Conversión guardada: 1 {$altLabel} = {$formattedEquals} {$equalsLabel}";
+        if ($equalsUnitId !== (int) $product->base_unit_id) {
+            $message .= " ({$formattedBase} {$baseLabel})";
+        }
+
+        return back()->with('success', $message.'.');
+    }
+
+    public function setDefaultSaleUnit(Request $request, int $id): RedirectResponse
+    {
+        $product = Product::query()->with('unitConversions.unit', 'baseUnit')->findOrFail($id);
+        $validated = $request->validate([
+            'unit_id' => 'required|exists:units,id',
+        ], [
+            'unit_id.required' => 'Elige la presentación que se usará al vender.',
+        ]);
+
+        $unitId = (int) $validated['unit_id'];
+        $isBase = $product->base_unit_id && $unitId === (int) $product->base_unit_id;
+        $conversion = $product->unitConversions->firstWhere('unit_id', $unitId);
+
+        if (! $isBase && $conversion === null) {
+            return back()->withErrors([
+                'unit_id' => 'Esa presentación no está configurada para este producto.',
+            ]);
+        }
+
+        $product->unitConversions()->update(['is_default_sale_unit' => false]);
+
+        if ($conversion) {
+            $conversion->update(['is_default_sale_unit' => true]);
+        }
+
+        $label = $isBase
+            ? $product->baseUnitLabel()
+            : ($conversion?->unit?->abbreviation ?? 'und');
+
+        return back()->with('success', "Al vender se usará {$label} por defecto. En el POS puedes elegir otra presentación.");
+    }
+
+    public function destroyUnitConversion(int $id, ProductUnitConversion $conversion): RedirectResponse
+    {
+        $product = Product::findOrFail($id);
+        abort_unless($conversion->product_id === $product->id, 404);
+        $conversion->delete();
+
+        return back()->with('success', 'Conversión eliminada.');
+    }
+
+    public function convertUnits(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_id' => 'required|exists:products,id',
+            'quantity' => 'required|numeric|min:0',
+            'from_unit_id' => 'required|exists:units,id',
+            'to_unit_id' => 'required|exists:units,id',
+        ]);
+
+        $product = Product::with('baseUnit', 'unitConversions')->findOrFail($validated['product_id']);
+        $baseQty = $this->units->convertToBase($product, (float) $validated['quantity'], (int) $validated['from_unit_id']);
+        $converted = $this->units->convertFromBase($product, $baseQty, (int) $validated['to_unit_id']);
+
+        return response()->json([
+            'base_quantity' => $baseQty,
+            'converted_quantity' => $converted,
+            'base_unit' => $product->baseUnitLabel(),
+        ]);
+    }
+
+    public function edit(int $id): View
+    {
+        $product = Product::findOrFail($id);
+        $categories = Category::orderBy('name')->get();
+        $taxes = Tax::where('is_active', true)->orderBy('rate')->get();
+        $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
+
+        return view('inventario.edit', compact('product', 'categories', 'taxes', 'units'));
+    }
+
+    public function update(Request $request, int $id): RedirectResponse
+    {
+        $product = Product::findOrFail($id);
+
+        $validated = $request->validate([
+            'category_id' => 'required|exists:categories,id',
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:products,code,'.$product->id,
+            'description' => 'nullable|string|max:1000',
+            'purchase_price' => 'required|numeric|min:0',
+            'sale_price' => 'required|numeric|min:0',
+            'tax_id' => 'nullable|exists:taxes,id',
+            'unit' => 'nullable|string|max:50',
+            'base_unit_id' => 'required|exists:units,id',
+            'lot' => 'nullable|string|max:100',
+            'expiry_date' => 'nullable|date',
+            'location' => 'nullable|string|max:255',
+            'low_stock_threshold' => 'nullable|integer|min:1',
+            'registration_number' => 'nullable|string|max:100',
+            'active_ingredient' => 'nullable|string|max:255',
+            'concentration' => 'nullable|string|max:100',
+            'status' => 'required|in:active,inactive,discontinued',
+            'observations' => 'nullable|string|max:2000',
+            'discount_pct' => 'nullable|numeric|min:0|max:100',
+            'discount_label' => 'nullable|string|max:100',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
+            'remove_image' => 'nullable|boolean',
+        ]);
+
+        $oldImagePath = $product->getRawOriginal('image_url');
+        $newImagePath = $request->file('image')?->store('products', 'public');
+        $removeImage = $request->boolean('remove_image');
+
+        unset($validated['image'], $validated['remove_image']);
+
+        if ($newImagePath) {
+            $validated['image_url'] = $newImagePath;
+        } elseif ($removeImage) {
+            $validated['image_url'] = null;
+        }
+
+        $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
+        $validated['base_unit_id'] = $baseUnit?->id;
+        $validated['unit'] = $baseUnit?->abbreviation ?? ($validated['unit'] ?? $product->unit);
+
+        try {
+            $product->update($validated);
+            $this->pricing->syncProductToDefaultList($product->fresh());
+        } catch (Throwable $exception) {
+            $this->deleteProductImage($newImagePath);
+
+            throw $exception;
+        }
+
+        if (($newImagePath || $removeImage) && $oldImagePath !== $newImagePath) {
+            $this->deleteProductImage($oldImagePath);
+        }
+
+        return redirect()->route('inventario.index')->with('success', 'Producto actualizado correctamente.');
+    }
+
+    public function destroy(int $id): RedirectResponse
+    {
+        $product = Product::findOrFail($id);
+
+        if ($product->purchaseDetails()->exists() || $product->saleDetails()->exists()) {
+            return redirect()->route('inventario.index')
+                ->with('error', 'No se puede eliminar el producto porque tiene movimientos asociados.');
+        }
+
+        $product->delete();
+
+        return redirect()->route('inventario.index')->with('success', 'Producto eliminado correctamente.');
+    }
+
+    public function export(Request $request)
+    {
+        $products = Product::with('category')
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get();
+
+        $csv = "Codigo,Nombre,Categoria,Lote,Vencimiento,Stock,Ubicacion,Precio Compra,Precio Venta,Estado\n";
+
+        foreach ($products as $product) {
+            $csv .= sprintf(
+                "%s,\"%s\",\"%s\",%s,%s,%d,\"%s\",%.2f,%.2f,%s\n",
+                $product->code,
+                str_replace('"', '""', $product->name),
+                str_replace('"', '""', $product->category?->name ?? ''),
+                $product->lot ?? '',
+                $product->expiry_date?->format('d/m/Y') ?? '',
+                $product->stock,
+                $product->location ?? '',
+                $product->purchase_price,
+                $product->sale_price,
+                $product->status_label
+            );
+        }
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="inventario_'.now()->format('Ymd_His').'.csv"',
+        ]);
+    }
+
+    private function deleteProductImage(?string $path): void
+    {
+        if ($path && str_starts_with($path, 'products/')) {
+            Storage::disk('public')->delete($path);
+        }
+    }
+
+    /** @return list<int> */
+    private function discrepantProductIds(): array
+    {
+        return DB::table('products')
+            ->leftJoinSub(
+                DB::table('inventory_movements')
+                    ->select('product_id')
+                    ->selectRaw("SUM(CASE WHEN type = 'in' THEN quantity ELSE -quantity END) as calculated")
+                    ->groupBy('product_id'),
+                'movements_sum',
+                'movements_sum.product_id',
+                '=',
+                'products.id'
+            )
+            ->whereRaw('products.stock != COALESCE(movements_sum.calculated, 0)')
+            ->pluck('products.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * @return Collection<int, Warehouse>
+     */
+    private function activeWarehouses()
+    {
+        return Warehouse::query()
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function validatedShelf(mixed $shelfId, ?int $warehouseId): ?WarehouseShelf
+    {
+        if (! $shelfId) {
+            return null;
+        }
+
+        return WarehouseShelf::query()
+            ->whereKey($shelfId)
+            ->where('warehouse_id', $warehouseId ?: Warehouse::default()?->id)
+            ->where('is_active', true)
+            ->firstOrFail();
+    }
+
+    private function assignProductLocation(Product $product, ?int $warehouseId, ?WarehouseShelf $shelf): void
+    {
+        $resolvedWarehouseId = $warehouseId ?: Warehouse::default()?->id;
+        if (! $resolvedWarehouseId) {
+            return;
+        }
+
+        $stock = WarehouseStock::query()->firstOrCreate(
+            ['product_id' => $product->id, 'warehouse_id' => $resolvedWarehouseId],
+            ['quantity' => 0]
+        );
+        $stock->update(['aisle' => $shelf?->code]);
+    }
+
+    /**
+     * @return list<array{warehouse_id: ?int, shelf: ?WarehouseShelf, quantity: float}>
+     */
+    private function initialLocations(array $validated): array
+    {
+        $rows = $validated['locations'] ?? [[
+            'warehouse_id' => $validated['warehouse_id'] ?? null,
+            'shelf_id' => $validated['shelf_id'] ?? null,
+            'quantity' => $validated['stock'] ?? 0,
+        ]];
+
+        return collect($rows)->map(function (array $row): array {
+            $warehouseId = isset($row['warehouse_id']) ? (int) $row['warehouse_id'] : null;
+
+            return [
+                'warehouse_id' => $warehouseId,
+                'shelf' => $this->validatedShelf($row['shelf_id'] ?? null, $warehouseId),
+                'quantity' => (float) ($row['quantity'] ?? 0),
+            ];
+        })->values()->all();
+    }
+
+    private function resolveBaseUnit(mixed $baseUnitId, ?string $abbreviation = null): ?Unit
+    {
+        if ($baseUnitId) {
+            return Unit::query()->find((int) $baseUnitId);
+        }
+
+        if ($abbreviation) {
+            $normalized = strtolower(trim($abbreviation));
+            $aliases = ['unidad' => 'und', 'unid' => 'und', 'u' => 'und'];
+            $candidates = array_values(array_unique([
+                $aliases[$normalized] ?? $normalized,
+                $normalized,
+            ]));
+
+            return Unit::query()->whereIn('abbreviation', $candidates)->first();
+        }
+
+        return Unit::query()->where('abbreviation', 'und')->first();
+    }
+
+    private function buildStats(): array
+    {
+        return [
+            'total_products' => Product::where('status', 'active')->count(),
+            'low_stock_count' => Product::where('status', 'active')
+                ->whereRaw('stock <= COALESCE(low_stock_threshold, 10)')
+                ->count(),
+            'expired_count' => Product::where('status', 'active')
+                ->whereNotNull('expiry_date')
+                ->whereDate('expiry_date', '<', now())
+                ->count(),
+            'expiring_soon_count' => Product::where('status', 'active')
+                ->whereNotNull('expiry_date')
+                ->whereDate('expiry_date', '>=', now())
+                ->whereDate('expiry_date', '<=', now()->addDays(30))
+                ->count(),
+            'out_of_stock_count' => Product::where('status', 'active')->where('stock', '<=', 0)->count(),
+            'total_inventory_value' => Product::where('status', 'active')
+                ->selectRaw('SUM(stock * purchase_price) as total_value')
+                ->value('total_value') ?? 0,
+            'total_sale_value' => Product::where('status', 'active')
+                ->selectRaw('SUM(stock * sale_price) as total_value')
+                ->value('total_value') ?? 0,
+        ];
+    }
+
+    private function applySorting($query, Request $request): void
+    {
+        $sortBy = $request->query('sort_by', 'name');
+        $sortOrder = $request->query('sort_order', 'asc');
+        $allowed = ['name', 'code', 'stock', 'sale_price', 'expiry_date', 'created_at', 'sold_qty', 'rotation_index'];
+
+        if (in_array($sortBy, $allowed, true)) {
+            $query->orderBy($sortBy, $sortOrder === 'desc' ? 'desc' : 'asc');
+        } else {
+            $query->orderBy('name');
+        }
+    }
+}

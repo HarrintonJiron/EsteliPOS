@@ -1,0 +1,262 @@
+<?php
+
+namespace App\Models;
+
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class Product extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected function casts(): array
+    {
+        return [
+            'expiry_date' => 'date:Y-m-d',
+        ];
+    }
+
+    protected $fillable = [
+        'category_id',
+        'name',
+        'code',
+        'description',
+        'purchase_price',
+        'sale_price',
+        'stock',
+        'unit',
+        'lot',
+        'expiry_date',
+        'location',
+        'low_stock_threshold',
+        'registration_number',
+        'active_ingredient',
+        'concentration',
+        'status',
+        'observations',
+        'image_url',
+        'discount_pct',
+        'discount_label',
+        'tax_id',
+        'base_unit_id',
+    ];
+
+    public function effectivePrice(): float
+    {
+        if ((float) $this->discount_pct > 0) {
+            return round((float) $this->sale_price * (1 - (float) $this->discount_pct / 100), 2);
+        }
+
+        return (float) $this->sale_price;
+    }
+
+    public function getImageUrlAttribute(?string $value): ?string
+    {
+        if (! $value) {
+            return $value;
+        }
+
+        $path = parse_url($value, PHP_URL_PATH) ?: $value;
+
+        if (str_starts_with($path, '/storage/')) {
+            $path = substr($path, strlen('/storage/'));
+        } elseif (str_starts_with($path, '/media/')) {
+            $path = substr($path, strlen('/media/'));
+        } elseif (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+            return $value;
+        }
+
+        return '/media/'.ltrim($path, '/');
+    }
+
+    public function effectiveTaxRate(): float
+    {
+        if ($this->tax_id && $this->tax?->is_active) {
+            return (float) $this->tax->rate;
+        }
+
+        return Tax::defaultRate();
+    }
+
+    public function tax()
+    {
+        return $this->belongsTo(Tax::class);
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+    public function purchaseDetails()
+    {
+        return $this->hasMany(PurchaseDetail::class);
+    }
+
+    public function saleDetails()
+    {
+        return $this->hasMany(SaleDetail::class);
+    }
+
+    public function inventoryMovements()
+    {
+        return $this->hasMany(InventoryMovement::class);
+    }
+
+    public function calculatedStock(): float
+    {
+        $in = (float) $this->inventoryMovements()->where('type', 'in')->sum('quantity');
+        $out = (float) $this->inventoryMovements()->where('type', 'out')->sum('quantity');
+
+        return round($in - $out, 4);
+    }
+
+    public function hasStockDiscrepancy(): bool
+    {
+        return abs((float) $this->stock - $this->calculatedStock()) > 0.0001;
+    }
+
+    public function rotationIndex(int $soldQty): float
+    {
+        $base = max($this->stock, 1);
+
+        return round($soldQty / $base, 2);
+    }
+
+    public function inventoryAdjustments()
+    {
+        return $this->hasMany(InventoryAdjustment::class);
+    }
+
+    public function isLowStock(): bool
+    {
+        return $this->stock <= ($this->low_stock_threshold ?? 10);
+    }
+
+    public function isExpired(): bool
+    {
+        if (! $this->expiry_date) {
+            return false;
+        }
+
+        return Carbon::parse($this->expiry_date)->isPast();
+    }
+
+    public function expiresSoon(int $days = 30): bool
+    {
+        if (! $this->expiry_date) {
+            return false;
+        }
+
+        return Carbon::parse($this->expiry_date)->diffInDays(now()) <= $days;
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return match ($this->status) {
+            'active' => 'Activo',
+            'inactive' => 'Inactivo',
+            'discontinued' => 'Descontinuado',
+            default => $this->status,
+        };
+    }
+
+    public function getStatusColorAttribute(): string
+    {
+        return match ($this->status) {
+            'active' => 'green',
+            'inactive' => 'gray',
+            'discontinued' => 'red',
+            default => 'gray',
+        };
+    }
+
+    public function getInventoryStatusAttribute(): string
+    {
+        if ($this->isExpired()) {
+            return 'expired';
+        }
+        if ($this->expiresSoon(30)) {
+            return 'expiring_soon';
+        }
+        if ($this->isLowStock()) {
+            return 'low_stock';
+        }
+
+        return 'normal';
+    }
+
+    public function suppliers()
+    {
+        return $this->belongsToMany(
+            Supplier::class,
+            'product_supplier'
+        )
+            ->withPivot(
+                'purchase_price',
+                'supplier_code',
+                'preferred'
+            )
+            ->withTimestamps();
+    }
+
+    public function baseUnit()
+    {
+        return $this->belongsTo(Unit::class, 'base_unit_id');
+    }
+
+    public function unitConversions()
+    {
+        return $this->hasMany(ProductUnitConversion::class);
+    }
+
+    public function warehouseStocks()
+    {
+        return $this->hasMany(WarehouseStock::class);
+    }
+
+    public function priceListItems()
+    {
+        return $this->hasMany(PriceListItem::class);
+    }
+
+    public function baseUnitLabel(): string
+    {
+        return $this->baseUnit?->abbreviation ?? $this->unit ?? 'und';
+    }
+
+    public function stockInWarehouse(?int $warehouseId = null): float
+    {
+        if ($warehouseId === null) {
+            return (float) $this->stock;
+        }
+
+        return (float) ($this->warehouseStocks()
+            ->where('warehouse_id', $warehouseId)
+            ->value('quantity') ?? 0);
+    }
+
+    public function getInventoryStatusLabelAttribute(): string
+    {
+        return match ($this->inventory_status) {
+            'expired' => 'Vencido',
+            'expiring_soon' => 'Por Vencer',
+            'low_stock' => 'Bajo Stock',
+            'normal' => 'Stock Normal',
+            default => 'Desconocido',
+        };
+    }
+
+    public function toArray(): array
+    {
+        $array = parent::toArray();
+
+        if (array_key_exists('image_url', $this->attributes)) {
+            $array['image_url'] = $this->getImageUrlAttribute($this->attributes['image_url'] ?? null);
+        }
+
+        return $array;
+    }
+}
