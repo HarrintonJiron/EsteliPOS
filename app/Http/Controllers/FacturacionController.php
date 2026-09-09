@@ -619,7 +619,6 @@ class FacturacionController extends Controller
             'items.*.product_id' => [
                 'required',
                 'integer',
-                'distinct',
                 Rule::exists('products', 'id')->where(fn ($query) => $query->where('status', 'active')),
             ],
             'items.*.quantity' => ['required', 'numeric', 'min:0.0001', 'max:100000'],
@@ -627,8 +626,18 @@ class FacturacionController extends Controller
             'items.*.discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ], [
             'items.*.product_id.exists' => 'Uno de los productos ya no existe.',
-            'items.*.product_id.distinct' => 'Un producto no puede aparecer repetido en el ticket.',
         ]);
+
+        $itemsValidator->after(function ($validator) use ($items) {
+            $presentations = [];
+            foreach (is_array($items) ? $items : [] as $index => $item) {
+                $key = ($item['product_id'] ?? '').':'.($item['unit_id'] ?? 'base');
+                if (isset($presentations[$key])) {
+                    $validator->errors()->add("items.{$index}.unit_id", 'La misma presentación ya aparece en el ticket; aumente la cantidad en esa línea.');
+                }
+                $presentations[$key] = true;
+            }
+        });
 
         if ($itemsValidator->fails()) {
             return back()->withErrors($itemsValidator)->withInput();

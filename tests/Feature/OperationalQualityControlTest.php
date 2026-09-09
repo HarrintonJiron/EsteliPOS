@@ -282,7 +282,7 @@ test('the pos refuses fractional boxes unless the presentation allows them', fun
         ->and((float) $context['product']->fresh()->stock)->toBe(72.0);
 });
 
-test('the pos still rejects two ticket lines of the same product even with different units', function () {
+test('the pos invoices two presentations of one product and deducts their combined base quantity', function () {
     $context = qaPresentedProduct();
     $warehouse = $context['warehouse'];
     $product = $context['product'];
@@ -318,11 +318,16 @@ test('the pos still rejects two ticket lines of the same product even with diffe
             'amount_received' => 300,
             'order_discount_pct' => 0,
         ])
-        ->assertRedirect(route('facturacion.pos'))
-        ->assertSessionHasErrors('items.1.product_id');
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
 
-    expect(Sale::query()->count())->toBe(0)
-        ->and((float) $product->fresh()->stock)->toBe(72.0);
+    $sale = Sale::query()->with('details')->latest('id')->firstOrFail();
+
+    expect($sale->details)->toHaveCount(2)
+        ->and($sale->details->pluck('unit_id')->all())->toContain($context['ristra']->id, $context['caja']->id)
+        ->and((float) $sale->details->sum('base_quantity'))->toBe(39.0)
+        ->and((float) $product->fresh()->stock)->toBe(33.0)
+        ->and((float) WarehouseStock::query()->where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->value('quantity'))->toBe(33.0);
 });
 
 test('the pos screen exposes the presentation selector for products with sale units', function () {

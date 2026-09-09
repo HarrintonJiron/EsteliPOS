@@ -60,7 +60,7 @@ beforeEach(function () {
     )->update(['is_default' => true, 'is_active' => true]);
 });
 
-test('the pos rejects duplicate products in the same ticket', function () {
+test('the pos rejects the same product presentation twice in the ticket', function () {
     $user = productionSalesUser();
     $product = productionSalesProduct();
 
@@ -72,7 +72,7 @@ test('the pos rejects duplicate products in the same ticket', function () {
         ]),
         'amount_received' => 500,
     ])->assertRedirect(route('facturacion.pos'))
-        ->assertSessionHasErrors('items.1.product_id');
+        ->assertSessionHasErrors('items.1.unit_id');
 
     expect(Sale::count())->toBe(0)
         ->and($product->fresh()->stock)->toBe(10);
