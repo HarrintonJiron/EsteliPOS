@@ -67,6 +67,31 @@ test('purchase and proforma use separate entry buttons without a record type sel
         ->assertDontSee('Tipo de registro');
 });
 
+test('purchases receive unique persisted document numbers from the configured sequence', function () {
+    $context = purchaseProformaContext();
+
+    foreach ([10, 20] as $price) {
+        $this->actingAs($context['admin'])->post(route('compras.store'), [
+            'supplier_id' => $context['supplier']->id,
+            'warehouse_id' => $context['warehouse']->id,
+            'date' => now()->toDateString(),
+            'purchase_mode' => 'proforma',
+            'payment_type' => 'credit',
+            'currency' => 'NIO',
+            'exchange_rate' => 1,
+            'items' => [[
+                'product_id' => $context['product']->id,
+                'unit_id' => $context['unit']->id,
+                'quantity' => 1,
+                'price' => $price,
+            ]],
+        ])->assertRedirect(route('compras.index'));
+    }
+
+    expect(Purchase::query()->orderBy('id')->pluck('document_number')->all())
+        ->toBe(['COM-000001', 'COM-000002']);
+});
+
 test('a purchase proforma stays in process without inventory or accounting effects', function () {
     $context = purchaseProformaContext();
 

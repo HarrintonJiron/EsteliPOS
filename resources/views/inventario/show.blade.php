@@ -27,7 +27,7 @@
     <div class="card p-4 border border-amber-300 bg-amber-50 flex items-center justify-between">
         <div>
             <p class="font-semibold text-amber-800">Discrepancia de stock detectada</p>
-            <p class="text-sm text-amber-700">Registrado: <strong>{{ $product->stock }}</strong> · Según kardex: <strong>{{ $productStats['calculated_stock'] }}</strong></p>
+            <p class="text-sm text-amber-700">Registrado: <strong>{{ $product->stock }}</strong> · Según {{ $productStats['stock_source'] }}: <strong>{{ $productStats['calculated_stock'] }}</strong></p>
         </div>
         @if(auth()->user()?->isAdmin())
         <form action="{{ route('inventario.reconcile') }}" method="POST">
@@ -176,7 +176,7 @@
                 </div>
 
                 <div class="p-3 bg-slate-50 rounded-xl">
-                    <p class="text-xs text-slate-500">Stock según kardex</p>
+                    <p class="text-xs text-slate-500">Stock según {{ $productStats['stock_source'] }}</p>
                     <p class="text-xl font-bold {{ $productStats['has_discrepancy'] ? 'text-amber-600' : 'text-emerald-600' }}">{{ $productStats['calculated_stock'] }}</p>
                 </div>
             </div>

@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\AccountingService;
 use App\Services\CreditOverrideService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -39,6 +40,16 @@ function productionSalesProduct(int $stock = 10, float $price = 100): Product
         'unit' => 'unidad',
         'status' => 'active',
     ]);
+}
+
+function posPayload(Product $product, array $overrides = []): array
+{
+    return array_merge([
+        'payment_type' => 'cash',
+        'items' => json_encode([['product_id' => $product->id, 'quantity' => 1, 'discount' => 0]]),
+        'amount_received' => 500,
+        'request_token' => (string) Str::uuid(),
+    ], $overrides);
 }
 
 beforeEach(function () {
@@ -245,4 +256,34 @@ test('the pos caps its initial catalog and can search products beyond that limit
     $this->actingAs($user)->getJson(route('facturacion.pos-products', ['search' => 'VOL-5000']))
         ->assertOk()
         ->assertJsonPath('0.code', 'VOL-5000');
+});
+
+test('repeating the same pos request does not duplicate the sale or inventory exit', function () {
+    $user = productionSalesUser();
+    $product = productionSalesProduct();
+    $payload = posPayload($product);
+    $accounting = Mockery::mock(AccountingService::class);
+    $accounting->shouldReceive('recordSale')->once();
+    app()->instance(AccountingService::class, $accounting);
+
+    $this->actingAs($user)->post(route('facturacion.pos-store'), $payload)->assertRedirect();
+    $this->actingAs($user)->post(route('facturacion.pos-store'), $payload)
+        ->assertRedirect()
+        ->assertSessionHas('success', 'La venta ya había sido procesada; no se duplicó.');
+
+    expect(Sale::query()->count())->toBe(1)
+        ->and(InventoryMovement::query()->where('type', 'out')->count())->toBe(1)
+        ->and((float) $product->fresh()->stock)->toBe(9.0);
+});
+
+test('the pos rejects inactive products submitted outside the catalog', function () {
+    $user = productionSalesUser();
+    $product = productionSalesProduct();
+    $product->update(['status' => 'inactive']);
+
+    $this->actingAs($user)->post(route('facturacion.pos-store'), posPayload($product))
+        ->assertSessionHasErrors('items.0.product_id');
+
+    expect(Sale::query()->count())->toBe(0)
+        ->and((float) $product->fresh()->stock)->toBe(10.0);
 });

@@ -21,11 +21,13 @@ use App\Services\InventoryService;
 use App\Services\PosCatalogService;
 use App\Services\PricingService;
 use App\Services\PurchaseCostingService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 class FacturacionController extends Controller
@@ -608,12 +610,18 @@ class FacturacionController extends Controller
             'amount_received' => 'nullable|numeric|min:0',
             'order_discount_pct' => 'nullable|numeric|min:0|max:100',
             'credit_override_token' => ['nullable', 'string', 'size:64'],
+            'request_token' => ['nullable', 'uuid'],
         ]);
 
         $items = json_decode($validated['items'], true);
         $itemsValidator = Validator::make(['items' => $items], [
             'items' => ['required', 'array', 'min:1', 'max:200'],
-            'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
+            'items.*.product_id' => [
+                'required',
+                'integer',
+                'distinct',
+                Rule::exists('products', 'id')->where(fn ($query) => $query->where('status', 'active')),
+            ],
             'items.*.quantity' => ['required', 'numeric', 'min:0.0001', 'max:100000'],
             'items.*.unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'items.*.discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -626,9 +634,22 @@ class FacturacionController extends Controller
             return back()->withErrors($itemsValidator)->withInput();
         }
         $items = $itemsValidator->validated()['items'];
+        usort($items, fn (array $left, array $right) => ((int) $left['product_id']) <=> ((int) $right['product_id']));
 
         $sale = null;
         $userId = $request->user()?->id ?? 1;
+
+        $existingSale = filled($validated['request_token'] ?? null)
+            ? Sale::query()
+                ->where('request_token', $validated['request_token'])
+                ->where('user_id', $userId)
+                ->first()
+            : null;
+        if ($existingSale) {
+            return redirect()->route('facturacion.change', ['saleId' => $existingSale->id])
+                ->with('changeAmount', (float) $existingSale->change_amount)
+                ->with('success', 'La venta ya había sido procesada; no se duplicó.');
+        }
 
         try {
             DB::transaction(function () use ($validated, $items, &$sale, $userId) {
@@ -667,6 +688,7 @@ class FacturacionController extends Controller
 
                 $sale = Sale::create([
                     'invoice_number' => $invoiceNumber,
+                    'request_token' => $validated['request_token'] ?? null,
                     'client_id' => $client->id,
                     'user_id' => $userId,
                     'caja_session_id' => CajaSession::currentForUser($userId)?->id,
@@ -815,6 +837,21 @@ class FacturacionController extends Controller
             });
         } catch (\RuntimeException $e) {
             return back()->withErrors(['items' => $e->getMessage()]);
+        } catch (UniqueConstraintViolationException $e) {
+            $existingSale = filled($validated['request_token'] ?? null)
+                ? Sale::query()
+                    ->where('request_token', $validated['request_token'])
+                    ->where('user_id', $userId)
+                    ->first()
+                : null;
+
+            if (! $existingSale) {
+                throw $e;
+            }
+
+            return redirect()->route('facturacion.change', ['saleId' => $existingSale->id])
+                ->with('changeAmount', (float) $existingSale->change_amount)
+                ->with('success', 'La venta ya había sido procesada; no se duplicó.');
         }
 
         if ($sale) {

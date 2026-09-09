@@ -18,8 +18,10 @@
         ]"
     >
         <x-slot:actions>
-            <a href="{{ route('compras.proformas.create') }}" class="ex-btn">Proforma compras</a>
-            <a href="{{ route('compras.create') }}" class="ex-btn ex-btn--solid">+ Nueva compra</a>
+            @if(auth()->user()?->isAdmin() || auth()->user()?->hasPermission('compras.create'))
+                <a href="{{ route('compras.proformas.create') }}" class="ex-btn">Proforma compras</a>
+                <a href="{{ route('compras.create') }}" class="ex-btn ex-btn--solid">+ Nueva compra</a>
+            @endif
         </x-slot:actions>
     </x-ui.command-hero>
 
@@ -119,15 +121,17 @@
                             <td class="px-4 py-3">
                                 <div class="flex flex-wrap justify-end gap-2">
                                     <a href="{{ route('compras.show', $purchase->id) }}" class="text-indigo-600 hover:underline">Ver</a>
-                                    @if($purchase->status !== 'canceled')
+                                    @if($purchase->status !== 'canceled' && (auth()->user()?->isAdmin() || auth()->user()?->hasPermission('compras.edit')))
                                         <a href="{{ route('compras.edit', $purchase->id) }}" class="text-slate-600 hover:underline">Editar</a>
                                     @endif
                                     @include('compras._status_actions', ['purchase' => $purchase, 'compact' => true])
-                                    <form action="{{ route('compras.destroy', $purchase->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Eliminar esta compra? Se revertirá el inventario si la mercadería ya había ingresado.')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 hover:underline">Eliminar</button>
-                                    </form>
+                                    @if(auth()->user()?->isAdmin() || auth()->user()?->hasPermission('compras.delete'))
+                                        <form action="{{ route('compras.destroy', $purchase->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Eliminar esta compra? Se revertirá el inventario si la mercadería ya había ingresado.')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="text-red-600 hover:underline">Eliminar</button>
+                                        </form>
+                                    @endif
                                 </div>
                             </td>
                         </tr>

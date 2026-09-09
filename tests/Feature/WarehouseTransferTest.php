@@ -1,10 +1,12 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Models\WarehouseStock;
 use App\Services\InventoryService;
 use Database\Seeders\InventoryCatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -63,4 +65,64 @@ test('internal transfers page loads and can move stock between warehouses', func
         ->assertOk()
         ->assertSee('Bloque 6"')
         ->assertSee('Reposición mostrador');
+});
+
+test('inventory reconciliation uses warehouse totals instead of incomplete movement history', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
+    $category = Category::firstOrCreate(['name' => 'Reconciliación QA']);
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Inventario heredado',
+        'code' => 'QA-LEGACY-STOCK',
+        'purchase_price' => 10,
+        'sale_price' => 15,
+        'stock' => 3,
+        'unit' => 'und',
+        'status' => 'active',
+    ]);
+    WarehouseStock::query()->create([
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 20,
+    ]);
+
+    $result = app(InventoryService::class)->reconcileAll(true);
+
+    expect($result['fixed'])->toBe(1)
+        ->and((float) $product->fresh()->stock)->toBe(20.0);
+});
+
+test('inventory reconciliation endpoint audits corrected values', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = transferAdmin();
+    $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
+    $category = Category::firstOrCreate(['name' => 'Auditoría reconciliación']);
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto auditable',
+        'code' => 'QA-AUDIT-STOCK',
+        'purchase_price' => 10,
+        'sale_price' => 15,
+        'stock' => 2,
+        'unit' => 'und',
+        'status' => 'active',
+    ]);
+    WarehouseStock::query()->create([
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 9,
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('inventario.reconcile'))
+        ->assertRedirect(route('inventario.dashboard'));
+
+    $audit = AuditLog::query()->where('action', 'inventory.reconciled')->firstOrFail();
+    expect((float) $product->fresh()->stock)->toBe(9.0)
+        ->and($audit->new_values['products'][0])->toMatchArray([
+            'product_id' => $product->id,
+            'recorded' => 2.0,
+            'corrected' => 9.0,
+        ]);
 });

@@ -321,28 +321,84 @@ test('invalid proforma fields are rejected without partial database writes', fun
         ->and(InventoryMovement::query()->count())->toBe(0);
 });
 
-test('usd proformas currently accept a one-to-one manual rate when no catalog rate exists', function () {
+test('purchase totals that exceed database precision are rejected without writes', function () {
     $context = proformaAuditContext();
-    $purchase = createAuditProforma($context, [
+
+    $this->actingAs($context['admin'])
+        ->from(route('compras.proformas.create'))
+        ->post(route('compras.store'), [
+            'supplier_id' => $context['supplier']->id,
+            'warehouse_id' => $context['warehouse']->id,
+            'date' => now()->toDateString(),
+            'purchase_mode' => 'proforma',
+            'payment_type' => 'credit',
+            'currency' => 'USD',
+            'exchange_rate' => 40,
+            'items' => [[
+                'product_id' => $context['product']->id,
+                'unit_id' => $context['unit']->id,
+                'quantity' => 100,
+                'price' => 50000,
+            ]],
+        ])
+        ->assertRedirect(route('compras.proformas.create'))
+        ->assertSessionHas('error');
+
+    expect(Purchase::query()->count())->toBe(0)
+        ->and(PurchaseDetail::query()->count())->toBe(0);
+});
+
+test('usd proformas reject a one-to-one fallback when no catalog rate exists', function () {
+    $context = proformaAuditContext();
+    $payload = [
+        'supplier_id' => $context['supplier']->id,
+        'warehouse_id' => $context['warehouse']->id,
+        'date' => now()->toDateString(),
+        'purchase_mode' => 'proforma',
+        'payment_type' => 'credit',
         'currency' => 'USD',
         'exchange_rate' => 1,
-    ]);
+        'items' => [[
+            'product_id' => $context['product']->id,
+            'unit_id' => $context['unit']->id,
+            'quantity' => 2,
+            'price' => 10,
+        ]],
+    ];
 
-    expect($purchase->currency)->toBe('USD')
-        ->and((float) $purchase->exchange_rate)->toBe(1.0)
-        ->and((float) $purchase->total)->toBe((float) $purchase->foreign_total);
+    $this->actingAs($context['admin'])
+        ->from(route('compras.proformas.create'))
+        ->post(route('compras.store'), $payload)
+        ->assertRedirect(route('compras.proformas.create'))
+        ->assertSessionHas('error');
+
+    expect(Purchase::query()->count())->toBe(0);
 });
 
-test('inactive products are currently accepted when the request bypasses the UI search', function () {
+test('inactive products are rejected when the request bypasses the UI search', function () {
     $context = proformaAuditContext();
     $context['product']->update(['status' => 'inactive']);
-    $purchase = createAuditProforma($context);
 
-    expect($purchase->status)->toBe('ordered')
-        ->and($purchase->details()->where('product_id', $context['product']->id)->exists())->toBeTrue();
+    $this->actingAs($context['admin'])->post(route('compras.store'), [
+        'supplier_id' => $context['supplier']->id,
+        'warehouse_id' => $context['warehouse']->id,
+        'date' => now()->toDateString(),
+        'purchase_mode' => 'proforma',
+        'payment_type' => 'credit',
+        'currency' => 'NIO',
+        'exchange_rate' => 1,
+        'items' => [[
+            'product_id' => $context['product']->id,
+            'unit_id' => $context['unit']->id,
+            'quantity' => 2,
+            'price' => 10,
+        ]],
+    ])->assertSessionHasErrors('items.0.product_id');
+
+    expect(Purchase::query()->count())->toBe(0);
 });
 
-test('purchase proforma mutations currently leave no audit-log record', function () {
+test('purchase proforma mutations create audit-log records', function () {
     $context = proformaAuditContext();
     $purchase = createAuditProforma($context);
 
@@ -351,10 +407,57 @@ test('purchase proforma mutations currently leave no audit-log record', function
         'payment_type' => 'cash',
     ])->assertSessionHas('success');
 
-    expect(AuditLog::query()->where('model_type', Purchase::class)->where('model_id', $purchase->id)->exists())->toBeFalse();
+    expect(AuditLog::query()->where('model_type', Purchase::class)->where('model_id', $purchase->id)->pluck('action')->all())
+        ->toContain('purchase_proforma.created', 'purchase_proforma.received');
 });
 
-test('the purchases list currently exposes mutation controls to a view-only user', function () {
+test('a stale proforma edit cannot return a received purchase to ordered status', function () {
+    $context = proformaAuditContext();
+    $purchase = createAuditProforma($context);
+
+    $this->actingAs($context['admin'])->post(route('compras.status', $purchase), [
+        'status' => 'received',
+        'payment_type' => 'cash',
+    ])->assertSessionHas('success');
+
+    $this->actingAs($context['admin'])->put(route('compras.update', $purchase), [
+        'supplier_id' => $context['supplier']->id,
+        'warehouse_id' => $context['warehouse']->id,
+        'date' => now()->toDateString(),
+        'purchase_mode' => 'proforma',
+        'payment_type' => 'credit',
+        'currency' => 'NIO',
+        'exchange_rate' => 1,
+        'items' => [[
+            'product_id' => $context['product']->id,
+            'unit_id' => $context['unit']->id,
+            'quantity' => 99,
+            'price' => 1,
+        ]],
+    ])->assertSessionHas('error');
+
+    expect($purchase->fresh()->status)->toBe('completed')
+        ->and((float) $purchase->details()->firstOrFail()->quantity)->toBe(2.0);
+});
+
+test('an open proforma does not change the supplier master cost before receipt', function () {
+    $context = proformaAuditContext();
+    $context['product']->suppliers()->attach($context['supplier']->id, ['purchase_price' => 7.5]);
+
+    createAuditProforma($context, [
+        'items' => [[
+            'product_id' => $context['product']->id,
+            'unit_id' => $context['unit']->id,
+            'quantity' => 2,
+            'price' => 99,
+        ]],
+    ]);
+
+    expect((float) $context['product']->suppliers()->firstOrFail()->pivot->purchase_price)->toBe(7.5)
+        ->and((float) $context['product']->fresh()->purchase_price)->toBe(10.0);
+});
+
+test('the purchases list hides mutation controls from a view-only user', function () {
     $context = proformaAuditContext();
     $purchase = createAuditProforma($context);
     $viewerRole = Role::query()->create([
@@ -376,9 +479,10 @@ test('the purchases list currently exposes mutation controls to a view-only user
     $this->actingAs($viewer)
         ->get(route('compras.index'))
         ->assertOk()
-        ->assertSee(route('compras.proformas.create'), false)
-        ->assertSee(route('compras.edit', $purchase), false)
-        ->assertSee(route('compras.destroy', $purchase), false);
+        ->assertDontSee(route('compras.proformas.create'), false)
+        ->assertDontSee(route('compras.edit', $purchase), false)
+        ->assertDontSee('¿Eliminar esta compra?')
+        ->assertDontSee('>Eliminar</button>', false);
 });
 
 test('supplier and product labels are escaped in proforma output', function () {

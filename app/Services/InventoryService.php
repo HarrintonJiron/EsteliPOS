@@ -102,9 +102,13 @@ class InventoryService
         $discrepancies = [];
         $fixed = 0;
 
-        Product::query()->with('inventoryMovements')->chunkById(100, function ($products) use (&$discrepancies, &$fixed, $fix) {
+        Product::query()->with('warehouseStocks')->chunkById(100, function ($products) use (&$discrepancies, &$fixed, $fix) {
             foreach ($products as $product) {
-                $calculated = $this->calculatedStock($product);
+                if ($product->warehouseStocks->isEmpty()) {
+                    continue;
+                }
+
+                $calculated = round((float) $product->warehouseStocks->sum('quantity'), 4);
 
                 if (abs((float) $product->stock - $calculated) > 0.0001) {
                     $discrepancies[] = [

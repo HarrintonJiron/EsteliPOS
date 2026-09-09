@@ -11,6 +11,7 @@ class Sale extends Model
 
     protected $fillable = [
         'invoice_number',
+        'request_token',
         'client_id',
         'user_id',
         'caja_session_id',

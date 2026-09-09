@@ -25,7 +25,7 @@
     $defaultCurrency = old('currency', $purchase?->currency ?? $companyCurrency);
     $defaultExchangeRate = old(
         'exchange_rate',
-        $purchase?->exchange_rate ?? ($exchangeRates[$defaultCurrency] ?? 1),
+        $purchase?->exchange_rate ?? ($exchangeRates[$defaultCurrency] ?? ($defaultCurrency === $companyCurrency ? 1 : '')),
     );
     $defaultPurchaseMode = old('purchase_mode', $purchase?->status === 'ordered' ? 'proforma' : $purchaseMode);
 @endphp
@@ -566,7 +566,7 @@
         return `${symbol} ${Number(value || 0).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
-    const currentRate = () => Math.max(0.000001, parseFloat(exchangeRateInput.value) || 1);
+    const currentRate = () => Math.max(0, parseFloat(exchangeRateInput.value) || 0);
 
     function syncExchangeRateFromCatalog(force = false) {
         const currency = currencySelect.value;
@@ -579,6 +579,8 @@
             if (force || !exchangeRateInput.value || Number(exchangeRateInput.value) === 1) {
                 if (suggested) {
                     exchangeRateInput.value = suggested;
+                } else if (force) {
+                    exchangeRateInput.value = '';
                 }
             }
         }

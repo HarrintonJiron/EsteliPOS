@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\PurchaseRequest;
 use App\Http\Requests\UpdatePurchaseStatusRequest;
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\InventoryMovement;
+use App\Models\NumberSequence;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseDetail;
@@ -296,8 +298,17 @@ class CompraController extends Controller
                     throw new RuntimeException('La proforma debe conservar al menos un producto. Puedes anularla si ya no la necesitas.');
                 }
 
+                $oldValues = $purchase->toArray();
+                $removedValues = $detail->toArray();
                 $detail->delete();
                 $this->recalculatePurchaseTotals($purchase);
+                AuditLog::log(
+                    'purchase_proforma.line_deleted',
+                    "Producto eliminado de proforma de compra #{$purchase->id}",
+                    $purchase,
+                    array_merge($oldValues, ['removed_line' => $removedValues]),
+                    $purchase->fresh()->toArray(),
+                );
             });
         } catch (RuntimeException $e) {
             if ($e instanceof HttpExceptionInterface) {
@@ -335,9 +346,11 @@ class CompraController extends Controller
                     $data['currency'],
                     isset($data['exchange_rate']) ? (float) $data['exchange_rate'] : null,
                 );
+                $this->assertPurchaseAmountsFitStorage($data['items'], $exchangeRate);
 
                 $settlement = $this->resolveSettlement($data);
                 $purchase = Purchase::create([
+                    'document_number' => NumberSequence::getNext('compra'),
                     'supplier_id' => $data['supplier_id'],
                     'user_id' => $request->user()?->id ?? ($data['user_id'] ?? 1),
                     'warehouse_id' => $warehouseId,
@@ -363,6 +376,13 @@ class CompraController extends Controller
                 );
                 $this->assertSupplierCreditAvailable($purchase->fresh());
                 $this->accountingService->recordPurchase($purchase->fresh());
+                AuditLog::log(
+                    $purchase->status === 'ordered' ? 'purchase_proforma.created' : 'purchase.created',
+                    "Compra #{$purchase->id} creada",
+                    $purchase,
+                    null,
+                    $purchase->fresh()->toArray(),
+                );
             });
         } catch (RuntimeException|\InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -437,15 +457,25 @@ class CompraController extends Controller
     public function update(PurchaseRequest $request, $id)
     {
         $data = $request->validated();
-        $purchase = Purchase::with('details.product')->findOrFail($id);
 
         try {
-            DB::transaction(function () use ($purchase, $data) {
+            DB::transaction(function () use ($id, $data) {
+                $purchase = Purchase::query()
+                    ->with('details.product')
+                    ->lockForUpdate()
+                    ->findOrFail($id);
+                $oldValues = $purchase->toArray();
+
+                if (($data['purchase_mode'] ?? null) === 'proforma' && $purchase->status !== 'ordered') {
+                    throw new RuntimeException('La proforma cambió de estado mientras se editaba. Recarga la página antes de continuar.');
+                }
+
                 $warehouseId = $this->posCatalog->resolveWarehouseId($data['warehouse_id'] ?? $purchase->warehouse_id);
                 $exchangeRate = $this->purchaseCosting->resolveExchangeRate(
                     $data['currency'],
                     isset($data['exchange_rate']) ? (float) $data['exchange_rate'] : null,
                 );
+                $this->assertPurchaseAmountsFitStorage($data['items'], $exchangeRate);
 
                 if ($purchase->affectsInventory()) {
                     $this->reversePurchaseInventory($purchase);
@@ -474,6 +504,13 @@ class CompraController extends Controller
                 $this->assertSupplierCreditAvailable($purchase->fresh());
                 $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra editada');
                 $this->accountingService->recordPurchase($purchase->fresh());
+                AuditLog::log(
+                    $purchase->status === 'ordered' ? 'purchase_proforma.updated' : 'purchase.updated',
+                    "Compra #{$purchase->id} actualizada",
+                    $purchase,
+                    $oldValues,
+                    $purchase->fresh()->toArray(),
+                );
             });
         } catch (RuntimeException|\InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -484,10 +521,14 @@ class CompraController extends Controller
 
     public function destroy($id)
     {
-        $purchase = Purchase::with('details.product')->findOrFail($id);
-
         try {
-            DB::transaction(function () use ($purchase) {
+            DB::transaction(function () use ($id) {
+                $purchase = Purchase::query()
+                    ->with('details.product')
+                    ->lockForUpdate()
+                    ->findOrFail($id);
+                $oldValues = $purchase->toArray();
+
                 if ($purchase->affectsInventory()) {
                     $this->reversePurchaseInventory($purchase);
                 }
@@ -496,6 +537,12 @@ class CompraController extends Controller
                 $purchase->delete();
 
                 $this->accountingService->voidForSource(Purchase::class, $purchase->id, 'Compra eliminada');
+                AuditLog::log(
+                    $oldValues['status'] === 'ordered' ? 'purchase_proforma.deleted' : 'purchase.deleted',
+                    "Compra #{$purchase->id} eliminada",
+                    $purchase,
+                    $oldValues,
+                );
             });
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
@@ -594,7 +641,7 @@ class CompraController extends Controller
                 'tax_amount' => $lineTaxForeign,
             ]);
 
-            if ($resolved['base_quantity'] > 0) {
+            if ($affectInventory && $resolved['base_quantity'] > 0) {
                 $unitCostCompany = round($lineNetCompany / $resolved['base_quantity'], 4);
                 $product->suppliers()->syncWithoutDetaching([
                     $purchase->supplier_id => ['purchase_price' => $unitCostCompany],
@@ -693,9 +740,42 @@ class CompraController extends Controller
         }
     }
 
+    /**
+     * @param  list<array{product_id: int, quantity: float|int|string, price: float|int|string, unit_id?: int|null}>  $items
+     */
+    private function assertPurchaseAmountsFitStorage(array $items, float $exchangeRate): void
+    {
+        $maximum = 99999999.99;
+        $companySubtotal = 0.0;
+        $companyTaxTotal = 0.0;
+
+        foreach ($items as $item) {
+            $product = Product::query()->with(['baseUnit', 'unitConversions'])->findOrFail($item['product_id']);
+            $resolved = $this->purchaseCosting->resolveLineQuantity(
+                $product,
+                (float) $item['quantity'],
+                isset($item['unit_id']) ? (int) $item['unit_id'] : null,
+            );
+            $lineNet = round($resolved['quantity'] * (float) $item['price'], 2);
+            $lineTax = round($lineNet * ($product->effectiveTaxRate() ?? Tax::defaultRate()), 2);
+
+            if ($lineNet > $maximum || $lineTax > $maximum) {
+                throw new RuntimeException('Una línea de compra excede el importe máximo permitido. Divide la operación en varias compras.');
+            }
+
+            $companySubtotal += $this->purchaseCosting->toCompanyAmount($lineNet, $exchangeRate);
+            $companyTaxTotal += $this->purchaseCosting->toCompanyAmount($lineTax, $exchangeRate);
+        }
+
+        if ($companySubtotal > $maximum || $companyTaxTotal > $maximum || ($companySubtotal + $companyTaxTotal) > $maximum) {
+            throw new RuntimeException('El total de la compra excede el importe máximo permitido. Divide la operación en varias compras.');
+        }
+    }
+
     private function transitionPurchaseStatus(Purchase $purchase, string $newStatus, string $paymentType = 'cash'): void
     {
         $current = $purchase->status;
+        $oldValues = $purchase->toArray();
 
         if ($current === $newStatus) {
             throw new RuntimeException(
@@ -717,6 +797,13 @@ class CompraController extends Controller
                 $this->accountingService->voidForSource(SupplierPayment::class, $payment->id, 'Pago de compra anulada');
                 $payment->update(['status' => 'canceled', 'canceled_at' => now()]);
             }
+            AuditLog::log(
+                $current === 'ordered' ? 'purchase_proforma.canceled' : 'purchase.canceled',
+                "Compra #{$purchase->id} anulada",
+                $purchase,
+                $oldValues,
+                $purchase->fresh()->toArray(),
+            );
 
             return;
         }
@@ -744,6 +831,13 @@ class CompraController extends Controller
             ]);
             $this->assertSupplierCreditAvailable($purchase->fresh());
             $this->accountingService->recordPurchase($purchase->fresh());
+            AuditLog::log(
+                'purchase_proforma.received',
+                "Proforma de compra #{$purchase->id} recibida",
+                $purchase,
+                $oldValues,
+                $purchase->fresh()->toArray(),
+            );
 
             return;
         }
@@ -771,6 +865,13 @@ class CompraController extends Controller
             'status' => 'registered',
         ]);
         $this->accountingService->recordSupplierPayment($payment);
+        AuditLog::log(
+            'purchase.paid',
+            "Compra #{$purchase->id} pagada",
+            $purchase,
+            $oldValues,
+            $purchase->fresh()->toArray(),
+        );
     }
 
     private function purchaseHasStockEntry(Purchase $purchase): bool

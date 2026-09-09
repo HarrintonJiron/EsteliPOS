@@ -95,6 +95,10 @@ class PurchaseCostingService
                 throw new RuntimeException('El tipo de cambio debe ser mayor que cero.');
             }
 
+            if (abs($override - 1.0) < 0.000001 && $this->exchangeRates->resolveMultiplier($from, $to) === null) {
+                throw new RuntimeException("No hay tipo de cambio activo de {$from} a {$to}. Configúralo antes de registrar la compra.");
+            }
+
             return round($override, 6);
         }
 

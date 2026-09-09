@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreUnitRequest;
 use App\Http\Requests\UpdateUnitRequest;
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\PriceList;
 use App\Models\Product;
@@ -290,6 +291,21 @@ class InventarioController extends Controller
         }
 
         $result = $this->inventory->reconcileAll(true);
+
+        AuditLog::log(
+            'inventory.reconciled',
+            "Reconciliación de inventario: {$result['fixed']} productos corregidos",
+            null,
+            null,
+            [
+                'fixed' => $result['fixed'],
+                'products' => collect($result['discrepancies'])->map(fn (array $item) => [
+                    'product_id' => $item['product']->id,
+                    'recorded' => $item['recorded'],
+                    'corrected' => $item['calculated'],
+                ])->all(),
+            ],
+        );
 
         return redirect()->route('inventario.dashboard')
             ->with('success', "Reconciliación completada. {$result['fixed']} productos corregidos.");
@@ -603,12 +619,18 @@ class InventarioController extends Controller
 
         $soldQty = (int) ($salesData->sold_qty ?? 0);
 
+        $hasWarehouseAllocation = $product->warehouseStocks()->exists();
+        $authoritativeStock = $hasWarehouseAllocation
+            ? round((float) $product->warehouseStocks()->sum('quantity'), 4)
+            : $product->calculatedStock();
+
         $productStats = [
             'total_movements' => $product->inventoryMovements()->count(),
             'total_in' => (int) $product->inventoryMovements()->where('type', 'in')->sum('quantity'),
             'total_out' => (int) $product->inventoryMovements()->where('type', 'out')->sum('quantity'),
-            'calculated_stock' => $product->calculatedStock(),
-            'has_discrepancy' => $product->hasStockDiscrepancy(),
+            'calculated_stock' => $authoritativeStock,
+            'stock_source' => $hasWarehouseAllocation ? 'bodegas' : 'kardex',
+            'has_discrepancy' => abs((float) $product->stock - $authoritativeStock) > 0.0001,
             'sold_qty' => $soldQty,
             'sold_revenue' => (float) ($salesData->sold_revenue ?? 0),
             'sale_count' => (int) ($salesData->sale_count ?? 0),

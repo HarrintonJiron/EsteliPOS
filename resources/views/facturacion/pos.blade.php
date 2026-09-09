@@ -465,6 +465,7 @@
                 <input type="hidden" name="reference_number" id="referenceNumberInput">
                 <input type="hidden" name="order_discount_pct" id="orderDiscountPctInput" value="0">
                 <input type="hidden" name="credit_override_token" id="creditOverrideTokenInput">
+                <input type="hidden" name="request_token" id="requestTokenInput" value="{{ (string) Str::uuid() }}">
 
                 <div class="p-4 border-t border-slate-200 space-y-2 sticky bottom-0 bg-white">
                     <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl">Confirmar Pago</button>
@@ -1796,6 +1797,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('warehouseIdInput').value = selectedWarehouseId;
         document.getElementById('notesInput').value = notes;
         document.getElementById('orderDiscountPctInput').value = orderDiscountPct;
+        e.target.querySelector('button[type="submit"]').disabled = true;
         e.target.submit();
     });
 

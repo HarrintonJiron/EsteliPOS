@@ -28,6 +28,9 @@
 /coverage/
 /playwright-report/
 /test-results/
+/tmp/
+/output/
+/outputs/
 /backups/
 /storage/browser-qa/
 /deployment/parche*.zip
@@ -35,6 +38,10 @@
 /deployment/produccion*.zip
 /deployment/EsteliPOSProduccion*.zip
 /deployment/EsteliPOSProduccion*.zip.sha256
+/deployment/EsteliPOS-Consola-*.zip
+/deployment/EsteliPOS-Consola-*.zip.sha256
+/deployment/EsteliPOS-Inventario-*.zip
+/deployment/EsteliPOS-Inventario-*.zip.sha256
 Homestead.json
 Homestead.yaml
 Thumbs.db

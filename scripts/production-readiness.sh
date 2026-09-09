@@ -28,7 +28,15 @@ else
     echo "OK migraciones al día"
 fi
 
-if curl -fsS http://localhost:8080/up | grep -q 'Application up'; then
+if docker compose exec -T laravel.test php artisan app:check-integrity >/dev/null; then
+    echo "OK integridad de datos"
+else
+    echo "ERROR el diagnóstico de integridad detectó incidencias" >&2
+    failed=1
+fi
+
+app_port="$(docker compose port laravel.test 80 2>/dev/null | sed -E 's/.*:([0-9]+)$/\1/' | head -n 1)"
+if [[ -n "$app_port" ]] && curl -fsS "http://localhost:${app_port}/up" | grep -q 'Application up'; then
     echo "OK endpoint de salud"
 else
     echo "ERROR endpoint de salud" >&2
