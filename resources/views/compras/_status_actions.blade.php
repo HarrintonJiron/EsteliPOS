@@ -28,7 +28,10 @@
         @csrf
         <input type="hidden" name="status" value="completed">
         @if($compact)
-            <input type="hidden" name="payment_type" value="cash">
+            <select name="payment_type" class="rounded border border-slate-300 bg-white px-1 py-0.5 text-xs" aria-label="Forma de pago">
+                <option value="cash">Efectivo</option>
+                <option value="transfer">Transferencia</option>
+            </select>
         @else
             <select name="payment_type" class="select-field py-2 text-sm" aria-label="Forma de pago">
                 <option value="cash">Efectivo</option>

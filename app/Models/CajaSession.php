@@ -59,6 +59,11 @@ class CajaSession extends Model
         return $this->hasMany(CreditPayment::class);
     }
 
+    public function purchases()
+    {
+        return $this->hasMany(Purchase::class);
+    }
+
     public static function currentForUser(?int $userId): ?self
     {
         return $userId ? self::query()->where('opened_by', $userId)->where('status', 'open')->latest('id')->first() : null;

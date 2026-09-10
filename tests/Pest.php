@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\CajaSession;
+use App\Models\User;
 use Tests\TestCase;
 
 /*
@@ -51,4 +53,16 @@ function enableDemoSeederData(): void
 function disableDemoSeederData(): void
 {
     config(['app.seed_demo_data' => false]);
+}
+
+function openCashSessionFor(User $user): CajaSession
+{
+    return CajaSession::currentForUser($user->id)
+        ?? CajaSession::query()->create([
+            'date' => now()->toDateString(),
+            'opened_at' => now(),
+            'opened_by' => $user->id,
+            'opening_amount' => 0,
+            'status' => 'open',
+        ]);
 }

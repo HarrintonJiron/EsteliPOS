@@ -206,12 +206,12 @@
             @foreach($sale->details as $detail)
                 <article class="item">
                     <div class="item-main">
-                        <span class="item-name">{{ $detail->product?->name ?? 'Producto' }}</span>
-                        <span class="item-qty">{{ number_format($detail->quantity, 0) }}</span>
+                        <span class="item-name">{{ $detail->product?->name ?? 'Producto' }} · {{ $detail->unit?->abbreviation ?? $detail->product?->baseUnitLabel() ?? 'und' }}</span>
+                        <span class="item-qty">{{ rtrim(rtrim(number_format((float) $detail->quantity, 4, '.', ''), '0'), '.') }}</span>
                         <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($detail->subtotal, 2) }}</span>
                     </div>
                     <div class="item-meta">
-                        {{ number_format($detail->quantity, 0) }} × {{ $companyProfile['currency_symbol'] }}{{ number_format($detail->price, 2) }}
+                        {{ rtrim(rtrim(number_format((float) $detail->quantity, 4, '.', ''), '0'), '.') }} {{ $detail->unit?->abbreviation ?? $detail->product?->baseUnitLabel() ?? 'und' }} × {{ $companyProfile['currency_symbol'] }}{{ number_format($detail->price, 2) }}
                         @if((float) ($detail->discount_percentage ?? 0) > 0)
                             · Dto. {{ number_format((float) $detail->discount_percentage, 2) }}%
                         @endif

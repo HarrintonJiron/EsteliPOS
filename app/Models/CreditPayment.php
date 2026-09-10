@@ -12,6 +12,7 @@ class CreditPayment extends Model
     protected $table = 'credit_payments';
 
     protected $fillable = [
+        'request_token',
         'client_id',
         'sale_id',
         'amount',

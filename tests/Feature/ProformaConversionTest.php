@@ -4,13 +4,16 @@ use App\Http\Controllers\ProformaController;
 use App\Models\Client;
 use App\Models\Proforma;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Services\AccountingService;
+use Database\Seeders\InventoryCatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 
 uses(RefreshDatabase::class);
 
 test('converting a proforma without a client creates a generic client sale', function () {
+    $this->seed(InventoryCatalogSeeder::class);
     $user = User::create([
         'name' => 'Test User',
         'email' => 'convert@example.com',
@@ -37,7 +40,10 @@ test('converting a proforma without a client creates a generic client sale', fun
     $accounting->shouldReceive('recordSale')->once();
     app()->instance(AccountingService::class, $accounting);
 
-    $response = app(ProformaController::class)->convertToSale(new Request(['payment_type' => 'cash']), $proforma->id);
+    $response = app(ProformaController::class)->convertToSale(new Request([
+        'payment_type' => 'transfer',
+        'warehouse_id' => Warehouse::query()->where('is_default', true)->value('id'),
+    ]), $proforma->id);
 
     $genericClient = Client::where('code', 'GEN')->first();
 

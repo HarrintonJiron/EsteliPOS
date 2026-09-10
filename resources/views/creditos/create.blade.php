@@ -36,6 +36,7 @@
     {{-- Formulario --}}
     <form action="{{ route('creditos.store') }}" method="POST" class="rounded bg-white p-4 shadow sm:p-8">
         @csrf
+        <input type="hidden" name="request_token" value="{{ (string) Str::uuid() }}">
 
         <input type="hidden" name="client_id" value="{{ $client->id }}">
 

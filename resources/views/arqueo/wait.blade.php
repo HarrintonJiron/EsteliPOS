@@ -114,6 +114,10 @@
                         <p class="text-[10px] font-semibold uppercase text-slate-500">Gastos</p>
                         <p class="text-sm font-bold tabular-nums text-red-600">C$ {{ number_format($summary['operational_expenses_cash_total'], 2) }}</p>
                     </div>
+                    <div>
+                        <p class="text-[10px] font-semibold uppercase text-slate-500">Compras en efectivo</p>
+                        <p class="text-sm font-bold tabular-nums text-red-600">C$ {{ number_format($summary['cash_purchases_total'] ?? 0, 2) }}</p>
+                    </div>
                     <div class="bg-white px-3 py-2">
                         <p class="text-[10px] font-semibold uppercase text-slate-500">Esperado</p>
                         <p class="text-sm font-bold tabular-nums text-indigo-700">C$ {{ number_format($summary['expected_cash_total'], 2) }}</p>

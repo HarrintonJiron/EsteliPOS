@@ -17,6 +17,7 @@ use App\Services\CreditService;
 use Database\Seeders\ConfigurationSeeder;
 use Database\Seeders\InventoryCatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -30,6 +31,7 @@ function financialIntegrityAdmin(): User
     );
     $user = User::factory()->create(['role' => 'admin', 'is_active' => true]);
     $user->roles()->syncWithoutDetaching([$role->id]);
+    openCashSessionFor($user);
 
     return $user;
 }
@@ -157,9 +159,46 @@ test('credit payments cannot exceed debt and aging uses the outstanding balance'
             'client_id' => $client->id,
             'amount' => 70.01,
             'payment_type' => 'cash',
+            'request_token' => (string) Str::uuid(),
         ])
         ->assertRedirect(route('creditos.create', $client))
         ->assertSessionHas('error');
 
     expect((float) CreditPayment::query()->sum('amount'))->toBe(30.0);
+});
+
+test('credit payments are idempotent and cash payments belong to the open register', function () {
+    $admin = financialIntegrityAdmin();
+    $client = Client::query()->create([
+        'name' => 'Cliente abono idempotente',
+        'credit_enabled' => true,
+        'credit_limit' => 500,
+    ]);
+    Sale::query()->create([
+        'invoice_number' => 'CRED-IDEMP-001',
+        'client_id' => $client->id,
+        'user_id' => $admin->id,
+        'billing_name' => $client->name,
+        'date' => now(),
+        'payment_type' => 'credit',
+        'status' => 'pending',
+        'subtotal' => 100,
+        'tax_total' => 0,
+        'total' => 100,
+    ]);
+    $token = (string) Str::uuid();
+    $payload = [
+        'client_id' => $client->id,
+        'amount' => 25,
+        'payment_type' => 'cash',
+        'request_token' => $token,
+    ];
+
+    $this->actingAs($admin)->post(route('creditos.store'), $payload)->assertSessionHas('success');
+    $this->actingAs($admin)->post(route('creditos.store'), $payload)
+        ->assertSessionHas('success', 'El abono ya había sido registrado; no se duplicó.');
+
+    $payment = CreditPayment::query()->where('request_token', $token)->firstOrFail();
+    expect(CreditPayment::query()->where('request_token', $token)->count())->toBe(1)
+        ->and($payment->caja_session_id)->not->toBeNull();
 });

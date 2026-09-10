@@ -141,6 +141,7 @@
                     <thead class="bg-slate-800 text-white">
                         <tr>
                             <th class="px-3 py-2 text-left">Producto</th>
+                            <th class="px-3 py-2 text-left">Presentación</th>
                             <th class="px-3 py-2 text-left">Cantidad</th>
                             <th class="px-3 py-2 text-left">Precio</th>
                             <th class="px-3 py-2 text-left">Subtotal</th>
@@ -211,7 +212,9 @@
             id: p.id,
             name: p.name,
             price: parseFloat(p.sale_price ?? 0),
-            tax_rate: parseFloat(p.effective_tax_rate ?? 0)
+            tax_rate: parseFloat(p.effective_tax_rate ?? 0),
+            default_unit_id: p.default_unit_id,
+            sale_units: p.sale_units || [],
         }));
         const clients = JSON.parse(document.getElementById('invoiceApp').dataset.clients).map(c => ({
             id: c.id,
@@ -262,6 +265,11 @@
         function addRow(item){
             item = item||{};
             const i = index++;
+            const initialProduct = products.find(p => String(p.id) === String(item.product_id)) || products[0];
+            const selectedUnitId = item.unit_id ?? initialProduct?.default_unit_id;
+            const unitOptions = (initialProduct?.sale_units || []).map(unit =>
+                `<option value="${unit.id}" ${String(selectedUnitId) === String(unit.id) ? 'selected' : ''} data-price="${unit.price}">${unit.name} (${unit.abbreviation})</option>`
+            ).join('');
             const tr = document.createElement('tr'); tr.className='border-t';
             tr.innerHTML = `
                 <td class="px-4 py-2">
@@ -269,15 +277,24 @@
                         ${products.map(p=>`<option value="${p.id}" ${item.product_id==p.id?'selected':''} data-price="${p.price}" data-tax-rate="${p.tax_rate}">${p.name}</option>`).join('')}
                     </select>
                 </td>
-                <td class="px-4 py-2"><input type="number" name="items[${i}][quantity]" value="${item.quantity||1}" min="1" class="w-20"/></td>
-                <td class="px-4 py-2"><input type="number" step="0.01" name="items[${i}][price]" value="${item.price ?? (products[0]?.price ?? 0)}" class="w-28 bg-slate-100" readonly title="El precio se valida con el catálogo del sistema"/></td>
+                <td class="px-4 py-2"><select name="items[${i}][unit_id]" class="unit-select">${unitOptions}</select></td>
+                <td class="px-4 py-2"><input type="number" step="0.0001" name="items[${i}][quantity]" value="${item.quantity||1}" min="0.0001" class="w-24"/></td>
+                <td class="px-4 py-2"><input type="number" step="0.01" name="items[${i}][price]" value="${item.price ?? initialProduct?.price ?? 0}" class="w-28 bg-slate-100" readonly title="El precio se valida con el catálogo del sistema"/></td>
                 <td class="px-4 py-2 row-subtotal">${formatMoney((item.quantity||1)*(item.price||0))}</td>
                 <td class="px-4 py-2 text-center"><button type="button" class="remove-row bg-red-500 text-white px-2 py-1 rounded text-xs">Eliminar</button></td>
             `;
             document.getElementById('itemsBody').appendChild(tr);
             tr.querySelector('.product-select').addEventListener('change', function(){
-                const opt = this.selectedOptions[0];
-                tr.querySelector('[name$="[price]"]').value = opt.dataset.price;
+                const product = products.find(p => String(p.id) === String(this.value));
+                const unitSelect = tr.querySelector('.unit-select');
+                unitSelect.innerHTML = (product?.sale_units || []).map(unit =>
+                    `<option value="${unit.id}" ${String(product.default_unit_id) === String(unit.id) ? 'selected' : ''} data-price="${unit.price}">${unit.name} (${unit.abbreviation})</option>`
+                ).join('');
+                tr.querySelector('[name$="[price]"]').value = unitSelect.selectedOptions[0]?.dataset.price ?? product?.price ?? 0;
+                recalc();
+            });
+            tr.querySelector('.unit-select').addEventListener('change', function(){
+                tr.querySelector('[name$="[price]"]').value = this.selectedOptions[0]?.dataset.price ?? 0;
                 recalc();
             });
             tr.querySelectorAll('input').forEach(inp=>inp.addEventListener('input', recalc));
@@ -290,6 +307,7 @@
         // Load existing items
         sale.details.forEach(detail => addRow({
             product_id: detail.product_id,
+            unit_id: detail.unit_id,
             quantity: detail.quantity,
             price: detail.price
         }));

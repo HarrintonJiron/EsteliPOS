@@ -29,6 +29,7 @@ function proformaAuditContext(): array
     $role = Role::query()->where('slug', 'admin')->firstOrFail();
     $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
     $admin->roles()->sync([$role->id]);
+    openCashSessionFor($admin);
     $unit = Unit::query()->where('abbreviation', 'und')->firstOrFail();
     $warehouse = Warehouse::query()->where('is_default', true)->firstOrFail();
     $supplier = Supplier::query()->create([

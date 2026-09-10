@@ -81,18 +81,20 @@
                     </td>
                     <td class="font-semibold">C$ {{ number_format($sale->total, 2) }}</td>
                     <td>
-                        <span class="{{ $sale->status === 'completed' ? 'badge-success' : 'badge-warning' }}">
-                            {{ $sale->status === 'completed' ? 'Pagada' : 'Pendiente' }}
+                        <span class="{{ $sale->status === 'completed' ? 'badge-success' : ($sale->status === 'canceled' ? 'badge-danger' : 'badge-warning') }}">
+                            {{ $sale->status === 'completed' ? 'Pagada' : ($sale->status === 'canceled' ? 'Anulada' : 'Pendiente') }}
                         </span>
                     </td>
                     <td class="text-center space-x-2">
                         <a href="{{ route('facturacion.show', $sale->id) }}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">Ver</a>
                         <a href="{{ route('facturacion.receipt', $sale->id) }}" target="_blank" class="text-slate-600 hover:text-slate-800 text-sm">Recibo</a>
+                        @if($sale->status !== 'canceled')
                         <a href="{{ route('facturacion.edit', $sale->id) }}" class="text-amber-600 hover:text-amber-800 text-sm">Editar</a>
-                        @if(auth()->user()?->isAdmin())
-                        <form action="{{ route('facturacion.destroy', $sale->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Eliminar esta factura?')">
+                        @endif
+                        @if(auth()->user()?->isAdmin() && $sale->status !== 'canceled')
+                        <form action="{{ route('facturacion.destroy', $sale->id) }}" method="POST" class="inline" onsubmit="return confirm('¿Anular esta factura? Se conservará el documento y se revertirán el inventario y el asiento contable.')">
                             @csrf @method('DELETE')
-                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm">Eliminar</button>
+                            <button type="submit" class="text-red-600 hover:text-red-800 text-sm">Anular</button>
                         </form>
                         @endif
                     </td>

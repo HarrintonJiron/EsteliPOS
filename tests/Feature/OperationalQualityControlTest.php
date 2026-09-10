@@ -28,6 +28,8 @@ function qaControlAdmin(): User
     $user = User::factory()->create(['role' => 'admin', 'is_active' => true]);
     $user->roles()->sync([$role->id]);
 
+    openCashSessionFor($user);
+
     return $user;
 }
 
@@ -210,7 +212,9 @@ test('a sale keeps its original base quantity when a presentation changes later'
         ->delete(route('facturacion.destroy', $sale->id))
         ->assertRedirect(route('facturacion.index'));
 
-    expect((float) $product->fresh()->stock)->toBe(72.0);
+    expect((float) $product->fresh()->stock)->toBe(72.0)
+        ->and($sale->fresh()->status)->toBe('canceled')
+        ->and($sale->fresh()->details)->toHaveCount(1);
 });
 
 test('the pos refuses a box sale when base stock is insufficient', function () {
@@ -328,6 +332,42 @@ test('the pos invoices two presentations of one product and deducts their combin
         ->and((float) $sale->details->sum('base_quantity'))->toBe(39.0)
         ->and((float) $product->fresh()->stock)->toBe(33.0)
         ->and((float) WarehouseStock::query()->where('warehouse_id', $warehouse->id)->where('product_id', $product->id)->value('quantity'))->toBe(33.0);
+
+    $this->actingAs($context['admin'])
+        ->get(route('facturacion.receipt', $sale->id))
+        ->assertOk()
+        ->assertSee('1 ristra', false)
+        ->assertSee('1 caja', false);
+
+    $this->actingAs($context['admin'])
+        ->get(route('facturacion.edit', $sale->id))
+        ->assertOk()
+        ->assertSee('Presentación')
+        ->assertSee('unit-select', false)
+        ->assertSee('ristra', false)
+        ->assertSee('caja', false);
+
+    $this->actingAs($context['admin'])
+        ->put(route('facturacion.update', $sale->id), [
+            'client_id' => $sale->client_id,
+            'invoice_number' => $sale->invoice_number,
+            'date' => $sale->date->format('Y-m-d'),
+            'payment_type' => 'cash',
+            'tax_included' => false,
+            'billing_name' => $sale->billing_name,
+            'items' => [
+                ['product_id' => $product->id, 'unit_id' => $context['ristra']->id, 'quantity' => 1, 'price' => 1],
+                ['product_id' => $product->id, 'unit_id' => $context['caja']->id, 'quantity' => 1, 'price' => 1],
+            ],
+        ])
+        ->assertRedirect(route('facturacion.show', $sale->id))
+        ->assertSessionHasNoErrors();
+
+    $sale->refresh()->load('details');
+    expect($sale->details)->toHaveCount(2)
+        ->and($sale->details->pluck('unit_id')->all())->toContain($context['ristra']->id, $context['caja']->id)
+        ->and((float) $sale->details->sum('base_quantity'))->toBe(39.0)
+        ->and((float) $product->fresh()->stock)->toBe(33.0);
 });
 
 test('the pos screen exposes the presentation selector for products with sale units', function () {

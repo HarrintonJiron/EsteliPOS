@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\PurchaseRequest;
 use App\Http\Requests\UpdatePurchaseStatusRequest;
 use App\Models\AuditLog;
+use App\Models\CajaSession;
 use App\Models\Category;
 use App\Models\InventoryMovement;
 use App\Models\NumberSequence;
@@ -349,10 +350,14 @@ class CompraController extends Controller
                 $this->assertPurchaseAmountsFitStorage($data['items'], $exchangeRate);
 
                 $settlement = $this->resolveSettlement($data);
+                $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash'
+                    ? $this->requireOpenCashSessionId($request->user()?->id)
+                    : null;
                 $purchase = Purchase::create([
                     'document_number' => NumberSequence::getNext('compra'),
                     'supplier_id' => $data['supplier_id'],
                     'user_id' => $request->user()?->id ?? ($data['user_id'] ?? 1),
+                    'caja_session_id' => $cashSessionId,
                     'warehouse_id' => $warehouseId,
                     'date' => $data['date'],
                     'subtotal' => 0,
@@ -408,13 +413,13 @@ class CompraController extends Controller
         $paymentType = (string) ($request->validated('payment_type') ?? 'cash');
 
         try {
-            DB::transaction(function () use ($id, $newStatus, $paymentType) {
+            DB::transaction(function () use ($id, $newStatus, $paymentType, $request) {
                 $purchase = Purchase::query()
                     ->with('details.product')
                     ->lockForUpdate()
                     ->findOrFail($id);
 
-                $this->transitionPurchaseStatus($purchase, $newStatus, $paymentType);
+                $this->transitionPurchaseStatus($purchase, $newStatus, $paymentType, $request->user()?->id);
             });
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
@@ -461,10 +466,13 @@ class CompraController extends Controller
         try {
             DB::transaction(function () use ($id, $data) {
                 $purchase = Purchase::query()
-                    ->with('details.product')
+                    ->with(['details.product', 'cajaSession'])
                     ->lockForUpdate()
                     ->findOrFail($id);
                 $oldValues = $purchase->toArray();
+                if ($purchase->cajaSession && $purchase->cajaSession->status !== 'open') {
+                    throw new RuntimeException('Esta compra pertenece a una caja cerrada y no puede editarse.');
+                }
 
                 if (($data['purchase_mode'] ?? null) === 'proforma' && $purchase->status !== 'ordered') {
                     throw new RuntimeException('La proforma cambió de estado mientras se editaba. Recarga la página antes de continuar.');
@@ -484,12 +492,16 @@ class CompraController extends Controller
                 PurchaseDetail::where('purchase_id', $purchase->id)->delete();
 
                 $settlement = $this->resolveSettlement($data, $purchase);
+                $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash'
+                    ? $this->requireOpenCashSessionId(auth()->id())
+                    : null;
                 $purchase->update([
                     'supplier_id' => $data['supplier_id'],
                     'warehouse_id' => $warehouseId,
                     'date' => $data['date'],
                     'status' => $settlement['status'],
                     'payment_type' => $settlement['payment_type'],
+                    'caja_session_id' => $cashSessionId,
                     'currency' => $data['currency'],
                     'exchange_rate' => $exchangeRate,
                 ]);
@@ -772,7 +784,7 @@ class CompraController extends Controller
         }
     }
 
-    private function transitionPurchaseStatus(Purchase $purchase, string $newStatus, string $paymentType = 'cash'): void
+    private function transitionPurchaseStatus(Purchase $purchase, string $newStatus, string $paymentType = 'cash', ?int $userId = null): void
     {
         $current = $purchase->status;
         $oldValues = $purchase->toArray();
@@ -823,11 +835,15 @@ class CompraController extends Controller
                 'transfer' => 'transfer',
                 default => 'cash',
             };
+            $cashSessionId = $receivedStatus === 'completed' && $receivedPaymentType === 'cash'
+                ? $this->requireOpenCashSessionId($userId)
+                : null;
 
             $this->applyPendingInventory($purchase);
             $purchase->update([
                 'status' => $receivedStatus,
                 'payment_type' => $receivedPaymentType,
+                'caja_session_id' => $cashSessionId,
             ]);
             $this->assertSupplierCreditAvailable($purchase->fresh());
             $this->accountingService->recordPurchase($purchase->fresh());
@@ -850,9 +866,11 @@ class CompraController extends Controller
             $this->applyPendingInventory($purchase);
         }
 
+        $cashSessionId = $paymentType === 'transfer' ? null : $this->requireOpenCashSessionId($userId);
         $purchase->update([
             'status' => 'completed',
             'payment_type' => $paymentType === 'transfer' ? 'transfer' : 'cash',
+            'caja_session_id' => $cashSessionId,
         ]);
         $payment = SupplierPayment::query()->create([
             'purchase_id' => $purchase->id,
@@ -872,6 +890,16 @@ class CompraController extends Controller
             $oldValues,
             $purchase->fresh()->toArray(),
         );
+    }
+
+    private function requireOpenCashSessionId(?int $userId): int
+    {
+        $sessionId = CajaSession::currentForUser($userId)?->id;
+        if (! $sessionId) {
+            throw new RuntimeException('Debes abrir una caja antes de registrar una compra pagada en efectivo.');
+        }
+
+        return $sessionId;
     }
 
     private function purchaseHasStockEntry(Purchase $purchase): bool

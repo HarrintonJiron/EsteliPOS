@@ -90,8 +90,8 @@
         <tbody>
             @foreach(($sale?->details ?? []) as $detail)
                 <tr>
-                    <td class="border px-4 py-2">{{ $detail->product->name ?? 'N/A' }}</td>
-                    <td class="border px-4 py-2">{{ $detail->quantity }}</td>
+                    <td class="border px-4 py-2">{{ $detail->product->name ?? 'N/A' }} ({{ $detail->unit?->abbreviation ?? $detail->product?->baseUnitLabel() ?? 'und' }})</td>
+                    <td class="border px-4 py-2">{{ $detail->quantity }} {{ $detail->unit?->abbreviation ?? $detail->product?->baseUnitLabel() ?? 'und' }}</td>
                     <td class="border px-4 py-2">{{ $companyProfile['currency_symbol'] }} {{ number_format($detail->price, 2) }}</td>
                     <td class="border px-4 py-2">{{ $companyProfile['currency_symbol'] }} {{ number_format($detail->subtotal, 2) }}</td>
                 </tr>

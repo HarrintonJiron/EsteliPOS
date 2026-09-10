@@ -23,6 +23,7 @@ function compraStatusAdmin(): User
     $role = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrador', 'is_system' => true]);
     $user = User::factory()->create(['role' => 'admin', 'is_active' => true]);
     $user->roles()->sync([$role->id]);
+    openCashSessionFor($user);
 
     return $user;
 }

@@ -14,6 +14,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Session\TokenMismatchException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -38,6 +39,19 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (TokenMismatchException $exception, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'La sesión venció. Recarga la pantalla e inicia sesión nuevamente.',
+                ], 419);
+            }
+
+            return redirect()->route('login')->with(
+                'error',
+                'La sesión venció por inactividad o reinicio del sistema. Inicia sesión nuevamente; la venta no fue registrada.'
+            );
+        });
+
         $redirectForbiddenRequest = function (Request $request) {
             if ($request->expectsJson() || ! $request->user()) {
                 return null;

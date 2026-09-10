@@ -1,9 +1,11 @@
 <?php
 
 use App\Models\AuditLog;
+use App\Models\CajaSession;
 use App\Models\Category;
 use App\Models\Client;
 use App\Models\InventoryMovement;
+use App\Models\JournalEntry;
 use App\Models\NumberSequence;
 use App\Models\Product;
 use App\Models\Role;
@@ -22,6 +24,8 @@ function productionSalesUser(): User
     $role = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrador', 'is_system' => true]);
     $user = User::factory()->create(['role' => 'admin', 'is_active' => true]);
     $user->roles()->sync([$role->id]);
+
+    openCashSessionFor($user);
 
     return $user;
 }
@@ -75,6 +79,22 @@ test('the pos rejects the same product presentation twice in the ticket', functi
         ->assertSessionHasErrors('items.1.unit_id');
 
     expect(Sale::count())->toBe(0)
+        ->and($product->fresh()->stock)->toBe(10);
+});
+
+test('cash sales require an open cash register', function () {
+    $user = productionSalesUser();
+    CajaSession::query()->where('opened_by', $user->id)
+        ->update(['status' => 'closed', 'open_guard' => null, 'closed_at' => now()]);
+    $product = productionSalesProduct();
+
+    $this->actingAs($user)
+        ->from(route('facturacion.pos'))
+        ->post(route('facturacion.pos-store'), posPayload($product))
+        ->assertRedirect(route('facturacion.pos'))
+        ->assertSessionHas('error', 'Debes abrir una caja antes de registrar una venta en efectivo.');
+
+    expect(Sale::query()->count())->toBe(0)
         ->and($product->fresh()->stock)->toBe(10);
 });
 
@@ -286,4 +306,30 @@ test('the pos rejects inactive products submitted outside the catalog', function
 
     expect(Sale::query()->count())->toBe(0)
         ->and((float) $product->fresh()->stock)->toBe(10.0);
+});
+
+test('fractional tax rounding keeps the sale details and accounting entry balanced', function () {
+    $user = productionSalesUser();
+    $product = productionSalesProduct(price: 40.50);
+    Tax::query()->update(['is_default' => false]);
+    Tax::query()->create([
+        'code' => 'IVA-ROUNDING-QA',
+        'name' => 'IVA 15% QA',
+        'rate' => 0.15,
+        'is_default' => true,
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($user)->post(route('facturacion.pos-store'), posPayload($product, [
+        'amount_received' => 100,
+    ]))->assertRedirect()->assertSessionHasNoErrors();
+
+    $sale = Sale::query()->latest('id')->firstOrFail();
+    $entry = JournalEntry::query()->where('source_type', Sale::class)->where('source_id', $sale->id)->firstOrFail();
+
+    expect((float) $sale->subtotal)->toBe(40.5)
+        ->and((float) $sale->tax_total)->toBe(6.08)
+        ->and((float) $sale->total)->toBe(46.58)
+        ->and((float) $entry->total_debit)->toBe(46.58)
+        ->and((float) $entry->total_credit)->toBe(46.58);
 });

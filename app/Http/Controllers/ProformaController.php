@@ -12,6 +12,7 @@ use App\Models\ProformaDetail;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
+use App\Models\Warehouse;
 use App\Services\AccountingService;
 use App\Services\CreditService;
 use App\Services\InventoryService;
@@ -287,8 +288,9 @@ class ProformaController extends Controller
     public function show($id)
     {
         $proforma = Proforma::with('details.product', 'client', 'user')->findOrFail($id);
+        $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
 
-        return view('proformas.show', compact('proforma'));
+        return view('proformas.show', compact('proforma', 'warehouses'));
     }
 
     public function updateStatus(Request $request, $id)
@@ -330,14 +332,24 @@ class ProformaController extends Controller
     {
         $proforma = Proforma::with('details.product')->findOrFail($id);
 
-        $paymentType = $request->validate([
+        $validated = $request->validate([
             'payment_type' => 'required|in:cash,card,transfer,credit',
-        ])['payment_type'];
+            'warehouse_id' => 'required|exists:warehouses,id',
+        ]);
+        $requestedPaymentType = $validated['payment_type'];
+        $paymentType = $requestedPaymentType === 'card' ? 'transfer' : $requestedPaymentType;
+        $warehouseId = (int) $validated['warehouse_id'];
+        $cashSession = $paymentType === 'cash'
+            ? CajaSession::currentForUser($request->user()?->id)
+            : null;
+        if ($paymentType === 'cash' && ! $cashSession) {
+            return back()->with('error', 'Debes abrir una caja antes de convertir una proforma en una venta en efectivo.');
+        }
 
         $sale = null;
 
         try {
-            DB::transaction(function () use ($proforma, $paymentType, &$sale, $request) {
+            DB::transaction(function () use ($proforma, $paymentType, $requestedPaymentType, $warehouseId, $cashSession, &$sale, $request) {
                 $proforma = Proforma::query()->with('details.product')->lockForUpdate()->findOrFail($proforma->id);
                 if ($proforma->sale_id) {
                     throw new \RuntimeException('Esta proforma ya fue convertida en factura.');
@@ -373,13 +385,11 @@ class ProformaController extends Controller
                     throw new \RuntimeException('El cliente no tiene crédito disponible suficiente para esta proforma.');
                 }
 
-                $warehouseId = $this->posCatalog->resolveWarehouseId(null);
-
                 $sale = Sale::create([
                     'invoice_number' => $invoiceNumber,
                     'client_id' => $clientId,
                     'user_id' => $userId,
-                    'caja_session_id' => CajaSession::currentForUser($userId)?->id,
+                    'caja_session_id' => $cashSession?->id,
                     'warehouse_id' => $warehouseId,
                     'price_list_id' => $proforma->price_list_id,
                     'price_list_name' => $proforma->price_list_name,
@@ -393,13 +403,22 @@ class ProformaController extends Controller
                     'tax_included' => $proforma->tax_included,
                     'tax_rate' => $proforma->tax_rate,
                     'status' => $status,
-                    'notes' => 'Generada desde Proforma '.$proforma->proforma_number,
+                    'notes' => 'Generada desde Proforma '.$proforma->proforma_number
+                        .($requestedPaymentType === 'card' ? ' | Pago con tarjeta' : ''),
                     'subtotal' => $proforma->subtotal,
                     'tax_total' => $proforma->tax_total,
                     'total' => $proforma->total,
                 ]);
 
-                foreach ($proforma->details as $detail) {
+                $remainingTax = round((float) $proforma->tax_total, 2);
+                $detailCount = $proforma->details->count();
+                foreach ($proforma->details as $index => $detail) {
+                    $lineTax = $index === $detailCount - 1
+                        ? $remainingTax
+                        : round((float) $proforma->tax_total * ((float) $detail->subtotal / max(0.01, (float) $proforma->subtotal)), 2);
+                    $remainingTax = round($remainingTax - $lineTax, 2);
+                    $gross = round((float) $detail->quantity * (float) $detail->price, 2);
+                    $discountAmount = round(max(0, $gross - (float) $detail->subtotal), 2);
                     SaleDetail::create([
                         'sale_id' => $sale->id,
                         'product_id' => $detail->product_id,
@@ -411,6 +430,10 @@ class ProformaController extends Controller
                         'base_quantity' => $detail->base_quantity,
                         'price' => $detail->price,
                         'subtotal' => $detail->subtotal,
+                        'discount_percentage' => $detail->discount,
+                        'discount_amount' => $discountAmount,
+                        'tax_rate' => (float) $detail->subtotal > 0 ? round($lineTax / (float) $detail->subtotal, 4) : 0,
+                        'tax_amount' => $lineTax,
                     ]);
 
                     if ($detail->product_id) {

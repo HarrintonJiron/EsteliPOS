@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\CajaSession;
 use App\Models\CreditPayment;
 use App\Models\OperationalExpense;
+use App\Models\Purchase;
 use App\Models\Sale;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -46,6 +47,11 @@ class ArqueoController extends Controller
                 ->cash()
                 ->where('caja_session_id', $openSession->id)
                 ->sum('amount');
+            $cashPurchasesTotal = (float) Purchase::query()
+                ->where('caja_session_id', $openSession->id)
+                ->where('status', 'completed')
+                ->where('payment_type', 'cash')
+                ->sum('total');
 
             $creditPaymentsTotal = (float) CreditPayment::query()
                 ->where(fn ($query) => $query->where('caja_session_id', $openSession->id)
@@ -64,12 +70,14 @@ class ArqueoController extends Controller
                 ->count();
 
             $openingAmount = (float) $openSession->opening_amount;
-            $expectedCashTotal = $openingAmount + $cashSalesTotal + $cashCreditPaymentsTotal - $operationalExpensesCashTotal;
+            $expectedCashTotal = $openingAmount + $cashSalesTotal + $cashCreditPaymentsTotal
+                - $operationalExpensesCashTotal - $cashPurchasesTotal;
 
             $closingSummary = [
                 'opening_amount' => $openingAmount,
                 'cash_sales_total' => $cashSalesTotal,
                 'operational_expenses_cash_total' => $operationalExpensesCashTotal,
+                'cash_purchases_total' => $cashPurchasesTotal,
                 'credit_payments_total' => $creditPaymentsTotal,
                 'cash_credit_payments_total' => $cashCreditPaymentsTotal,
                 'sales_count' => $salesCount,
@@ -202,6 +210,12 @@ class ArqueoController extends Controller
                 ->where('caja_session_id', $cajaSession->id)
                 ->get();
             $operationalExpensesCashTotal = (float) $operationalExpenses->sum('amount');
+            $cashPurchases = Purchase::query()
+                ->where('caja_session_id', $cajaSession->id)
+                ->where('status', 'completed')
+                ->where('payment_type', 'cash')
+                ->get();
+            $cashPurchasesTotal = (float) $cashPurchases->sum('total');
 
             $physicalTotal = 0;
             foreach ($physicalCounts as $count) {
@@ -216,7 +230,8 @@ class ArqueoController extends Controller
             }
 
             $openingAmount = (float) $cajaSession->opening_amount;
-            $cashMovementsTotal = (float) ($byType['cash']['total'] ?? 0) + $cashCreditPaymentsTotal - $operationalExpensesCashTotal;
+            $cashMovementsTotal = (float) ($byType['cash']['total'] ?? 0) + $cashCreditPaymentsTotal
+                - $operationalExpensesCashTotal - $cashPurchasesTotal;
             $cashTotal = $openingAmount + $cashMovementsTotal;
             $difference = $physicalTotal - $cashTotal;
 
@@ -234,6 +249,7 @@ class ArqueoController extends Controller
                     'sales' => $sales->pluck('id')->toArray(),
                     'credit_payments' => $creditPayments->pluck('id')->toArray(),
                     'operational_expenses' => $operationalExpenses->pluck('id')->toArray(),
+                    'cash_purchases' => $cashPurchases->pluck('id')->toArray(),
                     'physical_counts' => $physicalCounts,
                     'opening_amount' => $openingAmount,
                 ],
@@ -248,6 +264,7 @@ class ArqueoController extends Controller
             return compact(
                 'sales', 'totalSalesCount', 'totalSalesAmount', 'byType', 'creditPayments',
                 'creditPaymentsTotal', 'cashCreditPaymentsTotal', 'operationalExpenses', 'operationalExpensesCashTotal',
+                'cashPurchases', 'cashPurchasesTotal',
                 'openingAmount', 'cashMovementsTotal', 'cashTotal', 'physicalTotal',
                 'physicalCounts', 'arqueo'
             );
@@ -263,6 +280,8 @@ class ArqueoController extends Controller
             'creditPaymentsTotal' => $result['creditPaymentsTotal'],
             'operationalExpenses' => $result['operationalExpenses'],
             'operationalExpensesCashTotal' => $result['operationalExpensesCashTotal'],
+            'cashPurchases' => $result['cashPurchases'],
+            'cashPurchasesTotal' => $result['cashPurchasesTotal'],
             'openingAmount' => $result['openingAmount'],
             'cashMovementsTotal' => $result['cashMovementsTotal'],
             'expectedCashTotal' => $result['cashTotal'],

@@ -43,10 +43,24 @@ class SaleRequest extends FormRequest
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|distinct|exists:products,id',
+            'items.*.product_id' => 'required|exists:products,id',
             'items.*.unit_id' => 'nullable|exists:units,id',
             'items.*.quantity' => 'required|numeric|min:0.0001|max:100000',
             'items.*.price' => 'required|numeric|min:0',
         ];
+    }
+
+    public function after(): array
+    {
+        return [function ($validator) {
+            $seen = [];
+            foreach ((array) $this->input('items', []) as $index => $item) {
+                $key = ($item['product_id'] ?? '').':'.($item['unit_id'] ?? 'base');
+                if (isset($seen[$key])) {
+                    $validator->errors()->add("items.$index.product_id", 'La misma presentación del producto aparece más de una vez. Agrupa la cantidad en una sola línea.');
+                }
+                $seen[$key] = true;
+            }
+        }];
     }
 }

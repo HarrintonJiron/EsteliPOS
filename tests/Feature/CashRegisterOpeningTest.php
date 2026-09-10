@@ -4,8 +4,10 @@ use App\Models\Arqueo;
 use App\Models\CajaSession;
 use App\Models\Client;
 use App\Models\CreditPayment;
+use App\Models\Purchase;
 use App\Models\Role;
 use App\Models\Sale;
+use App\Models\Supplier;
 use App\Models\User;
 use Database\Seeders\ConfigurationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -173,6 +175,38 @@ test('cash credit payments increase expected physical cash but transfers do not'
         'caja_session_id' => $session->id,
         'physical_counts' => [['amount' => 50, 'qty' => 3]],
     ])->assertOk();
+
+    expect((float) Arqueo::query()->firstOrFail()->cash_total)->toBe(150.0);
+});
+
+test('completed cash purchases reduce expected cash at closing', function () {
+    $admin = cashRegisterAdmin();
+    $supplier = Supplier::query()->create(['name' => 'Proveedor caja', 'status' => 'active']);
+    $session = CajaSession::query()->create([
+        'date' => now()->toDateString(),
+        'opened_at' => now(),
+        'opened_by' => $admin->id,
+        'opening_amount' => 200,
+        'status' => 'open',
+    ]);
+    Purchase::query()->create([
+        'document_number' => 'COMP-CAJA-001',
+        'supplier_id' => $supplier->id,
+        'user_id' => $admin->id,
+        'date' => now(),
+        'status' => 'completed',
+        'payment_type' => 'cash',
+        'subtotal' => 50,
+        'tax_total' => 0,
+        'total' => 50,
+        'caja_session_id' => $session->id,
+    ]);
+
+    $this->actingAs($admin)->post(route('arqueo.run'), [
+        'date' => now()->toDateString(),
+        'caja_session_id' => $session->id,
+        'physical_counts' => [['amount' => 50, 'qty' => 3]],
+    ])->assertOk()->assertSee('Compras en efectivo');
 
     expect((float) Arqueo::query()->firstOrFail()->cash_total)->toBe(150.0);
 });

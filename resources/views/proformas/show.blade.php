@@ -151,6 +151,12 @@
                         <option value="transfer">Transferencia</option>
                         <option value="credit">Crédito</option>
                     </select>
+                    <label class="mb-1 block text-xs font-semibold text-slate-600">Bodega de salida</label>
+                    <select name="warehouse_id" required class="mb-3 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
+                        @foreach($warehouses as $warehouse)
+                            <option value="{{ $warehouse->id }}">{{ $warehouse->name }}{{ $warehouse->is_default ? ' (predeterminada)' : '' }}</option>
+                        @endforeach
+                    </select>
                     <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold py-2.5 rounded-xl">
                         Generar Factura
                     </button>

@@ -11,6 +11,7 @@ use App\Models\Proforma;
 use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Services\PayrollService;
 use Carbon\Carbon;
 use Database\Seeders\DatabaseSeeder;
@@ -89,7 +90,10 @@ test('admin can create a proforma and convert it to sale', function () {
 
     $this->actingAs($admin)->get(route('proformas.show', $proforma->id))->assertOk();
 
-    $this->actingAs($admin)->post(route('proformas.convert', $proforma->id))
+    $this->actingAs($admin)->post(route('proformas.convert', $proforma->id), [
+        'payment_type' => 'transfer',
+        'warehouse_id' => Warehouse::query()->where('is_default', true)->value('id'),
+    ])
         ->assertRedirect();
 
     expect(Sale::query()->count())->toBeGreaterThan(0);

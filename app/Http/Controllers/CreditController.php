@@ -8,6 +8,7 @@ use App\Models\CreditPayment;
 use App\Models\Sale;
 use App\Services\AccountingService;
 use App\Services\CreditService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -75,13 +76,29 @@ class CreditController extends Controller
             'payment_type' => 'required|in:cash,transfer,check,other',
             'reference_number' => 'nullable|string',
             'notes' => 'nullable|string',
+            'request_token' => 'required|uuid',
         ]);
+
+        $existing = CreditPayment::query()
+            ->where('request_token', $validated['request_token'])
+            ->where('user_id', $request->user()->id)
+            ->first();
+        if ($existing) {
+            return redirect()->route('creditos.show', $validated['client_id'])
+                ->with('success', 'El abono ya había sido registrado; no se duplicó.');
+        }
 
         try {
             $payment = DB::transaction(function () use ($validated, $request) {
                 $client = Client::query()->lockForUpdate()->findOrFail($validated['client_id']);
                 $balance = $this->credit->pendingDebt($client);
                 $amount = round((float) $validated['amount'], 2);
+                $cashSession = $validated['payment_type'] === 'cash'
+                    ? CajaSession::currentForUser($request->user()->id)
+                    : null;
+                if ($validated['payment_type'] === 'cash' && ! $cashSession) {
+                    throw new \RuntimeException('Debes abrir una caja antes de recibir un abono en efectivo.');
+                }
 
                 if ($amount > $balance + 0.00001) {
                     throw new \RuntimeException(
@@ -90,20 +107,27 @@ class CreditController extends Controller
                 }
 
                 $payment = CreditPayment::create([
+                    'request_token' => $validated['request_token'],
                     'client_id' => $validated['client_id'],
                     'amount' => $amount,
                     'payment_type' => $validated['payment_type'],
-                    'reference_number' => $validated['reference_number'],
-                    'notes' => $validated['notes'],
+                    'reference_number' => $validated['reference_number'] ?? null,
+                    'notes' => $validated['notes'] ?? null,
                     'payment_date' => now(),
                     'user_id' => $request->user()->id,
-                    'caja_session_id' => CajaSession::currentForUser($request->user()->id)?->id,
+                    'caja_session_id' => $cashSession?->id,
                 ]);
 
                 $this->accountingService->recordCreditPayment($payment);
 
                 return $payment;
             });
+        } catch (UniqueConstraintViolationException $e) {
+            if (CreditPayment::query()->where('request_token', $validated['request_token'])->exists()) {
+                return redirect()->route('creditos.show', $validated['client_id'])
+                    ->with('success', 'El abono ya había sido registrado; no se duplicó.');
+            }
+            throw $e;
         } catch (\RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }

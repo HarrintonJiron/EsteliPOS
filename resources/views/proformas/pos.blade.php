@@ -93,8 +93,8 @@
             <div id="categoryTabs" class="flex gap-2 overflow-x-auto pb-1"></div>
         </div>
 
-        <div id="productsGrid" class="min-h-0 flex-1 overflow-y-auto p-4 bg-slate-50">
-            <div class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4"></div>
+        <div id="productsGrid" class="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-1.5 sm:p-2">
+            <div class="grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-5"></div>
         </div>
     </div>
 
@@ -669,17 +669,17 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         grid.innerHTML = list.map(p => `
             <button type="button" onclick="addProduct(${p.id})"
-                class="bg-white border-2 border-slate-200 hover:border-indigo-500 hover:shadow-md rounded-xl p-3 transition-all text-left">
-                <div class="w-full h-16 mb-2 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center">
+                class="rounded-lg border border-slate-200 bg-white p-1.5 text-left transition-all hover:border-indigo-500 hover:shadow-sm">
+                <div class="mb-1 flex h-12 w-full items-center justify-center overflow-hidden rounded bg-slate-100">
                     ${p.image_url
-                        ? `<img src="${p.image_url}" alt="${p.name}" class="w-full h-full object-cover" referrerpolicy="no-referrer">`
-                        : `<svg class="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>`
+                        ? `<img src="${p.image_url}" alt="${p.name}" class="h-full w-full object-cover" referrerpolicy="no-referrer">`
+                        : `<svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>`
                     }
                 </div>
-                <p class="font-semibold text-slate-800 text-xs line-clamp-2 text-center">${p.name}</p>
-                <p class="text-base font-bold text-indigo-600 text-center mt-1">${fmt(p.price)}</p>
-                <p class="text-xs text-center mt-1 ${p.stock <= 0 ? 'text-red-500' : p.stock <= 5 ? 'text-amber-600' : 'text-slate-400'}">
-                    Stock: ${p.stock}
+                <p class="line-clamp-2 min-h-[1.65rem] text-[11px] font-semibold leading-tight text-slate-800">${p.name}</p>
+                <p class="mt-0.5 text-xs font-bold text-indigo-600">${fmt(p.price)}</p>
+                <p class="mt-0.5 text-[9px] ${p.stock <= 0 ? 'text-red-500' : p.stock <= 5 ? 'text-amber-600' : 'text-slate-400'}">
+                    ${p.stock <= 0 ? 'Sin stock' : p.stock}
                 </p>
             </button>`).join('');
     }

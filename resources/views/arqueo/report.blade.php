@@ -36,6 +36,10 @@
                 <div class="text-[10px] font-semibold uppercase text-slate-500">Gastos</div>
                 <div class="mt-1 font-bold tabular-nums text-red-600">C$ {{ number_format($operationalExpensesCashTotal ?? 0, 2) }}</div>
             </div>
+            <div class="rounded-lg bg-red-50 p-3">
+                <div class="text-[10px] font-semibold uppercase text-slate-500">Compras en efectivo</div>
+                <div class="mt-1 font-bold tabular-nums text-red-600">C$ {{ number_format($cashPurchasesTotal ?? 0, 2) }}</div>
+            </div>
             <div class="rounded-xl border border-slate-200 bg-white p-3">
                 <div class="text-[10px] font-semibold uppercase text-slate-500">Esperado</div>
                 <div class="mt-1 font-bold tabular-nums text-indigo-700">C$ {{ number_format($expectedCashTotal ?? 0, 2) }}</div>

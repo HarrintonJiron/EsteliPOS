@@ -94,9 +94,15 @@ class FacturacionController extends Controller
 
         $sale = null;
         $amountReceived = $request->input('amount_received', 0);
+        $cashSession = $data['payment_type'] === 'cash'
+            ? CajaSession::currentForUser($data['user_id'])
+            : null;
+        if ($data['payment_type'] === 'cash' && ! $cashSession) {
+            return back()->withInput()->with('error', 'Debes abrir una caja antes de registrar una venta en efectivo.');
+        }
 
         try {
-            DB::transaction(function () use ($data, &$sale) {
+            DB::transaction(function () use ($data, &$sale, $cashSession) {
                 $invoiceNumber = $data['invoice_number'] ?? null;
                 if (! $invoiceNumber) {
                     $invoiceNumber = $this->nextInvoiceNumber();
@@ -114,7 +120,7 @@ class FacturacionController extends Controller
                     'invoice_number' => $invoiceNumber,
                     'client_id' => $data['client_id'],
                     'user_id' => $data['user_id'],
-                    'caja_session_id' => CajaSession::currentForUser($data['user_id'])?->id,
+                    'caja_session_id' => $cashSession?->id,
                     'warehouse_id' => $this->posCatalog->resolveWarehouseId($data['warehouse_id'] ?? null),
                     'price_list_id' => $resolvedPriceList?->id,
                     'price_list_name' => $resolvedPriceList?->name,
@@ -223,7 +229,7 @@ class FacturacionController extends Controller
     public function print(Request $request)
     {
         $saleId = $request->query('sale_id');
-        $sale = $saleId ? Sale::with('details.product', 'client')->find($saleId) : null;
+        $sale = $saleId ? Sale::with('details.product.baseUnit', 'details.unit', 'client')->find($saleId) : null;
 
         return view('facturacion.print', compact('sale'));
     }
@@ -231,22 +237,36 @@ class FacturacionController extends Controller
     public function pdf(Request $request)
     {
         $saleId = $request->query('sale_id');
-        $sale = $saleId ? Sale::with('details.product', 'client')->find($saleId) : null;
+        $sale = $saleId ? Sale::with('details.product.baseUnit', 'details.unit', 'client')->find($saleId) : null;
 
         return view('facturacion.pdf', compact('sale'));
     }
 
     public function show($id)
     {
-        $sale = Sale::with('details.product', 'client')->findOrFail($id);
+        $sale = Sale::with('details.product.baseUnit', 'details.unit', 'client')->findOrFail($id);
 
         return view('facturacion.show', compact('sale'));
     }
 
     public function edit($id)
     {
-        $sale = Sale::with('details.product')->findOrFail($id);
-        $products = $this->productsWithEffectiveTax();
+        $sale = Sale::with('details.product.baseUnit', 'details.unit')->findOrFail($id);
+        if ($sale->status === 'canceled') {
+            return redirect()->route('facturacion.show', $sale)->with('error', 'Una factura anulada es de solo lectura.');
+        }
+        if ($sale->cajaSession && $sale->cajaSession->status !== 'open') {
+            return redirect()->route('facturacion.show', $sale)->with('error', 'Esta factura pertenece a una caja cerrada y es de solo lectura.');
+        }
+        if ($sale->payment_type === 'credit'
+            && $this->creditService->outstandingBalanceForSale($sale) < (float) $sale->total - 0.00001) {
+            return redirect()->route('facturacion.show', $sale)->with('error', 'La factura tiene abonos aplicados y ya no puede editarse.');
+        }
+        $products = Product::with(['category', 'tax', 'baseUnit', 'unitConversions.unit'])
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Product $product) => $this->posCatalog->serializeProduct($product));
         $clients = Client::orderBy('name')->get();
 
         return view('facturacion.edit', compact('sale', 'products', 'clients'));
@@ -256,9 +276,24 @@ class FacturacionController extends Controller
     {
         $data = $request->validated();
         $sale = Sale::findOrFail($id);
+        if ($sale->status === 'canceled') {
+            return redirect()->route('facturacion.show', $sale)->with('error', 'Una factura anulada no se puede editar.');
+        }
 
         try {
             DB::transaction(function () use ($data, $sale) {
+                $sale = Sale::query()->with('details.product')->lockForUpdate()->findOrFail($sale->id);
+                if ($sale->status === 'canceled') {
+                    throw new \RuntimeException('Una factura anulada no se puede editar.');
+                }
+                if ($sale->cajaSession && $sale->cajaSession->status !== 'open') {
+                    throw new \RuntimeException('Esta factura pertenece a una caja cerrada y no puede editarse.');
+                }
+                if ($sale->payment_type === 'credit'
+                    && $this->creditService->outstandingBalanceForSale($sale) < (float) $sale->total - 0.00001) {
+                    throw new \RuntimeException('La factura tiene abonos aplicados y no puede editarse.');
+                }
+
                 $status = $data['payment_type'] === 'credit' ? 'pending' : 'completed';
                 $client = Client::find($data['client_id']);
                 $billingDocumentType = $data['billing_document_type']
@@ -325,11 +360,11 @@ class FacturacionController extends Controller
                     $lineGross = $line['quantity'] * $line['price'];
 
                     if ($taxIncluded) {
-                        $lineNet = $rate > 0 ? ($lineGross / (1 + $rate)) : $lineGross;
-                        $lineTax = $lineGross - $lineNet;
+                        $lineNet = round($rate > 0 ? ($lineGross / (1 + $rate)) : $lineGross, 2);
+                        $lineTax = round($lineGross - $lineNet, 2);
                     } else {
-                        $lineNet = $lineGross;
-                        $lineTax = $lineGross * $rate;
+                        $lineNet = round($lineGross, 2);
+                        $lineTax = round($lineNet * $rate, 2);
                     }
 
                     SaleDetail::create([
@@ -342,9 +377,9 @@ class FacturacionController extends Controller
                         'unit_factor' => $line['unit_factor'],
                         'base_quantity' => $line['base_quantity'],
                         'price' => $line['price'],
-                        'subtotal' => $lineGross,
+                        'subtotal' => $lineNet,
                         'tax_rate' => $rate,
-                        'tax_amount' => round($lineTax, 2),
+                        'tax_amount' => $lineTax,
                     ]);
 
                     $this->inventoryService->stockOut(
@@ -385,7 +420,21 @@ class FacturacionController extends Controller
 
         try {
             DB::transaction(function () use ($sale) {
-                // Revert stock changes
+                $sale = Sale::query()->with(['details.product', 'cajaSession', 'client'])->lockForUpdate()->findOrFail($sale->id);
+                if ($sale->status === 'canceled') {
+                    throw new \RuntimeException('La factura ya estaba anulada.');
+                }
+                if ($sale->cajaSession && $sale->cajaSession->status !== 'open') {
+                    throw new \RuntimeException('Esta factura pertenece a una caja cerrada. Registra una corrección en la caja actual.');
+                }
+                if ($sale->payment_type === 'credit'
+                    && $this->creditService->outstandingBalanceForSale($sale) < (float) $sale->total - 0.00001) {
+                    throw new \RuntimeException('La factura tiene abonos aplicados. No puede anularse hasta corregir esos abonos.');
+                }
+
+                $oldValues = $sale->toArray();
+
+                // Revert stock changes, but preserve the fiscal document and its detail.
                 foreach ($sale->details as $detail) {
                     $this->inventoryService->stockIn(
                         $detail->product,
@@ -397,16 +446,21 @@ class FacturacionController extends Controller
                     );
                 }
 
-                $sale->details()->delete();
-                $sale->delete();
-
-                $this->accountingService->voidForSource(Sale::class, $sale->id, 'Factura eliminada');
+                $this->accountingService->voidForSource(Sale::class, $sale->id, 'Factura anulada');
+                $sale->update(['status' => 'canceled']);
+                AuditLog::log(
+                    'sale.canceled',
+                    "Factura #{$sale->id} anulada",
+                    $sale,
+                    $oldValues,
+                    $sale->fresh()->toArray(),
+                );
             });
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('facturacion.index');
+        return redirect()->route('facturacion.index')->with('success', 'Factura anulada. El documento se conservó y el inventario y asiento fueron revertidos.');
     }
 
     /**
@@ -647,6 +701,12 @@ class FacturacionController extends Controller
 
         $sale = null;
         $userId = $request->user()?->id ?? 1;
+        $requestedPaymentType = $validated['payment_type'];
+        $storedPaymentType = $requestedPaymentType === 'card' ? 'transfer' : $requestedPaymentType;
+        $cashSession = $storedPaymentType === 'cash' ? CajaSession::currentForUser($userId) : null;
+        if ($storedPaymentType === 'cash' && ! $cashSession) {
+            return back()->withInput()->with('error', 'Debes abrir una caja antes de registrar una venta en efectivo.');
+        }
 
         $existingSale = filled($validated['request_token'] ?? null)
             ? Sale::query()
@@ -661,7 +721,7 @@ class FacturacionController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($validated, $items, &$sale, $userId) {
+            DB::transaction(function () use ($validated, $items, &$sale, $userId, $cashSession) {
                 $invoiceNumber = $this->nextInvoiceNumber();
                 $requestedPaymentType = $validated['payment_type'];
                 $storedPaymentType = $requestedPaymentType === 'card' ? 'transfer' : $requestedPaymentType;
@@ -700,7 +760,7 @@ class FacturacionController extends Controller
                     'request_token' => $validated['request_token'] ?? null,
                     'client_id' => $client->id,
                     'user_id' => $userId,
-                    'caja_session_id' => CajaSession::currentForUser($userId)?->id,
+                    'caja_session_id' => $cashSession?->id,
                     'warehouse_id' => $this->posCatalog->resolveWarehouseId($preferredWarehouseId),
                     'price_list_id' => $resolvedPriceList?->id,
                     'price_list_name' => $resolvedPriceList?->name,
@@ -745,11 +805,11 @@ class FacturacionController extends Controller
                     $afterItemDiscount = $lineGross * (1 - $discountPct / 100);
                     $itemDiscountAmount = $lineGross - $afterItemDiscount;
                     $orderDiscountOnLine = $afterItemDiscount * ($orderDiscountPct / 100);
-                    $lineDiscountAmount = $itemDiscountAmount + $orderDiscountOnLine;
-                    $lineNet = $afterItemDiscount - $orderDiscountOnLine;
+                    $lineDiscountAmount = round($itemDiscountAmount + $orderDiscountOnLine, 2);
+                    $lineNet = round($afterItemDiscount - $orderDiscountOnLine, 2);
 
                     $rate = $product->effectiveTaxRate();
-                    $lineTax = $lineNet * $rate;
+                    $lineTax = round($lineNet * $rate, 2);
 
                     SaleDetail::create([
                         'sale_id' => $sale->id,
@@ -762,10 +822,10 @@ class FacturacionController extends Controller
                         'base_quantity' => $line['base_quantity'],
                         'price' => $line['price'],
                         'discount_percentage' => $discountPct,
-                        'discount_amount' => round($lineDiscountAmount, 2),
+                        'discount_amount' => $lineDiscountAmount,
                         'subtotal' => $lineNet,
                         'tax_rate' => $rate,
-                        'tax_amount' => round($lineTax, 2),
+                        'tax_amount' => $lineTax,
                     ]);
 
                     $lineWarehouseId = $this->posCatalog->resolveWarehouseForQuantity(
@@ -879,7 +939,7 @@ class FacturacionController extends Controller
      */
     public function change($saleId)
     {
-        $sale = Sale::with('details.product', 'user')->findOrFail($saleId);
+        $sale = Sale::with('details.product.baseUnit', 'details.unit', 'user')->findOrFail($saleId);
         $changeAmount = session('changeAmount', 0);
 
         return view('facturacion.change', compact('sale', 'changeAmount'));
@@ -890,7 +950,7 @@ class FacturacionController extends Controller
      */
     public function receipt($saleId)
     {
-        $sale = Sale::with('details.product', 'user')->findOrFail($saleId);
+        $sale = Sale::with('details.product.baseUnit', 'details.unit', 'user')->findOrFail($saleId);
 
         return view('facturacion.receipt', compact('sale'));
     }

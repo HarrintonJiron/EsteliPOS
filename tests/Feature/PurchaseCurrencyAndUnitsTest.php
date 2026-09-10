@@ -26,6 +26,8 @@ function purchaseAdmin(): User
     $user = User::factory()->create(['role' => 'admin', 'is_active' => true]);
     $user->roles()->sync([$role->id]);
 
+    openCashSessionFor($user);
+
     return $user;
 }
 
