@@ -8,6 +8,7 @@ use App\Http\Middleware\CheckModule;
 use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\CheckRole;
 use App\Http\Middleware\EnsurePasswordIsChanged;
+use App\Http\Middleware\GuardImplausibleMonetaryInput;
 use App\Services\ModuleAccessService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Application;
@@ -30,7 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(prepend: [ApplySystemSettings::class]);
-        $middleware->web(append: [EnsurePasswordIsChanged::class]);
+        $middleware->web(append: [GuardImplausibleMonetaryInput::class, EnsurePasswordIsChanged::class]);
 
         $middleware->alias([
             'role' => CheckRole::class,
