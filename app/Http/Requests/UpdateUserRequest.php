@@ -7,7 +7,10 @@ use Illuminate\Validation\Rule;
 
 class UpdateUserRequest extends FormRequest
 {
-    public function authorize(): bool { return $this->user()?->isAdmin() || $this->user()?->hasPermission('configuracion.manage_users'); }
+    public function authorize(): bool
+    {
+        return $this->user()?->isAdmin() || $this->user()?->hasPermission('configuracion.manage_users');
+    }
 
     protected function prepareForValidation(): void
     {
@@ -26,6 +29,7 @@ class UpdateUserRequest extends FormRequest
             'username' => ['nullable', 'string', 'max:60', 'regex:/^[A-Za-z0-9._-]+$/', Rule::unique('users', 'username')->ignore($user)],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user)],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+()\-\s]+$/'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'pin' => ['nullable', 'digits_between:4,8', 'confirmed'],
             'clear_pin' => ['boolean'],
             'roles' => ['array'],

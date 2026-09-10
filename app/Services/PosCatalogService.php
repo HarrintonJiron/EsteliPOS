@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
 use App\Models\Client;
 use App\Models\Product;
 use App\Models\SaleDetail;
@@ -25,6 +26,7 @@ class PosCatalogService
         $totalStock = (float) $product->stock;
         $stocksByWarehouse = $this->stocksByWarehouse($product);
         $preferredWarehouseId = $this->preferredWarehouseId($product, $warehouseId);
+        $branchId = $this->resolveBranchIdForWarehouse($warehouseId);
 
         $displayWarehouseId = $warehouseId;
         $warehouseStock = $displayWarehouseId !== null
@@ -51,8 +53,8 @@ class PosCatalogService
                 'abbreviation' => $unit->abbreviation,
                 'name' => $unit->name,
                 'factor_to_base' => (float) $entry['factor_to_base'],
-                'price' => $this->pricing->resolveUnitPrice($product, $priceListId, $unit->id),
-                'price_breaks' => $this->pricing->priceBreaks($product, $priceListId, $unit->id),
+                'price' => $this->pricing->resolveUnitPrice($product, $priceListId, $unit->id, 1, $branchId),
+                'price_breaks' => $this->pricing->priceBreaks($product, $priceListId, $unit->id, $branchId),
                 'stock' => round($unitStock, 4),
                 'is_default' => false,
             ];
@@ -64,8 +66,8 @@ class PosCatalogService
                 'abbreviation' => $product->baseUnit->abbreviation,
                 'name' => $product->baseUnit->name,
                 'factor_to_base' => 1.0,
-                'price' => $this->pricing->resolveUnitPrice($product, $priceListId, $product->baseUnit->id),
-                'price_breaks' => $this->pricing->priceBreaks($product, $priceListId, $product->baseUnit->id),
+                'price' => $this->pricing->resolveUnitPrice($product, $priceListId, $product->baseUnit->id, 1, $branchId),
+                'price_breaks' => $this->pricing->priceBreaks($product, $priceListId, $product->baseUnit->id, $branchId),
                 'stock' => round($sellableStock, 4),
                 'is_default' => true,
             ];
@@ -90,7 +92,7 @@ class PosCatalogService
             'id' => $product->id,
             'code' => $product->code,
             'name' => $product->name,
-            'sale_price' => $defaultUnit['price'] ?? $this->pricing->resolveUnitPrice($product, $priceListId),
+            'sale_price' => $defaultUnit['price'] ?? $this->pricing->resolveUnitPrice($product, $priceListId, null, 1, $branchId),
             'stock' => round($sellableStock, 4),
             'total_stock' => round($totalStock, 4),
             'warehouse_stock' => round($warehouseStock, 4),
@@ -174,6 +176,12 @@ class PosCatalogService
             if ($available >= $quantity) {
                 return $preferredWarehouseId;
             }
+
+            if ($this->resolveBranchIdForWarehouse($preferredWarehouseId)) {
+                throw new \RuntimeException(
+                    "Stock insuficiente para «{$product->name}» en la sucursal seleccionada. Disponible: {$available}"
+                );
+            }
         }
 
         $warehouseId = WarehouseStock::query()
@@ -199,7 +207,7 @@ class PosCatalogService
     /**
      * @return array{unit_id: ?int, quantity: float, unit_factor: float, base_quantity: float, price: float}
      */
-    public function resolveSaleLine(Product $product, float $quantity, ?int $unitId, ?int $priceListId): array
+    public function resolveSaleLine(Product $product, float $quantity, ?int $unitId, ?int $priceListId, ?int $branchId = null): array
     {
         $resolvedUnitId = $unitId ?: $product->base_unit_id;
         $conversion = $resolvedUnitId && (int) $resolvedUnitId !== (int) $product->base_unit_id
@@ -216,7 +224,7 @@ class PosCatalogService
 
         $baseQuantity = $this->units->convertToBase($product, $quantity, $resolvedUnitId);
         $unitFactor = $quantity > 0 ? round($baseQuantity / $quantity, 6) : 1.0;
-        $resolvedPrice = $this->pricing->resolvePrice($product, $priceListId, $resolvedUnitId, $quantity);
+        $resolvedPrice = $this->pricing->resolvePrice($product, $priceListId, $resolvedUnitId, $quantity, $branchId);
 
         return [
             'unit_id' => $resolvedUnitId,
@@ -257,6 +265,15 @@ class PosCatalogService
         $client = Client::query()->find($clientId);
 
         return $client?->price_list_id;
+    }
+
+    public function resolveBranchIdForWarehouse(?int $warehouseId): ?int
+    {
+        if (! $warehouseId) {
+            return null;
+        }
+
+        return Branch::query()->where('is_active', true)->where('warehouse_id', $warehouseId)->value('id');
     }
 
     public function saleDetailBaseQuantity(SaleDetail $detail): float

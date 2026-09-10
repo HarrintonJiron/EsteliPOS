@@ -14,6 +14,7 @@ class Sale extends Model
         'request_token',
         'client_id',
         'user_id',
+        'branch_id',
         'caja_session_id',
         'warehouse_id',
         'price_list_id',
@@ -56,6 +57,11 @@ class Sale extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function cajaSession()

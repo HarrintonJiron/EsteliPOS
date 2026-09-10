@@ -85,12 +85,18 @@ class ArqueoController extends Controller
             ];
         }
 
+        $branchId = request()->user()?->branch_id;
+
         return view('arqueo.wait', [
             'now' => $now,
             'openSession' => $openSession,
             'closingSummary' => $closingSummary,
             'denominations' => [1000, 500, 200, 100, 50, 20, 10, 5, 1],
-            'branches' => Branch::query()->where('is_active', true)->orderBy('name')->get(),
+            'branches' => Branch::query()
+                ->where('is_active', true)
+                ->when($branchId, fn ($query) => $query->whereKey($branchId))
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -10,7 +11,7 @@ use Illuminate\Support\Facades\Schema;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /**
@@ -24,6 +25,7 @@ class User extends Authenticatable
         'email',
         'phone',
         'role',
+        'branch_id',
         'password',
         'pin_hash',
         'is_active',
@@ -64,6 +66,11 @@ class User extends Authenticatable
     public function roles()
     {
         return $this->belongsToMany(Role::class, 'role_user');
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function permissions()
@@ -145,17 +152,18 @@ class User extends Authenticatable
     public function hasAllPermissions(array $permissionSlugs): bool
     {
         foreach ($permissionSlugs as $slug) {
-            if (!$this->hasPermission($slug)) {
+            if (! $this->hasPermission($slug)) {
                 return false;
             }
         }
+
         return true;
     }
 
     public function assignRole(string $roleSlug)
     {
         $role = Role::where('slug', $roleSlug)->first();
-        if ($role && !$this->hasRole($roleSlug)) {
+        if ($role && ! $this->hasRole($roleSlug)) {
             $this->roles()->attach($role->id);
         }
     }

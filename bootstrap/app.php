@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\ImportBranchDataCommand;
 use App\Console\Commands\ImportClientInventoryCommand;
 use App\Console\Commands\InstallProductionCommand;
 use App\Console\Commands\VerifyImagePipelineCommand;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withCommands([
         InstallProductionCommand::class,
+        ImportBranchDataCommand::class,
         ImportClientInventoryCommand::class,
         VerifyImagePipelineCommand::class,
     ])

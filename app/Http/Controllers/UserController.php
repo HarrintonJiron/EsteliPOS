@@ -6,6 +6,7 @@ use App\Http\Requests\ResetUserPasswordRequest;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\AuditLog;
+use App\Models\Branch;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -139,6 +140,7 @@ class UserController extends Controller
             'roles' => $this->roles(),
             'permissionsByModule' => Permission::query()->orderBy('module')->orderBy('name')->get()->groupBy('module'),
             'passwordPolicy' => PasswordPolicy::summary(),
+            'branches' => Branch::query()->where('is_active', true)->orderBy('name')->get(),
         ];
     }
 

@@ -21,6 +21,7 @@ class CreditPayment extends Model
         'reference_number',
         'notes',
         'user_id',
+        'branch_id',
         'caja_session_id',
     ];
 
@@ -42,6 +43,11 @@ class CreditPayment extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function cajaSession()

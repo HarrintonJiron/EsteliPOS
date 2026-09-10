@@ -13,6 +13,7 @@
                 <div><label class="mb-1 block text-sm font-medium">Nombre de usuario</label><input class="input-field" name="username" value="{{ old('username', $user->username ?? '') }}" placeholder="ej. maria.lopez"></div>
                 <div><label class="mb-1 block text-sm font-medium">Correo electrónico *</label><input type="email" class="input-field" name="email" value="{{ old('email', $user->email ?? '') }}" required></div>
                 <div><label class="mb-1 block text-sm font-medium">Teléfono</label><input class="input-field" name="phone" value="{{ old('phone', $user->phone ?? '') }}" placeholder="+505 8888 8888"></div>
+                <div><label class="mb-1 block text-sm font-medium">Sucursal habitual</label><select class="input-field" name="branch_id"><option value="">Puede operar en cualquier sucursal</option>@foreach($branches as $branch)<option value="{{ $branch->id }}" @selected((string) old('branch_id', $user->branch_id ?? '') === (string) $branch->id)>{{ $branch->name }}</option>@endforeach</select><p class="mt-1 text-xs text-slate-500">La caja abierta sigue determinando la sucursal efectiva de cada operación.</p></div>
             </div>
         </section>
 

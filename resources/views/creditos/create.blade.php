@@ -40,6 +40,18 @@
 
         <input type="hidden" name="client_id" value="{{ $client->id }}">
 
+        @if($branches->isNotEmpty())
+            <div class="mb-6">
+                <label class="mb-2 block text-sm font-semibold text-gray-700" for="branch_id">Sucursal que recibe el abono *</label>
+                <select id="branch_id" name="branch_id" class="input-field w-full" required>
+                    @foreach($branches as $branch)
+                        <option value="{{ $branch->id }}" @selected((string) old('branch_id', auth()->user()?->branch_id) === (string) $branch->id)>{{ $branch->name }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-slate-500">En efectivo debe coincidir con la sucursal de la caja abierta.</p>
+            </div>
+        @endif
+
         {{-- Monto del abono --}}
         <div class="mb-6">
             <label class="block text-sm font-semibold text-gray-700 mb-2">

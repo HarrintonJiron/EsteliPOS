@@ -41,6 +41,11 @@ class Warehouse extends Model
         return $this->hasMany(WarehouseShelf::class)->orderBy('code');
     }
 
+    public function branches(): HasMany
+    {
+        return $this->hasMany(Branch::class);
+    }
+
     public static function default(): ?self
     {
         return static::query()

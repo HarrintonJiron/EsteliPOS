@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SaleRequest;
 use App\Models\AuditLog;
+use App\Models\Branch;
 use App\Models\CajaSession;
 use App\Models\Category;
 use App\Models\Client;
@@ -15,6 +16,7 @@ use App\Models\Tax;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AccountingService;
+use App\Services\BranchContextService;
 use App\Services\CreditOverrideService;
 use App\Services\CreditService;
 use App\Services\InventoryService;
@@ -41,6 +43,7 @@ class FacturacionController extends Controller
         private PosCatalogService $posCatalog,
         private PurchaseCostingService $purchaseCosting,
         private PricingService $pricing,
+        private BranchContextService $branches,
     ) {}
 
     private function nextInvoiceNumber(): string
@@ -51,7 +54,8 @@ class FacturacionController extends Controller
     public function index(Request $request)
     {
         $perPage = max(1, min(35, (int) $request->query('per_page', 15)));
-        $query = Sale::with('client', 'user');
+        $branchId = $request->user()?->branch_id;
+        $query = Sale::with('client', 'user')->when($branchId, fn ($query) => $query->where('branch_id', $branchId));
 
         if ($request->filled('search')) {
             $query->whereHas('client', function ($q) use ($request) {
@@ -71,11 +75,12 @@ class FacturacionController extends Controller
         $clients = Client::orderBy('name')->get();
         $monthStart = now()->startOfMonth()->toDateString();
         $monthEnd = now()->endOfMonth()->toDateString();
+        $salesForBranch = fn () => Sale::query()->when($branchId, fn ($query) => $query->where('branch_id', $branchId));
         $stats = [
-            'today_total' => (float) Sale::query()->whereDate('date', today())->where('status', 'completed')->sum('total'),
-            'month_total' => (float) Sale::query()->whereBetween('date', [$monthStart, $monthEnd])->where('status', 'completed')->sum('total'),
-            'month_count' => (int) Sale::query()->whereBetween('date', [$monthStart, $monthEnd])->where('status', 'completed')->count(),
-            'pending' => (int) Sale::query()->where('status', 'pending')->count(),
+            'today_total' => (float) $salesForBranch()->whereDate('date', today())->where('status', 'completed')->sum('total'),
+            'month_total' => (float) $salesForBranch()->whereBetween('date', [$monthStart, $monthEnd])->where('status', 'completed')->sum('total'),
+            'month_count' => (int) $salesForBranch()->whereBetween('date', [$monthStart, $monthEnd])->where('status', 'completed')->count(),
+            'pending' => (int) $salesForBranch()->where('status', 'pending')->count(),
         ];
 
         return view('facturacion.index', compact('sales', 'clients', 'stats'));
@@ -115,14 +120,17 @@ class FacturacionController extends Controller
                     ?? ($client?->isCompany() ? 'ruc' : ($client?->cedula ? 'cedula' : null));
                 $billingDocumentNumber = $data['billing_ruc']
                     ?? ($billingDocumentType === 'cedula' ? $client?->cedula : $client?->ruc);
-                $resolvedPriceList = $this->pricing->resolvePriceList($client?->price_list_id);
+                $warehouseId = $this->posCatalog->resolveWarehouseId($data['warehouse_id'] ?? null);
+                $branch = $this->branches->resolve($warehouseId, $cashSession, auth()->user()?->branch_id);
+                $resolvedPriceList = $this->pricing->resolvePriceList($client?->price_list_id, $branch?->id);
 
                 $sale = Sale::create([
                     'invoice_number' => $invoiceNumber,
                     'client_id' => $data['client_id'],
                     'user_id' => $data['user_id'],
+                    'branch_id' => $branch?->id,
                     'caja_session_id' => $cashSession?->id,
-                    'warehouse_id' => $this->posCatalog->resolveWarehouseId($data['warehouse_id'] ?? null),
+                    'warehouse_id' => $warehouseId,
                     'price_list_id' => $resolvedPriceList?->id,
                     'price_list_name' => $resolvedPriceList?->name,
                     'billing_name' => $data['billing_name'],
@@ -495,13 +503,15 @@ class FacturacionController extends Controller
      */
     public function pos()
     {
-        $defaultWarehouseId = $this->posCatalog->resolveWarehouseId(null);
+        $userBranchId = request()->user()?->branch_id;
+        $assignedBranch = $userBranchId ? Branch::query()->where('is_active', true)->find($userBranchId) : null;
+        $defaultWarehouseId = $this->posCatalog->resolveWarehouseId($assignedBranch?->warehouse_id);
         $products = Product::with(['category', 'tax', 'baseUnit', 'unitConversions.unit', 'warehouseStocks.warehouse'])
             ->where('status', 'active')
             ->orderBy('name')
             ->limit(300)
             ->get()
-            ->map(fn (Product $product) => $this->posCatalog->serializeProduct($product, null));
+            ->map(fn (Product $product) => $this->posCatalog->serializeProduct($product, $defaultWarehouseId));
 
         Client::firstOrCreate(
             ['code' => 'GEN'],
@@ -514,7 +524,12 @@ class FacturacionController extends Controller
                 }
             });
         $categories = Category::orderBy('name')->get();
-        $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'code', 'is_default']);
+        $warehouses = Warehouse::query()
+            ->where('is_active', true)
+            ->when($assignedBranch, fn ($query) => $query->whereKey($assignedBranch->warehouse_id))
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'is_default']);
         $defaultTaxRate = Tax::defaultRate();
         $posReferenceFx = $this->purchaseCosting->posReferenceFx();
 
@@ -542,6 +557,17 @@ class FacturacionController extends Controller
         $warehouseId = isset($validated['warehouse_id'])
             ? $this->posCatalog->resolveWarehouseId((int) $validated['warehouse_id'])
             : null;
+        if ($warehouseId !== null) {
+            try {
+                $this->branches->resolve(
+                    $warehouseId,
+                    CajaSession::currentForUser($request->user()?->id),
+                    $request->user()?->branch_id,
+                );
+            } catch (\RuntimeException $exception) {
+                return response()->json(['message' => $exception->getMessage()], 422);
+            }
+        }
         $priceListId = $this->posCatalog->resolvePriceListId($validated['client_id'] ?? null);
 
         $query = Product::query()
@@ -630,9 +656,11 @@ class FacturacionController extends Controller
     public function posDailyReport(Request $request)
     {
         $today = now()->toDateString();
+        $currentSession = CajaSession::currentForUser($request->user()?->id);
         $sales = Sale::query()
             ->whereDate('date', $today)
             ->where('status', '!=', 'cancelled')
+            ->when($currentSession?->branch_id, fn ($query, $branchId) => $query->where('branch_id', $branchId))
             ->get(['total', 'payment_type']);
 
         $labels = [
@@ -748,7 +776,7 @@ class FacturacionController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($validated, $items, &$sale, $userId, $cashSession) {
+            DB::transaction(function () use ($validated, $items, &$sale, $userId, $cashSession, $request) {
                 $invoiceNumber = $this->nextInvoiceNumber();
                 $requestedPaymentType = $validated['payment_type'];
                 $storedPaymentType = $requestedPaymentType === 'card' ? 'transfer' : $requestedPaymentType;
@@ -778,7 +806,9 @@ class FacturacionController extends Controller
                 $preferredWarehouseId = isset($validated['warehouse_id'])
                     ? (int) $validated['warehouse_id']
                     : null;
-                $resolvedPriceList = $this->pricing->resolvePriceList($client->price_list_id);
+                $resolvedWarehouseId = $this->posCatalog->resolveWarehouseId($preferredWarehouseId);
+                $branch = $this->branches->resolve($resolvedWarehouseId, $cashSession, $request->user()?->branch_id);
+                $resolvedPriceList = $this->pricing->resolvePriceList($client->price_list_id, $branch?->id);
                 $priceListId = $resolvedPriceList?->id;
                 $saleWarehouseId = null;
 
@@ -787,8 +817,9 @@ class FacturacionController extends Controller
                     'request_token' => $validated['request_token'] ?? null,
                     'client_id' => $client->id,
                     'user_id' => $userId,
+                    'branch_id' => $branch?->id,
                     'caja_session_id' => $cashSession?->id,
-                    'warehouse_id' => $this->posCatalog->resolveWarehouseId($preferredWarehouseId),
+                    'warehouse_id' => $resolvedWarehouseId,
                     'price_list_id' => $resolvedPriceList?->id,
                     'price_list_name' => $resolvedPriceList?->name,
                     'billing_name' => $client->name,
@@ -825,6 +856,7 @@ class FacturacionController extends Controller
                         (float) $item['quantity'],
                         isset($item['unit_id']) ? (int) $item['unit_id'] : null,
                         $priceListId,
+                        $branch?->id,
                     );
 
                     $discountPct = min(100, max(0, (float) ($item['discount'] ?? 0)));

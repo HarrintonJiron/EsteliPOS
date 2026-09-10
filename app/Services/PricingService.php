@@ -8,17 +8,17 @@ use App\Models\Product;
 
 class PricingService
 {
-    public function resolveUnitPrice(Product $product, ?int $priceListId = null, ?int $unitId = null, float $quantity = 1): float
+    public function resolveUnitPrice(Product $product, ?int $priceListId = null, ?int $unitId = null, float $quantity = 1, ?int $branchId = null): float
     {
-        return $this->resolvePrice($product, $priceListId, $unitId, $quantity)['price'];
+        return $this->resolvePrice($product, $priceListId, $unitId, $quantity, $branchId)['price'];
     }
 
     /**
      * @return array{price: float, price_list_id: ?int, price_list_item_id: ?int, min_quantity: ?float}
      */
-    public function resolvePrice(Product $product, ?int $priceListId = null, ?int $unitId = null, float $quantity = 1): array
+    public function resolvePrice(Product $product, ?int $priceListId = null, ?int $unitId = null, float $quantity = 1, ?int $branchId = null): array
     {
-        $priceList = $this->resolvePriceList($priceListId);
+        $priceList = $this->resolvePriceList($priceListId, $branchId);
 
         if ($priceList) {
             $itemQuery = PriceListItem::query()
@@ -60,7 +60,7 @@ class PricingService
         return $this->fallbackResult($product->effectivePrice());
     }
 
-    public function resolvePriceList(?int $priceListId = null): ?PriceList
+    public function resolvePriceList(?int $priceListId = null, ?int $branchId = null): ?PriceList
     {
         if ($priceListId) {
             $list = PriceList::query()->find($priceListId);
@@ -70,15 +70,24 @@ class PricingService
             }
         }
 
+        if ($branchId) {
+            $branchList = PriceList::query()
+                ->whereHas('branches', fn ($query) => $query->whereKey($branchId))
+                ->first();
+            if ($branchList?->isCurrentlyValid()) {
+                return $branchList;
+            }
+        }
+
         $default = PriceList::default();
 
         return $default && $default->isCurrentlyValid() ? $default : null;
     }
 
     /** @return list<array{min_quantity: float, price: float}> */
-    public function priceBreaks(Product $product, ?int $priceListId, ?int $unitId): array
+    public function priceBreaks(Product $product, ?int $priceListId, ?int $unitId, ?int $branchId = null): array
     {
-        $priceList = $this->resolvePriceList($priceListId);
+        $priceList = $this->resolvePriceList($priceListId, $branchId);
         if (! $priceList) {
             return [];
         }

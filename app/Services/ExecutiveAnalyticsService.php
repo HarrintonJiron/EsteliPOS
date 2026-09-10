@@ -210,7 +210,7 @@ class ExecutiveAnalyticsService
                 ? (float) WarehouseStock::query()
                     ->join('products', 'warehouse_stocks.product_id', '=', 'products.id')
                     ->where('warehouse_stocks.warehouse_id', $branch->warehouse_id)
-                    ->selectRaw('SUM(warehouse_stocks.quantity * products.purchase_price) as value')
+                    ->selectRaw('SUM(warehouse_stocks.quantity * COALESCE(warehouse_stocks.purchase_price, products.purchase_price)) as value')
                     ->value('value')
                 : 0;
 

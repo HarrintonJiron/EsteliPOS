@@ -32,6 +32,11 @@ class PriceList extends Model
         return $this->hasMany(PriceListItem::class);
     }
 
+    public function branches()
+    {
+        return $this->hasMany(Branch::class);
+    }
+
     public static function default(): ?self
     {
         return static::query()

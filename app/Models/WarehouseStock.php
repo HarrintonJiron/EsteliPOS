@@ -11,6 +11,7 @@ class WarehouseStock extends Model
         'warehouse_id',
         'product_id',
         'quantity',
+        'purchase_price',
         'aisle',
     ];
 
@@ -18,6 +19,7 @@ class WarehouseStock extends Model
     {
         return [
             'quantity' => 'decimal:4',
+            'purchase_price' => 'decimal:2',
         ];
     }
 

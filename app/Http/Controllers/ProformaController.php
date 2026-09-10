@@ -14,6 +14,7 @@ use App\Models\SaleDetail;
 use App\Models\Tax;
 use App\Models\Warehouse;
 use App\Services\AccountingService;
+use App\Services\BranchContextService;
 use App\Services\CreditService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
@@ -31,6 +32,7 @@ class ProformaController extends Controller
         private InventoryService $inventoryService,
         private PosCatalogService $posCatalog,
         private PricingService $pricing,
+        private BranchContextService $branches,
     ) {}
 
     private function defaultTaxRate(): float
@@ -391,6 +393,7 @@ class ProformaController extends Controller
                     throw new \RuntimeException('Esta proforma ya fue convertida en factura.');
                 }
                 $userId = $request->user()?->id ?? 1;
+                $branch = $this->branches->resolve($warehouseId, $cashSession, $request->user()?->branch_id);
 
                 $clientId = $proforma->client_id;
                 if (! $clientId) {
@@ -425,6 +428,7 @@ class ProformaController extends Controller
                     'invoice_number' => $invoiceNumber,
                     'client_id' => $clientId,
                     'user_id' => $userId,
+                    'branch_id' => $branch?->id,
                     'caja_session_id' => $cashSession?->id,
                     'warehouse_id' => $warehouseId,
                     'price_list_id' => $proforma->price_list_id,

@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\CajaSession;
 use App\Models\Client;
 use App\Models\CreditPayment;
 use App\Models\Sale;
 use App\Services\AccountingService;
+use App\Services\BranchContextService;
 use App\Services\CreditService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -15,7 +17,11 @@ use Illuminate\Support\Facades\DB;
 
 class CreditController extends Controller
 {
-    public function __construct(private CreditService $credit, private AccountingService $accountingService) {}
+    public function __construct(
+        private CreditService $credit,
+        private AccountingService $accountingService,
+        private BranchContextService $branches,
+    ) {}
 
     public function index(Request $request)
     {
@@ -65,7 +71,14 @@ class CreditController extends Controller
             ->where('payment_type', 'credit')->where('status', 'pending')->sum('total');
         $totalPaid = (float) CreditPayment::where('client_id', $clientId)->sum('amount');
 
-        return view('creditos.create', compact('client', 'balance', 'totalDebt', 'totalPaid', 'creditSummary'));
+        $userBranchId = request()->user()?->branch_id;
+        $branches = Branch::query()
+            ->where('is_active', true)
+            ->when($userBranchId, fn ($query) => $query->whereKey($userBranchId))
+            ->orderBy('name')
+            ->get();
+
+        return view('creditos.create', compact('client', 'balance', 'totalDebt', 'totalPaid', 'creditSummary', 'branches'));
     }
 
     public function store(Request $request)
@@ -77,6 +90,7 @@ class CreditController extends Controller
             'reference_number' => 'nullable|string',
             'notes' => 'nullable|string',
             'request_token' => 'required|uuid',
+            'branch_id' => 'nullable|integer|exists:branches,id',
         ]);
 
         $existing = CreditPayment::query()
@@ -99,6 +113,25 @@ class CreditController extends Controller
                 if ($validated['payment_type'] === 'cash' && ! $cashSession) {
                     throw new \RuntimeException('Debes abrir una caja antes de recibir un abono en efectivo.');
                 }
+                if ($cashSession?->branch_id && isset($validated['branch_id'])
+                    && (int) $validated['branch_id'] !== (int) $cashSession->branch_id) {
+                    throw new \RuntimeException('La sucursal seleccionada no coincide con la caja abierta.');
+                }
+                if ($request->user()?->branch_id && isset($validated['branch_id'])
+                    && (int) $validated['branch_id'] !== (int) $request->user()->branch_id) {
+                    throw new \RuntimeException('Tu usuario no puede recibir abonos en otra sucursal.');
+                }
+                $requestedBranchId = isset($validated['branch_id'])
+                    ? (int) $validated['branch_id']
+                    : $request->user()?->branch_id;
+                $branch = $this->branches->resolve(
+                    $cashSession?->branch?->warehouse_id,
+                    $cashSession,
+                    $requestedBranchId,
+                );
+                if (! $branch && Branch::query()->where('is_active', true)->count() > 1) {
+                    throw new \RuntimeException('Selecciona la sucursal donde se recibe este abono.');
+                }
 
                 if ($amount > $balance + 0.00001) {
                     throw new \RuntimeException(
@@ -115,6 +148,7 @@ class CreditController extends Controller
                     'notes' => $validated['notes'] ?? null,
                     'payment_date' => now(),
                     'user_id' => $request->user()->id,
+                    'branch_id' => $branch?->id,
                     'caja_session_id' => $cashSession?->id,
                 ]);
 

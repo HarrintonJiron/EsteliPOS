@@ -15,6 +15,7 @@ class Purchase extends Model
         'document_number',
         'supplier_id',
         'user_id',
+        'branch_id',
         'caja_session_id',
         'warehouse_id',
         'date',
@@ -52,6 +53,11 @@ class Purchase extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function warehouse(): BelongsTo

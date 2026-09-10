@@ -24,6 +24,7 @@ class Branch extends Model
         'phone',
         'manager_name',
         'warehouse_id',
+        'price_list_id',
         'cost_center_id',
         'is_active',
         'share_percent',
@@ -46,6 +47,16 @@ class Branch extends Model
     public function costCenter(): BelongsTo
     {
         return $this->belongsTo(CostCenter::class);
+    }
+
+    public function priceList(): BelongsTo
+    {
+        return $this->belongsTo(PriceList::class);
+    }
+
+    public function sales(): HasMany
+    {
+        return $this->hasMany(Sale::class);
     }
 
     public function employees(): HasMany

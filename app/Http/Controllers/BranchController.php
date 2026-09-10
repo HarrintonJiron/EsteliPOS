@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\BranchRequest;
 use App\Models\Branch;
 use App\Models\CostCenter;
+use App\Models\PriceList;
 use App\Models\Warehouse;
 use App\Services\ExecutiveAnalyticsService;
 use Illuminate\Http\RedirectResponse;
@@ -70,6 +71,7 @@ class BranchController extends Controller
             'branch' => $branch ?? new Branch(['is_active' => true, 'type' => 'sucursal']),
             'warehouses' => Warehouse::query()->orderBy('name')->get(['id', 'code', 'name']),
             'costCenters' => CostCenter::query()->orderBy('code')->get(['id', 'code', 'name']),
+            'priceLists' => PriceList::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'types' => Branch::TYPES,
         ];
     }

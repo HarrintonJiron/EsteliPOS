@@ -17,7 +17,9 @@ use App\Models\SupplierPayment;
 use App\Models\Tax;
 use App\Models\Unit;
 use App\Models\Warehouse;
+use App\Models\WarehouseStock;
 use App\Services\AccountingService;
+use App\Services\BranchContextService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
 use App\Services\PricingService;
@@ -37,12 +39,14 @@ class CompraController extends Controller
         private PosCatalogService $posCatalog,
         private PricingService $pricing,
         private PurchaseCostingService $purchaseCosting,
+        private BranchContextService $branches,
     ) {}
 
     public function index(Request $request)
     {
         $perPage = max(1, min(35, (int) $request->query('per_page', 15)));
-        $query = Purchase::with('supplier', 'user', 'warehouse');
+        $branchId = $request->user()?->branch_id;
+        $query = Purchase::with('supplier', 'user', 'warehouse')->when($branchId, fn ($query) => $query->where('branch_id', $branchId));
 
         if ($request->filled('supplier_id')) {
             $query->where('supplier_id', $request->supplier_id);
@@ -66,15 +70,16 @@ class CompraController extends Controller
         $monthStart = now()->startOfMonth();
         $monthEnd = now()->endOfMonth();
 
+        $purchasesForBranch = fn () => Purchase::query()->when($branchId, fn ($query) => $query->where('branch_id', $branchId));
         $stats = [
-            'month_total' => (float) Purchase::query()
+            'month_total' => (float) $purchasesForBranch()
                 ->whereIn('status', ['pending', 'completed'])
                 ->whereBetween('date', [$monthStart, $monthEnd])
                 ->sum('total'),
-            'completed_count' => Purchase::query()->where('status', 'completed')->count(),
-            'pending_count' => Purchase::query()->where('status', 'pending')->count(),
-            'ordered_count' => Purchase::query()->where('status', 'ordered')->count(),
-            'invested_total' => (float) Purchase::query()
+            'completed_count' => $purchasesForBranch()->where('status', 'completed')->count(),
+            'pending_count' => $purchasesForBranch()->where('status', 'pending')->count(),
+            'ordered_count' => $purchasesForBranch()->where('status', 'ordered')->count(),
+            'invested_total' => (float) $purchasesForBranch()
                 ->whereIn('status', ['pending', 'completed'])
                 ->sum('total'),
         ];
@@ -358,10 +363,13 @@ class CompraController extends Controller
                 $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash'
                     ? $this->requireOpenCashSessionId($request->user()?->id)
                     : null;
+                $cashSession = $cashSessionId ? CajaSession::query()->find($cashSessionId) : null;
+                $branch = $this->branches->resolve($warehouseId, $cashSession, $request->user()?->branch_id);
                 $purchase = Purchase::create([
                     'document_number' => NumberSequence::getNext('compra'),
                     'supplier_id' => $data['supplier_id'],
                     'user_id' => $request->user()?->id ?? ($data['user_id'] ?? 1),
+                    'branch_id' => $branch?->id,
                     'caja_session_id' => $cashSessionId,
                     'warehouse_id' => $warehouseId,
                     'date' => $data['date'],
@@ -515,6 +523,8 @@ class CompraController extends Controller
                 $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash'
                     ? $this->requireOpenCashSessionId(auth()->id())
                     : null;
+                $cashSession = $cashSessionId ? CajaSession::query()->find($cashSessionId) : null;
+                $branch = $this->branches->resolve($warehouseId, $cashSession, auth()->user()?->branch_id);
                 $purchase->update([
                     'supplier_id' => $data['supplier_id'],
                     'warehouse_id' => $warehouseId,
@@ -522,6 +532,7 @@ class CompraController extends Controller
                     'status' => $settlement['status'],
                     'payment_type' => $settlement['payment_type'],
                     'caja_session_id' => $cashSessionId,
+                    'branch_id' => $branch?->id,
                     'currency' => $data['currency'],
                     'exchange_rate' => $exchangeRate,
                 ]);
@@ -588,9 +599,16 @@ class CompraController extends Controller
      */
     private function purchaseFormData(): array
     {
+        $branchId = auth()->user()?->branch_id;
+
         return [
             'suppliers' => Supplier::orderBy('name')->get(),
-            'warehouses' => Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(),
+            'warehouses' => Warehouse::query()
+                ->where('is_active', true)
+                ->when($branchId, fn ($query) => $query->whereHas('branches', fn ($branches) => $branches->whereKey($branchId)))
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get(),
             'categories' => Category::orderBy('name')->get(),
             'units' => Unit::query()->where('is_active', true)->orderBy('name')->get(),
             'currencies' => $this->purchaseCosting->supportedCurrencies(),
@@ -699,6 +717,10 @@ class CompraController extends Controller
 
             if ($affectInventory && $resolved['base_quantity'] > 0) {
                 $product->update(['purchase_price' => $unitCostCompany]);
+                WarehouseStock::query()
+                    ->where('warehouse_id', $warehouseId)
+                    ->where('product_id', $product->id)
+                    ->update(['purchase_price' => $unitCostCompany]);
             }
 
             $foreignSubtotal += $lineNetForeign;
@@ -864,12 +886,15 @@ class CompraController extends Controller
             $cashSessionId = $receivedStatus === 'completed' && $receivedPaymentType === 'cash'
                 ? $this->requireOpenCashSessionId($userId)
                 : null;
+            $cashSession = $cashSessionId ? CajaSession::query()->find($cashSessionId) : null;
+            $branch = $this->branches->resolve($purchase->warehouse_id, $cashSession, auth()->user()?->branch_id);
 
             $this->applyPendingInventory($purchase);
             $purchase->update([
                 'status' => $receivedStatus,
                 'payment_type' => $receivedPaymentType,
                 'caja_session_id' => $cashSessionId,
+                'branch_id' => $branch?->id,
             ]);
             $this->assertSupplierCreditAvailable($purchase->fresh());
             $this->accountingService->recordPurchase($purchase->fresh());
@@ -893,10 +918,13 @@ class CompraController extends Controller
         }
 
         $cashSessionId = $paymentType === 'transfer' ? null : $this->requireOpenCashSessionId($userId);
+        $cashSession = $cashSessionId ? CajaSession::query()->find($cashSessionId) : null;
+        $branch = $this->branches->resolve($purchase->warehouse_id, $cashSession, auth()->user()?->branch_id);
         $purchase->update([
             'status' => 'completed',
             'payment_type' => $paymentType === 'transfer' ? 'transfer' : 'cash',
             'caja_session_id' => $cashSessionId,
+            'branch_id' => $branch?->id,
         ]);
         $payment = SupplierPayment::query()->create([
             'purchase_id' => $purchase->id,
@@ -981,7 +1009,12 @@ class CompraController extends Controller
             );
 
             $lineNetCompany = $this->purchaseCosting->toCompanyAmount((float) $detail->subtotal, $exchangeRate);
-            $detail->product->update(['purchase_price' => round($lineNetCompany / $qty, 4)]);
+            $unitCostCompany = round($lineNetCompany / $qty, 4);
+            $detail->product->update(['purchase_price' => $unitCostCompany]);
+            WarehouseStock::query()
+                ->where('warehouse_id', $warehouseId)
+                ->where('product_id', $detail->product_id)
+                ->update(['purchase_price' => $unitCostCompany]);
         }
     }
 }
