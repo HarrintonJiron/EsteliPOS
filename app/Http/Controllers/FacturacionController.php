@@ -23,6 +23,7 @@ use App\Services\PricingService;
 use App\Services\PurchaseCostingService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -231,6 +232,10 @@ class FacturacionController extends Controller
         $saleId = $request->query('sale_id');
         $sale = $saleId ? Sale::with('details.product.baseUnit', 'details.unit', 'client')->find($saleId) : null;
 
+        if (! $sale) {
+            return $this->missingSaleResponse();
+        }
+
         return view('facturacion.print', compact('sale'));
     }
 
@@ -239,19 +244,32 @@ class FacturacionController extends Controller
         $saleId = $request->query('sale_id');
         $sale = $saleId ? Sale::with('details.product.baseUnit', 'details.unit', 'client')->find($saleId) : null;
 
+        if (! $sale) {
+            return $this->missingSaleResponse();
+        }
+
         return view('facturacion.pdf', compact('sale'));
     }
 
     public function show($id)
     {
-        $sale = Sale::with('details.product.baseUnit', 'details.unit', 'client')->findOrFail($id);
+        $sale = Sale::with('details.product.baseUnit', 'details.unit', 'client')->find($id);
+
+        if (! $sale) {
+            return $this->missingSaleResponse();
+        }
 
         return view('facturacion.show', compact('sale'));
     }
 
     public function edit($id)
     {
-        $sale = Sale::with('details.product.baseUnit', 'details.unit')->findOrFail($id);
+        $sale = Sale::with('details.product.baseUnit', 'details.unit')->find($id);
+
+        if (! $sale) {
+            return $this->missingSaleResponse();
+        }
+
         if ($sale->status === 'canceled') {
             return redirect()->route('facturacion.show', $sale)->with('error', 'Una factura anulada es de solo lectura.');
         }
@@ -275,7 +293,12 @@ class FacturacionController extends Controller
     public function update(SaleRequest $request, $id)
     {
         $data = $request->validated();
-        $sale = Sale::findOrFail($id);
+        $sale = Sale::find($id);
+
+        if (! $sale) {
+            return $this->missingSaleResponse();
+        }
+
         if ($sale->status === 'canceled') {
             return redirect()->route('facturacion.show', $sale)->with('error', 'Una factura anulada no se puede editar.');
         }
@@ -416,7 +439,11 @@ class FacturacionController extends Controller
 
     public function destroy($id)
     {
-        $sale = Sale::findOrFail($id);
+        $sale = Sale::find($id);
+
+        if (! $sale) {
+            return $this->missingSaleResponse();
+        }
 
         try {
             DB::transaction(function () use ($sale) {
@@ -939,7 +966,12 @@ class FacturacionController extends Controller
      */
     public function change($saleId)
     {
-        $sale = Sale::with('details.product.baseUnit', 'details.unit', 'user')->findOrFail($saleId);
+        $sale = Sale::with('details.product.baseUnit', 'details.unit', 'user')->find($saleId);
+
+        if (! $sale) {
+            return $this->missingSaleResponse();
+        }
+
         $changeAmount = session('changeAmount', 0);
 
         return view('facturacion.change', compact('sale', 'changeAmount'));
@@ -950,8 +982,18 @@ class FacturacionController extends Controller
      */
     public function receipt($saleId)
     {
-        $sale = Sale::with('details.product.baseUnit', 'details.unit', 'user')->findOrFail($saleId);
+        $sale = Sale::with('details.product.baseUnit', 'details.unit', 'user')->find($saleId);
+
+        if (! $sale) {
+            return $this->missingSaleResponse();
+        }
 
         return view('facturacion.receipt', compact('sale'));
+    }
+
+    private function missingSaleResponse(): RedirectResponse
+    {
+        return redirect()->route('facturacion.index')
+            ->with('error', 'La factura ya no está disponible; posiblemente fue eliminada en otra ventana.');
     }
 }

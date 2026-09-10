@@ -18,6 +18,7 @@ use App\Services\CreditService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
 use App\Services\PricingService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -287,7 +288,12 @@ class ProformaController extends Controller
 
     public function show($id)
     {
-        $proforma = Proforma::with('details.product', 'client', 'user')->findOrFail($id);
+        $proforma = Proforma::with('details.product', 'client', 'user')->find($id);
+
+        if (! $proforma) {
+            return $this->missingProformaResponse();
+        }
+
         $warehouses = Warehouse::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get();
 
         return view('proformas.show', compact('proforma', 'warehouses'));
@@ -295,7 +301,12 @@ class ProformaController extends Controller
 
     public function updateStatus(Request $request, $id)
     {
-        $proforma = Proforma::findOrFail($id);
+        $proforma = Proforma::find($id);
+
+        if (! $proforma) {
+            return $this->missingProformaResponse();
+        }
+
         $status = $request->validate(['status' => 'required|in:draft,sent,accepted,rejected,expired'])['status'];
         $proforma->update(['status' => $status]);
 
@@ -304,7 +315,12 @@ class ProformaController extends Controller
 
     public function destroy($id)
     {
-        $proforma = Proforma::findOrFail($id);
+        $proforma = Proforma::find($id);
+
+        if (! $proforma) {
+            return $this->missingProformaResponse();
+        }
+
         $proforma->details()->delete();
         $proforma->delete();
 
@@ -313,14 +329,22 @@ class ProformaController extends Controller
 
     public function pdf($id)
     {
-        $proforma = Proforma::with('details.product', 'client', 'user')->findOrFail($id);
+        $proforma = Proforma::with('details.product', 'client', 'user')->find($id);
+
+        if (! $proforma) {
+            return $this->missingProformaResponse();
+        }
 
         return view('proformas.pdf', compact('proforma'));
     }
 
     public function ticket($id)
     {
-        $proforma = Proforma::with('details.product', 'client', 'user')->findOrFail($id);
+        $proforma = Proforma::with('details.product', 'client', 'user')->find($id);
+
+        if (! $proforma) {
+            return $this->missingProformaResponse();
+        }
 
         return view('proformas.ticket', compact('proforma'));
     }
@@ -330,7 +354,11 @@ class ProformaController extends Controller
      */
     public function convertToSale(Request $request, $id)
     {
-        $proforma = Proforma::with('details.product')->findOrFail($id);
+        $proforma = Proforma::with('details.product')->find($id);
+
+        if (! $proforma) {
+            return $this->missingProformaResponse();
+        }
 
         $validated = $request->validate([
             'payment_type' => 'required|in:cash,card,transfer,credit',
@@ -347,10 +375,18 @@ class ProformaController extends Controller
         }
 
         $sale = null;
+        $proformaMissing = false;
 
         try {
-            DB::transaction(function () use ($proforma, $paymentType, $requestedPaymentType, $warehouseId, $cashSession, &$sale, $request) {
-                $proforma = Proforma::query()->with('details.product')->lockForUpdate()->findOrFail($proforma->id);
+            DB::transaction(function () use ($proforma, $paymentType, $requestedPaymentType, $warehouseId, $cashSession, &$sale, $request, &$proformaMissing) {
+                $proforma = Proforma::query()->with('details.product')->lockForUpdate()->find($proforma->id);
+
+                if (! $proforma) {
+                    $proformaMissing = true;
+
+                    return;
+                }
+
                 if ($proforma->sale_id) {
                     throw new \RuntimeException('Esta proforma ya fue convertida en factura.');
                 }
@@ -457,11 +493,21 @@ class ProformaController extends Controller
                 $proforma->update(['status' => 'accepted', 'sale_id' => $sale->id]);
             });
 
+            if ($proformaMissing) {
+                return $this->missingProformaResponse();
+            }
+
             return redirect()->route('facturacion.show', $sale->id)
                 ->with('success', 'Proforma convertida a factura correctamente.');
         } catch (Throwable $exception) {
             return redirect()->back()
                 ->with('error', 'No se pudo convertir la proforma. '.$exception->getMessage());
         }
+    }
+
+    private function missingProformaResponse(): RedirectResponse
+    {
+        return redirect()->route('proformas.index')
+            ->with('error', 'La proforma ya no está disponible; posiblemente fue eliminada en otra ventana.');
     }
 }

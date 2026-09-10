@@ -23,6 +23,7 @@ use App\Services\PosCatalogService;
 use App\Services\PricingService;
 use App\Services\PurchaseCostingService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -248,7 +249,11 @@ class CompraController extends Controller
 
     public function show($id)
     {
-        $purchase = Purchase::with('details.product.baseUnit', 'details.unit', 'supplier', 'warehouse', 'user')->findOrFail($id);
+        $purchase = Purchase::with('details.product.baseUnit', 'details.unit', 'supplier', 'warehouse', 'user')->find($id);
+
+        if (! $purchase) {
+            return $this->missingPurchaseResponse();
+        }
 
         return view('compras.show', [
             'purchase' => $purchase,
@@ -402,7 +407,11 @@ class CompraController extends Controller
 
     public function edit($id)
     {
-        $purchase = Purchase::with('details.product.baseUnit', 'details.product.unitConversions.unit', 'details.unit')->findOrFail($id);
+        $purchase = Purchase::with('details.product.baseUnit', 'details.product.unitConversions.unit', 'details.unit')->find($id);
+
+        if (! $purchase) {
+            return $this->missingPurchaseResponse();
+        }
 
         return view('compras.edit', array_merge($this->purchaseFormData(), compact('purchase')));
     }
@@ -411,18 +420,29 @@ class CompraController extends Controller
     {
         $newStatus = (string) $request->validated('status');
         $paymentType = (string) ($request->validated('payment_type') ?? 'cash');
+        $purchaseMissing = false;
 
         try {
-            DB::transaction(function () use ($id, $newStatus, $paymentType, $request) {
+            DB::transaction(function () use ($id, $newStatus, $paymentType, $request, &$purchaseMissing) {
                 $purchase = Purchase::query()
                     ->with('details.product')
                     ->lockForUpdate()
-                    ->findOrFail($id);
+                    ->find($id);
+
+                if (! $purchase) {
+                    $purchaseMissing = true;
+
+                    return;
+                }
 
                 $this->transitionPurchaseStatus($purchase, $newStatus, $paymentType, $request->user()?->id);
             });
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
+        }
+
+        if ($purchaseMissing) {
+            return $this->missingPurchaseResponse();
         }
 
         $message = match ($newStatus) {
@@ -578,6 +598,12 @@ class CompraController extends Controller
             'companySymbol' => $this->purchaseCosting->companySymbol(),
             'exchangeRates' => $this->purchaseCosting->currentRatesToCompany(),
         ];
+    }
+
+    private function missingPurchaseResponse(): RedirectResponse
+    {
+        return redirect()->route('compras.index')
+            ->with('error', 'La compra ya no está disponible; posiblemente fue eliminada en otra ventana.');
     }
 
     private function purchaseProforma(int $id): Purchase

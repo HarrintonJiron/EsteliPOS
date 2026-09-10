@@ -54,3 +54,16 @@ test('converting a proforma without a client creates a generic client sale', fun
         'invoice_number' => 'FAC-000001',
     ]);
 });
+
+test('converting a proforma deleted from another window returns a friendly message', function () {
+    $response = $this->withoutMiddleware()->post(route('proformas.convert', 999999), [
+        'payment_type' => 'cash',
+    ]);
+
+    $response
+        ->assertRedirect(route('proformas.index'))
+        ->assertSessionHas(
+            'error',
+            'La proforma ya no está disponible; posiblemente fue eliminada en otra ventana.',
+        );
+});
