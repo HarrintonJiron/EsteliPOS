@@ -33,6 +33,7 @@ class ConfigurationSeeder extends Seeder
             ['name' => 'Reparaciones', 'slug' => 'reparaciones', 'description' => 'Órdenes de reparación', 'icon' => '🛠️', 'route' => 'reparaciones.index', 'is_active' => true, 'sort_order' => 12],
             ['name' => 'Joyería', 'slug' => 'joyeria', 'description' => 'Taller y órdenes de joyería', 'icon' => '💎', 'route' => 'joyeria.index', 'is_active' => false, 'sort_order' => 13],
             ['name' => 'Planilla', 'slug' => 'planilla', 'description' => 'Planilla y nómina', 'icon' => '🧑‍💼', 'route' => 'planilla.index', 'is_active' => true, 'sort_order' => 14],
+            ['name' => 'Apartados y envíos', 'slug' => 'operaciones_clientes', 'description' => 'Reservas, entregas y seguimiento al cliente', 'icon' => '🚚', 'route' => 'operaciones-clientes.index', 'is_active' => true, 'sort_order' => 15],
         ];
 
         foreach ($modules as $module) {
@@ -52,6 +53,8 @@ class ConfigurationSeeder extends Seeder
             'creditos' => ['view', 'create', 'export'],
             'proformas' => ['view', 'create', 'edit', 'delete', 'export', 'convert'],
             'reparaciones' => ['view', 'create', 'edit', 'delete', 'export', 'view_expenses', 'create_expenses', 'edit_expenses', 'delete_expenses'],
+            'apartados' => ['view', 'create', 'edit', 'cancel', 'convert'],
+            'envios' => ['view', 'create', 'edit', 'delete'],
             'planilla' => ['view', 'create', 'edit', 'delete', 'approve', 'pay', 'export'],
             'reportes' => ['view', 'export'],
             'contabilidad' => ['view', 'create', 'edit', 'delete', 'export', 'close_period'],
@@ -143,6 +146,8 @@ class ConfigurationSeeder extends Seeder
             ['type' => 'recibo', 'prefix' => 'REC-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
             ['type' => 'ajuste', 'prefix' => 'AJU-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
             ['type' => 'asiento', 'prefix' => 'POL-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
+            ['type' => 'apartado', 'prefix' => 'APT-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
+            ['type' => 'envio', 'prefix' => 'ENV-', 'current_number' => 1, 'padding' => 6, 'is_active' => true],
         ];
 
         foreach ($sequences as $sequence) {

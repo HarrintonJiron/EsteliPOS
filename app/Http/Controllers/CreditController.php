@@ -6,6 +6,8 @@ use App\Models\Branch;
 use App\Models\CajaSession;
 use App\Models\Client;
 use App\Models\CreditPayment;
+use App\Models\RepairCreditPayment;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Services\AccountingService;
 use App\Services\BranchContextService;
@@ -50,15 +52,19 @@ class CreditController extends Controller
             ->latest()
             ->get();
 
-        $totalDebt = $creditSales->sum('total');
-        $totalPaid = $payments->sum('amount');
-        $balance = max(0, $totalDebt - $totalPaid);
+        $repairCredits = RepairOrder::where('client_id', $clientId)->where('payment_type', 'credit')
+            ->whereIn('payment_status', ['pending', 'partial'])->with('creditPayments')->latest()->get();
+        $repairPayments = RepairCreditPayment::where('client_id', $clientId)->latest('payment_date')->get();
+
+        $totalDebt = $creditSales->sum('total') + $repairCredits->sum('total');
+        $totalPaid = $payments->sum('amount') + $repairPayments->sum('amount') + $repairCredits->sum('advance_payment');
+        $balance = $creditSummary['balance'];
         $moraBreakdown = $this->credit->moraSalesBreakdown($client);
         $totalMora = $this->credit->moraForClient($client);
 
         return view('creditos.show', compact(
             'client', 'creditSales', 'payments', 'totalDebt', 'totalPaid', 'balance', 'creditSummary',
-            'moraBreakdown', 'totalMora'
+            'moraBreakdown', 'totalMora', 'repairCredits', 'repairPayments'
         ));
     }
 

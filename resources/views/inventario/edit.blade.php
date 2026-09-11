@@ -78,6 +78,8 @@
             </div>
         </div>
 
+        @include('inventario._cellphone_fields', ['product' => $product])
+
         {{-- Imagen del producto --}}
         <div class="bg-white p-4 rounded-xl shadow">
             <h2 class="text-lg font-semibold text-gray-700 mb-1">Imagen del Producto</h2>

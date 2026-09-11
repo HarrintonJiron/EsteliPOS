@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Client;
 use App\Models\CreditPayment;
+use App\Models\RepairCreditPayment;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use Illuminate\Support\Collection;
 
@@ -95,7 +97,14 @@ class CreditService
 
     public function pendingDebt(Client $client): float
     {
-        return round($this->outstandingSales($client)->sum('balance'), 2);
+        return round($this->outstandingSales($client)->sum('balance') + $this->pendingRepairDebt($client), 2);
+    }
+
+    public function pendingRepairDebt(Client $client): float
+    {
+        return round(RepairOrder::query()->where('client_id', $client->id)->where('payment_type', 'credit')
+            ->whereIn('payment_status', ['pending', 'partial'])->withSum('creditPayments', 'amount')->get()
+            ->sum(fn (RepairOrder $order) => max(0, (float) $order->total - (float) $order->advance_payment - (float) ($order->credit_payments_sum_amount ?? 0))), 2);
     }
 
     /**
@@ -222,9 +231,12 @@ class CreditService
                 ->where('payment_type', 'credit')
                 ->where('status', 'pending')
                 ->sum('total');
+            $totalDebt += (float) RepairOrder::query()->where('client_id', $client->id)->where('payment_type', 'credit')->sum('total');
             $totalPaid = (float) CreditPayment::query()
                 ->where('client_id', $client->id)
                 ->sum('amount');
+            $totalPaid += (float) RepairOrder::query()->where('client_id', $client->id)->where('payment_type', 'credit')->sum('advance_payment');
+            $totalPaid += (float) RepairCreditPayment::query()->where('client_id', $client->id)->sum('amount');
 
             return array_merge($client->toArray(), $summary, [
                 'total_debt' => $totalDebt,
@@ -285,6 +297,10 @@ class CreditService
 
         $paymentsTotal = (float) CreditPayment::query()->sum('amount');
 
+        $pendingRepairs = RepairOrder::query()->where('payment_type', 'credit')->whereIn('payment_status', ['pending', 'partial'])->withSum('creditPayments', 'amount')->get();
+        $pendingTotal += (float) $pendingRepairs->sum('total');
+        $paymentsTotal += (float) $pendingRepairs->sum('advance_payment') + (float) $pendingRepairs->sum('credit_payments_sum_amount');
+
         $overdueTotal = 0.0;
         $clientsWithPendingSales = Client::query()
             ->whereHas('sales', fn ($query) => $query
@@ -299,6 +315,9 @@ class CreditService
                 }
             }
         }
+
+        $overdueTotal += $pendingRepairs->filter(fn (RepairOrder $order) => $order->due_date?->isPast())
+            ->sum(fn (RepairOrder $order) => max(0, (float) $order->total - (float) $order->advance_payment - (float) ($order->credit_payments_sum_amount ?? 0)));
 
         $clientsWithCredit = Client::where('credit_enabled', true)->count();
         $overLimitCount = Client::where('credit_enabled', true)

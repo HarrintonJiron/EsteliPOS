@@ -23,6 +23,11 @@ class Product extends Model
         'name',
         'code',
         'description',
+        'condition',
+        'brand',
+        'model',
+        'color',
+        'imei',
         'purchase_price',
         'sale_price',
         'stock',
@@ -98,6 +103,25 @@ class Product extends Model
     public function saleDetails()
     {
         return $this->hasMany(SaleDetail::class);
+    }
+
+    public function reservationItems()
+    {
+        return $this->hasMany(ReservationItem::class);
+    }
+
+    public function reservedQuantity(?int $warehouseId = null): float
+    {
+        return (float) $this->reservationItems()
+            ->whereHas('reservation', fn ($query) => $query->active()->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId)))
+            ->sum('quantity');
+    }
+
+    public function availableStock(?int $warehouseId = null): float
+    {
+        $stock = $warehouseId ? $this->stockInWarehouse($warehouseId) : (float) $this->stock;
+
+        return max(0, round($stock - $this->reservedQuantity($warehouseId), 4));
     }
 
     public function inventoryMovements()
@@ -233,9 +257,19 @@ class Product extends Model
             return (float) $this->stock;
         }
 
-        return (float) ($this->warehouseStocks()
+        $warehouseQuantity = $this->warehouseStocks()
             ->where('warehouse_id', $warehouseId)
-            ->value('quantity') ?? 0);
+            ->value('quantity');
+
+        if ($warehouseQuantity !== null) {
+            return (float) $warehouseQuantity;
+        }
+
+        if (! $this->warehouseStocks()->exists() && Warehouse::query()->whereKey($warehouseId)->where('is_default', true)->exists()) {
+            return (float) $this->stock;
+        }
+
+        return 0.0;
     }
 
     public function getInventoryStatusLabelAttribute(): string

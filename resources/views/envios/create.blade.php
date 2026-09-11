@@ -1,0 +1,3 @@
+@extends('layouts.app')
+@section('title','Nuevo envío')
+@section('content')<div class="mb-6"><p class="text-sm font-semibold uppercase tracking-wider text-sky-600">Apartados y envíos</p><h1 class="page-title">Crear nuevo envío</h1><p class="page-subtitle">Organiza el destino, contacto y seguimiento en tres pasos.</p></div>@include('operaciones-clientes._tabs')<form method="POST" action="{{ route('envios.store') }}" class="space-y-6">@csrf @include('envios._form')<div class="flex flex-col-reverse gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:justify-end"><a href="{{ route('envios.index') }}" class="btn-secondary text-center">Cancelar</a><button class="btn-primary">Guardar envío</button></div></form>@endsection

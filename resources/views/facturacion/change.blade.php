@@ -74,6 +74,9 @@
 
         {{-- Botones de acción --}}
         <div class="space-y-3">
+            @if(auth()->user()->isAdmin() || auth()->user()->hasPermission('envios.create'))
+            <a href="{{ route('envios.create', ['sale_id' => $sale->id]) }}" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl transition-colors block text-center">🚚 Preparar envío de esta venta</a>
+            @endif
             <a 
                 href="{{ route('facturacion.receipt', $sale->id) }}"
                 target="_blank"

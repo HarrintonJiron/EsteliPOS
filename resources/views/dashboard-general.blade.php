@@ -10,6 +10,7 @@
     $hasClientes = $dashboardModules->contains('clientes');
     $hasReparaciones = $dashboardModules->contains('reparaciones');
     $hasReportes = $dashboardModules->contains('reportes');
+    $hasEnvios = $dashboardModules->contains('envios');
     $heroMetricLabel = $hasVentas ? 'Ventas del mes' : ($hasInventario ? 'Inventario' : 'Operación');
     $heroMetricValue = $hasVentas
         ? 'C$ '.number_format($salesStats['month'], 0)
@@ -148,6 +149,13 @@
             </div>
         </div>
         @endif
+    </div>
+    @endif
+
+    @if($hasEnvios)
+    <div class="card p-5">
+        <div class="flex items-center justify-between mb-4"><div><h2 class="font-semibold text-slate-800">Compras por destino</h2><p class="text-xs text-slate-500">Estelí frente a otros departamentos · mes actual</p></div><a href="{{ route('envios.index') }}" class="text-sm text-indigo-600">Ver envíos</a></div>
+        <div class="h-64"><canvas id="shipmentDestinationsChart"></canvas></div>
     </div>
     @endif
 
@@ -308,7 +316,7 @@
 
 </div>
 
-@if($hasVentas || $hasCompras || $hasInventario || $hasClientes)
+@if($hasVentas || $hasCompras || $hasInventario || $hasClientes || $hasEnvios)
 @push('scripts')
 <script>
 const initializeDashboardCharts = () => {
@@ -317,6 +325,13 @@ Chart.defaults.color = '#64748b';
 
 const money = (v) => 'C$ ' + Number(v).toLocaleString('es-NI', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const charts = @json($charts);
+
+@if($hasEnvios)
+const destinations = charts.shipment_destinations || [];
+if (document.getElementById('shipmentDestinationsChart')) {
+    new Chart(document.getElementById('shipmentDestinationsChart'), {type:'bar',data:{labels:destinations.map(i=>i.label),datasets:[{label:'Envíos',data:destinations.map(i=>i.count),backgroundColor:['#4f46e5','#0ea5e9'],borderRadius:8,maxBarThickness:80}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{afterLabel:ctx=>'Ventas vinculadas: '+money(destinations[ctx.dataIndex].total)}}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{grid:{display:false}}}}});
+}
+@endif
 
 @if($hasVentas || $hasCompras)
 const combined = charts.combined_trend || [];

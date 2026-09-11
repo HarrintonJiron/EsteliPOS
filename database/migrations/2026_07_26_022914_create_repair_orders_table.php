@@ -56,7 +56,7 @@ return new class extends Migration
             $table->decimal('parts_cost', 12, 2)->default(0);
             $table->decimal('total', 12, 2)->default(0);
             $table->decimal('advance_payment', 12, 2)->default(0);
-            $table->enum('payment_type', ['cash', 'card', 'transfer'])->default('cash');
+            $table->enum('payment_type', ['cash', 'card', 'transfer', 'credit'])->default('cash');
             $table->enum('payment_status', ['pending', 'partial', 'paid'])->default('pending');
 
             $table->timestamps();

@@ -204,6 +204,10 @@
             @endif
         </div>
 
+        @if($repairCredits->isNotEmpty())
+        <div class="bg-white rounded shadow overflow-hidden lg:col-span-2"><div class="bg-indigo-50 border-b px-6 py-4"><h2 class="text-xl font-bold text-gray-900">Reparaciones a crédito</h2></div><div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Orden</th><th>Equipo</th><th>Vence</th><th class="text-right">Total</th><th class="text-right">Saldo</th></tr></thead><tbody>@foreach($repairCredits as $repair)<tr><td><a class="text-indigo-600 font-semibold" href="{{ route('reparaciones.show',$repair) }}">{{ $repair->order_number }}</a></td><td>{{ $repair->device_brand }} {{ $repair->device_model }}</td><td>{{ $repair->due_date?->format('d/m/Y') ?? '—' }}</td><td class="text-right">C$ {{ number_format($repair->total,2) }}</td><td class="text-right font-bold">C$ {{ number_format($repair->creditBalance(),2) }}</td></tr>@endforeach</tbody></table></div></div>
+        @endif
+
     </div>
 
 </div>

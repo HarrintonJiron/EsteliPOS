@@ -5,6 +5,7 @@
                 <th class="px-2 py-2 font-semibold">Producto</th>
                 <th class="px-2 py-2 font-semibold">Cat.</th>
                 <th class="px-2 py-2 font-semibold text-right">Stock</th>
+                <th class="px-2 py-2 font-semibold text-right">Disponible</th>
                 @if($viewMode !== 'list')
                 <th class="px-2 py-2 font-semibold text-right">Vend.</th>
                 <th class="px-2 py-2 font-semibold text-right">Rot.</th>
@@ -27,6 +28,10 @@
                         {{ number_format((float) $product->stock, 2) }}
                     </span>
                     <span class="block text-[10px] text-slate-400">{{ $product->baseUnitLabel() }}</span>
+                </td>
+                <td class="px-2 py-1.5 text-right">
+                    <span class="font-bold {{ $product->availableStock() <= 0 ? 'text-red-600' : 'text-indigo-700' }}">{{ number_format($product->availableStock(), 2) }}</span>
+                    @if($product->reservedQuantity() > 0)<span class="block text-[10px] text-amber-600">{{ number_format($product->reservedQuantity(), 2) }} reservado</span>@endif
                 </td>
                 @if($viewMode !== 'list')
                 <td class="px-2 py-1.5 text-right font-semibold">{{ (int) ($product->sold_qty ?? 0) }}</td>

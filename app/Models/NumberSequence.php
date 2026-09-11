@@ -52,6 +52,8 @@ class NumberSequence extends Model
                 'recibo' => ['prefix' => 'REC-', 'padding' => 6],
                 'ajuste' => ['prefix' => 'AJU-', 'padding' => 6],
                 'asiento' => ['prefix' => 'POL-', 'padding' => 6],
+                'apartado' => ['prefix' => 'APT-', 'padding' => 6],
+                'envio' => ['prefix' => 'ENV-', 'padding' => 6],
             ];
 
             if (isset($defaults[$type])) {

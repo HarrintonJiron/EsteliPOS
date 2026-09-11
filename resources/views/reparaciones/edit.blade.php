@@ -316,11 +316,12 @@
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Método de pago</label>
                         <select name="payment_type" class="select-field">
-                            @foreach(['cash' => 'Efectivo', 'card' => 'Tarjeta', 'transfer' => 'Transferencia'] as $val => $label)
+                            @foreach(['cash' => 'Efectivo', 'card' => 'Tarjeta', 'transfer' => 'Transferencia', 'credit' => 'Crédito'] as $val => $label)
                                 <option value="{{ $val }}" {{ old('payment_type', $order->payment_type) === $val ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
                     </div>
+                    <div><label class="block text-sm text-slate-600 mb-1">Vencimiento del crédito</label><input type="date" name="due_date" value="{{ old('due_date', $order->due_date?->toDateString()) }}" class="input-field"></div>
                 </div>
 
                 {{-- WARRANTY --}}

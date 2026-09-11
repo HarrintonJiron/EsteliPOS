@@ -64,6 +64,7 @@
                         {{ number_format((float)$product->stock, 2) }}
                     </p>
                     <p class="text-sm text-gray-500">{{ $product->baseUnitLabel() }}</p>
+                    <p class="mt-1 text-sm text-indigo-700">Disponible: <strong>{{ number_format($product->availableStock(), 2) }}</strong>@if($product->reservedQuantity() > 0) · Reservado: <strong>{{ number_format($product->reservedQuantity(), 2) }}</strong>@endif</p>
                     @if($product->unitConversions->isNotEmpty())
                         <button type="button" data-open-presentations class="mt-2 text-xs font-semibold text-indigo-600 hover:underline">
                             {{ $product->unitConversions->map(function ($conv) use ($product) {

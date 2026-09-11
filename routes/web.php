@@ -49,8 +49,10 @@ use App\Http\Controllers\PublicImageController;
 use App\Http\Controllers\RepairServiceController;
 use App\Http\Controllers\ReparacionController;
 use App\Http\Controllers\ReporteController;
+use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\SystemResetController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TrialBalanceController;
@@ -79,6 +81,22 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::post('/cambiar-usuario', [AuthController::class, 'switchUser'])->name('auth.switch-user');
     Route::get('/ayuda', HelpCenterController::class)->name('help.index');
+
+    Route::middleware('module:operaciones_clientes')->group(function () {
+        Route::get('/operaciones-clientes', [ReservationController::class, 'hub'])->name('operaciones-clientes.index');
+        Route::get('/apartados', [ReservationController::class, 'index'])->middleware('permission:apartados.view')->name('apartados.index');
+        Route::get('/apartados/nuevo', [ReservationController::class, 'create'])->middleware('permission:apartados.create')->name('apartados.create');
+        Route::post('/apartados', [ReservationController::class, 'store'])->middleware('permission:apartados.create')->name('apartados.store');
+        Route::get('/apartados/{reservation}', [ReservationController::class, 'show'])->middleware('permission:apartados.view')->name('apartados.show');
+        Route::post('/apartados/{reservation}/abonos', [ReservationController::class, 'pay'])->middleware('permission:apartados.create')->name('apartados.pay');
+        Route::patch('/apartados/{reservation}/cancelar', [ReservationController::class, 'cancel'])->middleware('permission:apartados.cancel')->name('apartados.cancel');
+        Route::get('/envios', [ShipmentController::class, 'index'])->middleware('permission:envios.view')->name('envios.index');
+        Route::get('/envios/nuevo', [ShipmentController::class, 'create'])->middleware('permission:envios.create')->name('envios.create');
+        Route::post('/envios', [ShipmentController::class, 'store'])->middleware('permission:envios.create')->name('envios.store');
+        Route::get('/envios/{shipment}', [ShipmentController::class, 'show'])->middleware('permission:envios.view')->name('envios.show');
+        Route::get('/envios/{shipment}/editar', [ShipmentController::class, 'edit'])->middleware('permission:envios.edit')->name('envios.edit');
+        Route::put('/envios/{shipment}', [ShipmentController::class, 'update'])->middleware('permission:envios.edit')->name('envios.update');
+    });
 
     Route::middleware('module:ventas')->group(function () {
         Route::get('/facturacion/create', [FacturacionController::class, 'create'])

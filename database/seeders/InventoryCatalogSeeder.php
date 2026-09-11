@@ -79,6 +79,11 @@ class InventoryCatalogSeeder extends Seeder
             ]
         );
 
+        PriceList::query()->firstOrCreate(
+            ['code' => 'ESPECIAL'],
+            ['name' => 'Precio especial', 'description' => 'Precio especial o distribuidor', 'is_active' => true, 'is_default' => false]
+        );
+
         unset($wholesale);
 
         $defaultWarehouse = Warehouse::default();

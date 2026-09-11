@@ -107,6 +107,11 @@ class Sale extends Model
         return $this->hasMany(SaleDetail::class);
     }
 
+    public function shipment()
+    {
+        return $this->hasOne(Shipment::class);
+    }
+
     public function getBillingDocumentLabelAttribute(): string
     {
         return match ($this->billing_document_type) {

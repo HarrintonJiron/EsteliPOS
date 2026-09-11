@@ -503,6 +503,13 @@ class InventarioController extends Controller
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:50|unique:products',
             'description' => 'nullable|string|max:1000',
+            'condition' => 'nullable|in:new,used,open_box',
+            'brand' => 'nullable|string|max:80',
+            'model' => 'nullable|string|max:120',
+            'color' => 'nullable|string|max:60',
+            'imei' => 'nullable|string|max:30|unique:products,imei',
+            'wholesale_price' => 'nullable|numeric|min:0',
+            'special_price' => 'nullable|numeric|min:0',
             'purchase_price' => 'required|numeric|min:0',
             'sale_price' => 'required|numeric|min:0',
             'tax_id' => 'nullable|exists:taxes,id',
@@ -531,7 +538,9 @@ class InventarioController extends Controller
 
         $locations = $this->initialLocations($validated);
         $validated['stock'] = 0;
-        unset($validated['image'], $validated['warehouse_id'], $validated['shelf_id'], $validated['locations']);
+        $wholesalePrice = $validated['wholesale_price'] ?? null;
+        $specialPrice = $validated['special_price'] ?? null;
+        unset($validated['image'], $validated['warehouse_id'], $validated['shelf_id'], $validated['locations'], $validated['wholesale_price'], $validated['special_price']);
         $validated['expiry_date'] = $validated['expiry_date'] ?? null;
 
         $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
@@ -562,6 +571,12 @@ class InventarioController extends Controller
             }
 
             $this->pricing->syncProductToDefaultList($product->fresh());
+            if ($wholesalePrice !== null && ($list = $this->pricing->wholesaleList())) {
+                $this->pricing->syncProductToList($product, $list, (float) $wholesalePrice);
+            }
+            if ($specialPrice !== null && ($list = $this->pricing->specialList())) {
+                $this->pricing->syncProductToList($product, $list, (float) $specialPrice);
+            }
         } catch (Throwable $exception) {
             $this->deleteProductImage($imagePath);
 
@@ -857,6 +872,13 @@ class InventarioController extends Controller
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:50|unique:products,code,'.$product->id,
             'description' => 'nullable|string|max:1000',
+            'condition' => 'nullable|in:new,used,open_box',
+            'brand' => 'nullable|string|max:80',
+            'model' => 'nullable|string|max:120',
+            'color' => 'nullable|string|max:60',
+            'imei' => 'nullable|string|max:30|unique:products,imei,'.$product->id,
+            'wholesale_price' => 'nullable|numeric|min:0',
+            'special_price' => 'nullable|numeric|min:0',
             'purchase_price' => 'required|numeric|min:0',
             'sale_price' => 'required|numeric|min:0',
             'tax_id' => 'nullable|exists:taxes,id',
@@ -881,7 +903,9 @@ class InventarioController extends Controller
         $newImagePath = $request->file('image')?->store('products', 'public');
         $removeImage = $request->boolean('remove_image');
 
-        unset($validated['image'], $validated['remove_image']);
+        $wholesalePrice = $validated['wholesale_price'] ?? null;
+        $specialPrice = $validated['special_price'] ?? null;
+        unset($validated['image'], $validated['remove_image'], $validated['wholesale_price'], $validated['special_price']);
 
         if ($newImagePath) {
             $validated['image_url'] = $newImagePath;
@@ -896,6 +920,12 @@ class InventarioController extends Controller
         try {
             $product->update($validated);
             $this->pricing->syncProductToDefaultList($product->fresh());
+            if ($wholesalePrice !== null && ($list = $this->pricing->wholesaleList())) {
+                $this->pricing->syncProductToList($product, $list, (float) $wholesalePrice);
+            }
+            if ($specialPrice !== null && ($list = $this->pricing->specialList())) {
+                $this->pricing->syncProductToList($product, $list, (float) $specialPrice);
+            }
         } catch (Throwable $exception) {
             $this->deleteProductImage($newImagePath);
 

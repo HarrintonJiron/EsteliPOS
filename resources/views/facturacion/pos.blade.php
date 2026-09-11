@@ -34,7 +34,7 @@
         <div class="px-4 py-2 bg-slate-800 text-white flex items-center justify-between text-xs shrink-0">
             <span class="font-semibold">Ticket #<span id="ticketNumber">1</span></span>
             <div class="flex gap-2">
-                <button type="button" onclick="holdTicket()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg" title="F4 - Apartar">Apartar · F4</button>
+                <button type="button" onclick="holdTicket()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg" title="F4 - Suspender ticket">Suspender · F4</button>
                 <button type="button" onclick="showHeldTickets()" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg" title="F6 - Recuperar ticket">
                     Recuperar <span id="heldCount" class="bg-white/20 px-1 rounded">0</span>
                 </button>
@@ -90,6 +90,13 @@
                     <span class="truncate">Descuento</span>
                 </button>
             </div>
+
+            @if(auth()->user()->isAdmin() || auth()->user()->hasPermission('apartados.create'))
+            <button type="button" onclick="createReservationFromPOS()" class="flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2v-9a2 2 0 012-2zm3 0V6a4 4 0 018 0v2"/></svg>
+                Convertir ticket en apartado
+            </button>
+            @endif
 
             @include('facturacion._numpad')
         </div>
@@ -1845,6 +1852,20 @@ document.addEventListener('DOMContentLoaded', function() {
         searchInput.value = '';
         renderTicket();
         renderProducts();
+    };
+
+    window.createReservationFromPOS = function() {
+        if (ticket.length === 0) { showToast('Agrega productos antes de crear el apartado.', 'warning'); return; }
+        if (!currentClient) { showToast('Selecciona el cliente que realizará el apartado.', 'warning'); openClientModal(); return; }
+        const items = ticket.map(item => {
+            const product = products.find(candidate => candidate.id == item.product_id);
+            const unit = productUnit(product, item.unit_id);
+            return { product_id: item.product_id, quantity: item.quantity * Number(unit?.factor_to_base || 1), price_type: 'retail' };
+        });
+        sessionStorage.setItem('estelipos.reservationDraft', JSON.stringify({items}));
+        const params = new URLSearchParams({client_id: currentClient});
+        if (selectedWarehouseId) params.set('warehouse_id', selectedWarehouseId);
+        window.location.href = `{{ route('apartados.create') }}?${params.toString()}`;
     };
 
     function getHeldTickets() {

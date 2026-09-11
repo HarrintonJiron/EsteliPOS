@@ -62,11 +62,13 @@ class InventoryService
 
             $this->ensureWarehouseStockInitialized($product, $warehouse);
 
-            $available = $this->warehouseQuantity($product, $warehouse);
+            $physical = $this->warehouseQuantity($product, $warehouse);
+            $reserved = $product->reservedQuantity($warehouse->id);
+            $available = max(0, round($physical - $reserved, 4));
 
             if (! $allowNegative && $available < $quantity) {
                 throw new \RuntimeException(
-                    "Stock insuficiente en {$warehouse->name} para «{$product->name}». Disponible: {$available}"
+                    "Stock disponible insuficiente en {$warehouse->name} para «{$product->name}». Disponible: {$available}; reservado: {$reserved}"
                 );
             }
 

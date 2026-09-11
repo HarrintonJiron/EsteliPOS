@@ -33,8 +33,8 @@ function modulePayload(?callable $change = null): array
 }
 
 test('the complete module catalog and its dependencies are installed', function () {
-    expect(Module::count())->toBe(15)
-        ->and(Module::where('is_active', true)->count())->toBe(14)
+    expect(Module::count())->toBe(16)
+        ->and(Module::where('is_active', true)->count())->toBe(15)
         ->and(Module::where('slug', 'configuracion')->firstOrFail()->is_core)->toBeTrue()
         ->and(Module::where('slug', 'ventas')->firstOrFail()->dependencies)->toBe(['inventario', 'clientes'])
         ->and(Module::where('slug', 'contabilidad')->firstOrFail()->dependencies)->toBe(['ventas', 'compras'])

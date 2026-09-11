@@ -413,8 +413,10 @@
                                 <option value="cash">Efectivo</option>
                                 <option value="card">Tarjeta</option>
                                 <option value="transfer">Transferencia</option>
+                                <option value="credit" @selected(old('payment_type') === 'credit')>Crédito</option>
                             </select>
                         </div>
+                        <div><label class="repair-label">Vencimiento del crédito</label><input type="date" name="due_date" value="{{ old('due_date') }}" class="input-field w-full"></div>
                     </div>
                 </div>
 

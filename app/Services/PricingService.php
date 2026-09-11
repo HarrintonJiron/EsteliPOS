@@ -134,6 +134,11 @@ class PricingService
             ->first();
     }
 
+    public function specialList(): ?PriceList
+    {
+        return PriceList::query()->where('is_active', true)->where('code', 'ESPECIAL')->first();
+    }
+
     public function syncProductToList(Product $product, PriceList|int|string $list, float $unitPrice, ?int $unitId = null): void
     {
         $priceList = match (true) {
