@@ -61,6 +61,29 @@ test('admin can browse inventory hub pages', function () {
     $this->actingAs($admin)->get(route('inventario.units.index'))->assertOk()->assertSee('Unidades de medida');
 });
 
+test('POS preserves the price of legacy products without a base unit', function () {
+    $category = Category::firstOrCreate(['name' => 'Legado']);
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto sin unidad configurada',
+        'code' => 'LEGACY-NO-UNIT',
+        'purchase_price' => 75,
+        'sale_price' => 100,
+        'stock' => 5,
+        'unit' => 'unidad',
+        'base_unit_id' => null,
+        'status' => 'active',
+    ]);
+
+    $serialized = app(PosCatalogService::class)->serializeProduct($product);
+
+    expect($serialized['sale_price'])->toBe(100.0)
+        ->and($serialized['sale_units'])->toHaveCount(1)
+        ->and($serialized['sale_units'][0]['id'])->toBeNull()
+        ->and($serialized['sale_units'][0]['price'])->toBe(100.0)
+        ->and($serialized['sale_units'][0]['is_default'])->toBeTrue();
+});
+
 test('quick product registration can set wholesale price on mayor list', function () {
     $this->seed(InventoryCatalogSeeder::class);
     $admin = inventoryAdmin();

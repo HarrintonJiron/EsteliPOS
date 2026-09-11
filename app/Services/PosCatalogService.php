@@ -59,6 +59,19 @@ class PosCatalogService
             ];
         }
 
+        if ($saleUnits === [] && ! $product->baseUnit) {
+            $saleUnits[] = [
+                'id' => null,
+                'abbreviation' => $product->baseUnitLabel(),
+                'name' => $product->baseUnitLabel(),
+                'factor_to_base' => 1.0,
+                'price' => $this->pricing->resolveUnitPrice($product, $priceListId, null, 1, $branchId),
+                'price_breaks' => $this->pricing->priceBreaks($product, $priceListId, null, $branchId),
+                'stock' => round($sellableStock, 4),
+                'is_default' => true,
+            ];
+        }
+
         if ($saleUnits === [] && $product->baseUnit) {
             $saleUnits[] = [
                 'id' => $product->baseUnit->id,
