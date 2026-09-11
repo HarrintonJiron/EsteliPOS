@@ -71,7 +71,13 @@ test('quick product registration can set wholesale price on mayor list', functio
         'name' => 'Clavo 2 pulgadas',
         'sale_price' => 100,
         'wholesale_price' => 85,
+        'special_price' => 80,
         'purchase_price' => 70,
+        'condition' => 'open_box',
+        'brand' => 'Samsung',
+        'model' => 'A55',
+        'color' => 'Azul',
+        'description' => 'Caja abierta, equipo completo',
         'stock' => 50,
         'category_id' => $category->id,
         'unit' => 'unidad',
@@ -79,11 +85,16 @@ test('quick product registration can set wholesale price on mayor list', functio
 
     $product = Product::query()->where('code', 'CLAVO-001')->firstOrFail();
     $mayorList = PriceList::query()->where('code', 'MAYOR')->firstOrFail();
+    $specialList = PriceList::query()->where('code', 'ESPECIAL')->firstOrFail();
 
     expect(PriceListItem::query()
         ->where('price_list_id', $mayorList->id)
         ->where('product_id', $product->id)
-        ->value('unit_price'))->toEqual(85.0);
+        ->value('unit_price'))->toEqual(85.0)
+        ->and(PriceListItem::query()->where('price_list_id', $specialList->id)->where('product_id', $product->id)->value('unit_price'))->toEqual(80.0)
+        ->and($product->condition)->toBe('open_box')
+        ->and($product->model)->toBe('A55')
+        ->and($product->color)->toBe('Azul');
 });
 
 test('quick product registration can create its first presentation', function () {

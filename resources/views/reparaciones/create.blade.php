@@ -409,14 +409,14 @@
 
                         <div>
                             <label class="repair-label">Método de pago</label>
-                            <select name="payment_type" class="select-field w-full">
+                            <select name="payment_type" id="repairPaymentType" class="select-field w-full" onchange="toggleRepairCredit()">
                                 <option value="cash">Efectivo</option>
                                 <option value="card">Tarjeta</option>
                                 <option value="transfer">Transferencia</option>
                                 <option value="credit" @selected(old('payment_type') === 'credit')>Crédito</option>
                             </select>
                         </div>
-                        <div><label class="repair-label">Vencimiento del crédito</label><input type="date" name="due_date" value="{{ old('due_date') }}" class="input-field w-full"></div>
+                        <div id="repairCreditTerms" class="hidden rounded-xl border border-amber-200 bg-amber-50 p-3"><label class="repair-label text-amber-900">Fecha límite de pago</label><input id="repairDueDate" type="date" name="due_date" value="{{ old('due_date') }}" min="{{ today()->toDateString() }}" class="input-field w-full"><div class="mt-2 flex gap-2">@foreach([15,30,45] as $days)<button type="button" onclick="setRepairCreditDays({{ $days }})" class="rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs font-semibold text-amber-800">{{ $days }} días</button>@endforeach</div><p class="mt-2 text-xs text-amber-800">Requiere seleccionar un cliente con crédito habilitado. El anticipo reduce el saldo y luego podrás registrar abonos.</p></div>
                     </div>
                 </div>
 
@@ -1219,6 +1219,21 @@ window.addEventListener('DOMContentLoaded', () => {
     loadBrands();
     initRepairItems();
     updateTotal();
+    toggleRepairCredit();
 });
+
+function toggleRepairCredit() {
+    const credit = document.getElementById('repairPaymentType')?.value === 'credit';
+    const terms = document.getElementById('repairCreditTerms');
+    const dueDate = document.getElementById('repairDueDate');
+    terms?.classList.toggle('hidden', !credit);
+    if (dueDate) dueDate.required = credit;
+}
+
+function setRepairCreditDays(days) {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    document.getElementById('repairDueDate').value = date.toISOString().slice(0, 10);
+}
 </script>
 @endsection

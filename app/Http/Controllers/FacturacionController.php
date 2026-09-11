@@ -11,6 +11,7 @@ use App\Models\Client;
 use App\Models\NumberSequence;
 use App\Models\Product;
 use App\Models\RepairOrder;
+use App\Models\Reservation;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
@@ -736,6 +737,7 @@ class FacturacionController extends Controller
             'order_discount_pct' => 'nullable|numeric|min:0|max:100',
             'credit_override_token' => ['nullable', 'string', 'size:64'],
             'request_token' => ['nullable', 'uuid'],
+            'reservation_id' => ['nullable', 'integer', 'exists:reservations,id'],
         ]);
 
         $items = json_decode($validated['items'], true);
@@ -793,6 +795,22 @@ class FacturacionController extends Controller
 
         try {
             DB::transaction(function () use ($validated, $items, &$sale, $userId, $cashSession, $request) {
+                $reservation = filled($validated['reservation_id'] ?? null)
+                    ? Reservation::query()->with('items')->lockForUpdate()->findOrFail($validated['reservation_id'])
+                    : null;
+                if ($reservation && ($reservation->status !== 'active' || $reservation->sale_id)) {
+                    throw new \RuntimeException('Este apartado ya fue facturado o no está activo.');
+                }
+                if ($reservation) {
+                    $expected = $reservation->items->mapWithKeys(fn ($item) => [(int) $item->product_id => round((float) $item->quantity, 4)])->all();
+                    $submitted = collect($items)->mapWithKeys(fn ($item) => [(int) $item['product_id'] => round((float) $item['quantity'], 4)])->all();
+                    ksort($expected);
+                    ksort($submitted);
+                    if ($expected !== $submitted) {
+                        throw new \RuntimeException('Los productos del ticket no coinciden con el apartado.');
+                    }
+                    $reservation->update(['status' => 'completed']);
+                }
                 $invoiceNumber = $this->nextInvoiceNumber();
                 $requestedPaymentType = $validated['payment_type'];
                 $storedPaymentType = $requestedPaymentType === 'card' ? 'transfer' : $requestedPaymentType;
@@ -805,7 +823,7 @@ class FacturacionController extends Controller
                     $notes .= ($notes !== '' ? ' | ' : '').'Referencia: '.$validated['reference_number'];
                 }
 
-                $clientId = $validated['client_id'] ?? null;
+                $clientId = $reservation?->client_id ?? ($validated['client_id'] ?? null);
                 $client = $clientId
                     ? Client::query()
                         ->when($storedPaymentType === 'credit', fn ($query) => $query->lockForUpdate())
@@ -819,9 +837,9 @@ class FacturacionController extends Controller
                     );
                 }
 
-                $preferredWarehouseId = isset($validated['warehouse_id'])
+                $preferredWarehouseId = $reservation?->warehouse_id ?? (isset($validated['warehouse_id'])
                     ? (int) $validated['warehouse_id']
-                    : null;
+                    : null);
                 $resolvedWarehouseId = $this->posCatalog->resolveWarehouseId($preferredWarehouseId);
                 $branch = $this->branches->resolve($resolvedWarehouseId, $cashSession, $request->user()?->branch_id);
                 $resolvedPriceList = $this->pricing->resolvePriceList($client->price_list_id, $branch?->id);
@@ -978,6 +996,9 @@ class FacturacionController extends Controller
                 }
 
                 $this->accountingService->recordSale($sale->fresh());
+                if ($reservation) {
+                    $reservation->update(['sale_id' => $sale->id]);
+                }
             });
         } catch (\RuntimeException $e) {
             return back()->withErrors(['items' => $e->getMessage()]);

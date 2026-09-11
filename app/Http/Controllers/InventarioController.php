@@ -335,10 +335,11 @@ class InventarioController extends Controller
         $categories = Category::orderBy('name')->get();
         $defaultCategory = $categories->first();
         $wholesaleList = $this->pricing->wholesaleList();
+        $specialList = $this->pricing->specialList();
         $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
         $warehouses = $this->activeWarehouses()->load('shelves');
 
-        return view('inventario.quick', compact('categories', 'defaultCategory', 'wholesaleList', 'units', 'warehouses'));
+        return view('inventario.quick', compact('categories', 'defaultCategory', 'wholesaleList', 'specialList', 'units', 'warehouses'));
     }
 
     public function lookupCode(string $code): JsonResponse
@@ -370,7 +371,13 @@ class InventarioController extends Controller
             'name' => 'required|string|max:255',
             'sale_price' => 'required|numeric|min:0',
             'wholesale_price' => 'nullable|numeric|min:0',
+            'special_price' => 'nullable|numeric|min:0',
             'purchase_price' => 'nullable|numeric|min:0',
+            'condition' => 'nullable|in:new,used,open_box',
+            'brand' => 'nullable|string|max:80',
+            'model' => 'nullable|string|max:120',
+            'color' => 'nullable|string|max:60',
+            'description' => 'nullable|string|max:2000',
             'stock' => 'nullable|numeric|min:0',
             'locations' => 'nullable|array|min:1',
             'locations.*.warehouse_id' => 'required_with:locations|integer|distinct|exists:warehouses,id',
@@ -417,6 +424,11 @@ class InventarioController extends Controller
                 'category_id' => $categoryId,
                 'name' => $validated['name'],
                 'code' => $validated['code'],
+                'condition' => $validated['condition'] ?? null,
+                'brand' => $validated['brand'] ?? null,
+                'model' => $validated['model'] ?? null,
+                'color' => $validated['color'] ?? null,
+                'description' => $validated['description'] ?? null,
                 'purchase_price' => $purchasePrice,
                 'sale_price' => $validated['sale_price'],
                 'stock' => 0,
@@ -466,6 +478,9 @@ class InventarioController extends Controller
 
             if (! empty($validated['wholesale_price']) && ($wholesaleList = $this->pricing->wholesaleList())) {
                 $this->pricing->syncProductToList($product, $wholesaleList, (float) $validated['wholesale_price']);
+            }
+            if (! empty($validated['special_price']) && ($specialList = $this->pricing->specialList())) {
+                $this->pricing->syncProductToList($product, $specialList, (float) $validated['special_price']);
             }
         } catch (Throwable $exception) {
             $this->deleteProductImage($imagePath);

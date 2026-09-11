@@ -48,8 +48,9 @@ test('reservations and shipments share one operational module with guided forms'
 
     $this->actingAs($admin)->get(route('envios.create'))
         ->assertOk()
-        ->assertSee('Destino y contacto')
-        ->assertSee('Estado del envío');
+        ->assertSee('Datos para el ticket')
+        ->assertSee('Opciones adicionales')
+        ->assertSee('Guardar y ver ticket');
 });
 
 test('POS exposes reservation action and shipment can start from a completed sale', function () {
@@ -141,15 +142,79 @@ test('an active reservation removes stock from POS availability without changing
         ->and($product->fresh()->availableStock($warehouse->id))->toBe(5.0);
 });
 
+test('reservation offers checkout actions and has a printable balance ticket', function () {
+    $admin = cellphoneOperationsAdmin();
+    $product = Product::query()->firstOrFail();
+    $reservation = Reservation::create([
+        'number' => 'APT-CHECKOUT',
+        'client_id' => Client::query()->value('id'),
+        'user_id' => $admin->id,
+        'warehouse_id' => Warehouse::default()->id,
+        'reserved_at' => now(),
+        'total' => 1000,
+        'deposit' => 200,
+        'status' => 'active',
+    ]);
+    ReservationItem::create(['reservation_id' => $reservation->id, 'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 1000, 'subtotal' => 1000]);
+
+    $this->actingAs($admin)->get(route('apartados.show', $reservation))
+        ->assertOk()
+        ->assertSee('Pasar a factura')
+        ->assertSee('Pagar total e imprimir')
+        ->assertSee('estelipos.posReservationDraft');
+
+    $this->actingAs($admin)->get(route('apartados.ticket', $reservation))
+        ->assertOk()
+        ->assertSee('TICKET DE APARTADO')
+        ->assertSee('Imprimir ticket 80 mm');
+});
+
 test('shipment stores a controlled department and is visible in its module', function () {
     $admin = cellphoneOperationsAdmin();
     $shipment = Shipment::create(['number' => 'ENV-TEST', 'client_id' => Client::query()->value('id'), 'user_id' => $admin->id, 'recipient_name' => 'María López', 'recipient_phone' => '88888888', 'department' => 'Matagalpa', 'municipality' => 'Sébaco', 'address' => 'Barrio Central', 'shipping_cost' => 120, 'status' => 'pending']);
 
     $this->actingAs($admin)->get(route('envios.show', $shipment))->assertOk()->assertSee('Matagalpa')->assertSee('María López');
+
+    $this->actingAs($admin)->patch(route('envios.status', $shipment), ['status' => 'shipped'])
+        ->assertRedirect();
+    expect($shipment->fresh()->status)->toBe('shipped')
+        ->and($shipment->fresh()->shipped_at)->not->toBeNull();
+
+    $this->actingAs($admin)->patch(route('envios.status', $shipment), ['status' => 'delivered'])
+        ->assertRedirect();
+    expect($shipment->fresh()->status)->toBe('delivered')
+        ->and($shipment->fresh()->delivered_at)->not->toBeNull();
+});
+
+test('shipment can be registered with only ticket essentials and opens its printable ticket', function () {
+    $admin = cellphoneOperationsAdmin();
+
+    $response = $this->actingAs($admin)->post(route('envios.store'), [
+        'recipient_name' => 'María López',
+        'department' => 'Matagalpa',
+        'address' => 'Terminal de buses, ventanilla principal',
+    ]);
+
+    $shipment = Shipment::query()->latest('id')->firstOrFail();
+
+    $response->assertRedirect(route('envios.ticket', $shipment));
+    expect($shipment->status)->toBe('pending');
+
+    $this->actingAs($admin)->get(route('envios.ticket', $shipment))
+        ->assertOk()
+        ->assertSee('DATOS PARA ENVÍO')
+        ->assertSee('María López')
+        ->assertSee('Descripción / manejo')
+        ->assertSee('Imprimir etiqueta 80 mm');
 });
 
 test('repair credit contributes to client debt and payments reduce it', function () {
     $admin = cellphoneOperationsAdmin();
+    $this->actingAs($admin)->get(route('reparaciones.create'))
+        ->assertOk()
+        ->assertSee('Fecha límite de pago')
+        ->assertSee('30 días')
+        ->assertSee('Crédito');
     $client = Client::create([
         'name' => 'Cliente crédito reparación',
         'phone' => '88880001',

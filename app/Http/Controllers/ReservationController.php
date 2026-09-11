@@ -146,6 +146,13 @@ class ReservationController extends Controller
         return view('apartados.show', compact('reservation'));
     }
 
+    public function ticket(Reservation $reservation)
+    {
+        $reservation->load('client', 'user', 'items.product', 'payments');
+
+        return view('apartados.ticket', compact('reservation'));
+    }
+
     public function pay(Request $request, Reservation $reservation)
     {
         if ($reservation->status !== 'active') {
@@ -173,7 +180,12 @@ class ReservationController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', $reservation->fresh()->balance > 0 ? 'Abono registrado correctamente.' : 'Apartado pagado por completo.');
+        $reservation = $reservation->fresh();
+        if ($request->boolean('print_ticket') && $reservation->balance <= 0) {
+            return redirect()->route('apartados.ticket', $reservation)->with('success', 'Apartado pagado por completo.');
+        }
+
+        return back()->with('success', $reservation->balance > 0 ? 'Abono registrado correctamente.' : 'Apartado pagado por completo.');
     }
 
     public function cancel(Request $request, Reservation $reservation)

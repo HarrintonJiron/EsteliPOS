@@ -88,14 +88,17 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/apartados/nuevo', [ReservationController::class, 'create'])->middleware('permission:apartados.create')->name('apartados.create');
         Route::post('/apartados', [ReservationController::class, 'store'])->middleware('permission:apartados.create')->name('apartados.store');
         Route::get('/apartados/{reservation}', [ReservationController::class, 'show'])->middleware('permission:apartados.view')->name('apartados.show');
+        Route::get('/apartados/{reservation}/ticket', [ReservationController::class, 'ticket'])->middleware('permission:apartados.view')->name('apartados.ticket');
         Route::post('/apartados/{reservation}/abonos', [ReservationController::class, 'pay'])->middleware('permission:apartados.create')->name('apartados.pay');
         Route::patch('/apartados/{reservation}/cancelar', [ReservationController::class, 'cancel'])->middleware('permission:apartados.cancel')->name('apartados.cancel');
         Route::get('/envios', [ShipmentController::class, 'index'])->middleware('permission:envios.view')->name('envios.index');
         Route::get('/envios/nuevo', [ShipmentController::class, 'create'])->middleware('permission:envios.create')->name('envios.create');
         Route::post('/envios', [ShipmentController::class, 'store'])->middleware('permission:envios.create')->name('envios.store');
         Route::get('/envios/{shipment}', [ShipmentController::class, 'show'])->middleware('permission:envios.view')->name('envios.show');
+        Route::get('/envios/{shipment}/ticket', [ShipmentController::class, 'ticket'])->middleware('permission:envios.view')->name('envios.ticket');
         Route::get('/envios/{shipment}/editar', [ShipmentController::class, 'edit'])->middleware('permission:envios.edit')->name('envios.edit');
         Route::put('/envios/{shipment}', [ShipmentController::class, 'update'])->middleware('permission:envios.edit')->name('envios.update');
+        Route::patch('/envios/{shipment}/estado', [ShipmentController::class, 'updateStatus'])->middleware('permission:envios.edit')->name('envios.status');
     });
 
     Route::middleware('module:ventas')->group(function () {

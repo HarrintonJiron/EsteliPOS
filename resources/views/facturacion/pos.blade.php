@@ -488,6 +488,7 @@
                 <input type="hidden" name="order_discount_pct" id="orderDiscountPctInput" value="0">
                 <input type="hidden" name="credit_override_token" id="creditOverrideTokenInput">
                 <input type="hidden" name="request_token" id="requestTokenInput" value="{{ (string) Str::uuid() }}">
+                <input type="hidden" name="reservation_id" id="reservationIdInput">
 
                 <div class="p-4 border-t border-slate-200 space-y-2 sticky bottom-0 bg-white">
                     <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl">Confirmar Pago</button>
@@ -1715,6 +1716,26 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshCatalogPrices();
         document.getElementById('clientModal').classList.add('hidden');
     };
+
+    try {
+        const reservationDraft = JSON.parse(sessionStorage.getItem('estelipos.posReservationDraft') || 'null');
+        if (reservationDraft) {
+            selectedWarehouseId = Number(reservationDraft.warehouse_id) || null;
+            if (warehouseSelectEl && selectedWarehouseId) warehouseSelectEl.value = String(selectedWarehouseId);
+            selectClient(reservationDraft.client_id, reservationDraft.client_name);
+            ticket = (reservationDraft.items || []).map(item => {
+                const product = products.find(candidate => candidate.id == item.product_id);
+                const unit = product ? productUnit(product, product.base_unit_id) : null;
+                if (!product) return null;
+                return {product_id: product.id, unit_id: unit?.id ?? product.base_unit_id, unit_label: unit?.abbreviation ?? product.base_unit_label, name: product.name, price: parseFloat(unit?.price ?? product.price), quantity: Number(item.quantity), discount: 0, tax_rate: product.tax_rate, max_stock: Number(item.quantity), source_warehouse_id: selectedWarehouseId, source_warehouse_name: null};
+            }).filter(Boolean);
+            document.getElementById('reservationIdInput').value = reservationDraft.reservation_id || '';
+            sessionStorage.removeItem('estelipos.posReservationDraft');
+            renderTicket();
+        }
+    } catch (error) {
+        sessionStorage.removeItem('estelipos.posReservationDraft');
+    }
 
     function renderClientsList(filter = '') {
         const container = document.getElementById('clientsList');

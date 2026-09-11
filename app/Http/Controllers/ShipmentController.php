@@ -49,14 +49,22 @@ class ShipmentController extends Controller
     public function store(Request $request)
     {
         $data = $this->validated($request);
+        $data['status'] = $data['status'] ?? 'pending';
         $shipment = Shipment::create($data + ['number' => NumberSequence::getNext('envio'), 'user_id' => $request->user()->id]);
 
-        return redirect()->route('envios.show', $shipment)->with('success', 'Envío registrado correctamente.');
+        return redirect()->route('envios.ticket', $shipment)->with('success', 'Envío registrado. El ticket está listo para imprimir.');
     }
 
     public function show(Shipment $shipment)
     {
         return view('envios.show', compact('shipment'));
+    }
+
+    public function ticket(Shipment $shipment)
+    {
+        $shipment->load('sale.details.product', 'client', 'user');
+
+        return view('envios.ticket', compact('shipment'));
     }
 
     public function edit(Shipment $shipment)
@@ -67,6 +75,7 @@ class ShipmentController extends Controller
     public function update(Request $request, Shipment $shipment)
     {
         $data = $this->validated($request);
+        $data['status'] = $data['status'] ?? $shipment->status;
         if ($data['status'] === 'shipped' && ! $shipment->shipped_at) {
             $data['shipped_at'] = now();
         }
@@ -78,6 +87,24 @@ class ShipmentController extends Controller
         return redirect()->route('envios.show', $shipment)->with('success', 'Envío actualizado.');
     }
 
+    public function updateStatus(Request $request, Shipment $shipment)
+    {
+        $data = $request->validate([
+            'status' => ['required', Rule::in(Shipment::STATUSES)],
+        ]);
+
+        if ($data['status'] === 'shipped' && ! $shipment->shipped_at) {
+            $data['shipped_at'] = now();
+        }
+        if ($data['status'] === 'delivered' && ! $shipment->delivered_at) {
+            $data['delivered_at'] = now();
+        }
+
+        $shipment->update($data);
+
+        return back()->with('success', 'Estado del envío actualizado.');
+    }
+
     private function validated(Request $request): array
     {
         return $request->validate([
@@ -86,7 +113,7 @@ class ShipmentController extends Controller
             'department' => ['required', Rule::in(Shipment::DEPARTMENTS)], 'municipality' => 'nullable|string|max:80',
             'address' => 'required|string|max:1000', 'reference' => 'nullable|string|max:1000', 'carrier' => 'nullable|string|max:100',
             'tracking_number' => 'nullable|string|max:100', 'shipping_cost' => 'nullable|numeric|min:0',
-            'status' => ['required', Rule::in(Shipment::STATUSES)], 'notes' => 'nullable|string|max:2000',
+            'status' => ['nullable', Rule::in(Shipment::STATUSES)], 'notes' => 'nullable|string|max:2000',
         ]);
     }
 }

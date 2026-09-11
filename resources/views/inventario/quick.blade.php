@@ -42,7 +42,7 @@
         </div>
 
         <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
-            <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-4">
             <div>
                 <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Costo</label>
                 <input type="number" name="purchase_price" id="quick_purchase_price" step="0.01" min="0"
@@ -65,6 +65,10 @@
                     value="{{ old('wholesale_price') }}" placeholder="Opcional"
                     class="input-field py-1.5 text-sm font-semibold text-emerald-700">
             </div>
+            <div>
+                <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-amber-700">Especial</label>
+                <input type="number" name="special_price" step="0.01" min="0" value="{{ old('special_price') }}" placeholder="Opcional" class="input-field py-1.5 text-sm font-semibold text-amber-700">
+            </div>
             </div>
 
             @include('inventario._price_calc', [
@@ -79,6 +83,15 @@
         @else
             <p class="text-[11px] text-amber-600">No hay lista MAYOR activa; el precio mayorista no se aplicará en POS.</p>
         @endif
+
+        <section class="rounded-xl border border-sky-200 bg-sky-50/50 p-3 space-y-3">
+            <div><p class="text-sm font-bold text-sky-950">Datos del celular o artículo</p><p class="text-xs text-sky-700">Úsalos para identificar rápidamente cada variante.</p></div>
+            <div class="grid grid-cols-3 gap-2">
+                @foreach(['new'=>'Nuevo','used'=>'Seminuevo','open_box'=>'Open box'] as $value=>$label)<label class="cursor-pointer"><input type="radio" name="condition" value="{{ $value }}" class="peer sr-only" @checked(old('condition')===$value)><span class="block rounded-lg border border-slate-200 bg-white px-2 py-2 text-center text-xs font-semibold peer-checked:border-sky-600 peer-checked:bg-sky-100 peer-checked:text-sky-800">{{ $label }}</span></label>@endforeach
+            </div>
+            <div class="grid gap-2 sm:grid-cols-3"><input name="brand" value="{{ old('brand') }}" class="input-field py-2 text-sm" placeholder="Marca"><input name="model" value="{{ old('model') }}" class="input-field py-2 text-sm" placeholder="Modelo"><input name="color" value="{{ old('color') }}" class="input-field py-2 text-sm" placeholder="Color"></div>
+            <textarea name="description" rows="2" class="input-field text-sm" placeholder="Descripción, capacidad, detalles o condición física…">{{ old('description') }}</textarea>
+        </section>
 
         @include('inventario._initial_locations', [
             'locationPrefix' => 'quickInitial',

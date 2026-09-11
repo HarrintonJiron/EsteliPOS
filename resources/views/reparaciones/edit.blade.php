@@ -315,13 +315,13 @@
                     </div>
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Método de pago</label>
-                        <select name="payment_type" class="select-field">
+                        <select name="payment_type" id="repairPaymentType" class="select-field" onchange="toggleRepairCredit()">
                             @foreach(['cash' => 'Efectivo', 'card' => 'Tarjeta', 'transfer' => 'Transferencia', 'credit' => 'Crédito'] as $val => $label)
                                 <option value="{{ $val }}" {{ old('payment_type', $order->payment_type) === $val ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div><label class="block text-sm text-slate-600 mb-1">Vencimiento del crédito</label><input type="date" name="due_date" value="{{ old('due_date', $order->due_date?->toDateString()) }}" class="input-field"></div>
+                    <div id="repairCreditTerms" class="rounded-xl border border-amber-200 bg-amber-50 p-3"><label class="block text-sm text-amber-900 mb-1">Fecha límite de pago</label><input id="repairDueDate" type="date" name="due_date" value="{{ old('due_date', $order->due_date?->toDateString()) }}" min="{{ $order->received_date->toDateString() }}" class="input-field"><div class="mt-2 flex gap-2">@foreach([15,30,45] as $days)<button type="button" onclick="setRepairCreditDays({{ $days }})" class="rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs font-semibold text-amber-800">{{ $days }} días</button>@endforeach</div></div>
                 </div>
 
                 {{-- WARRANTY --}}
@@ -958,6 +958,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleOptionalField('repair_notes');
     toggleWarrantyText();
     initRepairItems();
+    toggleRepairCredit();
 
     // Load brands dynamically
     loadBrands();
@@ -975,6 +976,19 @@ document.addEventListener('DOMContentLoaded', () => {
     @endforeach
     updateTotal();
 });
+
+function toggleRepairCredit() {
+    const credit = document.getElementById('repairPaymentType')?.value === 'credit';
+    document.getElementById('repairCreditTerms')?.classList.toggle('hidden', !credit);
+    const dueDate = document.getElementById('repairDueDate');
+    if (dueDate) dueDate.required = credit;
+}
+
+function setRepairCreditDays(days) {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    document.getElementById('repairDueDate').value = date.toISOString().slice(0, 10);
+}
 
 function toggleWarrantyText() {
     const checkbox = document.getElementById('warrantyEnabled');
