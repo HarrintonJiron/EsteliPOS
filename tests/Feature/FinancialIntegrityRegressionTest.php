@@ -4,6 +4,7 @@ use App\Models\Category;
 use App\Models\Client;
 use App\Models\CreditPayment;
 use App\Models\JournalEntry;
+use App\Models\Module;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\RepairOrder;
@@ -93,6 +94,7 @@ test('credit purchases enter inventory and canceled purchases reverse stock and 
 
 test('repair order stores the discounted total and correct balance', function () {
     $admin = financialIntegrityAdmin();
+    Module::query()->where('slug', 'reparaciones')->update(['is_active' => true]);
 
     $this->actingAs($admin)->post(route('reparaciones.store'), [
         'client_name' => 'Cliente descuento',

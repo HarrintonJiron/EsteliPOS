@@ -25,6 +25,7 @@ class OperationalExpenseService
                 'user_id' => $actor->id,
                 'account_id' => $data['account_id'] ?? $this->defaultExpenseAccount()->id,
                 'payment_method' => $data['payment_method'],
+                'funding_source' => $data['funding_source'],
                 'status' => $data['status'],
                 'expense_date' => $data['expense_date'],
                 'caja_session_id' => $data['caja_session_id'],
@@ -55,6 +56,7 @@ class OperationalExpenseService
                 ...$data,
                 'account_id' => $data['account_id'] ?? $expense->account_id ?? $this->defaultExpenseAccount()->id,
                 'payment_method' => $data['payment_method'],
+                'funding_source' => $data['funding_source'],
                 'status' => $data['status'],
                 'expense_date' => $data['expense_date'],
                 'caja_session_id' => $data['caja_session_id'],
@@ -97,7 +99,7 @@ class OperationalExpenseService
 
     private function assertCashSessionMatchesDate(OperationalExpense $expense): void
     {
-        if ($expense->payment_method !== 'cash') {
+        if ($expense->payment_method !== 'cash' || $expense->funding_source !== 'sales_cash') {
             return;
         }
 
@@ -118,7 +120,13 @@ class OperationalExpenseService
         $status = $data['status'] ?? $expense?->status ?? OperationalExpense::STATUS_REGISTERED;
         $cajaSessionId = $data['caja_session_id'] ?? $expense?->caja_session_id;
 
-        if ($paymentMethod === 'cash' && ! $cajaSessionId) {
+        $fundingSource = $data['funding_source'] ?? $expense?->funding_source ?? 'external';
+
+        if ($fundingSource === 'external') {
+            $cajaSessionId = null;
+        }
+
+        if ($paymentMethod === 'cash' && $fundingSource === 'sales_cash' && ! $cajaSessionId) {
             $cajaSessionId = CajaSession::query()
                 ->whereDate('date', $expenseDate)
                 ->where('status', 'open')
@@ -127,7 +135,7 @@ class OperationalExpenseService
                 ->value('id');
         }
 
-        if ($paymentMethod === 'cash' && ! $cajaSessionId) {
+        if ($paymentMethod === 'cash' && $fundingSource === 'sales_cash' && ! $cajaSessionId) {
             throw new \RuntimeException('Debes abrir una caja para registrar un gasto operativo en efectivo.');
         }
 
@@ -137,6 +145,7 @@ class OperationalExpenseService
             'payment_method' => $paymentMethod,
             'status' => $status,
             'caja_session_id' => $cajaSessionId,
+            'funding_source' => $fundingSource,
         ];
     }
 
@@ -147,6 +156,7 @@ class OperationalExpenseService
             'amount' => (float) $expense->amount,
             'expense_date' => $expense->expense_date?->toDateString(),
             'payment_method' => $expense->payment_method,
+            'funding_source' => $expense->funding_source,
             'status' => $expense->status,
             'caja_session_id' => $expense->caja_session_id,
             'repair_order_id' => $expense->repair_order_id,

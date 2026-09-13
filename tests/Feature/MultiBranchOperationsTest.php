@@ -1,8 +1,12 @@
 <?php
 
 use App\Models\Branch;
+use App\Models\BranchDataImport;
+use App\Models\BranchProductMapping;
 use App\Models\CajaSession;
 use App\Models\Category;
+use App\Models\Client;
+use App\Models\InventoryMovement;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
@@ -152,15 +156,95 @@ test('branch import is explicit and idempotent for stock prices and receivables'
             ]))->toBe(0);
         }
 
-        $product = Product::query()->where('code', 'P-001')->firstOrFail();
-        $negativeProduct = Product::query()->where('code', 'P-002')->firstOrFail();
+        $product = Product::query()->where('code', 'IMP-P-001')->firstOrFail();
+        $negativeProduct = Product::query()->where('code', 'IMP-P-002')->firstOrFail();
         expect((float) WarehouseStock::query()->where('warehouse_id', $branch['warehouse']->id)->where('product_id', $product->id)->value('quantity'))->toBe(12.0)
             ->and((float) WarehouseStock::query()->where('warehouse_id', $branch['warehouse']->id)->where('product_id', $product->id)->value('purchase_price'))->toBe(40.0)
             ->and((float) PriceListItem::query()->where('price_list_id', $branch['priceList']->id)->where('product_id', $product->id)->value('unit_price'))->toBe(65.0)
             ->and(Sale::query()->where('invoice_number', 'IMP-IMP-77')->count())->toBe(1)
             ->and((float) Sale::query()->where('invoice_number', 'IMP-IMP-77')->value('total'))->toBe(75.0)
             ->and((float) WarehouseStock::query()->where('warehouse_id', $branch['warehouse']->id)->where('product_id', $negativeProduct->id)->value('quantity'))->toBe(0.0)
-            ->and((float) PriceListItem::query()->where('price_list_id', $branch['priceList']->id)->where('product_id', $negativeProduct->id)->value('unit_price'))->toBe(15.0);
+            ->and((float) PriceListItem::query()->where('price_list_id', $branch['priceList']->id)->where('product_id', $negativeProduct->id)->value('unit_price'))->toBe(15.0)
+            ->and(BranchDataImport::query()->count())->toBe(1)
+            ->and(BranchProductMapping::query()->where('branch_id', $branch['branch']->id)->count())->toBe(2)
+            ->and(InventoryMovement::query()->where('product_id', $product->id)->count())->toBe(1);
+    } finally {
+        @unlink($productsPath);
+        @unlink($receivablesPath);
+    }
+});
+
+test('branch import namespaces colliding legacy product codes and anonymizes training clients', function () {
+    $first = branchFixture('MAIN', 0);
+    $second = branchFixture('S2', 0);
+    User::factory()->create();
+    $productsPath = sys_get_temp_dir().'/products-collision-'.Str::uuid().'.xlsx';
+    $receivablesPath = sys_get_temp_dir().'/receivables-training-'.Str::uuid().'.xlsx';
+
+    $productsBook = new Spreadsheet;
+    $productsBook->getActiveSheet()->fromArray([
+        ['CodProducto', 'Descripcion', 'Almacen', 'Costo', 'PrecioVenta'],
+        [490, 'Producto local', 3, 10, 15],
+    ]);
+    (new Xlsx($productsBook))->save($productsPath);
+    $receivablesBook = new Spreadsheet;
+    $receivablesBook->getActiveSheet()->fromArray([
+        ['Fecha', 'Código', 'Cliente', 'Total', 'Pago', 'Saldo', 'Fecha Máxima'],
+        ['01/09/2026', 1, 'Nombre privado', 100, 'C$0.00', 100, '30/09/2026'],
+    ]);
+    (new Xlsx($receivablesBook))->save($receivablesPath);
+
+    try {
+        foreach ([$first, $second] as $fixture) {
+            expect(Artisan::call('app:import-branch-data', [
+                'branch' => $fixture['branch']->code,
+                'products' => $productsPath,
+                'receivables' => $receivablesPath,
+                '--mode' => 'training',
+                '--apply' => true,
+            ]))->toBe(0);
+        }
+
+        expect(Product::query()->whereIn('code', ['MAIN-490', 'S2-490'])->count())->toBe(2)
+            ->and(Client::query()->where('name', 'Nombre privado')->exists())->toBeFalse()
+            ->and(Client::query()->where('name', 'like', 'Cliente capacitación %')->count())->toBe(2);
+    } finally {
+        @unlink($productsPath);
+        @unlink($receivablesPath);
+    }
+});
+
+test('zero sale prices require explicit approval and remain inactive', function () {
+    $branch = branchFixture('ZERO', 0);
+    User::factory()->create();
+    $productsPath = sys_get_temp_dir().'/products-zero-'.Str::uuid().'.xlsx';
+    $receivablesPath = sys_get_temp_dir().'/receivables-empty-'.Str::uuid().'.xlsx';
+
+    $productsBook = new Spreadsheet;
+    $productsBook->getActiveSheet()->fromArray([
+        ['CodProducto', 'Descripcion', 'Almacen', 'Costo', 'PrecioVenta'],
+        [1, 'Sin precio', 2, 10, 'C$0.00'],
+    ]);
+    (new Xlsx($productsBook))->save($productsPath);
+    $receivablesBook = new Spreadsheet;
+    $receivablesBook->getActiveSheet()->fromArray([
+        ['Fecha', 'Código', 'Cliente', 'Total', 'Pago', 'Saldo', 'Fecha Máxima'],
+    ]);
+    (new Xlsx($receivablesBook))->save($receivablesPath);
+
+    try {
+        $arguments = [
+            'branch' => $branch['branch']->code,
+            'products' => $productsPath,
+            'receivables' => $receivablesPath,
+            '--apply' => true,
+        ];
+        expect(Artisan::call('app:import-branch-data', $arguments))->toBe(1)
+            ->and(Product::query()->where('code', 'ZERO-1')->exists())->toBeFalse();
+
+        $arguments['--allow-zero-prices'] = true;
+        expect(Artisan::call('app:import-branch-data', $arguments))->toBe(0)
+            ->and(Product::query()->where('code', 'ZERO-1')->value('status'))->toBe('inactive');
     } finally {
         @unlink($productsPath);
         @unlink($receivablesPath);

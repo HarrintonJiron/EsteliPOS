@@ -135,7 +135,29 @@ Route::middleware(['auth'])->group(function () {
             ->middleware('permission:caja.open')->name('arqueo.open');
         Route::post('/arqueo/run', [ArqueoController::class, 'run'])
             ->middleware('permission:caja.close')->name('arqueo.run');
+        Route::get('/arqueo/historial', [ArqueoController::class, 'history'])->middleware('permission:caja.view')->name('arqueo.history');
+        Route::get('/arqueo/{arqueo}/pdf', [ArqueoController::class, 'pdf'])->middleware('permission:caja.view')->whereNumber('arqueo')->name('arqueo.pdf');
+        Route::get('/arqueo/{arqueo}', [ArqueoController::class, 'show'])->middleware('permission:caja.view')->whereNumber('arqueo')->name('arqueo.show');
     });
+
+    Route::middleware('module:gastos')->prefix('gastos')->name('gastos.')->group(function () {
+        Route::get('/', [OperationalExpenseController::class, 'index'])->middleware('permission:gastos.view')->name('index');
+        Route::get('/nuevo', [OperationalExpenseController::class, 'create'])->middleware('permission:gastos.create')->name('create');
+        Route::post('/', [OperationalExpenseController::class, 'store'])->middleware('permission:gastos.create')->name('store');
+        Route::get('/{operationalExpense}', [OperationalExpenseController::class, 'show'])->middleware('permission:gastos.view')->name('show');
+        Route::get('/{operationalExpense}/edit', [OperationalExpenseController::class, 'edit'])->middleware('permission:gastos.edit')->name('edit');
+        Route::match(['put', 'patch'], '/{operationalExpense}', [OperationalExpenseController::class, 'update'])->middleware('permission:gastos.edit')->name('update');
+        Route::delete('/{operationalExpense}', [OperationalExpenseController::class, 'destroy'])->middleware('permission:gastos.delete')->name('destroy');
+    });
+
+    // Compatibilidad de marcadores anteriores; gastos ya no depende del módulo Reparaciones.
+    Route::get('/reparaciones/gastos-operativos', [OperationalExpenseController::class, 'index'])->middleware('permission:gastos.view')->name('reparaciones.gastos.index');
+    Route::get('/reparaciones/gastos-operativos/nuevo', [OperationalExpenseController::class, 'create'])->middleware('permission:gastos.create')->name('reparaciones.gastos.create');
+    Route::post('/reparaciones/gastos-operativos', [OperationalExpenseController::class, 'store'])->middleware('permission:gastos.create')->name('reparaciones.gastos.store');
+    Route::get('/reparaciones/gastos-operativos/{operationalExpense}', [OperationalExpenseController::class, 'show'])->middleware('permission:gastos.view')->name('reparaciones.gastos.show');
+    Route::get('/reparaciones/gastos-operativos/{operationalExpense}/edit', [OperationalExpenseController::class, 'edit'])->middleware('permission:gastos.edit')->name('reparaciones.gastos.edit');
+    Route::match(['put', 'patch'], '/reparaciones/gastos-operativos/{operationalExpense}', [OperationalExpenseController::class, 'update'])->middleware('permission:gastos.edit')->name('reparaciones.gastos.update');
+    Route::delete('/reparaciones/gastos-operativos/{operationalExpense}', [OperationalExpenseController::class, 'destroy'])->middleware('permission:gastos.delete')->name('reparaciones.gastos.destroy');
 
     Route::middleware('module:inventario')->group(function () {
         Route::get('/inventario', [InventarioController::class, 'index'])->middleware('permission:inventario.view')->name('inventario.index');
@@ -403,20 +425,6 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/device-brands', [DeviceBrandController::class, 'index'])->middleware('permission:reparaciones.view')->name('device-brands.index');
         Route::post('/device-brands', [DeviceBrandController::class, 'store'])->middleware('permission:reparaciones.create')->name('device-brands.store');
         Route::post('/repair-services', [RepairServiceController::class, 'store'])->middleware('permission:reparaciones.create')->name('repair-services.store');
-        Route::middleware('permission:reparaciones.create_expenses')->group(function () {
-            Route::get('/reparaciones/gastos-operativos/nuevo', [OperationalExpenseController::class, 'create'])->name('reparaciones.gastos.create');
-            Route::post('/reparaciones/gastos-operativos', [OperationalExpenseController::class, 'store'])->name('reparaciones.gastos.store');
-        });
-        Route::middleware('permission:reparaciones.edit_expenses')->group(function () {
-            Route::get('/reparaciones/gastos-operativos/{operationalExpense}/edit', [OperationalExpenseController::class, 'edit'])->name('reparaciones.gastos.edit');
-            Route::match(['put', 'patch'], '/reparaciones/gastos-operativos/{operationalExpense}', [OperationalExpenseController::class, 'update'])->name('reparaciones.gastos.update');
-        });
-        Route::middleware('permission:reparaciones.view_expenses')->group(function () {
-            Route::get('/reparaciones/gastos-operativos', [OperationalExpenseController::class, 'index'])->name('reparaciones.gastos.index');
-            Route::get('/reparaciones/gastos-operativos/{operationalExpense}', [OperationalExpenseController::class, 'show'])->name('reparaciones.gastos.show');
-        });
-        Route::delete('/reparaciones/gastos-operativos/{operationalExpense}', [OperationalExpenseController::class, 'destroy'])
-            ->middleware('permission:reparaciones.delete_expenses')->name('reparaciones.gastos.destroy');
         Route::middleware('permission:reparaciones.view')->group(function () {
             Route::get('/reparaciones', [ReparacionController::class, 'index'])->name('reparaciones.index');
             Route::get('/reparaciones/{id}', [ReparacionController::class, 'show'])->whereNumber('id')->name('reparaciones.show');

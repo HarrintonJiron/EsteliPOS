@@ -75,6 +75,7 @@ test('open cash screen shows compact closing summary when session is active', fu
         ->assertSee('Caja abierta')
         ->assertSee('C$ 750.00')
         ->assertSee('Cerrar caja')
+        ->assertSee('Historial de arqueos')
         ->assertSee('Esperado')
         ->assertSee('Conteo y cierre')
         ->assertSee('qty-input', false)
@@ -191,6 +192,7 @@ test('completed cash purchases reduce expected cash at closing', function () {
     ]);
     Purchase::query()->create([
         'document_number' => 'COMP-CAJA-001',
+        'funding_source' => 'sales_cash',
         'supplier_id' => $supplier->id,
         'user_id' => $admin->id,
         'date' => now(),

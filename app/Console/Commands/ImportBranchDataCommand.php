@@ -3,15 +3,19 @@
 namespace App\Console\Commands;
 
 use App\Models\Branch;
+use App\Models\BranchDataImport;
+use App\Models\BranchProductMapping;
 use App\Models\Category;
 use App\Models\Client;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
+use App\Models\ProductUnitConversion;
 use App\Models\Sale;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\WarehouseStock;
+use App\Services\InventoryService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -26,12 +30,21 @@ class ImportBranchDataCommand extends Command
         {branch : Código o ID de la sucursal}
         {products : Archivo XLSX de productos de esa sucursal}
         {receivables : Archivo XLSX de cuentas por cobrar de esa sucursal}
+        {--mode=production : production o training}
+        {--allow-zero-prices : Autoriza importar productos con precio cero; permanecen inactivos}
         {--apply : Confirma la escritura; sin esta opción solo valida y resume}';
 
     protected $description = 'Valida e importa inventario, precios y cuentas por cobrar separados por sucursal';
 
     public function handle(): int
     {
+        $mode = strtolower((string) $this->option('mode'));
+        if (! in_array($mode, ['production', 'training'], true)) {
+            $this->error('El modo debe ser production o training.');
+
+            return self::FAILURE;
+        }
+
         $branch = Branch::query()
             ->where('code', $this->argument('branch'))
             ->orWhere('id', $this->argument('branch'))
@@ -58,6 +71,9 @@ class ImportBranchDataCommand extends Command
             ['Existencia total', number_format(array_sum(array_column($products, 'stock')), 4)],
             ['Cuentas por cobrar', count($receivables)],
             ['Saldo por cobrar', 'C$ '.number_format(array_sum(array_column($receivables, 'balance')), 2)],
+            ['Modo', $mode],
+            ['SHA productos', hash_file('sha256', (string) $this->argument('products'))],
+            ['SHA cuentas por cobrar', hash_file('sha256', (string) $this->argument('receivables'))],
         ]);
         $belowCost = count(array_filter($products, fn (array $row) => $row['price'] < $row['cost']));
         if ($belowCost > 0) {
@@ -67,6 +83,15 @@ class ImportBranchDataCommand extends Command
         if ($normalizedStock > 0) {
             $this->warn("{$normalizedStock} productos tenían existencia negativa y se importarán con existencia 0.");
         }
+        $zeroPrices = count(array_filter($products, fn (array $row) => $row['price'] <= 0));
+        if ($zeroPrices > 0) {
+            $this->warn("{$zeroPrices} productos tienen precio cero y quedarán inactivos para venta.");
+            if ($this->option('apply') && ! $this->option('allow-zero-prices')) {
+                $this->error('Importación detenida. Revisa los precios o repite con --allow-zero-prices para cargarlos inactivos.');
+
+                return self::FAILURE;
+            }
+        }
 
         if (! $this->option('apply')) {
             $this->warn('Vista previa solamente. Repite con --apply después de verificar la sucursal y los archivos.');
@@ -74,8 +99,36 @@ class ImportBranchDataCommand extends Command
             return self::SUCCESS;
         }
 
-        DB::transaction(fn () => $this->import($branch, $products, $receivables));
-        $this->info('Importación aplicada y separada por sucursal correctamente.');
+        $productsHash = hash_file('sha256', (string) $this->argument('products'));
+        $receivablesHash = hash_file('sha256', (string) $this->argument('receivables'));
+        $existing = BranchDataImport::query()
+            ->where('branch_id', $branch->id)
+            ->where('mode', $mode)
+            ->where('products_sha256', $productsHash)
+            ->where('receivables_sha256', $receivablesHash)
+            ->first();
+        if ($existing) {
+            $this->info("Este lote ya fue aplicado ({$existing->batch_id}); no se realizaron cambios.");
+
+            return self::SUCCESS;
+        }
+
+        $batchId = (string) Str::uuid();
+        DB::transaction(function () use ($branch, $products, $receivables, $mode, $productsHash, $receivablesHash, $batchId): void {
+            $summary = $this->import($branch, $products, $receivables, $mode, $batchId);
+            BranchDataImport::query()->create([
+                'batch_id' => $batchId,
+                'branch_id' => $branch->id,
+                'mode' => $mode,
+                'products_sha256' => $productsHash,
+                'receivables_sha256' => $receivablesHash,
+                'status' => 'completed',
+                'summary' => $summary,
+                'applied_by' => User::query()->orderBy('id')->value('id'),
+                'applied_at' => now(),
+            ]);
+        });
+        $this->info("Importación aplicada correctamente. Lote: {$batchId}");
 
         return self::SUCCESS;
     }
@@ -159,7 +212,8 @@ class ImportBranchDataCommand extends Command
         return $receivables;
     }
 
-    private function import(Branch $branch, array $products, array $receivables): void
+    /** @return array<string, int|float|string> */
+    private function import(Branch $branch, array $products, array $receivables, string $mode, string $batchId): array
     {
         $userId = User::query()->orderBy('id')->value('id');
         if (! $userId) {
@@ -177,22 +231,44 @@ class ImportBranchDataCommand extends Command
         ]);
         $branch->update(['price_list_id' => $priceList->id]);
 
+        $inventory = app(InventoryService::class);
         foreach ($products as $row) {
             $category = Category::query()->firstOrCreate(['name' => $row['category']]);
-            $product = Product::query()->firstOrCreate(['code' => $row['code']], [
-                'category_id' => $category->id,
-                'name' => $row['name'],
-                'purchase_price' => $row['cost'],
-                'sale_price' => $row['price'],
-                'stock' => 0,
-                'unit' => $unit->abbreviation,
-                'base_unit_id' => $unit->id,
-                'location' => $row['location'],
-                'status' => 'active',
-            ]);
-            $stock = WarehouseStock::query()->updateOrCreate(
+            $globalCode = Str::upper($branch->code).'-'.$row['code'];
+            $mapping = BranchProductMapping::query()
+                ->where('branch_id', $branch->id)
+                ->where('legacy_code', $row['code'])
+                ->first();
+            $product = $mapping?->product_id
+                ? Product::query()->findOrFail($mapping->product_id)
+                : Product::query()->firstOrCreate(['code' => $globalCode], [
+                    'category_id' => $category->id,
+                    'name' => $row['name'],
+                    'purchase_price' => $row['cost'],
+                    'sale_price' => $row['price'],
+                    'stock' => 0,
+                    'unit' => $unit->abbreviation,
+                    'base_unit_id' => $unit->id,
+                    'location' => $row['location'],
+                    'status' => $row['price'] > 0 ? 'active' : 'inactive',
+                ]);
+            BranchProductMapping::query()->updateOrCreate(
+                ['branch_id' => $branch->id, 'legacy_code' => $row['code']],
+                ['product_id' => $product->id, 'source_name' => $row['name']],
+            );
+            $currentStock = (float) WarehouseStock::query()
+                ->where('warehouse_id', $branch->warehouse_id)
+                ->where('product_id', $product->id)
+                ->value('quantity');
+            $delta = round($row['stock'] - $currentStock, 4);
+            if ($delta > 0) {
+                $inventory->stockIn($product, $delta, 'IMPORT-'.$batchId, 'Existencia inicial importada; código anterior '.$row['code'], $userId, $branch->warehouse_id);
+            } elseif ($delta < 0) {
+                $inventory->stockOut($product, abs($delta), 'IMPORT-'.$batchId, 'Ajuste de lote importado; código anterior '.$row['code'], $userId, false, $branch->warehouse_id);
+            }
+            WarehouseStock::query()->updateOrCreate(
                 ['warehouse_id' => $branch->warehouse_id, 'product_id' => $product->id],
-                ['quantity' => $row['stock'], 'purchase_price' => $row['cost'], 'aisle' => $row['location']],
+                ['purchase_price' => $row['cost'], 'aisle' => $row['location']],
             );
             PriceListItem::query()->updateOrCreate([
                 'price_list_id' => $priceList->id,
@@ -200,12 +276,21 @@ class ImportBranchDataCommand extends Command
                 'unit_id' => $product->base_unit_id,
                 'min_quantity' => 1,
             ], ['unit_price' => $row['price']]);
+            if ($row['barcode']) {
+                ProductUnitConversion::query()->updateOrCreate(
+                    ['product_id' => $product->id, 'unit_id' => $product->base_unit_id],
+                    ['factor_to_base' => 1, 'sale_price' => $row['price'], 'use_for_purchase' => true, 'use_for_sale' => true, 'is_default_purchase_unit' => true, 'is_default_sale_unit' => true, 'allow_fraction' => false, 'barcode' => $row['barcode']],
+                );
+            }
             $product->update(['stock' => WarehouseStock::query()->where('product_id', $product->id)->sum('quantity')]);
         }
 
         foreach ($receivables as $row) {
+            $clientName = $mode === 'training'
+                ? 'Cliente capacitación '.substr(hash('sha256', $branch->code.'|'.$row['client']), 0, 8)
+                : $row['client'];
             $client = Client::query()->firstOrCreate(
-                ['name' => $row['client']],
+                ['name' => $clientName],
                 ['phone' => null, 'status' => 'active', 'credit_enabled' => true, 'credit_limit' => 0],
             );
             Sale::query()->updateOrCreate([
@@ -225,9 +310,20 @@ class ImportBranchDataCommand extends Command
                 'status' => 'pending',
                 'tax_included' => false,
                 'tax_rate' => 0,
-                'notes' => "Saldo inicial importado. Documento original {$row['legacy_code']}; total C$ {$row['total']}; pagado C$ {$row['paid']}.",
+                'currency' => 'NIO',
+                'exchange_rate' => 1,
+                'notes' => ($mode === 'training' ? '[CAPACITACIÓN] ' : '')."Saldo inicial importado. Documento original {$row['legacy_code']}; total C$ {$row['total']}; pagado C$ {$row['paid']}. Lote {$batchId}.",
             ]);
         }
+
+        return [
+            'products' => count($products),
+            'stock' => round(array_sum(array_column($products, 'stock')), 4),
+            'receivables' => count($receivables),
+            'receivable_balance' => round(array_sum(array_column($receivables, 'balance')), 2),
+            'zero_prices' => count(array_filter($products, fn (array $row) => $row['price'] <= 0)),
+            'normalized_negative_stock' => count(array_filter($products, fn (array $row) => $row['source_stock'] < 0)),
+        ];
     }
 
     /** @return list<array<int, mixed>> */

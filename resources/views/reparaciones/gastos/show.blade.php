@@ -11,9 +11,9 @@
             <p class="page-subtitle">{{ $expense->description }}</p>
         </div>
         <div class="flex gap-2">
-            <a href="{{ route('reparaciones.gastos.index') }}" class="btn-outline">← Listado</a>
+            <a href="{{ route('gastos.index') }}" class="btn-outline">← Listado</a>
             @if($expense->status !== \App\Models\OperationalExpense::STATUS_CANCELLED && (auth()->user()?->isAdmin() || auth()->user()?->hasPermission('reparaciones.edit_expenses')))
-                <a href="{{ route('reparaciones.gastos.edit', $expense) }}" class="btn-primary">Editar</a>
+                <a href="{{ route('gastos.edit', $expense) }}" class="btn-primary">Editar</a>
             @endif
         </div>
     </div>

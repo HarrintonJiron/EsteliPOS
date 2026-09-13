@@ -19,6 +19,7 @@ class UpdatePurchaseStatusRequest extends FormRequest
         return [
             'status' => ['required', 'in:received,completed,canceled'],
             'payment_type' => ['nullable', 'required_if:status,received,completed', 'in:cash,transfer,credit'],
+            'funding_source' => ['nullable', 'in:external,sales_cash'],
         ];
     }
 

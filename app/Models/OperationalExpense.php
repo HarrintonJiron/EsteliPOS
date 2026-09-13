@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CompanySettingsService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -10,7 +11,9 @@ class OperationalExpense extends Model
     use HasFactory;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_REGISTERED = 'registered';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     protected $fillable = [
@@ -22,6 +25,9 @@ class OperationalExpense extends Model
         'amount',
         'expense_date',
         'payment_method',
+        'funding_source',
+        'currency',
+        'exchange_rate',
         'notes',
         'status',
     ];
@@ -30,8 +36,17 @@ class OperationalExpense extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'exchange_rate' => 'decimal:6',
             'expense_date' => 'date',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (OperationalExpense $expense): void {
+            $expense->currency ??= app(CompanySettingsService::class)->get()['currency'];
+            $expense->exchange_rate ??= 1;
+        });
     }
 
     public function user()
@@ -72,6 +87,11 @@ class OperationalExpense extends Model
     public function scopeCash($query)
     {
         return $query->where('payment_method', 'cash');
+    }
+
+    public function scopeAffectsSalesCash($query)
+    {
+        return $query->where('funding_source', 'sales_cash');
     }
 
     public function getStatusLabelAttribute(): string

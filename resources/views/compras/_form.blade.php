@@ -151,6 +151,11 @@
                             <option value="cash" @selected($defaultPaymentType === 'cash')>Contado (efectivo)</option>
                             <option value="transfer" @selected($defaultPaymentType === 'transfer')>Contado (transferencia)</option>
                         </select>
+                        <label class="mt-2 block text-xs font-medium text-slate-500">Origen del dinero</label>
+                        <select name="funding_source" class="select-field">
+                            <option value="external" @selected(old('funding_source', $purchase?->funding_source ?? 'external') === 'external')>Fondos externos / administración</option>
+                            <option value="sales_cash" @selected(old('funding_source', $purchase?->funding_source) === 'sales_cash')>Caja de ventas (reduce arqueo)</option>
+                        </select>
                     </div>
                 </div>
                 <input type="hidden" name="purchase_mode" id="purchase_mode" value="{{ $defaultPurchaseMode }}">

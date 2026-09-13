@@ -33,11 +33,19 @@ function modulePayload(?callable $change = null): array
 }
 
 test('the complete module catalog and its dependencies are installed', function () {
-    expect(Module::count())->toBe(13)
-        ->and(Module::where('is_active', true)->count())->toBe(13)
+    expect(Module::count())->toBe(14)
+        ->and(Module::where('is_active', true)->count())->toBe(14)
         ->and(Module::where('slug', 'configuracion')->firstOrFail()->is_core)->toBeTrue()
         ->and(Module::where('slug', 'ventas')->firstOrFail()->dependencies)->toBe(['inventario', 'clientes'])
         ->and(Module::where('slug', 'contabilidad')->firstOrFail()->dependencies)->toBe(['ventas', 'compras']);
+});
+
+test('pueblo nuevo variant disables repair modules without changing the shared catalog', function () {
+    config(['northlink.disabled_modules' => ['reparaciones', 'celulares']]);
+    $admin = moduleAdmin();
+
+    expect(app(ModuleAccessService::class)->canAccessSlug('reparaciones', $admin))->toBeFalse()
+        ->and(Module::where('slug', 'reparaciones')->firstOrFail()->is_active)->toBeTrue();
 });
 
 test('inactive modules are hidden from navigation and their routes return not found', function () {

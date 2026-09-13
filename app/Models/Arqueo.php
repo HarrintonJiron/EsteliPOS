@@ -10,7 +10,7 @@ class Arqueo extends Model
     use HasFactory;
 
     protected $fillable = [
-        'caja_session_id', 'date', 'user_id', 'total_sales_count', 'total_sales_amount', 'cash_total', 'credit_payments_total', 'physical_total', 'difference', 'details'
+        'caja_session_id', 'date', 'user_id', 'branch_id', 'currency', 'closed_at', 'total_sales_count', 'total_sales_amount', 'cash_total', 'credit_payments_total', 'physical_total', 'difference', 'details', 'snapshot_hash',
     ];
 
     protected $casts = [
@@ -21,6 +21,7 @@ class Arqueo extends Model
         'credit_payments_total' => 'decimal:2',
         'physical_total' => 'decimal:2',
         'difference' => 'decimal:2',
+        'closed_at' => 'datetime',
     ];
 
     public function cajaSession()
@@ -31,5 +32,16 @@ class Arqueo extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(fn () => throw new \LogicException('Los cierres de caja son inmutables.'));
+        static::deleting(fn () => throw new \LogicException('Los cierres de caja son inmutables.'));
     }
 }

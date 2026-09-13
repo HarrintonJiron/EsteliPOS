@@ -24,6 +24,7 @@ class Purchase extends Model
         'total',
         'status',
         'payment_type',
+        'funding_source',
         'currency',
         'exchange_rate',
         'foreign_subtotal',

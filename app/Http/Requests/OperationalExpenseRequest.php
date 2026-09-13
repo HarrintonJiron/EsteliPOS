@@ -22,8 +22,8 @@ class OperationalExpenseRequest extends FormRequest
         }
 
         return match (true) {
-            str_contains($routeName, '.store') => $user->hasPermission('reparaciones.create_expenses'),
-            str_contains($routeName, '.update') => $user->hasPermission('reparaciones.edit_expenses'),
+            str_contains($routeName, '.store') => $user->hasPermission('gastos.create'),
+            str_contains($routeName, '.update') => $user->hasPermission('gastos.edit'),
             default => false,
         };
     }
@@ -38,6 +38,7 @@ class OperationalExpenseRequest extends FormRequest
             'amount' => ['required', 'numeric', 'min:0.01'],
             'expense_date' => ['nullable', 'date'],
             'payment_method' => ['nullable', Rule::in(['cash', 'transfer', 'card', 'other'])],
+            'funding_source' => ['nullable', Rule::in(['external', 'sales_cash'])],
             'notes' => ['nullable', 'string', 'max:2000'],
             'status' => ['nullable', Rule::in([
                 OperationalExpense::STATUS_DRAFT,
