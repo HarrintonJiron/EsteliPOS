@@ -12,7 +12,7 @@ class CajaSession extends Model
     protected $table = 'caja_sessions';
 
     protected $fillable = [
-        'date', 'opened_at', 'opened_by', 'branch_id', 'opening_amount', 'closed_at', 'closed_by', 'status', 'open_guard',
+        'date', 'opened_at', 'opened_by', 'branch_id', 'opening_amount', 'currency', 'closed_at', 'closed_by', 'status', 'open_guard',
     ];
 
     protected $casts = [

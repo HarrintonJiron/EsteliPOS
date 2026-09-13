@@ -360,7 +360,7 @@ class CompraController extends Controller
                 $this->assertPurchaseAmountsFitStorage($data['items'], $exchangeRate);
 
                 $settlement = $this->resolveSettlement($data);
-                $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash'
+                $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash' && $data['funding_source'] === 'sales_cash'
                     ? $this->requireOpenCashSessionId($request->user()?->id)
                     : null;
                 $cashSession = $cashSessionId ? CajaSession::query()->find($cashSessionId) : null;
@@ -378,6 +378,7 @@ class CompraController extends Controller
                     'total' => 0,
                     'status' => $settlement['status'],
                     'payment_type' => $settlement['payment_type'],
+                    'funding_source' => $data['funding_source'],
                     'currency' => $data['currency'],
                     'exchange_rate' => $exchangeRate,
                     'foreign_subtotal' => 0,
@@ -520,7 +521,7 @@ class CompraController extends Controller
                 PurchaseDetail::where('purchase_id', $purchase->id)->delete();
 
                 $settlement = $this->resolveSettlement($data, $purchase);
-                $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash'
+                $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash' && $data['funding_source'] === 'sales_cash'
                     ? $this->requireOpenCashSessionId(auth()->id())
                     : null;
                 $cashSession = $cashSessionId ? CajaSession::query()->find($cashSessionId) : null;
@@ -531,6 +532,7 @@ class CompraController extends Controller
                     'date' => $data['date'],
                     'status' => $settlement['status'],
                     'payment_type' => $settlement['payment_type'],
+                    'funding_source' => $data['funding_source'],
                     'caja_session_id' => $cashSessionId,
                     'branch_id' => $branch?->id,
                     'currency' => $data['currency'],

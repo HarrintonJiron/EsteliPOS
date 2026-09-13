@@ -20,6 +20,7 @@ class InventoryCatalogSeeder extends Seeder
             ['name' => 'Pieza', 'abbreviation' => 'pza', 'unit_type' => 'count'],
             ['name' => 'Kilogramo', 'abbreviation' => 'kg', 'unit_type' => 'weight'],
             ['name' => 'Libra', 'abbreviation' => 'lb', 'unit_type' => 'weight'],
+            ['name' => 'Media arroba', 'abbreviation' => 'marr', 'unit_type' => 'weight'],
             ['name' => 'Quintal', 'abbreviation' => 'qq', 'unit_type' => 'weight'],
             ['name' => 'Litro', 'abbreviation' => 'lt', 'unit_type' => 'volume'],
             ['name' => 'Galón', 'abbreviation' => 'gal', 'unit_type' => 'volume'],

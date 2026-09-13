@@ -7,6 +7,9 @@
 @endphp
 <div class="p-3 sm:p-4">
     <div class="mx-auto w-full max-w-3xl space-y-3">
+        <div class="flex justify-end">
+            <a href="{{ route('arqueo.history') }}" class="btn-outline text-sm">Historial de arqueos</a>
+        </div>
         @if(session('success'))
             <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">{{ session('success') }}</div>
         @endif

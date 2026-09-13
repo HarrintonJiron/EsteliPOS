@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CompanySettingsService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -16,6 +17,8 @@ class CreditPayment extends Model
         'client_id',
         'sale_id',
         'amount',
+        'currency',
+        'exchange_rate',
         'payment_date',
         'payment_type',
         'reference_number',
@@ -27,7 +30,16 @@ class CreditPayment extends Model
 
     protected $casts = [
         'payment_date' => 'datetime',
+        'exchange_rate' => 'decimal:6',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (CreditPayment $payment): void {
+            $payment->currency ??= app(CompanySettingsService::class)->get()['currency'];
+            $payment->exchange_rate ??= 1;
+        });
+    }
 
     // Relaciones
     public function client()

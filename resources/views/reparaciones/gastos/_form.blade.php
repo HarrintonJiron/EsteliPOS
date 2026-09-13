@@ -21,15 +21,9 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <div class="lg:col-span-2 space-y-5">
         <div class="card p-5 space-y-4">
-            @if($defaultCajaSession ?? false)
-                <div class="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-                    Se registrará en <strong>Caja #{{ $defaultCajaSession->id }}</strong> abierta el {{ $defaultCajaSession->date->format('d/m/Y') }}.
-                </div>
-            @else
-                <div class="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-                    No hay una caja abierta para hoy. Abre una caja en Arqueo para poder registrar el gasto.
-                </div>
-            @endif
+            <div class="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                Por defecto el gasto se paga con fondos externos y no altera la caja de ventas.
+            </div>
 
             <div>
                 <label class="block text-sm text-slate-600 mb-1">¿Para qué se sacó el dinero? *</label>
@@ -50,6 +44,11 @@
                 <input type="hidden" name="expense_date" value="{{ old('expense_date', now()->toDateString()) }}">
                 <input type="hidden" name="payment_method" value="{{ old('payment_method', 'cash') }}">
                 <input type="hidden" name="status" value="{{ old('status', \App\Models\OperationalExpense::STATUS_REGISTERED) }}">
+                <label class="block text-sm text-slate-600">Origen del dinero</label>
+                <select name="funding_source" class="select-field">
+                    <option value="external" @selected(old('funding_source', 'external') === 'external')>Caja externa / fondos administrativos</option>
+                    <option value="sales_cash" @selected(old('funding_source') === 'sales_cash')>Caja de ventas (reduce el arqueo)</option>
+                </select>
                 <input type="hidden" name="caja_session_id" value="{{ old('caja_session_id', $defaultCajaSession?->id) }}">
             @endif
         </div>
@@ -59,8 +58,8 @@
         <div class="card p-5 space-y-4">
             <div class="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 space-y-2">
                 <p class="font-semibold text-slate-800">Impacto automático</p>
-                <p>Al guardar, el sistema lo registra como <strong>egreso en efectivo</strong> en la caja abierta del día.</p>
-                <p>También genera el asiento contable y descuenta el monto del arqueo.</p>
+                <p>El asiento contable siempre se genera.</p>
+                <p>Solo se descuenta del arqueo al elegir <strong>Caja de ventas</strong>.</p>
             </div>
 
             @if($expense)
@@ -84,6 +83,13 @@
                                 @foreach($paymentMethods as $value => $label)
                                     <option value="{{ $value }}" {{ old('payment_method', $expense?->payment_method ?? 'cash') === $value ? 'selected' : '' }}>{{ $label }}</option>
                                 @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1">Origen del dinero</label>
+                            <select name="funding_source" class="select-field">
+                                <option value="external" @selected(old('funding_source', $expense?->funding_source ?? 'external') === 'external')>Caja externa / fondos administrativos</option>
+                                <option value="sales_cash" @selected(old('funding_source', $expense?->funding_source) === 'sales_cash')>Caja de ventas (reduce arqueo)</option>
                             </select>
                         </div>
                         <div>
@@ -114,8 +120,8 @@
         </div>
 
         <div class="flex justify-end gap-2">
-            <a href="{{ route('reparaciones.gastos.index') }}" class="btn-outline">Cancelar</a>
-            <button type="submit" class="btn-primary" {{ ($defaultCajaSession ?? null) ? '' : 'disabled' }}>Guardar gasto</button>
+            <a href="{{ route('gastos.index') }}" class="btn-outline">Cancelar</a>
+            <button type="submit" class="btn-primary">Guardar gasto</button>
         </div>
     </div>
 </div>
