@@ -1,0 +1,409 @@
+============================================================
+     GUIA DE INSTALACION Y PUESTA EN MARCHA DE ESTELIPOS
+============================================================
+
+Desarrollado por: Northlink Microsystem
+Version: 1.0.1
+Fecha de preparacion: 01/08/2026
+
+
+1. ARCHIVO QUE SE DEBE UTILIZAR
+--------------------------------
+
+El archivo oficial para instalar el sistema es:
+
+EsteliPOS-1.0.1-3dfdaf0-windows.zip
+
+SHA-256 oficial:
+
+242e2b0dd522b45c439fef285804c821f2ac0dd97ff06e2dcddbde375384929e
+
+IMPORTANTE:
+
+- Use solamente el archivo indicado anteriormente.
+- No use la version EsteliPOS 1.0.0.
+- No use el archivo llamado ejecutable-ESTELIpos.zip.
+- El sistema no se distribuye como un archivo .exe independiente.
+- El ZIP contiene el sistema completo y un instalador de PowerShell.
+
+
+2. ARCHIVOS Y DATOS QUE DEBEN LLEVAR AL CLIENTE
+------------------------------------------------
+
+- EsteliPOS-1.0.1-3dfdaf0-windows.zip.
+- El archivo .sha256 correspondiente.
+- Instalador de PHP 8.4.1 o superior para Windows de 64 bits.
+- Controlador oficial de la impresora termica.
+- Nombre, RUC, direccion y telefono del negocio.
+- Logo del negocio en PNG o JPG.
+- Correo que se utilizara para el administrador.
+- Una contrasena segura para el administrador.
+- Memoria USB o ubicacion externa para respaldos.
+
+
+3. REQUISITOS DE LA COMPUTADORA
+--------------------------------
+
+- Windows 10 u 11 de 64 bits.
+- Cuenta de Windows con permisos de administrador.
+- PHP 8.4.1 o superior agregado al PATH.
+- Microsoft Edge o Google Chrome instalado.
+- Al menos 5 GB de espacio libre recomendado.
+- PC y tablet conectadas a la misma red Wi-Fi privada.
+- No utilizar una red Wi-Fi de invitados.
+
+Extensiones de PHP requeridas:
+
+ctype
+dom
+fileinfo
+gd
+mbstring
+openssl
+pdo_sqlite
+sqlite3
+tokenizer
+xml
+zip
+
+
+4. VERIFICAR PHP
+-----------------
+
+Abra PowerShell y ejecute:
+
+php -v
+
+Luego ejecute:
+
+php -m
+
+Compruebe que la version y las extensiones requeridas aparezcan.
+
+Si PowerShell indica que php no se reconoce:
+
+1. Confirme que PHP esta instalado.
+2. Agregue la carpeta de PHP al PATH de Windows.
+3. Cierre PowerShell.
+4. Abra una nueva ventana y ejecute nuevamente php -v.
+
+No continue hasta que php -v funcione correctamente.
+
+
+5. VERIFICAR LA INTEGRIDAD DEL ZIP
+-----------------------------------
+
+Copie el ZIP a la computadora y ejecute en PowerShell:
+
+certutil -hashfile "C:\Ruta\EsteliPOS-1.0.1-3dfdaf0-windows.zip" SHA256
+
+El resultado debe ser exactamente:
+
+242e2b0dd522b45c439fef285804c821f2ac0dd97ff06e2dcddbde375384929e
+
+Si no coincide, no instale el archivo. Vuelva a copiar el ZIP oficial.
+
+
+6. EXTRAER EL SISTEMA
+----------------------
+
+1. Cree la carpeta:
+
+C:\Northlink
+
+2. Extraiga el ZIP dentro de C:\Northlink.
+
+3. El resultado correcto debe ser:
+
+C:\Northlink\EsteliPOS
+
+4. Confirme que exista este archivo:
+
+C:\Northlink\EsteliPOS\artisan
+
+5. Confirme que exista esta carpeta:
+
+C:\Northlink\EsteliPOS\deployment\windows
+
+No debe quedar duplicado de esta forma:
+
+C:\Northlink\EsteliPOS\EsteliPOS
+
+No mueva ni borre la carpeta C:\Northlink\EsteliPOS despues de instalar.
+
+
+7. EJECUTAR EL INSTALADOR
+--------------------------
+
+1. Abra PowerShell como administrador.
+
+2. Ejecute los siguientes comandos:
+
+cd C:\Northlink\EsteliPOS
+
+Set-ExecutionPolicy -Scope Process Bypass
+
+.\deployment\windows\Deploy-EsteliPOS.ps1
+
+3. Introduzca cuando se solicite:
+
+- Nombre del administrador.
+- Correo del administrador.
+- Contrasena segura.
+- Ruta opcional para una segunda copia de respaldo.
+
+4. No cierre PowerShell durante la instalacion.
+
+5. Espere hasta que aparezca:
+
+DESPLIEGUE COMPLETADO
+
+6. Anote la informacion mostrada:
+
+- Direccion de acceso desde la PC y la tablet.
+- Correo del administrador.
+- Ubicacion de la base de datos.
+- Ubicacion de los respaldos.
+
+La direccion se parecera a:
+
+http://192.168.1.50:8080
+
+
+8. CONFIGURAR LA IMPRESORA TERMICA
+-----------------------------------
+
+1. Instale el controlador oficial de la impresora.
+
+2. Establezca la impresora termica como predeterminada de Windows.
+
+3. Configure:
+
+- Papel de 80 mm.
+- Margenes minimos.
+- Sin encabezados ni pies de pagina.
+- Corte automatico, si la impresora lo permite.
+
+4. Imprima una pagina de prueba de Windows.
+
+5. Confirme que el texto no salga cortado.
+
+
+9. CONFIGURAR LA GAVETA DE DINERO
+----------------------------------
+
+1. Conecte la gaveta al puerto RJ11 o RJ12 de la impresora termica.
+
+2. No conecte la gaveta directamente a la computadora.
+
+3. Abra las propiedades del controlador de la impresora.
+
+4. Busque una opcion con un nombre semejante a:
+
+- Cash Drawer.
+- Drawer Kick.
+- Open Drawer.
+- Abrir gaveta despues de imprimir.
+
+5. Configure la apertura despues de imprimir.
+
+6. Imprima una pagina de prueba y confirme que la gaveta abra.
+
+EsteliPOS inicia la impresion. La apertura fisica de la gaveta depende del
+controlador, del cable y de la compatibilidad de la impresora.
+
+
+10. IMPRESION AUTOMATICA DE TICKETS
+------------------------------------
+
+- Abra siempre el sistema usando el acceso directo EsteliPOS creado en el
+  escritorio.
+- Ese acceso directo inicia Edge o Chrome con impresion silenciosa.
+- Al completar una venta aparecera la pantalla con el cambio del cliente.
+- Al presionar Imprimir Recibo Termico, el ticket se enviara directamente a
+  la impresora predeterminada.
+- No debera aparecer la ventana de impresion de Windows.
+- La gaveta abrira cuando el controlador reciba la impresion.
+- La tablet no imprime y no abre la gaveta.
+
+Si aparece la ventana de impresion, cierre el navegador y vuelva a abrir el
+sistema usando el acceso directo EsteliPOS del escritorio.
+
+
+11. ACCESO DESDE LA TABLET
+---------------------------
+
+1. Conecte la tablet a la misma red Wi-Fi de la PC.
+
+2. Abra Edge, Chrome o Safari.
+
+3. Escriba la direccion mostrada por el instalador. Ejemplo:
+
+http://192.168.1.50:8080
+
+4. Inicie sesion.
+
+5. Guarde la pagina en la pantalla de inicio.
+
+6. Reserve la direccion IP de la PC en el router para que no cambie.
+
+Este sistema debe utilizarse solamente dentro de la red privada. No abra el
+puerto 8080 hacia Internet.
+
+
+12. CONFIGURACION INICIAL DEL NEGOCIO
+--------------------------------------
+
+Ingrese como administrador y configure:
+
+- Nombre del negocio.
+- RUC.
+- Direccion.
+- Telefono.
+- Logo general.
+- Logo del ticket.
+- Moneda.
+- Zona horaria.
+- Impuestos e IVA predeterminado.
+- Usuarios, roles y permisos.
+
+Confirme que el IVA activo y predeterminado sea el correcto antes de crear
+productos o registrar ventas reales.
+
+
+13. PRUEBAS OBLIGATORIAS
+-------------------------
+
+Antes de cargar datos reales se debe comprobar lo siguiente:
+
+[ ] La PC abre EsteliPOS desde el acceso directo.
+
+[ ] La tablet puede iniciar sesion.
+
+[ ] Inventario abre sin errores.
+
+[ ] Se puede crear una categoria.
+
+[ ] Se puede crear un producto con imagen.
+
+[ ] El producto muestra precio, stock e impuesto correctos.
+
+[ ] Una venta de contado calcula subtotal, IVA, total y cambio correctamente.
+
+[ ] La venta disminuye el inventario.
+
+[ ] La venta aparece en el historial.
+
+[ ] El ticket muestra nombre, logo, RUC y detalle de la venta.
+
+[ ] El ticket se imprime sin mostrar la ventana de Windows.
+
+[ ] La gaveta abre automaticamente al imprimir.
+
+[ ] Una compra incrementa correctamente el inventario.
+
+[ ] El cierre de caja funciona.
+
+[ ] Los reportes contables muestran la informacion esperada.
+
+[ ] Se puede crear un respaldo.
+
+[ ] El respaldo se copia a una ubicacion externa.
+
+No cargue datos reales si falla la venta, la impresion, la gaveta o el
+respaldo externo.
+
+
+14. RESPALDOS
+--------------
+
+Los respaldos locales se guardan en:
+
+C:\Northlink\EsteliPOS\storage\app\backups
+
+El respaldo automatico se ejecuta diariamente a las 7:00 p. m. mientras el
+usuario de Windows esta conectado.
+
+Para crear un respaldo manual ejecute:
+
+cd C:\Northlink\EsteliPOS
+
+.\deployment\windows\Backup-EsteliPOS.ps1 -Port 8080 -HostAddress 0.0.0.0
+
+Compruebe que el archivo generado tenga un tamano mayor que cero y copie una
+version fuera de la computadora.
+
+
+15. SOLUCION RAPIDA DE PROBLEMAS
+---------------------------------
+
+PROBLEMA: PHP no se reconoce.
+SOLUCION: Corrija el PATH y abra una nueva ventana de PowerShell.
+
+PROBLEMA: Falta una extension de PHP.
+SOLUCION: Habilitela en php.ini y reinicie EsteliPOS.
+
+PROBLEMA: La tablet no puede ingresar.
+SOLUCION: Confirme que ambos equipos usan el mismo Wi-Fi, que la red sea
+privada y que no sea una red de invitados.
+
+PROBLEMA: Aparece la ventana de impresion.
+SOLUCION: Abra el sistema desde el acceso directo EsteliPOS.
+
+PROBLEMA: La gaveta no abre.
+SOLUCION: Revise el cable y la opcion Drawer Kick del controlador.
+
+PROBLEMA: Inventario muestra el error categorias.store.
+SOLUCION: Se instalo una version anterior. Use exclusivamente
+EsteliPOS-1.0.1-3dfdaf0-windows.zip.
+
+PROBLEMA: El sistema no inicia.
+SOLUCION: Ejecute:
+
+.\deployment\windows\Diagnose-EsteliPOS.ps1
+
+Luego revise:
+
+C:\Northlink\EsteliPOS\storage\logs\server-error.log
+
+
+16. ENTREGA AL CLIENTE
+-----------------------
+
+Antes de retirarse, anote y entregue al cliente:
+
+Fecha de instalacion: ______________________________________________
+
+Nombre del cliente: ________________________________________________
+
+Direccion de la tablet: http://______________________________:8080
+
+Correo del administrador: __________________________________________
+
+Ubicacion del respaldo externo: ____________________________________
+
+Modelo de impresora: _______________________________________________
+
+Tecnico responsable: _______________________________________________
+
+
+17. CONDICIONES FINALES
+------------------------
+
+- No anote la contrasena en este documento.
+- No deje la contrasena visible junto a la computadora.
+- No borre ni mueva C:\Northlink\EsteliPOS.
+- No exponga el sistema directamente a Internet.
+- No considere terminada la instalacion sin probar una venta, el inventario,
+  la impresion, la gaveta y un respaldo externo.
+- Para varias cajas vendiendo al mismo tiempo se debe migrar a MySQL y usar
+  un servidor web dedicado.
+
+
+Firma del tecnico: _________________________________________________
+
+Firma del cliente: _________________________________________________
+
+============================================================
+               FIN DE LA GUIA DE INSTALACION
+============================================================

@@ -1,0 +1,22 @@
+ESTELIPOS - PARCHE 3.0 - TICKET TERMICO
+========================================
+
+Este parche actualiza UNICAMENTE:
+  resources\views\facturacion\receipt.blade.php
+
+No ejecuta migraciones.
+No copia, mueve, elimina ni reemplaza database.sqlite.
+Antes de copiar el ticket, comprueba que SQLite exista y responda "ok".
+
+INSTALACION
+1. Cierre EsteliPOS en la PC y en las tablets.
+2. Extraiga parcheticket.zip en C:\Northlink\ParcheTicket.
+3. Abra la carpeta extraida.
+4. Clic derecho en INSTALAR-PARCHE-3.0.bat.
+5. Seleccione "Ejecutar como administrador".
+6. Espere "PARCHE 3.0 APLICADO CORRECTAMENTE".
+7. Abra EsteliPOS y presione Ctrl+F5.
+8. Imprima un ticket de prueba.
+
+Si falta database.sqlite, el parche se cancela sin cambiar nada.
+No use los parches 1.0 o 2.0 para esta actualizacion del ticket.
