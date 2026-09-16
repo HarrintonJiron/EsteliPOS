@@ -96,12 +96,12 @@ class RepairOrder extends Model
     {
         return match ($this->status) {
             'received' => 'Recibido',
-            'diagnosing' => 'Diagnóstico',
-            'waiting_parts' => 'Esp. Repuestos',
-            'in_repair' => 'En Reparación',
-            'ready' => 'Listo',
-            'delivered' => 'Entregado',
-            'cancelled' => 'Cancelado',
+            'diagnosing' => 'En Evaluación',
+            'waiting_parts' => 'Esp. Materiales',
+            'in_repair' => 'En Taller',
+            'ready' => 'Lista para Entregar',
+            'delivered' => 'Entregada',
+            'cancelled' => 'Cancelada',
             default => ucfirst($this->status),
         };
     }

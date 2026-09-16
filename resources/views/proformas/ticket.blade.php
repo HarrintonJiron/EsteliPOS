@@ -8,27 +8,31 @@
         @page { size: 80mm auto; margin: 0; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
-            font-family: 'Courier New', monospace;
+            font-family: Arial, Helvetica, sans-serif;
             width: 80mm;
             max-width: 80mm;
             margin: 0 auto;
             padding: 0;
-            font-size: 11px;
+            font-size: 10pt;
+            font-weight: 700;
+            line-height: 1.32;
+            color: #000;
+            text-rendering: optimizeLegibility;
             background: #fff;
         }
-        .receipt { width: 100%; padding: 0.4cm; line-height: 1.3; }
+        .receipt { width: 100%; padding: 0.4cm; line-height: 1.32; }
         .center { text-align: center; }
-        .bold { font-weight: bold; }
-        .divider { border-top: 1px dashed #000; margin: 0.25cm 0; }
-        .company-name { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 2px; }
+        .bold { font-weight: 900; }
+        .divider { border-top: 2px dashed #000; margin: 0.25cm 0; }
+        .company-name { font-size: 14pt; font-weight: 900; text-align: center; margin-bottom: 2px; }
         .ticket-logo { display: block; width: auto; max-width: 68mm; max-height: 44mm; object-fit: contain; margin: 0 auto 2.5mm; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
         .proforma-badge {
             background: #000; color: #fff;
-            font-size: 10px; font-weight: bold;
+            font-size: 9.5pt; font-weight: 900;
             text-align: center; padding: 2px 0; margin: 4px 0;
             letter-spacing: 2px;
         }
-        .row { display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 10px; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 9.5pt; font-weight: 700; }
         .items-header,
         .item-main,
         .items-footer {
@@ -37,27 +41,29 @@
             gap: 1.5mm;
             align-items: start;
         }
-        .items-header { padding-bottom: 1mm; border-bottom: 1px solid #000; font-size: 8.5pt; font-weight: 700; margin-bottom: 2px; }
-        .item { padding: 1.5mm 0; border-bottom: 1px dotted #777; }
-        .item-main { margin-bottom: 4px; }
-        .item-name { font-weight: bold; overflow-wrap: anywhere; }
+        .items-header { padding-bottom: 1mm; border-bottom: 2px solid #000; font-size: 9pt; font-weight: 900; margin-bottom: 2px; }
+        .item { padding: 1.5mm 0; border-bottom: 1.5px dotted #000; }
+        .item-main { margin-bottom: 4px; font-size: 9.5pt; font-weight: 700; }
+        .item-name { font-weight: 900; overflow-wrap: anywhere; }
         .item-qty { text-align: center; }
-        .item-amount { text-align: right; white-space: nowrap; font-weight: bold; }
-        .item-meta { grid-column: 1 / -1; font-size: 9px; margin-top: 1px; }
+        .item-amount { text-align: right; white-space: nowrap; font-weight: 900; }
+        .item-meta { grid-column: 1 / -1; font-size: 9pt; font-weight: 700; margin-top: 1px; }
         .items-footer {
             margin-top: 1.5mm;
             padding-top: 1.5mm;
             border-top: 1.5px solid #000;
-            font-size: 12px;
-            font-weight: bold;
+            font-size: 12pt;
+            font-weight: 900;
         }
-        .footer { font-size: 9px; text-align: center; margin-top: 0.3cm; line-height: 1.4; }
+        .footer { font-size: 9pt; font-weight: 700; text-align: center; margin-top: 0.3cm; line-height: 1.4; }
         @media print {
+            *, *::before, *::after { color: #000 !important; opacity: 1 !important; text-shadow: none !important; filter: none !important; -webkit-font-smoothing: none; }
             .no-print { display: none !important; }
             html, body {
                 width: 80mm !important;
                 max-width: 80mm !important;
                 min-width: 80mm !important;
+                font-weight: 700 !important;
             }
             .receipt {
                 width: 72mm !important;
@@ -79,8 +85,8 @@
     @endif
     
     <div class="company-name">{{ $companyProfile['company_name'] }}</div>
-    @if($companyProfile['company_legal_name'])<p class="center" style="font-size:9px;">{{ $companyProfile['company_legal_name'] }}</p>@endif
-    @if($companyProfile['company_phone'])<p class="center" style="font-size:9px;">Tel: {{ $companyProfile['company_phone'] }}</p>@endif
+    @if($companyProfile['company_legal_name'])<p class="center" style="font-size:9pt;">{{ $companyProfile['company_legal_name'] }}</p>@endif
+    @if($companyProfile['company_phone'])<p class="center" style="font-size:9pt;">Tel: {{ $companyProfile['company_phone'] }}</p>@endif
 
     <div class="proforma-badge">COTIZACIÓN / PROFORMA</div>
 
@@ -107,7 +113,7 @@
 
     <div class="divider"></div>
 
-    <div style="font-size:10px; margin-bottom:0.2cm;">
+    <div style="font-size:9.5pt; margin-bottom:0.2cm;">
         <div class="bold">Cliente:</div>
         <div>{{ $proforma->client_name ?? 'Cliente General' }}</div>
         @if($proforma->client_phone)<div>Tel: {{ $proforma->client_phone }}</div>@endif
@@ -132,12 +138,12 @@
     </div>
     @endforeach
     @if($invoiceTaxDisplay->showsTaxInTotals((float) $proforma->tax_total))
-        <div class="items-footer" style="margin-top: 1mm; padding-top: 1mm; border-top: 1px dashed #777; font-size: 10px; font-weight: 400;">
+        <div class="items-footer" style="margin-top: 1mm; padding-top: 1mm; border-top: 1px dashed #000; font-size: 9pt; font-weight: 700;">
             <span>SUBTOTAL</span>
             <span class="item-qty"></span>
             <span class="item-amount">{{ $companyProfile['currency_symbol'] }} {{ number_format($proforma->subtotal, 2) }}</span>
         </div>
-        <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 10px; font-weight: 400;">
+        <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 700;">
             <span>{{ strtoupper($invoiceTaxDisplay->taxLabel((float) $proforma->tax_rate)) }}</span>
             <span class="item-qty"></span>
             <span class="item-amount">{{ $companyProfile['currency_symbol'] }} {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $proforma->tax_total), 2) }}</span>
@@ -151,7 +157,7 @@
 
     @if($proforma->notes)
     <div class="divider"></div>
-    <div style="font-size:9px;">
+    <div style="font-size:9pt; font-weight:700;">
         <div class="bold">Notas:</div>
         <div>{{ $proforma->notes }}</div>
     </div>

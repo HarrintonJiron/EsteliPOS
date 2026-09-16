@@ -15,6 +15,8 @@ class ProductionSeeder extends Seeder
             ConfigurationSeeder::class,
             AccountingSeeder::class,
             InventoryCatalogSeeder::class,
+            DeviceBrandSeeder::class,
+            RepairServiceSeeder::class,
             EnsureAdminFullAccessSeeder::class,
         ]);
     }

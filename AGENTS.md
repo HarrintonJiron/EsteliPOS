@@ -8,10 +8,8 @@
 - `resources/views`: Blade; tickets térmicos en `facturacion/receipt.blade.php`, `reparaciones/ticket.blade.php` y `proformas/ticket.blade.php`.
 - `database/migrations`, `database/seeders`: esquema y catálogos. Las pruebas usan SQLite en memoria (`phpunit.xml`); desarrollo Docker usa MySQL 8.4.
 - `tests/Feature`, `tests/Unit`: Pest 4.
-- `deployment/windows`: instalación, actualización, respaldo y diagnóstico en Windows.
-- `deployment/build-release.sh`: genera `deployment/parche1.0.zip`.
-- `deployment/build-ticket-patch.sh`: genera el parche aislado `deployment/parcheticket.zip` sin tocar datos.
-- `scripts`: verificaciones locales concisas. Flujo de release: [`.agents/skills/estelipos-windows-release/SKILL.md`](.agents/skills/estelipos-windows-release/SKILL.md).
+- `deployment`: documentación y recursos vigentes de despliegue; el instalador Apache se incorporará por separado.
+- `scripts`: verificaciones locales concisas.
 
 ## Comandos reales
 
@@ -33,10 +31,8 @@ php artisan test tests/Feature/NombreTest.php
 php artisan test --filter='nombre de prueba'
 composer test
 
-# frontend y revisión de un paquete ya construido
+# frontend
 npm run build
-./scripts/check-release.sh [deployment/parche1.0.zip]
-./scripts/check-ticket-patch.sh [deployment/parcheticket.zip]
 ```
 
 No hay PHPStan/Psalm, TypeScript ni ESLint configurados. `verify-changes.sh` usa `php -l`, Pint, pruebas Pest relacionadas y `npm run build` cuando corresponda; no instala dependencias.
@@ -49,7 +45,7 @@ No hay PHPStan/Psalm, TypeScript ni ESLint configurados. `verify-changes.sh` usa
 - Usa `NumberSequence` para documentos; no generes consecutivos con `max(id) + 1`.
 - Los tickets son HTML/CSS de 80 mm y deben funcionar sin CDN ni Internet.
 - No ejecutes migraciones/seeders sobre datos persistentes, builds de release, instalaciones ni descargas sin autorización.
-- No modifiques `.env`, `database/database.sqlite`, `storage/app`, `backups/`, binarios de `deployment/windows/assets/` ni ZIP de entrega salvo que la tarea los incluya expresamente.
+- No modifiques `.env`, `database/database.sqlite`, `storage/app`, `backups/` ni paquetes de entrega salvo que la tarea los incluya expresamente.
 - Preserva el árbol Git sucio; no reviertas, stages, commits ni pushes ajenos.
 
 ## Terminado
@@ -58,7 +54,7 @@ No hay PHPStan/Psalm, TypeScript ni ESLint configurados. `verify-changes.sh` usa
 - Formato aplicado o comprobado en archivos tocados.
 - Pruebas relacionadas pasan; frontend modificado implica `npm run build`.
 - Cambios de migración se prueban desde esquema limpio y sin tocar datos reales.
-- Cambios Windows/release pasan `scripts/check-release.sh`; informa cualquier validación no disponible (por ejemplo, PowerShell en macOS).
+- Los futuros cambios del instalador Apache deben incluir su propia verificación reproducible.
 
 ## Eficiencia
 

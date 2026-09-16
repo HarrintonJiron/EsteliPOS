@@ -13,9 +13,45 @@ use App\Models\RepairService;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ReparacionController extends Controller
 {
+    private function normalizeDiscount(array $validated): array
+    {
+        $percentage = (float) ($validated['discount_percentage'] ?? 0);
+        $fixed = (float) ($validated['discount_amount'] ?? 0);
+        $type = $validated['discount_type'] ?? null;
+
+        if (! in_array($type, ['none', 'percentage', 'fixed'], true)) {
+            $type = $percentage > 0 ? 'percentage' : ($fixed > 0 ? 'fixed' : 'none');
+        }
+
+        if ($percentage > 0 && $fixed > 0) {
+            throw ValidationException::withMessages([
+                'discount_type' => 'Seleccione un solo tipo de descuento: fijo o porcentaje.',
+            ]);
+        }
+
+        if ($type === 'percentage' && $fixed > 0) {
+            throw ValidationException::withMessages([
+                'discount_amount' => 'El descuento fijo no se puede combinar con el porcentaje.',
+            ]);
+        }
+
+        if ($type === 'fixed' && $percentage > 0) {
+            throw ValidationException::withMessages([
+                'discount_percentage' => 'El porcentaje no se puede combinar con el descuento fijo.',
+            ]);
+        }
+
+        return match ($type) {
+            'percentage' => [$percentage, 0.0],
+            'fixed' => [0.0, $fixed],
+            default => [0.0, 0.0],
+        };
+    }
+
     private function nextOrderNumber(): string
     {
         $minimum = RepairOrder::query()
@@ -28,50 +64,6 @@ class ReparacionController extends Controller
             }, 0) + 1;
 
         return NumberSequence::getNextAtLeast('reparacion', $minimum);
-    }
-
-    private function resolveLockType(Request $request, ?RepairOrder $order = null): string
-    {
-        $requestedType = $request->input('lock_type');
-
-        if ($requestedType && in_array($requestedType, ['password', 'pattern', 'none'], true)) {
-            return $requestedType;
-        }
-
-        if ($order?->lock_type) {
-            return $order->lock_type;
-        }
-
-        $value = (string) ($order?->device_password ?? '');
-        if ($value === '') {
-            return 'none';
-        }
-
-        return preg_match('/^[1-9](?:-[1-9])*$/', $value) ? 'pattern' : 'password';
-    }
-
-    private function normalizeLockData(string $lockType, ?string $devicePassword): array
-    {
-        $value = trim((string) ($devicePassword ?? ''));
-
-        if ($lockType === 'password') {
-            return [
-                'lock_type' => 'password',
-                'device_password' => $value !== '' ? $value : null,
-            ];
-        }
-
-        if ($lockType === 'pattern') {
-            return [
-                'lock_type' => 'pattern',
-                'device_password' => $value !== '' ? $value : null,
-            ];
-        }
-
-        return [
-            'lock_type' => 'none',
-            'device_password' => null,
-        ];
     }
 
     public function index(Request $request)
@@ -213,8 +205,6 @@ class ReparacionController extends Controller
             'device_model' => 'required|string|max:100',
             'device_color' => 'nullable|string|max:50',
             'device_imei' => 'nullable|string|max:60',
-            'lock_type' => 'nullable|in:password,pattern,none',
-            'device_password' => 'nullable|string|max:100',
             'accessories' => 'nullable|string',
             'problem_description' => 'required|string',
             'diagnosis' => 'nullable|string',
@@ -227,6 +217,7 @@ class ReparacionController extends Controller
             'estimated_date' => 'nullable|date',
             'estimated_delivery_time' => 'nullable|date_format:H:i',
             'labor_cost' => 'nullable|numeric|min:0',
+            'discount_type' => 'nullable|in:none,percentage,fixed',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
             'advance_payment' => 'nullable|numeric|min:0',
@@ -243,12 +234,10 @@ class ReparacionController extends Controller
             'items.*.device_brand' => 'nullable|string|max:60',
         ]);
 
-        $lockData = $this->normalizeLockData(
-            $this->resolveLockType($request),
-            $validated['device_password'] ?? null
-        );
-        $validated['lock_type'] = $lockData['lock_type'];
-        $validated['device_password'] = $lockData['device_password'];
+        // El taller de joyería no solicita ni conserva credenciales del cliente.
+        $validated['lock_type'] = 'none';
+        $validated['device_password'] = null;
+        [$validated['discount_percentage'], $validated['discount_amount']] = $this->normalizeDiscount($validated);
 
         $order = null;
 
@@ -361,8 +350,6 @@ class ReparacionController extends Controller
             'device_model' => 'required|string|max:100',
             'device_color' => 'nullable|string|max:50',
             'device_imei' => 'nullable|string|max:60',
-            'lock_type' => 'nullable|in:password,pattern,none',
-            'device_password' => 'nullable|string|max:100',
             'accessories' => 'nullable|string',
             'problem_description' => 'required|string',
             'diagnosis' => 'nullable|string',
@@ -377,6 +364,7 @@ class ReparacionController extends Controller
             'delivered_date' => 'nullable|date',
             'delivered_time' => 'nullable|date_format:H:i',
             'labor_cost' => 'nullable|numeric|min:0',
+            'discount_type' => 'nullable|in:none,percentage,fixed',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
             'advance_payment' => 'nullable|numeric|min:0',
@@ -393,12 +381,10 @@ class ReparacionController extends Controller
             'items.*.device_brand' => 'nullable|string|max:60',
         ]);
 
-        $lockData = $this->normalizeLockData(
-            $this->resolveLockType($request, $order),
-            $validated['device_password'] ?? null
-        );
-        $validated['lock_type'] = $lockData['lock_type'];
-        $validated['device_password'] = $lockData['device_password'];
+        // Elimina credenciales heredadas de antiguas órdenes de celulares al editarlas.
+        $validated['lock_type'] = 'none';
+        $validated['device_password'] = null;
+        [$validated['discount_percentage'], $validated['discount_amount']] = $this->normalizeDiscount($validated);
 
         DB::transaction(function () use ($validated, $order) {
             $items = $validated['items'] ?? [];

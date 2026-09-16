@@ -2,9 +2,11 @@
 
 use App\Models\Account;
 use App\Models\Client;
+use App\Models\DeviceBrand;
 use App\Models\Module;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\RepairService;
 use App\Models\Role;
 use App\Models\Sale;
 use App\Models\Setting;
@@ -26,6 +28,8 @@ test('the default seeder creates only production catalogs and no demo operations
         ->and(Setting::where('key', 'company_name')->exists())->toBeTrue()
         ->and(Tax::where('code', 'IVA-15')->exists())->toBeTrue()
         ->and(Account::where('code', '1.1.01')->exists())->toBeTrue()
+        ->and(DeviceBrand::where('name', 'Anillo')->where('is_active', true)->exists())->toBeTrue()
+        ->and(RepairService::where('name', 'Limpieza y pulido')->where('is_active', true)->exists())->toBeTrue()
         ->and(Product::count())->toBe(0)
         ->and(Client::count())->toBe(0)
         ->and(Sale::count())->toBe(0)

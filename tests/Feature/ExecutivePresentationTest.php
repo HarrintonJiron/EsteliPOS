@@ -60,7 +60,7 @@ test('module hubs share the command center pattern', function (string $routeName
     'creditos' => ['creditos.index', 'Créditos'],
     'proveedores' => ['proveedores.index', 'Proveedores'],
     'proformas' => ['proformas.index', 'Proformas'],
-    'reparaciones' => ['reparaciones.index', 'Reparaciones'],
+    'reparaciones' => ['reparaciones.index', 'Taller de Joyería'],
     'planilla' => ['planilla.index', 'Dashboard de planilla'],
     'contabilidad' => ['contabilidad.dashboard', 'Dashboard contable'],
     'reportes' => ['reportes.index', 'Reportes y análisis'],

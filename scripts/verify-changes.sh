@@ -96,7 +96,6 @@ while IFS= read -r path; do
     [[ -f "$path" ]] || continue
     case "$path" in
         tests/Feature/*.php|tests/Unit/*.php) add_test "$path" ;;
-        deployment/*|deployment/**/*) add_test tests/Feature/DeploymentArtifactsTest.php ;;
         routes/*|bootstrap/*|app/Http/Middleware/*|app/Services/ModuleAccessService.php)
             add_test tests/Feature/LimitedUserNavigationTest.php
             add_test tests/Feature/ProductionRouteCoverageTest.php

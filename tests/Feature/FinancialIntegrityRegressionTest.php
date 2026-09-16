@@ -98,24 +98,46 @@ test('repair order stores the discounted total and correct balance', function ()
 
     $this->actingAs($admin)->post(route('reparaciones.store'), [
         'client_name' => 'Cliente descuento',
-        'device_brand' => 'Apple',
-        'device_model' => 'iPhone',
-        'problem_description' => 'Pantalla dañada',
+        'device_brand' => 'Anillo',
+        'device_model' => 'Oro 14K',
+        'problem_description' => 'Ajustar talla',
         'status' => 'received',
         'priority' => 'normal',
         'received_date' => now()->toDateString(),
         'labor_cost' => 100,
+        'discount_type' => 'percentage',
         'discount_percentage' => 10,
-        'discount_amount' => 5,
         'advance_payment' => 20,
         'payment_type' => 'cash',
     ])->assertRedirect();
 
     $order = RepairOrder::query()->latest('id')->firstOrFail();
 
-    expect((float) $order->total)->toBe(85.0)
-        ->and($order->balance())->toBe(65.0)
+    expect((float) $order->total)->toBe(90.0)
+        ->and($order->balance())->toBe(70.0)
         ->and($order->payment_status)->toBe('partial');
+});
+
+test('repair order rejects simultaneous fixed and percentage discounts', function () {
+    $admin = financialIntegrityAdmin();
+    Module::query()->where('slug', 'reparaciones')->update(['is_active' => true]);
+
+    $this->actingAs($admin)->post(route('reparaciones.store'), [
+        'client_name' => 'Cliente descuento inválido',
+        'device_brand' => 'Cadena',
+        'device_model' => 'Plata 925',
+        'problem_description' => 'Soldar eslabón',
+        'status' => 'received',
+        'priority' => 'normal',
+        'received_date' => now()->toDateString(),
+        'labor_cost' => 100,
+        'discount_type' => 'percentage',
+        'discount_percentage' => 10,
+        'discount_amount' => 5,
+        'payment_type' => 'cash',
+    ])->assertSessionHasErrors('discount_type');
+
+    $this->assertDatabaseMissing('repair_orders', ['client_name' => 'Cliente descuento inválido']);
 });
 
 test('credit payments cannot exceed debt and aging uses the outstanding balance', function () {

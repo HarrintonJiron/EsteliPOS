@@ -171,7 +171,7 @@
                 </div>
                 <div class="lg:col-span-2">
                     <label for="repair_warranty_text" class="mb-1 block text-sm font-medium text-slate-700">Garantía predeterminada — reparaciones</label>
-                    <textarea id="repair_warranty_text" name="repair_warranty_text" rows="4" maxlength="2000" class="input-field" placeholder="Texto que aparece en tickets de reparación de celulares…">{{ old('repair_warranty_text', $settings['repair_warranty_text']) }}</textarea>
+                    <textarea id="repair_warranty_text" name="repair_warranty_text" rows="4" maxlength="2000" class="input-field" placeholder="Texto que aparece en tickets de reparación de joyas…">{{ old('repair_warranty_text', $settings['repair_warranty_text']) }}</textarea>
                     <p class="mt-1 text-xs text-slate-500">Se carga automáticamente al crear una orden de reparación y se usa en el ticket cuando no hay texto personalizado.</p>
                     @error('repair_warranty_text')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                 </div>

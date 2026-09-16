@@ -96,20 +96,15 @@ php artisan serve
 
 La aplicación estará disponible en `http://localhost:8000`
 
-## Instalación desde Paquete ZIP (Producción)
+## Instalación manual en producción
 
-### 1. Descargar el Paquete
-
-Descarga el archivo `EsteliPOS-YYYYMMDD-hash-windows.zip` desde la carpeta `releases/`.
-
-### 2. Extraer el Paquete
+### 1. Preparar el código
 
 ```bash
-unzip EsteliPOS-YYYYMMDD-hash-windows.zip -d /ruta/de/instalacion
 cd /ruta/de/instalacion/EsteliPOS
 ```
 
-### 3. Configurar Variables de Entorno
+### 2. Configurar Variables de Entorno
 
 ```bash
 cp .env.example .env
@@ -221,23 +216,7 @@ server {
 }
 ```
 
-## Actualización desde Versión Anterior
-
-### Usando el Script de Actualización
-
-```bash
-./deployment/update.sh /ruta/a/EsteliPOS-YYYYMMDD-hash-windows.zip
-```
-
-El script automáticamente:
-1. Crea un backup de tu instalación actual
-2. Extrae el nuevo paquete
-3. Actualiza los archivos
-4. Ejecuta las migraciones de base de datos
-5. Limpia el cache
-6. Optimiza la aplicación
-
-### Actualización Manual
+## Actualización manual
 
 1. **Crear Backup:**
    ```bash
@@ -245,15 +224,7 @@ El script automáticamente:
    cp database/database.sqlite backups/  # Si usas SQLite
    ```
 
-2. **Extraer el Paquete:**
-   ```bash
-   unzip EsteliPOS-YYYYMMDD-hash-windows.zip
-   cp -r EsteliPOS/app/ app/
-   cp -r EsteliPOS/database/migrations/ database/
-   cp -r EsteliPOS/resources/views/ resources/
-   cp -r EsteliPOS/routes/ routes/
-   cp -r EsteliPOS/public/build/ public/build/
-   ```
+2. **Reemplazar el código de la aplicación conservando `.env`, datos y respaldos.**
 
 3. **Ejecutar Migraciones:**
    ```bash

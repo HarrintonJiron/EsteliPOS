@@ -30,7 +30,7 @@ class ConfigurationSeeder extends Seeder
             ['name' => 'Configuración', 'slug' => 'configuracion', 'description' => 'Configuración del sistema', 'icon' => '⚙️', 'route' => 'settings.index', 'is_active' => true, 'sort_order' => 9],
             ['name' => 'Créditos', 'slug' => 'creditos', 'description' => 'Créditos y abonos', 'icon' => '💳', 'route' => 'creditos.index', 'is_active' => true, 'sort_order' => 10],
             ['name' => 'Proformas', 'slug' => 'proformas', 'description' => 'Cotizaciones', 'icon' => '📄', 'route' => 'proformas.index', 'is_active' => true, 'sort_order' => 11],
-            ['name' => 'Reparaciones', 'slug' => 'reparaciones', 'description' => 'Órdenes de reparación', 'icon' => '🛠️', 'route' => 'reparaciones.index', 'is_active' => true, 'sort_order' => 12],
+            ['name' => 'Taller de Joyería', 'slug' => 'reparaciones', 'description' => 'Recepción, reparación y entrega de joyas', 'icon' => '💍', 'route' => 'reparaciones.index', 'is_active' => true, 'sort_order' => 12],
             ['name' => 'Planilla', 'slug' => 'planilla', 'description' => 'Planilla y nómina', 'icon' => '🧑‍💼', 'route' => 'planilla.index', 'is_active' => true, 'sort_order' => 13],
         ];
 

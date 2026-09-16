@@ -19,11 +19,13 @@
     {{-- Header --}}
     <div class="flex justify-between items-start mb-6">
         <div>
-            <h1 class="text-xl font-black text-slate-900">AGROSERVICIO S.A.</h1>
-            <p class="text-xs text-slate-600">SUMINISTROS AGRÍCOLAS · TALLER TÉCNICO</p>
+            <h1 class="text-xl font-black text-slate-900">{{ $companyProfile['company_name'] }}</h1>
+            <p class="text-xs text-slate-600">JOYERÍA · TALLER DE REPARACIÓN</p>
             <div class="text-xs text-slate-600 mt-1 space-y-0.5">
-                <p>RUC: J10240330417 · Tel: +505 2772-0000</p>
-                <p>Carretera Norte Km 4.5, Managua, NI</p>
+                @if($companyProfile['company_ruc'] || $companyProfile['company_phone'])
+                <p>@if($companyProfile['company_ruc'])RUC: {{ $companyProfile['company_ruc'] }}@endif @if($companyProfile['company_ruc'] && $companyProfile['company_phone'])· @endif @if($companyProfile['company_phone'])Tel: {{ $companyProfile['company_phone'] }}@endif</p>
+                @endif
+                @if($companyProfile['company_address'])<p>{{ $companyProfile['company_address'] }}</p>@endif
             </div>
         </div>
         <div class="text-center bg-slate-800 text-white px-6 py-4 rounded-xl">
@@ -54,11 +56,11 @@
         <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold {{ $order->statusColor() }}">{{ $order->statusLabel() }}</span>
         <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold {{ $order->priorityColor() }}">Prioridad: {{ $order->priorityLabel() }}</span>
         @if($order->technician)
-        <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">Técnico: {{ $order->technician->name }}</span>
+        <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">Joyero: {{ $order->technician->name }}</span>
         @endif
     </div>
 
-    {{-- Client + Device --}}
+    {{-- Cliente y joya --}}
     <div class="grid grid-cols-2 gap-4 mb-5">
         <div class="bg-slate-50 rounded-xl p-4">
             <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Cliente</p>
@@ -67,22 +69,22 @@
             @if($order->client_email)<p class="text-xs text-slate-600">✉ {{ $order->client_email }}</p>@endif
         </div>
         <div class="bg-slate-50 rounded-xl p-4">
-            <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Equipo</p>
+            <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Joya</p>
             <p class="font-bold text-slate-900">{{ $order->device_brand }} {{ $order->device_model }}</p>
-            @if($order->device_color)<p class="text-xs text-slate-600">Color: {{ $order->device_color }}</p>@endif
-            @if($order->device_imei)<p class="text-xs text-slate-600">IMEI: <span class="font-mono">{{ $order->device_imei }}</span></p>@endif
-            @if($order->accessories)<p class="text-xs text-slate-600">Accesorios: {{ $order->accessories }}</p>@endif
+            @if($order->device_color)<p class="text-xs text-slate-600">Color / acabado: {{ $order->device_color }}</p>@endif
+            @if($order->device_imei)<p class="text-xs text-slate-600">Peso / identificación: {{ $order->device_imei }}</p>@endif
+            @if($order->accessories)<p class="text-xs text-slate-600">Piedras / piezas: {{ $order->accessories }}</p>@endif
         </div>
     </div>
     {{-- Diagnosis section --}}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
         <div>
-            <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Falla reportada por cliente</p>
+            <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Trabajo solicitado y estado recibido</p>
             <p class="text-xs text-slate-700 bg-slate-50 rounded-xl p-3 whitespace-pre-line">{{ $order->problem_description }}</p>
         </div>
         @if($order->diagnosis)
         <div>
-            <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Diagnóstico técnico</p>
+            <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Evaluación del joyero</p>
             <p class="text-xs text-slate-700 bg-blue-50 rounded-xl p-3 whitespace-pre-line">{{ $order->diagnosis }}</p>
         </div>
         @endif
@@ -101,7 +103,7 @@
     <table class="w-full text-xs mb-4">
         <thead>
             <tr class="bg-slate-800 text-white">
-                <th class="text-left px-3 py-2 rounded-tl-lg">Repuesto / Servicio</th>
+                <th class="text-left px-3 py-2 rounded-tl-lg">Material / Servicio</th>
                 <th class="text-center px-3 py-2">Cant.</th>
                 <th class="text-right px-3 py-2">P. Unit.</th>
                 <th class="text-right px-3 py-2 rounded-tr-lg">Subtotal</th>
@@ -124,13 +126,13 @@
     <div class="flex justify-between items-end mb-5">
         <div class="text-xs text-slate-500 max-w-xs">
             @if($order->repair_notes)
-            <p class="font-semibold text-slate-700 mb-1">Notas técnicas:</p>
+            <p class="font-semibold text-slate-700 mb-1">Notas del joyero:</p>
             <p>{{ $order->repair_notes }}</p>
             @endif
         </div>
         <div class="w-52 space-y-1">
             @if($order->parts_cost > 0)
-            <div class="flex justify-between text-xs text-slate-600"><span>Repuestos</span><span>C$ {{ number_format($order->parts_cost,2) }}</span></div>
+            <div class="flex justify-between text-xs text-slate-600"><span>Materiales / servicios</span><span>C$ {{ number_format($order->parts_cost,2) }}</span></div>
             @endif
             <div class="flex justify-between text-xs text-slate-600"><span>Mano de obra</span><span>C$ {{ number_format($order->labor_cost,2) }}</span></div>
             <div class="flex justify-between font-bold text-sm border-t border-slate-300 pt-1 text-slate-900">
@@ -149,7 +151,7 @@
     <div class="grid grid-cols-2 gap-8 pt-4">
         <div class="text-center">
             <div class="border-t border-slate-400 pt-2">
-                <p class="text-xs text-slate-500">Firma del Técnico</p>
+                <p class="text-xs text-slate-500">Firma del Joyero</p>
                 <p class="text-xs text-slate-400 mt-0.5">{{ $order->technician?->name ?? '' }}</p>
             </div>
         </div>
@@ -162,7 +164,7 @@
     </div>
 
     <p class="text-center text-xs text-slate-400 mt-4 border-t border-slate-200 pt-3">
-        Conserve este documento para retirar su equipo. Agroservicio S.A. no se hace responsable de equipos no retirados después de 30 días.
+        Conserve este documento para retirar su joya. La joyería no se hace responsable de piezas no retiradas después de 30 días.
     </p>
 
     </div>

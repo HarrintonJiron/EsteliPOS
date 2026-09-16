@@ -53,7 +53,7 @@
         {{-- LEFT --}}
         <div class="space-y-5 lg:col-span-2">
 
-            {{-- Client & Device --}}
+            {{-- Cliente y joya --}}
             <div class="card grid grid-cols-1 gap-5 p-5 sm:grid-cols-2">
                 <div>
                     <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Cliente</p>
@@ -62,11 +62,11 @@
                     @if($order->client_email)<p class="text-sm text-slate-600">✉ {{ $order->client_email }}</p>@endif
                 </div>
                 <div>
-                    <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Equipo</p>
+                    <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Joya</p>
                     <p class="font-bold text-slate-900 text-lg">{{ $order->device_brand }} {{ $order->device_model }}</p>
-                    @if($order->device_color)<p class="text-sm text-slate-600">Color: {{ $order->device_color }}</p>@endif
-                    @if($order->device_imei)<p class="text-sm text-slate-600">IMEI: <span class="font-mono">{{ $order->device_imei }}</span></p>@endif
-                    @if($order->accessories)<p class="text-sm text-slate-600">Accesorios: {{ $order->accessories }}</p>@endif
+                    @if($order->device_color)<p class="text-sm text-slate-600">Color / acabado: {{ $order->device_color }}</p>@endif
+                    @if($order->device_imei)<p class="text-sm text-slate-600">Peso / identificación: {{ $order->device_imei }}</p>@endif
+                    @if($order->accessories)<p class="text-sm text-slate-600">Piedras y piezas recibidas: {{ $order->accessories }}</p>@endif
                 </div>
             </div>
 
@@ -75,12 +75,12 @@
                 <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Diagnóstico y Reparación</h2>
                 <div class="grid grid-cols-1 gap-4">
                     <div>
-                        <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Falla reportada</p>
+                        <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Trabajo solicitado y estado recibido</p>
                         <p class="text-sm text-slate-700 bg-slate-50 rounded-xl p-3 whitespace-pre-line">{{ $order->problem_description }}</p>
                     </div>
                     @if($order->diagnosis)
                     <div>
-                        <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Diagnóstico técnico</p>
+                        <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Evaluación del joyero</p>
                         <p class="text-sm text-slate-700 bg-blue-50 rounded-xl p-3 whitespace-pre-line">{{ $order->diagnosis }}</p>
                     </div>
                     @endif
@@ -97,7 +97,7 @@
             @if($order->items->count())
             <div class="card overflow-hidden">
                 <div class="px-5 py-3 border-b border-slate-200">
-                    <h2 class="font-semibold text-slate-700">Repuestos Utilizados</h2>
+                    <h2 class="font-semibold text-slate-700">Materiales y Servicios</h2>
                 </div>
                 <table class="w-full text-sm">
                     <thead class="bg-slate-50">
@@ -120,7 +120,7 @@
                     </tbody>
                     <tfoot class="bg-slate-50 border-t border-slate-200">
                         <tr>
-                            <td colspan="3" class="px-5 py-2 text-right text-slate-600 text-sm">Repuestos</td>
+                            <td colspan="3" class="px-5 py-2 text-right text-slate-600 text-sm">Materiales / servicios</td>
                             <td class="px-5 py-2 text-right font-medium">C$ {{ number_format($order->parts_cost, 2) }}</td>
                         </tr>
                         <tr>
@@ -155,7 +155,7 @@
                 <form action="{{ route('reparaciones.status', $order->id) }}" method="POST" class="space-y-3">
                     @csrf @method('PATCH')
                     <select name="status" class="select-field text-sm">
-                        @foreach(['received' => 'Recibido', 'diagnosing' => 'En Diagnóstico', 'waiting_parts' => 'Esperando Repuestos', 'in_repair' => 'En Reparación', 'ready' => 'Listo para Entregar', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
+                        @foreach(['received' => 'Recibido', 'diagnosing' => 'En evaluación', 'waiting_parts' => 'Esperando materiales', 'in_repair' => 'En taller', 'ready' => 'Lista para entregar', 'delivered' => 'Entregada', 'cancelled' => 'Cancelada'] as $val => $label)
                             <option value="{{ $val }}" {{ $order->status === $val ? 'selected' : '' }}>{{ $label }}</option>
                         @endforeach
                     </select>
@@ -208,7 +208,7 @@
             <div class="card p-5 space-y-3 text-sm">
                 <h2 class="font-semibold text-slate-700 border-b border-slate-100 pb-2">Información</h2>
                 @if($order->technician)
-                <div class="flex justify-between"><span class="text-slate-500">Técnico</span><span class="font-medium">{{ $order->technician->name }}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Joyero</span><span class="font-medium">{{ $order->technician->name }}</span></div>
                 @endif
                 @if($order->user)
                 <div class="flex justify-between"><span class="text-slate-500">Atendido por</span><span class="font-medium">{{ $order->user->name }}</span></div>
@@ -239,20 +239,6 @@
                         @if($order->formattedDeliveredTime())<span class="font-medium">{{ $order->formattedDeliveredTime() }}</span>@endif
                     </span>
                 </div>
-                @endif
-                @php
-                    $lockType = $order->lock_type ?? ($order->device_password ? (preg_match('/^[1-9](?:-[1-9])*$/', $order->device_password) ? 'pattern' : 'password') : 'none');
-                @endphp
-                @if($order->device_password)
-                <details class="rounded-lg border border-amber-200 bg-amber-50 p-2">
-                    <summary class="cursor-pointer text-xs font-semibold text-amber-800">Mostrar acceso del dispositivo</summary>
-                    @if($lockType === 'pattern')
-                        <div class="mt-2"><x-pattern-viewer :pattern="$order->device_password" /></div>
-                    @else
-                        <p class="mt-2 font-mono text-xs text-slate-800">{{ $order->device_password }}</p>
-                    @endif
-                    <p class="mt-2 text-[11px] text-amber-700">Información confidencial. No compartir ni imprimir.</p>
-                </details>
                 @endif
             </div>
 

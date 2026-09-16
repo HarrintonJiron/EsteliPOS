@@ -115,11 +115,11 @@
     <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-3 min-w-0">
             <div class="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-6 w-6" aria-label="Joya"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 8l3-4h4l3 4-5 5-5-5zM8.5 14.5a5 5 0 107 0"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 8h10M10 4l2 4 2-4"/></svg>
             </div>
             <div class="min-w-0">
                 <h1 class="text-lg sm:text-xl font-bold text-slate-900 truncate">Nueva Orden de Reparación</h1>
-                <p class="text-xs text-slate-500">Ingreso rápido de equipo al taller</p>
+                <p class="text-xs text-slate-500">Recepción y seguimiento de joyas en el taller</p>
             </div>
         </div>
         <div class="flex items-center gap-2">
@@ -142,11 +142,11 @@
             {{-- Columna principal --}}
             <div class="space-y-3 min-w-0">
 
-                {{-- Cliente + Equipo en una sola tarjeta --}}
+                {{-- Cliente + joya en una sola tarjeta --}}
                 <div class="repair-section">
                     <div class="repair-section-head">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                        Cliente y Equipo
+                        Cliente y Joya
                     </div>
                     <div class="repair-section-body space-y-3">
                         <div>
@@ -183,11 +183,11 @@
                         <div class="border-t border-slate-100 pt-3">
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 <div>
-                                    <label class="repair-label">Marca *</label>
+                                    <label class="repair-label">Tipo de joya *</label>
                                     <div class="flex gap-1">
                                         <input type="text" name="device_brand" value="{{ old('device_brand') }}" required
-                                            list="brands_list" class="input-field flex-1 min-w-0" placeholder="Samsung..." autocomplete="off">
-                                        <button type="button" onclick="showAddBrandModal()" class="shrink-0 h-[34px] w-[34px] rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-bold" title="Nueva marca">+</button>
+                                            list="brands_list" class="input-field flex-1 min-w-0" placeholder="Anillo, cadena, pulsera..." autocomplete="off">
+                                        <button type="button" onclick="showAddBrandModal()" class="shrink-0 h-[34px] w-[34px] rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-bold" title="Nuevo tipo de joya">+</button>
                                     </div>
                                     <datalist id="brands_list">
                                         @foreach($brands as $brand)
@@ -196,52 +196,34 @@
                                     </datalist>
                                 </div>
                                 <div>
-                                    <label class="repair-label">Modelo *</label>
-                                    <input type="text" name="device_model" value="{{ old('device_model') }}" required class="input-field w-full" placeholder="Galaxy A54">
+                                    <label class="repair-label">Material / ley *</label>
+                                    <input type="text" name="device_model" value="{{ old('device_model') }}" required list="jewelry_materials" class="input-field w-full" placeholder="Selecciona o escribe el material..." autocomplete="off">
                                 </div>
                                 <div>
-                                    <label class="repair-label">Color</label>
-                                    <input type="text" name="device_color" value="{{ old('device_color') }}" class="input-field w-full" placeholder="Negro">
+                                    <label class="repair-label">Color / acabado</label>
+                                    <input type="text" name="device_color" value="{{ old('device_color') }}" list="jewelry_finishes" class="input-field w-full" placeholder="Selecciona o escribe el acabado..." autocomplete="off">
                                 </div>
                                 <div>
-                                    <label class="repair-label">IMEI / Serie</label>
-                                    <input type="text" name="device_imei" value="{{ old('device_imei') }}" class="input-field w-full" placeholder="15 dígitos">
+                                    <label class="repair-label">Peso / identificación</label>
+                                    <input type="text" name="device_imei" value="{{ old('device_imei') }}" class="input-field w-full" placeholder="Ej. 4.25 g / grabado AJ">
                                 </div>
-                                <div>
-                                    <label class="repair-label">Bloqueo</label>
-                                    <select id="lockTypeSelect" name="lock_type" class="select-field w-full" onchange="toggleLockFields()">
-                                        <option value="password" {{ old('lock_type') === 'password' ? 'selected' : '' }}>PIN / Clave</option>
-                                        <option value="pattern" {{ old('lock_type') === 'pattern' ? 'selected' : '' }}>Patrón</option>
-                                        <option value="none" {{ old('lock_type', 'none') === 'none' ? 'selected' : '' }}>Sin bloqueo</option>
-                                    </select>
-                                </div>
-                                <div class="col-span-2 sm:col-span-3">
-                                    <label class="repair-label">Accesorios</label>
-                                    <input type="text" name="accessories" value="{{ old('accessories') }}" class="input-field w-full" placeholder="Cargador, funda, caja...">
+                                <div class="col-span-2 sm:col-span-4">
+                                    <label class="repair-label">Piedras, grabados y piezas recibidas</label>
+                                    <input type="text" name="accessories" value="{{ old('accessories') }}" class="input-field w-full" placeholder="Ej. piedra roja central, 6 circones, broche suelto...">
                                 </div>
                             </div>
-
-                            <div id="lockPasswordContainer" class="hidden mt-2 max-w-xs">
-                                <label class="repair-label">Contraseña / PIN</label>
-                                <input type="text" id="devicePasswordText" value="{{ old('device_password') }}" class="input-field w-full" oninput="syncLockValue()" placeholder="Clave del dispositivo">
-                            </div>
-                            <div id="lockPatternContainer" class="hidden mt-2">
-                                <label class="repair-label">Patrón de desbloqueo</label>
-                                <div class="inline-block rounded-lg border border-slate-200 bg-slate-50 p-2">
-                                    <div id="patternPad" class="relative mx-auto grid grid-cols-3 gap-2">
-                                        <svg id="patternSvg" class="pointer-events-none absolute inset-0 h-full w-full"></svg>
-                                        @for($i = 1; $i <= 9; $i++)
-                                            <button type="button" class="pattern-dot relative z-10 flex items-center justify-center border border-slate-300 bg-white font-semibold text-slate-600 shadow-sm transition hover:border-indigo-400" data-point="{{ $i }}">{{ $i }}</button>
-                                        @endfor
-                                    </div>
-                                    <div class="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-slate-500">
-                                        <span>Secuencia: <strong id="patternPreview" class="text-slate-700">—</strong></span>
-                                        <button type="button" onclick="clearPattern()" class="repair-toggle-btn">Limpiar</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <input type="hidden" name="device_password" id="devicePasswordHidden" value="{{ old('device_password') }}">
                         </div>
+                        <datalist id="jewelry_materials">
+                            <option value="Oro amarillo 10K"><option value="Oro amarillo 14K"><option value="Oro amarillo 18K">
+                            <option value="Oro blanco 10K"><option value="Oro blanco 14K"><option value="Oro blanco 18K">
+                            <option value="Oro rosa 14K"><option value="Plata 925"><option value="Acero inoxidable">
+                            <option value="Platino"><option value="Bisutería"><option value="Material por confirmar">
+                        </datalist>
+                        <datalist id="jewelry_finishes">
+                            <option value="Pulido brillante"><option value="Mate"><option value="Satinado">
+                            <option value="Rodiado"><option value="Baño de oro amarillo"><option value="Baño de oro rosa">
+                            <option value="Envejecido"><option value="Bicolor"><option value="Sin acabado especial">
+                        </datalist>
                     </div>
                 </div>
 
@@ -253,43 +235,43 @@
                             Diagnóstico
                         </span>
                         <span class="flex gap-1">
-                            <button type="button" class="repair-toggle-btn" onclick="toggleOptionalField('diagnosis')">+ Técnico</button>
+                            <button type="button" class="repair-toggle-btn" onclick="toggleOptionalField('diagnosis')">+ Evaluación</button>
                             <button type="button" class="repair-toggle-btn" onclick="toggleOptionalField('repair_notes')">+ Notas</button>
                         </span>
                     </div>
                     <div class="repair-section-body space-y-2">
                         <div>
-                            <label class="repair-label">Falla reportada *</label>
+                            <label class="repair-label">Trabajo solicitado y estado recibido *</label>
                             <textarea name="problem_description" rows="2" required class="input-field w-full resize-none"
-                                placeholder="Ej: Pantalla rota, no enciende, no carga...">{{ old('problem_description') }}</textarea>
+                                placeholder="Ej. cadena quebrada, talla actual, piedra floja, rayones visibles...">{{ old('problem_description') }}</textarea>
                         </div>
                         <div class="hidden" id="diagnosisWrapper">
                             <input type="checkbox" id="diagnosisToggle" class="sr-only" {{ old('diagnosis') ? 'checked' : '' }}>
-                            <label class="repair-label">Diagnóstico técnico</label>
+                            <label class="repair-label">Evaluación del joyero</label>
                             <textarea id="diagnosisField" name="diagnosis" rows="2" class="input-field w-full resize-none {{ old('diagnosis') ? '' : 'hidden' }}"
-                                placeholder="Hallazgos al revisar el equipo..." {{ old('diagnosis') ? '' : 'disabled' }}>{{ old('diagnosis') }}</textarea>
+                                placeholder="Metal, ley, piedras, uniones, desgaste y medidas verificadas..." {{ old('diagnosis') ? '' : 'disabled' }}>{{ old('diagnosis') }}</textarea>
                         </div>
                         <div class="hidden" id="repairNotesWrapper">
                             <input type="checkbox" id="repairNotesToggle" class="sr-only" {{ old('repair_notes') ? 'checked' : '' }}>
                             <label class="repair-label">Notas internas</label>
                             <textarea id="repair_notesField" name="repair_notes" rows="2" class="input-field w-full resize-none {{ old('repair_notes') ? '' : 'hidden' }}"
-                                placeholder="Observaciones del técnico..." {{ old('repair_notes') ? '' : 'disabled' }}>{{ old('repair_notes') }}</textarea>
+                                placeholder="Observaciones internas del joyero..." {{ old('repair_notes') ? '' : 'disabled' }}>{{ old('repair_notes') }}</textarea>
                         </div>
                     </div>
                 </div>
 
-                {{-- Repuestos --}}
+                {{-- Materiales y servicios --}}
                 <div class="repair-section">
                     <div class="repair-section-head justify-between">
                         <span class="flex items-center gap-2">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-                            Repuestos / Servicios
+                            Materiales / Servicios
                         </span>
                         <button type="button" onclick="addItem()" class="repair-toggle-btn bg-indigo-600 text-white hover:bg-indigo-700">+ Agregar</button>
                     </div>
                     <div class="repair-section-body">
                         <div id="itemsContainer" class="space-y-2"></div>
-                        <p id="noItemsMsg" class="text-xs text-slate-400 text-center py-3">Sin repuestos. Usa «+ Agregar» si aplica.</p>
+                        <p id="noItemsMsg" class="text-xs text-slate-400 text-center py-3">Sin materiales ni servicios. Usa «+ Agregar» si aplica.</p>
                     </div>
                 </div>
             </div>
@@ -305,7 +287,7 @@
                         <div>
                             <label class="repair-label">Estado</label>
                             <select name="status" class="select-field w-full">
-                                @foreach(['received' => 'Recibido', 'diagnosing' => 'En Diagnóstico', 'waiting_parts' => 'Esperando Repuestos', 'in_repair' => 'En Reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
+                                @foreach(['received' => 'Recibido', 'diagnosing' => 'En evaluación', 'waiting_parts' => 'Esperando materiales', 'in_repair' => 'En taller', 'ready' => 'Lista para entregar', 'delivered' => 'Entregada', 'cancelled' => 'Cancelada'] as $val => $label)
                                     <option value="{{ $val }}" {{ old('status', 'received') === $val ? 'selected' : '' }}>{{ $label }}</option>
                                 @endforeach
                             </select>
@@ -324,7 +306,7 @@
                             </select>
                         </div>
                         <div>
-                            <label class="repair-label">Técnico</label>
+                            <label class="repair-label">Joyero asignado</label>
                             <select name="technician_id" class="select-field w-full">
                                 <option value="">Sin asignar</option>
                                 @foreach($technicians as $t)
@@ -368,18 +350,26 @@
                                 <label class="repair-label">Anticipo</label>
                                 <input type="number" step="0.01" min="0" name="advance_payment" value="{{ old('advance_payment', 0) }}" class="input-field w-full" id="advanceInput" oninput="updateTotal()">
                             </div>
-                            <div>
-                                <label class="repair-label">Desc. %</label>
-                                <input type="number" step="0.01" min="0" max="100" name="discount_percentage" value="{{ old('discount_percentage', 0) }}" class="input-field w-full" id="discountPercentageInput" oninput="updateTotal()">
+                            <div class="col-span-2">
+                                <label class="repair-label">Tipo de descuento</label>
+                                <select name="discount_type" id="discountTypeSelect" class="select-field w-full" onchange="toggleDiscountType(true)">
+                                    <option value="none" {{ old('discount_type', 'none') === 'none' ? 'selected' : '' }}>Sin descuento</option>
+                                    <option value="percentage" {{ old('discount_type') === 'percentage' ? 'selected' : '' }}>Porcentaje (%)</option>
+                                    <option value="fixed" {{ old('discount_type') === 'fixed' ? 'selected' : '' }}>Monto fijo (C$)</option>
+                                </select>
                             </div>
-                            <div>
-                                <label class="repair-label">Desc. C$</label>
-                                <input type="number" step="0.01" min="0" name="discount_amount" value="{{ old('discount_amount', 0) }}" class="input-field w-full" id="discountFixedInput" oninput="updateTotal()">
+                            <div id="discountPercentageField" class="col-span-2 hidden">
+                                <label class="repair-label">Porcentaje</label>
+                                <input type="number" step="0.01" min="0" max="100" name="discount_percentage" value="{{ old('discount_percentage', 0) }}" class="input-field w-full" id="discountPercentageInput" oninput="updateTotal()" disabled>
+                            </div>
+                            <div id="discountFixedField" class="col-span-2 hidden">
+                                <label class="repair-label">Monto fijo (C$)</label>
+                                <input type="number" step="0.01" min="0" name="discount_amount" value="{{ old('discount_amount', 0) }}" class="input-field w-full" id="discountFixedInput" oninput="updateTotal()" disabled>
                             </div>
                         </div>
 
                         <div class="repair-total-box text-xs space-y-1">
-                            <div class="flex justify-between opacity-90"><span>Repuestos</span><span id="partsCostDisplay">C$ 0.00</span></div>
+                            <div class="flex justify-between opacity-90"><span>Materiales / servicios</span><span id="partsCostDisplay">C$ 0.00</span></div>
                             <div class="flex justify-between opacity-90"><span>M. de obra</span><span id="laborDisplay">C$ 0.00</span></div>
                             <div class="flex justify-between text-red-200 hidden" id="discountRow"><span>Descuento</span><span id="discountDisplay">C$ 0.00</span></div>
                             <div class="flex justify-between font-bold text-sm border-t border-white/20 pt-1 mt-1"><span>Total</span><span id="totalDisplay">C$ 0.00</span></div>
@@ -427,17 +417,17 @@
         </div>
     </form>
 
-    {{-- MODAL: Agregar Nueva Marca --}}
+    {{-- Modal: agregar tipo de joya --}}
     <div id="addBrandModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full">
             <div class="px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-                <h2 class="text-sm font-bold text-slate-900">Nueva Marca</h2>
+                <h2 class="text-sm font-bold text-slate-900">Nuevo tipo de joya</h2>
                 <button type="button" onclick="closeAddBrandModal()" class="text-slate-400 hover:text-slate-600">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
             <div class="p-4">
-                <input type="text" id="newBrandInput" class="input-field w-full" placeholder="Vivo, Alcatel, HTC...">
+                <input type="text" id="newBrandInput" class="input-field w-full" placeholder="Prendedor, medalla, prendedor de corbata...">
                 <input type="hidden" id="customBrands" value="{{ old('custom_brands', '') }}">
             </div>
             <div class="px-4 py-3 border-t border-slate-200 flex gap-2">
@@ -665,13 +655,13 @@ function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part
             <div class="w-20 shrink-0">
                 <label class="repair-label">Tipo</label>
                 <select name="items[${idx}][item_type]" class="select-field w-full text-xs py-1" onchange="toggleItemTypeFields(${idx})">
-                    <option value="part" ${itemType === 'part' ? 'selected' : ''}>Repuesto</option>
+                    <option value="part" ${itemType === 'part' ? 'selected' : ''}>Material / insumo</option>
                     <option value="service" ${itemType === 'service' ? 'selected' : ''}>Servicio</option>
                 </select>
             </div>
             <div class="flex-1 min-w-[8rem]">
                 <label class="repair-label">Descripción *</label>
-                <input type="text" name="items[${idx}][description]" value="${desc}" required class="input-field w-full text-xs py-1" placeholder="Pantalla, batería...">
+                <input type="text" name="items[${idx}][description]" value="${desc}" required class="input-field w-full text-xs py-1" placeholder="Soldadura, broche, piedra, pulido...">
             </div>
             <div class="w-14 shrink-0">
                 <label class="repair-label">Cant.</label>
@@ -706,7 +696,7 @@ function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part
                 </select>
             </div>
             <div class="service-brand-field ${itemType === 'service' ? '' : 'hidden'}">
-                <input type="text" name="items[${idx}][device_brand]" value="${deviceBrand}" class="input-field w-full text-xs py-1" placeholder="Marca del dispositivo (servicio)">
+                <input type="text" name="items[${idx}][device_brand]" value="${deviceBrand}" list="brands_list" class="input-field w-full text-xs py-1" placeholder="Tipo de joya (servicio)" autocomplete="off">
             </div>
         </div>
     </div>`;
@@ -931,11 +921,32 @@ function recalcParts() {
     updateTotal();
 }
 
+function toggleDiscountType(resetInactive = false) {
+    const type = document.getElementById('discountTypeSelect').value;
+    const percentageField = document.getElementById('discountPercentageField');
+    const fixedField = document.getElementById('discountFixedField');
+    const percentageInput = document.getElementById('discountPercentageInput');
+    const fixedInput = document.getElementById('discountFixedInput');
+
+    percentageField.classList.toggle('hidden', type !== 'percentage');
+    fixedField.classList.toggle('hidden', type !== 'fixed');
+    percentageInput.disabled = type !== 'percentage';
+    fixedInput.disabled = type !== 'fixed';
+
+    if (resetInactive) {
+        if (type !== 'percentage') percentageInput.value = 0;
+        if (type !== 'fixed') fixedInput.value = 0;
+    }
+
+    updateTotal();
+}
+
 function updateTotal() {
     const labor = parseFloat(document.getElementById('laborCostInput').value || 0);
     const advance = parseFloat(document.getElementById('advanceInput').value || 0);
-    const discountPct = parseFloat(document.getElementById('discountPercentageInput').value || 0);
-    const discountFixed = parseFloat(document.getElementById('discountFixedInput').value || 0);
+    const discountType = document.getElementById('discountTypeSelect').value;
+    const discountPct = discountType === 'percentage' ? parseFloat(document.getElementById('discountPercentageInput').value || 0) : 0;
+    const discountFixed = discountType === 'fixed' ? parseFloat(document.getElementById('discountFixedInput').value || 0) : 0;
 
     const subtotal = labor + partsCost;
     const percentageDiscount = subtotal * (discountPct / 100);
@@ -969,14 +980,14 @@ function closeAddBrandModal() {
 async function addNewBrand(buttonEl = null) {
     const newBrand = document.getElementById('newBrandInput').value.trim();
     if (!newBrand) {
-        alert('Por favor ingrese un nombre para la marca');
+        alert('Ingrese un nombre para el tipo de joya');
         return;
     }
 
     const brandsList = document.getElementById('brands_list');
     const existingOptions = Array.from(brandsList.options).map(opt => opt.value.toLowerCase());
     if (existingOptions.includes(newBrand.toLowerCase())) {
-        alert('Esta marca ya existe en la lista');
+        alert('Este tipo de joya ya existe en la lista');
         return;
     }
 
@@ -1004,7 +1015,7 @@ async function addNewBrand(buttonEl = null) {
             } else if (error.error) {
                 alert(error.error);
             } else {
-                alert('Error al agregar la marca');
+                alert('Error al agregar el tipo de joya');
             }
             return;
         }
@@ -1021,11 +1032,11 @@ async function addNewBrand(buttonEl = null) {
 
         const successMsg = document.createElement('div');
         successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 text-sm';
-        successMsg.textContent = 'Marca agregada';
+        successMsg.textContent = 'Tipo de joya agregado';
         document.body.appendChild(successMsg);
         setTimeout(() => successMsg.remove(), 2500);
     } catch (error) {
-        alert('Error al agregar la marca. Por favor intenta nuevamente.');
+        alert('Error al agregar el tipo de joya. Intente nuevamente.');
     } finally {
         const button = buttonEl ?? document.querySelector('#addBrandModal button[onclick^="addNewBrand"]');
         if (button) {
@@ -1128,7 +1139,7 @@ async function loadBrands() {
     } catch (error) {
         const brandsList = document.getElementById('brands_list');
         if (brandsList && brandsList.options.length === 0) {
-            ['Samsung', 'Apple', 'Xiaomi', 'Huawei', 'Motorola', 'LG', 'Sony', 'Nokia', 'OPPO', 'Realme', 'OnePlus', 'Tecno', 'ZTE'].forEach(brand => {
+            ['Anillo', 'Argolla', 'Aretes', 'Brazalete', 'Cadena', 'Dije', 'Esclava', 'Pulsera', 'Reloj', 'Rosario', 'Tobillera', 'Otra joya'].forEach(brand => {
                 const option = document.createElement('option');
                 option.value = brand;
                 brandsList.appendChild(option);
@@ -1171,13 +1182,12 @@ function initRepairItems() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-    initPatternPad();
-    toggleLockFields();
     initOptionalFields();
     initPriorityChips();
     toggleWarrantyText();
     loadBrands();
     initRepairItems();
+    toggleDiscountType(false);
     updateTotal();
 });
 </script>

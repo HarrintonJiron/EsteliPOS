@@ -13,19 +13,18 @@ class DeviceBrandSeeder extends Seeder
     public function run(): void
     {
         $brands = [
-            'Samsung',
-            'Apple',
-            'Xiaomi',
-            'Huawei',
-            'Motorola',
-            'LG',
-            'Sony',
-            'Nokia',
-            'OPPO',
-            'Realme',
-            'OnePlus',
-            'Tecno',
-            'ZTE',
+            'Anillo',
+            'Argolla',
+            'Aretes',
+            'Brazalete',
+            'Cadena',
+            'Dije',
+            'Esclava',
+            'Pulsera',
+            'Reloj',
+            'Rosario',
+            'Tobillera',
+            'Otra joya',
         ];
 
         foreach ($brands as $brand) {

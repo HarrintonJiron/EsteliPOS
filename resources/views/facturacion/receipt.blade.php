@@ -223,13 +223,13 @@
                 </article>
             @endforeach
 
-            <div class="items-footer" style="margin-top: 1mm; padding-top: 1mm; border-top: 1px dashed #777; font-size: 9pt; font-weight: 400;">
+            <div class="items-footer" style="margin-top: 1mm; padding-top: 1mm; border-top: 1px dashed #000; font-size: 9pt; font-weight: 700;">
                 <span>SUBTOTAL</span>
                 <span class="item-qty"></span>
                 <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($hasDiscount ? $grossSubtotal : (float) $sale->subtotal, 2) }}</span>
             </div>
             @if($hasDiscount)
-                <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 400;">
+                <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 700;">
                     <span>
                         DESCUENTO
                         @if((float) $sale->discount_percentage > 0)
@@ -241,7 +241,7 @@
                 </div>
             @endif
             @if($invoiceTaxDisplay->showsTaxInTotals((float) $sale->tax_total))
-                <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 400;">
+                <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 700;">
                     <span>{{ strtoupper($invoiceTaxDisplay->taxLabel((float) $sale->tax_rate)) }}</span>
                     <span class="item-qty"></span>
                     <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $sale->tax_total), 2) }}</span>

@@ -33,6 +33,9 @@
 /outputs/
 /backups/
 /storage/browser-qa/
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
 /deployment/parche*.zip
 /deployment/parche*.zip.sha256
 /deployment/produccion*.zip

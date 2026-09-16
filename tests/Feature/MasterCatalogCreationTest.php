@@ -25,11 +25,11 @@ test('it creates a device brand from repair forms endpoint', function () {
     $admin = adminForCatalogs();
 
     $this->actingAs($admin)
-        ->postJson(route('device-brands.store'), ['name' => 'Marca QA'])
+        ->postJson(route('device-brands.store'), ['name' => 'Prendedor QA'])
         ->assertCreated()
-        ->assertJsonPath('name', 'Marca QA');
+        ->assertJsonPath('name', 'Prendedor QA');
 
-    $this->assertDatabaseHas('device_brands', ['name' => 'Marca QA']);
+    $this->assertDatabaseHas('device_brands', ['name' => 'Prendedor QA']);
 });
 
 test('it creates a repair service from repair forms endpoint', function () {

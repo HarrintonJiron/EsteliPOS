@@ -15,7 +15,7 @@ class CompanySettingsService
 {
     public function __construct(private ImageProcessingService $imageProcessing) {}
 
-    public const DEFAULT_REPAIR_WARRANTY = 'Garantía de 30 días por mano de obra aplicando términos y condiciones. No cubre daños por mal uso, agua, golpes o manipulación por terceros después de la entrega.';
+    public const DEFAULT_REPAIR_WARRANTY = 'Garantía de 30 días por mano de obra. No cubre golpes, deformaciones, desgaste, pérdida de piedras ni manipulación por terceros después de la entrega.';
 
     private const GENERAL_KEYS = [
         'company_name',

@@ -52,6 +52,17 @@ main textarea,
     transition: border-color var(--ui-transition), box-shadow var(--ui-transition);
 }
 
+/* Los menús nativos (select/datalist) deben conservar contraste aunque el SO use tema oscuro. */
+main select,
+main select option,
+main input[list],
+main datalist,
+main datalist option {
+    color: #111827 !important;
+    background-color: #ffffff !important;
+    color-scheme: light;
+}
+
 main .input-with-leading-icon,
 .input-field.input-with-leading-icon {
     padding-left: 2.5rem !important;

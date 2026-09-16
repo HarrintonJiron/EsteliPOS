@@ -8,21 +8,25 @@
         @page { size: 80mm auto; margin: 0; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
-            font-family: 'Courier New', monospace;
+            font-family: Arial, Helvetica, sans-serif;
             width: 80mm;
             max-width: 80mm;
             margin: 0 auto;
-            font-size: 11px;
+            font-size: 10pt;
+            font-weight: 700;
+            line-height: 1.32;
+            color: #000;
+            text-rendering: optimizeLegibility;
             background: #fff;
         }
-        .receipt { padding: 0.4cm; line-height: 1.4; }
+        .receipt { padding: 0.4cm; line-height: 1.32; }
         .center { text-align: center; }
-        .bold { font-weight: bold; }
-        .divider { border-top: 1px dashed #000; margin: 0.25cm 0; }
-        .shop-name { font-size: 15px; font-weight: bold; text-align: center; }
+        .bold { font-weight: 900; }
+        .divider { border-top: 2px dashed #000; margin: 0.25cm 0; }
+        .shop-name { font-size: 14pt; font-weight: 900; text-align: center; }
         .ticket-logo { display: block; width: auto; max-width: 68mm; max-height: 44mm; object-fit: contain; margin: 0 auto 2.5mm; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-        .badge { background: #000; color: #fff; font-size: 10px; font-weight: bold; text-align: center; padding: 2px 0; margin: 4px 0; letter-spacing: 2px; }
-        .row { display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 10px; }
+        .badge { background: #000; color: #fff; font-size: 9.5pt; font-weight: 900; text-align: center; padding: 2px 0; margin: 4px 0; letter-spacing: 2px; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 9.5pt; font-weight: 700; }
         .items-header,
         .item-main,
         .items-footer {
@@ -31,27 +35,29 @@
             gap: 1.5mm;
             align-items: start;
         }
-        .items-header { padding-bottom: 1mm; border-bottom: 1px solid #000; font-size: 9px; font-weight: bold; margin-bottom: 2px; }
-        .item-main { font-size: 10px; margin-bottom: 4px; }
-        .item-name { font-weight: bold; overflow-wrap: anywhere; }
+        .items-header { padding-bottom: 1mm; border-bottom: 2px solid #000; font-size: 9pt; font-weight: 900; margin-bottom: 2px; }
+        .item-main { font-size: 9.5pt; font-weight: 700; margin-bottom: 4px; }
+        .item-name { font-weight: 900; overflow-wrap: anywhere; }
         .item-qty { text-align: center; }
-        .item-amount { text-align: right; font-weight: bold; white-space: nowrap; }
-        .item-meta { grid-column: 1 / -1; font-size: 9px; margin-top: 1px; color: #444; }
+        .item-amount { text-align: right; font-weight: 900; white-space: nowrap; }
+        .item-meta { grid-column: 1 / -1; font-size: 9pt; font-weight: 700; margin-top: 1px; color: #000; }
         .items-footer {
             margin-top: 1.5mm;
             padding-top: 1.5mm;
             border-top: 1.5px solid #000;
-            font-size: 12px;
-            font-weight: bold;
+            font-size: 12pt;
+            font-weight: 900;
         }
-        .status-box { border: 1px solid #000; padding: 4px 8px; display: inline-block; font-size: 11px; font-weight: bold; margin: 4px auto; }
-        .footer { font-size: 9px; text-align: center; margin-top: 0.3cm; line-height: 1.5; }
+        .status-box { border: 2px solid #000; padding: 4px 8px; display: inline-block; font-size: 10pt; font-weight: 900; margin: 4px auto; }
+        .footer { font-size: 9pt; font-weight: 700; text-align: center; margin-top: 0.3cm; line-height: 1.4; }
         @media print {
+            *, *::before, *::after { color: #000 !important; opacity: 1 !important; text-shadow: none !important; filter: none !important; -webkit-font-smoothing: none; }
             .no-print { display: none !important; }
             html, body {
                 width: 80mm !important;
                 max-width: 80mm !important;
                 min-width: 80mm !important;
+                font-weight: 700 !important;
             }
             .receipt {
                 width: 72mm !important;
@@ -74,8 +80,8 @@
     @endif
     
     <div class="shop-name">{{ $companyProfile['company_name'] }}</div>
-    @if($companyProfile['company_legal_name'])<div class="center" style="font-size:9px;">{{ $companyProfile['company_legal_name'] }}</div>@endif
-    @if($companyProfile['company_phone'])<div class="center" style="font-size:9px;">Tel: {{ $companyProfile['company_phone'] }}</div>@endif
+    @if($companyProfile['company_legal_name'])<div class="center" style="font-size:9pt;">{{ $companyProfile['company_legal_name'] }}</div>@endif
+    @if($companyProfile['company_phone'])<div class="center" style="font-size:9pt;">Tel: {{ $companyProfile['company_phone'] }}</div>@endif
 
     <div class="badge">ORDEN DE SERVICIO</div>
 
@@ -106,7 +112,7 @@
 
     <div class="divider"></div>
 
-    <div style="font-size:10px; margin-bottom:0.2cm;">
+    <div style="font-size:9.5pt; margin-bottom:0.2cm;">
         <div class="bold">CLIENTE</div>
         <div>{{ $order->client_name }}</div>
         @if($order->client_phone)<div>Tel: {{ $order->client_phone }}</div>@endif
@@ -114,31 +120,31 @@
 
     <div class="divider"></div>
 
-    <div style="font-size:10px; margin-bottom:0.2cm;">
-        <div class="bold">EQUIPO</div>
+    <div style="font-size:9.5pt; margin-bottom:0.2cm;">
+        <div class="bold">JOYA</div>
         <div>{{ $order->device_brand }} {{ $order->device_model }}</div>
-        @if($order->device_color)<div>Color: {{ $order->device_color }}</div>@endif
-        @if($order->device_imei)<div>IMEI: {{ $order->device_imei }}</div>@endif
-        @if($order->accessories)<div>Accesorios: {{ $order->accessories }}</div>@endif
+        @if($order->device_color)<div>Color / acabado: {{ $order->device_color }}</div>@endif
+        @if($order->device_imei)<div>Peso / identificación: {{ $order->device_imei }}</div>@endif
+        @if($order->accessories)<div>Piedras / piezas: {{ $order->accessories }}</div>@endif
     </div>
 
     <div class="divider"></div>
 
-    <div style="font-size:10px; margin-bottom:0.2cm;">
-        <div class="bold">FALLA REPORTADA</div>
+    <div style="font-size:9.5pt; margin-bottom:0.2cm;">
+        <div class="bold">TRABAJO SOLICITADO / ESTADO</div>
         <div>{{ $order->problem_description }}</div>
     </div>
 
     @if($order->diagnosis)
-    <div style="font-size:10px; margin-bottom:0.2cm;">
-        <div class="bold">DIAGNÓSTICO</div>
+    <div style="font-size:9.5pt; margin-bottom:0.2cm;">
+        <div class="bold">EVALUACIÓN DEL JOYERO</div>
         <div>{{ $order->diagnosis }}</div>
     </div>
     @endif
 
     @if($order->items->count())
     <div class="divider"></div>
-    <div class="bold" style="font-size:10px; margin-bottom:3px;">REPUESTOS Y SERVICIOS</div>
+    <div class="bold" style="font-size:9.5pt; margin-bottom:3px;">MATERIALES Y SERVICIOS</div>
     <div class="items-header">
         <span>DESCRIPCIÓN</span>
         <span class="item-qty">CANT.</span>
@@ -156,7 +162,7 @@
         <span class="item-qty">{{ number_format($item->quantity, 0) }}</span>
         <span class="item-amount">{{ $companyProfile['currency_symbol'] }} {{ number_format($item->subtotal, 2) }}</span>
         @if(isset($item->item_type) && $item->item_type === 'service' && $item->device_brand)
-        <span class="item-meta">Marca: {{ $item->device_brand }}</span>
+        <span class="item-meta">Tipo de joya: {{ $item->device_brand }}</span>
         @else
         <span class="item-meta">{{ number_format($item->quantity, 0) }} x {{ $companyProfile['currency_symbol'] }} {{ number_format($item->price, 2) }}</span>
         @endif
@@ -167,7 +173,7 @@
     <div class="divider"></div>
 
     @if($order->parts_cost > 0)
-    <div class="row"><span>Repuestos</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($order->parts_cost,2) }}</span></div>
+    <div class="row"><span>Materiales / servicios</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($order->parts_cost,2) }}</span></div>
     @endif
     <div class="row"><span>Mano de obra</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($order->labor_cost,2) }}</span></div>
     <div class="items-footer">
@@ -187,20 +193,20 @@
     </div>
 
     @if($order->technician)
-    <div class="row" style="margin-top:4px;"><span>Técnico:</span><span>{{ $order->technician->name }}</span></div>
+    <div class="row" style="margin-top:4px;"><span>Joyero:</span><span>{{ $order->technician->name }}</span></div>
     @endif
 
     @if($order->warranty_enabled)
     <div class="divider"></div>
-    <div style="font-size:9px; line-height:1.45; margin-top:2px;">
-        <div class="bold" style="font-size:10px; margin-bottom:2px;">✓ GARANTÍA</div>
+    <div style="font-size:9pt; line-height:1.4; margin-top:2px;">
+        <div class="bold" style="font-size:9.5pt; margin-bottom:2px;">✓ GARANTÍA</div>
         <div>{{ $order->effectiveWarrantyText() }}</div>
     </div>
     @endif
 
     <div class="footer">
         Gracias por su confianza.<br>
-        Conserve este comprobante para retirar su equipo.<br>
+        Conserve este comprobante para retirar su joya.<br>
         {{ now()->format($companyProfile['date_format'].' H:i') }}
     </div>
 </div>
