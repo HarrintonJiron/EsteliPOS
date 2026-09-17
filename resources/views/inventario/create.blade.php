@@ -39,9 +39,9 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Código *</label>
-                    <input type="text" name="code" value="{{ old('code') }}" required
-                           placeholder="Ej: FERT-001"
+                    <label class="block text-sm font-medium text-gray-700">Código <span class="font-normal text-gray-400">(o IMEI — déjalo vacío para generarlo automático)</span></label>
+                    <input type="text" name="code" value="{{ old('code') }}"
+                           placeholder="Ej: FERT-001 o IMEI del equipo"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 

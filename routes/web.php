@@ -96,6 +96,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/envios', [ShipmentController::class, 'store'])->middleware('permission:envios.create')->name('envios.store');
         Route::get('/envios/{shipment}', [ShipmentController::class, 'show'])->middleware('permission:envios.view')->name('envios.show');
         Route::get('/envios/{shipment}/ticket', [ShipmentController::class, 'ticket'])->middleware('permission:envios.view')->name('envios.ticket');
+        Route::get('/envios/{shipment}/etiqueta', [ShipmentController::class, 'label'])->middleware('permission:envios.view')->name('envios.label');
         Route::get('/envios/{shipment}/editar', [ShipmentController::class, 'edit'])->middleware('permission:envios.edit')->name('envios.edit');
         Route::put('/envios/{shipment}', [ShipmentController::class, 'update'])->middleware('permission:envios.edit')->name('envios.update');
         Route::patch('/envios/{shipment}/estado', [ShipmentController::class, 'updateStatus'])->middleware('permission:envios.edit')->name('envios.status');

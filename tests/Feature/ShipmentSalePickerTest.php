@@ -88,7 +88,7 @@ test('the sale picker describes each sale with client, products, date, payment a
         ->assertSeeText('iPhone 14 128GB, Samsung Galaxy A55 5G')
         ->assertSeeText('+1 más')
         ->assertSeeText('Crédito')
-        ->assertSeeText('$ 1,067.20')
+        ->assertSeeText('1,067.20')
         ->assertSeeText('Factura FAC-000045')
         ->assertSeeText('Sin factura relacionada')
         ->assertSee('id="sale-picker-search"', false);

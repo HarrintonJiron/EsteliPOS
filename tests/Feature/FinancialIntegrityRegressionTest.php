@@ -467,3 +467,141 @@ test('credit payments are idempotent and cash payments belong to the open regist
     expect(CreditPayment::query()->where('request_token', $token)->count())->toBe(1)
         ->and($payment->caja_session_id)->not->toBeNull();
 });
+
+test('a repair payment collected at delivery is reflected in the open cash register', function () {
+    $admin = financialIntegrityAdmin();
+
+    $this->actingAs($admin)->post(route('reparaciones.store'), [
+        'client_name' => 'Cliente cobro reparación',
+        'device_brand' => 'Samsung',
+        'device_model' => 'A54',
+        'problem_description' => 'Pantalla rota',
+        'status' => 'delivered',
+        'priority' => 'normal',
+        'received_date' => now()->toDateString(),
+        'labor_cost' => 100,
+        'advance_payment' => 100,
+        'payment_type' => 'cash',
+    ])->assertRedirect();
+
+    $order = RepairOrder::query()->latest('id')->firstOrFail();
+    $sale = Sale::query()->where('notes', 'like', '%'.$order->order_number.'%')->firstOrFail();
+
+    expect((float) $sale->total)->toBe(100.0)
+        ->and($sale->payment_type)->toBe('cash')
+        ->and($sale->status)->toBe('completed')
+        ->and($sale->caja_session_id)->not->toBeNull();
+
+    $summary = $this->actingAs($admin)->get(route('arqueo.index'))->viewData('closingSummary');
+
+    expect($summary['cash_sales_total'])->toBe(100.0)
+        ->and($summary['sales_count'])->toBe(1);
+});
+
+test('editing a delivered repair only records newly collected money, not the whole balance again', function () {
+    $admin = financialIntegrityAdmin();
+    $receivedDate = now()->toDateString();
+
+    $this->actingAs($admin)->post(route('reparaciones.store'), [
+        'client_name' => 'Cliente abono parcial reparación',
+        'device_brand' => 'Xiaomi',
+        'device_model' => 'Redmi 10',
+        'problem_description' => 'No carga',
+        'status' => 'in_repair',
+        'priority' => 'normal',
+        'received_date' => $receivedDate,
+        'labor_cost' => 100,
+        'advance_payment' => 30,
+        'payment_type' => 'cash',
+    ])->assertRedirect();
+
+    $order = RepairOrder::query()->latest('id')->firstOrFail();
+
+    $this->actingAs($admin)->put(route('reparaciones.update', $order), [
+        'client_name' => $order->client_name,
+        'device_brand' => $order->device_brand,
+        'device_model' => $order->device_model,
+        'problem_description' => $order->problem_description,
+        'status' => 'delivered',
+        'priority' => 'normal',
+        'received_date' => $receivedDate,
+        'labor_cost' => 100,
+        'advance_payment' => 100,
+        'payment_type' => 'cash',
+    ])->assertRedirect();
+
+    $cashCollected = (float) Sale::query()->where('notes', 'like', '%'.$order->order_number.'%')->sum('total');
+    expect($cashCollected)->toBe(100.0);
+});
+
+test('the open cash register separates repair income and repair expenses from regular business ones', function () {
+    $admin = financialIntegrityAdmin();
+
+    $this->actingAs($admin)->post(route('reparaciones.store'), [
+        'client_name' => 'Cliente arqueo taller',
+        'device_brand' => 'Apple',
+        'device_model' => 'iPhone 12',
+        'problem_description' => 'Batería',
+        'status' => 'delivered',
+        'priority' => 'normal',
+        'received_date' => now()->toDateString(),
+        'labor_cost' => 60,
+        'advance_payment' => 60,
+        'payment_type' => 'cash',
+    ])->assertRedirect();
+    $order = RepairOrder::query()->latest('id')->firstOrFail();
+
+    $this->actingAs($admin)->post(route('reparaciones.gastos.store'), [
+        'repair_order_id' => $order->id,
+        'description' => 'Repuesto batería',
+        'amount' => 15,
+        'payment_method' => 'cash',
+    ])->assertRedirect();
+
+    $this->actingAs($admin)->post(route('reparaciones.gastos.store'), [
+        'description' => 'Pago de energía eléctrica',
+        'amount' => 25,
+        'payment_method' => 'cash',
+    ])->assertRedirect();
+
+    $summary = $this->actingAs($admin)->get(route('arqueo.index'))->viewData('closingSummary');
+
+    expect($summary['repair_income_cash_total'])->toBe(60.0)
+        ->and($summary['repair_expenses_cash_total'])->toBe(15.0)
+        ->and($summary['business_expenses_cash_total'])->toBe(25.0)
+        ->and($summary['operational_expenses_cash_total'])->toBe(40.0);
+});
+
+test('a credit repair with an advance payment can be created without an open cash register', function () {
+    test()->seed(ConfigurationSeeder::class);
+    $role = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrador', 'is_system' => true]);
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $admin->roles()->syncWithoutDetaching([$role->id]);
+
+    $client = Client::query()->create([
+        'name' => 'Cliente crédito sin caja',
+        'phone' => '88880000',
+        'credit_enabled' => true,
+        'credit_limit' => 1000,
+    ]);
+
+    $this->actingAs($admin)->post(route('reparaciones.store'), [
+        'client_id' => $client->id,
+        'client_name' => $client->name,
+        'device_brand' => 'Samsung',
+        'device_model' => 'A20',
+        'problem_description' => 'Pantalla',
+        'status' => 'received',
+        'priority' => 'normal',
+        'received_date' => now()->toDateString(),
+        'labor_cost' => 500,
+        'advance_payment' => 100,
+        'payment_type' => 'credit',
+        'due_date' => now()->addDays(15)->toDateString(),
+    ])->assertRedirect()->assertSessionHasNoErrors()->assertSessionHas('success');
+
+    $order = RepairOrder::query()->where('client_name', 'Cliente crédito sin caja')->first();
+
+    expect($order)->not->toBeNull()
+        ->and(Sale::query()->where('repair_order_id', $order->id)->exists())->toBeFalse();
+});

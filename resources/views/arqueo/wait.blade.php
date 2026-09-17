@@ -148,6 +148,10 @@
                         <p class="text-sm font-bold tabular-nums">C$ {{ number_format($summary['cash_repair_payments_total'], 2) }}</p>
                     </div>
                     <div class="bg-white px-3 py-2">
+                        <p class="text-[10px] font-semibold uppercase text-slate-500">Reparaciones</p>
+                        <p class="text-sm font-bold tabular-nums">@money($summary['repair_income_cash_total'] ?? 0, 2)</p>
+                    </div>
+                    <div class="bg-white px-3 py-2">
                         <p class="text-[10px] font-semibold uppercase text-slate-500">Gastos</p>
                         <p class="text-sm font-bold tabular-nums text-red-600">C$ {{ number_format($summary['operational_expenses_cash_total'], 2) }}</p>
                     </div>

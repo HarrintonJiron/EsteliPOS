@@ -268,7 +268,10 @@ class InventoryService
         $max = 0;
         $pattern = '/^'.preg_quote($prefix, '/').'-(\d+)$/';
 
-        Product::query()
+        // withTrashed(): el índice único de products.code no ignora los productos
+        // eliminados (soft delete), así que un código "libre" para el scope normal
+        // puede seguir chocando en la base de datos si perteneció a un producto borrado.
+        Product::withTrashed()
             ->where('code', 'like', $prefix.'-%')
             ->pluck('code')
             ->each(function (string $code) use ($pattern, &$max) {

@@ -28,9 +28,9 @@
 
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1.4fr]">
             <div>
-                <label class="mb-1 block text-xs font-medium text-slate-500">Código · Enter busca</label>
-                <input type="text" name="code" id="barcodeInput" value="{{ old('code') }}" required autofocus
-                    placeholder="Escanear..."
+                <label class="mb-1 block text-xs font-medium text-slate-500">Código o IMEI · Enter busca · vacío = automático</label>
+                <input type="text" name="code" id="barcodeInput" value="{{ old('code') }}" autofocus
+                    placeholder="Escanear o dejar vacío..."
                     class="input-field py-2 font-mono text-center tracking-wide">
             </div>
             <div>
