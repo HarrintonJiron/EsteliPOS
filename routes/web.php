@@ -430,6 +430,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/reparaciones/{id}', [ReparacionController::class, 'show'])->whereNumber('id')->name('reparaciones.show');
             Route::get('/reparaciones/{id}/ticket', [ReparacionController::class, 'ticket'])->whereNumber('id')->name('reparaciones.ticket');
             Route::get('/reparaciones/{id}/pdf', [ReparacionController::class, 'pdf'])->whereNumber('id')->name('reparaciones.pdf');
+            Route::get('/reparaciones/fotos/{photo}', [ReparacionController::class, 'showPhoto'])->name('reparaciones.photos.show');
         });
         Route::middleware('permission:reparaciones.create')->group(function () {
             Route::get('/reparaciones/nueva', [ReparacionController::class, 'create'])->name('reparaciones.create');
@@ -439,6 +440,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/reparaciones/{id}/edit', [ReparacionController::class, 'edit'])->whereNumber('id')->name('reparaciones.edit');
             Route::put('/reparaciones/{id}', [ReparacionController::class, 'update'])->whereNumber('id')->name('reparaciones.update');
             Route::patch('/reparaciones/{id}/status', [ReparacionController::class, 'updateStatus'])->whereNumber('id')->name('reparaciones.status');
+            Route::delete('/reparaciones/fotos/{photo}', [ReparacionController::class, 'destroyPhoto'])->name('reparaciones.photos.destroy');
         });
         Route::delete('/reparaciones/{id}', [ReparacionController::class, 'destroy'])->whereNumber('id')->middleware('permission:reparaciones.delete')->name('reparaciones.destroy');
     });

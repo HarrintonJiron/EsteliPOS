@@ -70,6 +70,19 @@
                 </div>
             </div>
 
+            @if($order->photos->isNotEmpty())
+            <div class="card p-5">
+                <h2 class="mb-3 font-semibold text-slate-800">Fotos de la joya</h2>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                    @foreach($order->photos as $photo)
+                        <a href="{{ $photo->url }}" target="_blank" class="block">
+                            <img src="{{ $photo->url }}" alt="Foto de {{ $order->order_number }}" class="aspect-square w-full rounded-lg object-cover ring-1 ring-slate-200">
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
             {{-- Diagnosis --}}
             <div class="card p-5 space-y-4">
                 <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Diagnóstico y Reparación</h2>

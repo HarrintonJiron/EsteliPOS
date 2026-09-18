@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Account;
 use App\Models\Purchase;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use Carbon\Carbon;
 
@@ -26,8 +27,14 @@ class AccountingDashboardService
                 ? Carbon::parse($dateTo)->addDay()->toDateString()
                 : now()->addDay()->toDateString())), 2);
 
-        $sales = (float) Sale::whereNotIn('status', ['canceled', 'cancelled'])
+        $sales = (float) Sale::retail()->whereNotIn('status', ['canceled', 'cancelled'])
             ->whereBetween('date', [$dateFrom, $dateTo])->sum('total');
+        $workshopIncome = RepairOrder::supportsPaymentTracking()
+            ? (float) RepairOrder::query()
+                ->whereBetween('payment_received_at', [$period->copy()->startOfDay(), $period->copy()->endOfMonth()])
+                ->where('status', '!=', 'cancelled')
+                ->sum('advance_payment')
+            : 0;
         $purchases = (float) Purchase::whereIn('status', ['pending', 'completed'])
             ->whereBetween('date', [$dateFrom, $dateTo])->sum('total');
 
@@ -52,6 +59,7 @@ class AccountingDashboardService
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
             'sales' => round($sales, 2),
+            'workshopIncome' => round($workshopIncome, 2),
             'purchases' => round($purchases, 2),
             'income' => round($income['totalIngresos'] + $income['totalOtrosIngresos'], 2),
             'expenses' => round($income['totalCostos'] + $income['totalGastos'] + $income['totalOtrosGastos'], 2),

@@ -5,6 +5,7 @@
 <div class="kpi-grid">
     @if($reportType === 'sales')
         <x-ui.stat-card label="Total ventas" :value="'C$ ' . number_format($summary['total_sales'] ?? 0, 2)" :meta="($summary['total_count'] ?? 0) . ' transacciones'" accent="#059669" />
+        <x-ui.stat-card label="Ingresos de taller" :value="'C$ ' . number_format($summary['workshop_income'] ?? 0, 2)" :meta="($summary['workshop_count'] ?? 0) . ' cobros'" accent="#7c3aed" />
         <x-ui.stat-card label="Promedio por venta" :value="'C$ ' . number_format($summary['avg_sale'] ?? 0, 2)" accent="#0d9488" />
         <x-ui.stat-card label="Facturas pagadas" :value="$summary['by_status']->where('status', 'completed')->first()->count ?? 0" :meta="'C$ ' . number_format($summary['by_status']->where('status', 'completed')->first()->total ?? 0, 2)" accent="#2563eb" />
         <x-ui.stat-card label="Pendientes" :value="$summary['by_status']->where('status', 'pending')->first()->count ?? 0" :meta="'C$ ' . number_format($summary['by_status']->where('status', 'pending')->first()->total ?? 0, 2)" accent="#d97706" />

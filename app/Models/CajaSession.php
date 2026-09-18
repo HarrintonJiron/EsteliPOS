@@ -64,6 +64,11 @@ class CajaSession extends Model
         return $this->hasMany(Purchase::class);
     }
 
+    public function repairOrders()
+    {
+        return $this->hasMany(RepairOrder::class);
+    }
+
     public static function currentForUser(?int $userId): ?self
     {
         return $userId ? self::query()->where('opened_by', $userId)->where('status', 'open')->latest('id')->first() : null;

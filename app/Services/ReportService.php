@@ -8,15 +8,14 @@ use App\Models\InventoryAdjustment;
 use App\Models\JournalEntryLine;
 use App\Models\OperationalExpense;
 use App\Models\Purchase;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 class ReportService
 {
-    public function __construct(private LedgerService $ledger)
-    {
-    }
+    public function __construct(private LedgerService $ledger) {}
 
     /**
      * Estado de Resultados (P&L) para un rango de fechas.
@@ -138,7 +137,7 @@ class ReportService
                 }
             })
             ->get()
-            ->sortBy(fn ($line) => $line->journalEntry->date->format('Y-m-d') . '-' . str_pad((string) $line->journalEntry->id, 10, '0', STR_PAD_LEFT))
+            ->sortBy(fn ($line) => $line->journalEntry->date->format('Y-m-d').'-'.str_pad((string) $line->journalEntry->id, 10, '0', STR_PAD_LEFT))
             ->values();
 
         $movements = $lines->map(function (JournalEntryLine $line) {
@@ -146,6 +145,7 @@ class ReportService
             $amount = round((float) $line->debit - (float) $line->credit, 2);
             $category = match ($entry->source_type) {
                 Sale::class, CreditPayment::class => 'Operación · Cobros',
+                RepairOrder::class => 'Operación · Cobros de taller',
                 Purchase::class => 'Operación · Pagos a proveedores',
                 InventoryAdjustment::class => 'Operación · Ajustes de inventario',
                 OperationalExpense::class => 'Operación · Gastos operativos',

@@ -9,6 +9,7 @@ use App\Models\CajaSession;
 use App\Models\CreditPayment;
 use App\Models\OperationalExpense;
 use App\Models\Purchase;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Services\CompanySettingsService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -66,7 +67,7 @@ class ArqueoController extends Controller
         $closingSummary = null;
 
         if ($openSession) {
-            $cashSalesTotal = (float) Sale::query()
+            $cashSalesTotal = (float) Sale::query()->retail()
                 ->where(fn ($query) => $query->where('caja_session_id', $openSession->id)
                     ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $openSession->opened_by)->whereDate('date', $today)))
                 ->where('status', 'completed')
@@ -95,15 +96,23 @@ class ArqueoController extends Controller
                     ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $openSession->opened_by)->whereDate('payment_date', $today)))
                 ->where('payment_type', 'cash')
                 ->sum('amount');
+            $cashRepairPaymentsTotal = RepairOrder::supportsPaymentTracking()
+                ? (float) RepairOrder::query()
+                    ->where(fn ($query) => $query->where('caja_session_id', $openSession->id)
+                        ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $openSession->opened_by)->whereDate('payment_received_at', $today)))
+                    ->where('status', '!=', 'cancelled')
+                    ->where('payment_type', 'cash')
+                    ->sum('advance_payment')
+                : 0;
 
-            $salesCount = (int) Sale::query()
+            $salesCount = (int) Sale::query()->retail()
                 ->where(fn ($query) => $query->where('caja_session_id', $openSession->id)
                     ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $openSession->opened_by)->whereDate('date', $today)))
                 ->where('status', 'completed')
                 ->count();
 
             $openingAmount = (float) $openSession->opening_amount;
-            $expectedCashTotal = $openingAmount + $cashSalesTotal + $cashCreditPaymentsTotal
+            $expectedCashTotal = $openingAmount + $cashSalesTotal + $cashCreditPaymentsTotal + $cashRepairPaymentsTotal
                 - $operationalExpensesCashTotal - $cashPurchasesTotal;
 
             $closingSummary = [
@@ -113,6 +122,7 @@ class ArqueoController extends Controller
                 'cash_purchases_total' => $cashPurchasesTotal,
                 'credit_payments_total' => $creditPaymentsTotal,
                 'cash_credit_payments_total' => $cashCreditPaymentsTotal,
+                'cash_repair_payments_total' => $cashRepairPaymentsTotal,
                 'sales_count' => $salesCount,
                 'expected_cash_total' => $expectedCashTotal,
             ];
@@ -219,7 +229,7 @@ class ArqueoController extends Controller
                 ]);
             }
 
-            $sales = Sale::query()
+            $sales = Sale::query()->retail()
                 ->where(fn ($query) => $query->where('caja_session_id', $cajaSession->id)
                     ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $cajaSession->opened_by)->whereDate('date', $date->toDateString())))
                 ->where('status', 'completed')
@@ -242,6 +252,16 @@ class ArqueoController extends Controller
                 ->with('client')->get();
             $creditPaymentsTotal = $creditPayments->sum('amount');
             $cashCreditPaymentsTotal = $creditPayments->where('payment_type', 'cash')->sum('amount');
+
+            $repairPayments = RepairOrder::supportsPaymentTracking()
+                ? RepairOrder::query()
+                    ->where(fn ($query) => $query->where('caja_session_id', $cajaSession->id)
+                        ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $cajaSession->opened_by)->whereDate('payment_received_at', $date->toDateString())))
+                    ->where('status', '!=', 'cancelled')
+                    ->get()
+                : collect();
+            $repairPaymentsTotal = $repairPayments->sum('advance_payment');
+            $cashRepairPaymentsTotal = $repairPayments->where('payment_type', 'cash')->sum('advance_payment');
 
             $operationalExpenses = OperationalExpense::query()
                 ->with(['user', 'cajaSession'])
@@ -272,7 +292,7 @@ class ArqueoController extends Controller
             }
 
             $openingAmount = (float) $cajaSession->opening_amount;
-            $cashMovementsTotal = (float) ($byType['cash']['total'] ?? 0) + $cashCreditPaymentsTotal
+            $cashMovementsTotal = (float) ($byType['cash']['total'] ?? 0) + $cashCreditPaymentsTotal + $cashRepairPaymentsTotal
                 - $operationalExpensesCashTotal - $cashPurchasesTotal;
             $cashTotal = $openingAmount + $cashMovementsTotal;
             $difference = $physicalTotal - $cashTotal;
@@ -300,12 +320,18 @@ class ArqueoController extends Controller
                     'payment_type' => $payment->payment_type, 'amount' => (string) $payment->amount,
                 ])->all(),
                 'credit_payments_by_method' => $creditPayments->groupBy('payment_type')->map->sum('amount')->toArray(),
+                'repair_payments' => $repairPayments->map(fn ($repair) => [
+                    'id' => $repair->id, 'order_number' => $repair->order_number, 'client' => $repair->client_name,
+                    'payment_type' => $repair->payment_type, 'amount' => (string) $repair->advance_payment,
+                ])->all(),
+                'repair_payments_by_method' => $repairPayments->groupBy('payment_type')->map->sum('advance_payment')->toArray(),
                 'cash_expenses' => $operationalExpenses->map(fn ($expense) => ['id' => $expense->id, 'description' => $expense->description, 'amount' => (string) $expense->amount])->all(),
                 'cash_purchases' => $cashPurchases->map(fn ($purchase) => ['id' => $purchase->id, 'document_number' => $purchase->document_number, 'total' => (string) $purchase->total])->all(),
                 'physical_counts' => $physicalCounts,
                 'totals' => [
                     'opening' => round($openingAmount, 2), 'sales' => round((float) $totalSalesAmount, 2),
                     'credit_payments' => round((float) $creditPaymentsTotal, 2), 'cash_expenses' => round($operationalExpensesCashTotal, 2),
+                    'repair_payments' => round((float) $repairPaymentsTotal, 2),
                     'cash_purchases' => round($cashPurchasesTotal, 2), 'expected' => round($cashTotal, 2),
                     'physical' => round($physicalTotal, 2), 'difference' => round($difference, 2),
                 ],
@@ -337,7 +363,7 @@ class ArqueoController extends Controller
 
             return compact(
                 'sales', 'totalSalesCount', 'totalSalesAmount', 'byType', 'creditPayments',
-                'creditPaymentsTotal', 'cashCreditPaymentsTotal', 'operationalExpenses', 'operationalExpensesCashTotal',
+                'creditPaymentsTotal', 'cashCreditPaymentsTotal', 'repairPayments', 'repairPaymentsTotal', 'cashRepairPaymentsTotal', 'operationalExpenses', 'operationalExpensesCashTotal',
                 'cashPurchases', 'cashPurchasesTotal',
                 'openingAmount', 'cashMovementsTotal', 'cashTotal', 'physicalTotal',
                 'physicalCounts', 'arqueo'
@@ -352,6 +378,8 @@ class ArqueoController extends Controller
             'byType' => $result['byType'],
             'creditPayments' => $result['creditPayments'],
             'creditPaymentsTotal' => $result['creditPaymentsTotal'],
+            'repairPayments' => $result['repairPayments'],
+            'repairPaymentsTotal' => $result['repairPaymentsTotal'],
             'operationalExpenses' => $result['operationalExpenses'],
             'operationalExpensesCashTotal' => $result['operationalExpensesCashTotal'],
             'cashPurchases' => $result['cashPurchases'],
@@ -377,6 +405,8 @@ class ArqueoController extends Controller
             'byType' => collect($details['sales_by_method'] ?? []),
             'creditPayments' => $objects($details['credit_payments'] ?? []),
             'creditPaymentsTotal' => (float) $arqueo->credit_payments_total,
+            'repairPayments' => $objects($details['repair_payments'] ?? []),
+            'repairPaymentsTotal' => (float) ($totals['repair_payments'] ?? 0),
             'operationalExpenses' => $objects($details['cash_expenses'] ?? []),
             'operationalExpensesCashTotal' => (float) ($totals['cash_expenses'] ?? 0),
             'cashPurchases' => $objects($details['cash_purchases'] ?? []),

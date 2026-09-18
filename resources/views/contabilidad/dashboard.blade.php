@@ -5,6 +5,7 @@
     $cards = [
         ['Utilidad del mes', $profit],
         ['Ventas', $sales],
+        ['Ingresos de taller', $workshopIncome],
         ['Compras', $purchases],
         ['Ingresos contables', $income],
         ['Egresos contables', $expenses],
@@ -26,6 +27,7 @@
         :metric-value="'C$ ' . number_format($profit, 0)"
         :stats="[
             ['label' => 'Ventas', 'value' => 'C$ ' . number_format($sales, 0)],
+            ['label' => 'Taller', 'value' => 'C$ ' . number_format($workshopIncome, 0)],
             ['label' => 'Compras', 'value' => 'C$ ' . number_format($purchases, 0)],
             ['label' => 'Caja', 'value' => 'C$ ' . number_format($cash, 0)],
         ]"

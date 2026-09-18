@@ -111,7 +111,11 @@
                     </div>
                     <div class="bg-white px-3 py-2">
                         <p class="text-[10px] font-semibold uppercase text-slate-500">Efectivo</p>
-                        <p class="text-sm font-bold tabular-nums">C$ {{ number_format($summary['cash_sales_total'], 2) }}</p>
+                        <p class="text-sm font-bold tabular-nums">C$ {{ number_format($summary['cash_sales_total'] + $summary['cash_repair_payments_total'], 2) }}</p>
+                    </div>
+                    <div class="bg-white px-3 py-2">
+                        <p class="text-[10px] font-semibold uppercase text-slate-500">Taller</p>
+                        <p class="text-sm font-bold tabular-nums">C$ {{ number_format($summary['cash_repair_payments_total'], 2) }}</p>
                     </div>
                     <div class="bg-white px-3 py-2">
                         <p class="text-[10px] font-semibold uppercase text-slate-500">Gastos</p>

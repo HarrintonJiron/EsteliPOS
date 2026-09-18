@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Models\Supplier;
 use Carbon\Carbon;
@@ -95,7 +96,7 @@ class ReporteController extends Controller
 
     private function getSalesReport($startDate, $endDate, $request)
     {
-        $query = Sale::with(['client', 'details.product'])
+        $query = Sale::with(['client', 'details.product', 'repairOrder'])
             ->whereBetween('date', [$startDate, $endDate]);
 
         if ($request->filled('client_id')) {
@@ -115,10 +116,28 @@ class ReporteController extends Controller
 
     private function getSalesSummary($startDate, $endDate)
     {
+        $sales = Sale::retail()->whereBetween('date', [$startDate, $endDate]);
+        $workshopIncome = RepairOrder::supportsPaymentTracking()
+            ? (float) RepairOrder::query()
+                ->whereBetween('payment_received_at', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()])
+                ->where('status', '!=', 'cancelled')
+                ->sum('advance_payment')
+            : 0;
+        $workshopCount = RepairOrder::supportsPaymentTracking()
+            ? RepairOrder::query()
+                ->whereBetween('payment_received_at', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()])
+                ->where('status', '!=', 'cancelled')
+                ->count()
+            : 0;
+        $salesTotal = (float) $sales->sum('total');
+        $salesCount = $sales->count();
+
         return [
-            'total_sales' => Sale::whereBetween('date', [$startDate, $endDate])->sum('total'),
-            'total_count' => Sale::whereBetween('date', [$startDate, $endDate])->count(),
-            'avg_sale' => Sale::whereBetween('date', [$startDate, $endDate])->avg('total'),
+            'total_sales' => $salesTotal + $workshopIncome,
+            'total_count' => $salesCount + $workshopCount,
+            'avg_sale' => $salesCount + $workshopCount > 0 ? ($salesTotal + $workshopIncome) / ($salesCount + $workshopCount) : 0,
+            'workshop_income' => $workshopIncome,
+            'workshop_count' => $workshopCount,
             'by_status' => Sale::whereBetween('date', [$startDate, $endDate])
                 ->select('status', DB::raw('COUNT(*) as count'), DB::raw('SUM(total) as total'))
                 ->groupBy('status')

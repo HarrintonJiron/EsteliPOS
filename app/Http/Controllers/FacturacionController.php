@@ -10,6 +10,7 @@ use App\Models\Category;
 use App\Models\Client;
 use App\Models\NumberSequence;
 use App\Models\Product;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
@@ -468,20 +469,35 @@ class FacturacionController extends Controller
                 }
 
                 $oldValues = $sale->toArray();
+                $repairOrder = $sale->repair_order_id
+                    ? RepairOrder::query()->lockForUpdate()->findOrFail($sale->repair_order_id)
+                    : null;
 
-                // Revert stock changes, but preserve the fiscal document and its detail.
-                foreach ($sale->details as $detail) {
-                    $this->inventoryService->stockIn(
-                        $detail->product,
-                        $this->posCatalog->saleDetailBaseQuantity($detail),
-                        'sale_delete:'.$sale->id,
-                        'Reverso por eliminación de factura #'.($sale->invoice_number ?? $sale->id),
-                        $sale->user_id,
-                        $sale->warehouse_id,
-                    );
+                if (! $repairOrder) {
+                    // Revert stock changes, but preserve the fiscal document and its detail.
+                    foreach ($sale->details as $detail) {
+                        $this->inventoryService->stockIn(
+                            $detail->product,
+                            $this->posCatalog->saleDetailBaseQuantity($detail),
+                            'sale_delete:'.$sale->id,
+                            'Reverso por eliminación de factura #'.($sale->invoice_number ?? $sale->id),
+                            $sale->user_id,
+                            $sale->warehouse_id,
+                        );
+                    }
                 }
 
                 $this->accountingService->voidForSource(Sale::class, $sale->id, 'Factura anulada');
+                if ($repairOrder) {
+                    $this->accountingService->voidForSource(RepairOrder::class, $repairOrder->id, 'Factura de taller anulada');
+                    $repairOrder->update([
+                        'status' => 'ready',
+                        'advance_payment' => 0,
+                        'payment_status' => 'pending',
+                        'payment_received_at' => null,
+                        'caja_session_id' => null,
+                    ]);
+                }
                 $sale->update(['status' => 'canceled']);
                 AuditLog::log(
                     'sale.canceled',

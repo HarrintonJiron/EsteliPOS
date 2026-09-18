@@ -36,6 +36,10 @@
                 <div class="mt-1 font-bold tabular-nums">{{ $currencySymbol }} {{ number_format($creditPaymentsTotal, 2) }}</div>
             </div>
             <div class="rounded-xl border border-slate-200 bg-white p-3">
+                <div class="text-[10px] font-semibold uppercase text-slate-500">Taller</div>
+                <div class="mt-1 font-bold tabular-nums">{{ $currencySymbol }} {{ number_format($repairPaymentsTotal ?? 0, 2) }}</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-3">
                 <div class="text-[10px] font-semibold uppercase text-slate-500">Gastos</div>
                 <div class="mt-1 font-bold tabular-nums text-red-600">{{ $currencySymbol }} {{ number_format($operationalExpensesCashTotal ?? 0, 2) }}</div>
             </div>
@@ -123,6 +127,34 @@
                                 <td class="py-1.5">{{ $s->payment_type }}</td>
                             </tr>
                         @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </details>
+
+        <details class="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+            <summary class="cursor-pointer font-semibold">Cobros de taller ({{ $repairPayments->count() }})</summary>
+            <div class="mt-2 overflow-x-auto">
+                <table class="w-full min-w-[420px]">
+                    <thead>
+                        <tr class="text-left text-[11px] uppercase text-slate-500">
+                            <th class="pb-1">Orden</th>
+                            <th class="pb-1">Cliente</th>
+                            <th class="pb-1 text-right">Importe</th>
+                            <th class="pb-1">Pago</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($repairPayments as $repair)
+                            <tr class="border-t border-slate-100">
+                                <td class="py-1.5">{{ $repair->order_number }}</td>
+                                <td class="py-1.5">{{ $repair->client_name }}</td>
+                                <td class="py-1.5 text-right tabular-nums">{{ number_format($repair->advance_payment, 2) }}</td>
+                                <td class="py-1.5">{{ $repair->payment_type }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4" class="py-3 text-center text-slate-400">Sin cobros de taller</td></tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>

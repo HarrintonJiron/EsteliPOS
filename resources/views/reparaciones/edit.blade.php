@@ -20,7 +20,7 @@
     </div>
     @endif
 
-    <form action="{{ route('reparaciones.update', $order->id) }}" method="POST" id="repairForm">
+    <form action="{{ route('reparaciones.update', $order->id) }}" method="POST" id="repairForm" enctype="multipart/form-data">
         @csrf @method('PUT')
 
         <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -58,6 +58,30 @@
                             <input type="email" name="client_email" value="{{ old('client_email', $order->client_email) }}" class="input-field">
                         </div>
                     </div>
+                </div>
+
+                <div class="card p-5 space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h2 class="font-semibold text-slate-800">Foto de la joya</h2>
+                        <span class="text-xs font-medium text-slate-500">{{ $order->photos->isNotEmpty() ? '1/1' : '0/1' }}</span>
+                    </div>
+                    @if($order->photos->isNotEmpty())
+                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                            @foreach($order->photos as $photo)
+                                <div class="relative">
+                                    <a href="{{ $photo->url }}" target="_blank"><img src="{{ $photo->url }}" alt="Foto de {{ $order->order_number }}" class="aspect-square w-full rounded-lg object-cover ring-1 ring-slate-200"></a>
+                                    <button type="submit" form="delete-photo-{{ $photo->id }}" class="absolute right-1 top-1 h-7 w-7 rounded-full bg-red-600 text-sm font-bold text-white" title="Eliminar foto">×</button>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div>
+                            <label class="block text-sm text-slate-600 mb-1" for="photo">Agregar foto</label>
+                            <input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" class="input-field" data-photo-input>
+                            <p class="mt-1 text-xs text-slate-500">Una foto. JPG, PNG o WebP, máximo 2 MB. Se optimiza automáticamente.</p>
+                            <div data-photo-preview class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"></div>
+                        </div>
+                    @endif
                 </div>
 
                 {{-- JOYA --}}
@@ -202,7 +226,7 @@
                     </div>
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Hora de recepción *</label>
-                        <input type="time" name="received_time" value="{{ old('received_time', $order->received_time ?? date('H:i')) }}" required class="input-field">
+                        <input type="time" name="received_time" value="{{ old('received_time', $order->received_time ? substr($order->received_time, 0, 5) : date('H:i')) }}" required class="input-field">
                     </div>
                     <div class="pt-3 border-t border-slate-100">
                         <label class="block text-sm text-slate-600 mb-1">Entrega estimada (fecha opcional)</label>
@@ -211,7 +235,7 @@
                     </div>
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Hora estimada de entrega</label>
-                        <input type="time" name="estimated_delivery_time" value="{{ old('estimated_delivery_time', $order->estimated_delivery_time) }}" class="input-field">
+                        <input type="time" name="estimated_delivery_time" value="{{ old('estimated_delivery_time', $order->estimated_delivery_time ? substr($order->estimated_delivery_time, 0, 5) : '') }}" class="input-field">
                     </div>
                     <div class="pt-3 border-t border-slate-100">
                         <label class="block text-sm text-slate-600 mb-1">Fecha real de entrega</label>
@@ -219,7 +243,7 @@
                     </div>
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Hora de entrega</label>
-                        <input type="time" name="delivered_time" value="{{ old('delivered_time', $order->delivered_time) }}" class="input-field">
+                        <input type="time" name="delivered_time" value="{{ old('delivered_time', $order->delivered_time ? substr($order->delivered_time, 0, 5) : '') }}" class="input-field">
                     </div>
                 </div>
 
@@ -313,6 +337,12 @@
         </div>
     </form>
 
+    @foreach($order->photos as $photo)
+        <form id="delete-photo-{{ $photo->id }}" method="POST" action="{{ route('reparaciones.photos.destroy', $photo) }}">
+            @csrf @method('DELETE')
+        </form>
+    @endforeach
+
     {{-- Modal: agregar tipo de joya --}}
     <div id="addBrandModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
         <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
@@ -384,6 +414,21 @@ let partsCost = {{ $order->parts_cost }};
 let patternPoints = [];
 let customBrands = [];
 let isDrawingPattern = false;
+
+document.querySelectorAll('[data-photo-input]').forEach((input) => {
+    input.addEventListener('change', () => {
+        const preview = document.querySelector('[data-photo-preview]');
+        const files = Array.from(input.files).slice(0, 1);
+        preview.innerHTML = '';
+        files.forEach((file) => {
+            const image = document.createElement('img');
+            image.src = URL.createObjectURL(file);
+            image.alt = 'Vista previa de la joya';
+            image.className = 'aspect-square w-full rounded-lg object-cover ring-1 ring-slate-200';
+            preview.appendChild(image);
+        });
+    });
+});
 
 function toggleLockFields() {
     const type = document.getElementById('lockTypeSelect').value;

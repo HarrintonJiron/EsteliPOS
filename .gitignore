@@ -45,6 +45,15 @@
 /deployment/EsteliPOS-Consola-*.zip.sha256
 /deployment/EsteliPOS-Inventario-*.zip
 /deployment/EsteliPOS-Inventario-*.zip.sha256
+/deployment/installer/.downloads/
+/deployment/installer/.staging/
+/deployment/installer/dist/
+/deployment/installer/payload/*.exe
+/deployment/installer/payload/*.zip
+/deployment/installer/payload/manifest.json
+/deployment/installer/tools/
+/deployment/installer/version.nsh
+/.financial-query.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
