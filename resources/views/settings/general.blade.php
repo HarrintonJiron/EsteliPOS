@@ -21,7 +21,7 @@
         </span>
     </div>
 
-    <form action="{{ route('settings.general.update') }}" method="POST" enctype="multipart/form-data" class="space-y-6" data-dirty-form>
+    <form action="{{ route('general.update') }}" method="POST" enctype="multipart/form-data" class="space-y-6" data-dirty-form>
         @csrf
 
         <section class="card overflow-hidden">
