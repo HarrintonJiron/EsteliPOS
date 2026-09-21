@@ -72,6 +72,17 @@
                 <label class="form-label" for="end_date">Hasta</label>
                 <input type="date" id="end_date" name="end_date" value="{{ $endDate }}" class="input-field">
             </div>
+            @if($reportType === 'profit' && \App\Models\Branch::count() > 1)
+                <div>
+                    <label class="form-label" for="branch_id">Sucursal</label>
+                    <select id="branch_id" name="branch_id" class="input-field">
+                        <option value="">Todas las sucursales</option>
+                        @foreach(\App\Models\Branch::orderBy('name')->get() as $branch)
+                            <option value="{{ $branch->id }}" @selected(request('branch_id') == $branch->id)>{{ $branch->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
             <div class="flex items-end gap-2">
                 <button type="submit" class="btn-primary flex-1">Generar reporte</button>
             </div>

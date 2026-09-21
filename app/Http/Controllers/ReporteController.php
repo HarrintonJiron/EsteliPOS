@@ -43,8 +43,8 @@ class ReporteController extends Controller
                 $data = $this->getKardexReport($request);
                 break;
             case 'profit':
-                $data = $this->getProfitReport($startDate, $endDate);
-                $summary = $this->getProfitSummary($startDate, $endDate);
+                $data = $this->getProfitReport($startDate, $endDate, $request);
+                $summary = $this->getProfitSummary($startDate, $endDate, $request);
                 break;
             case 'abc':
                 $rows = $this->buildAbcRows($startDate, $endDate);
@@ -222,34 +222,69 @@ class ReporteController extends Controller
         return $query->latest()->paginate(35);
     }
 
-    private function getProfitReport($startDate, $endDate)
+    private function getProfitReport($startDate, $endDate, ?Request $request = null)
     {
-        return Sale::with('details.product')
+        $query = Sale::with('details.product')
             ->whereBetween('date', [$startDate, $endDate])
-            ->where('status', 'completed')
-            ->latest()
-            ->paginate(35);
+            ->where('status', 'completed');
+
+        if ($request && $request->filled('branch_id')) {
+            $query->where('branch_id', $request->branch_id);
+        }
+
+        return $query->latest()->paginate(35);
     }
 
-    private function getProfitSummary($startDate, $endDate)
+    private function getProfitSummary($startDate, $endDate, ?Request $request = null)
     {
-        $sales = Sale::whereBetween('date', [$startDate, $endDate])
-            ->where('status', 'completed')
-            ->sum('total');
+        $query = Sale::whereBetween('date', [$startDate, $endDate])
+            ->where('status', 'completed');
 
-        $costs = DB::table('sale_details')
+        if ($request && $request->filled('branch_id')) {
+            $query->where('branch_id', $request->branch_id);
+        }
+
+        $sales = $query->sum('total');
+
+        $costQuery = DB::table('sale_details')
             ->join('sales', 'sale_details.sale_id', '=', 'sales.id')
             ->join('products', 'sale_details.product_id', '=', 'products.id')
             ->whereBetween('sales.date', [$startDate, $endDate])
-            ->where('sales.status', 'completed')
-            ->select(DB::raw('SUM(sale_details.quantity * products.purchase_price) as total_cost'))
+            ->where('sales.status', 'completed');
+
+        if ($request && $request->filled('branch_id')) {
+            $costQuery->where('sales.branch_id', $request->branch_id);
+        }
+
+        $costs = $costQuery->select(DB::raw('SUM(sale_details.quantity * products.purchase_price) as total_cost'))
             ->value('total_cost');
+
+        // Get profit by branch
+        $byBranchQuery = DB::table('sales')
+            ->select(
+                'branch_id',
+                DB::raw('SUM(total) as total_sales'),
+                DB::raw('SUM(sale_details.quantity * products.purchase_price) as total_cost'),
+                DB::raw('SUM(total) - SUM(sale_details.quantity * products.purchase_price) as gross_profit')
+            )
+            ->join('sale_details', 'sales.id', '=', 'sale_details.sale_id')
+            ->join('products', 'sale_details.product_id', '=', 'products.id')
+            ->whereBetween('sales.date', [$startDate, $endDate])
+            ->where('sales.status', 'completed')
+            ->groupBy('branch_id');
+
+        if ($request && $request->filled('branch_id')) {
+            $byBranchQuery->where('sales.branch_id', $request->branch_id);
+        }
+
+        $byBranch = $byBranchQuery->get();
 
         return [
             'total_sales' => $sales,
             'total_cost' => $costs ?? 0,
             'gross_profit' => $sales - ($costs ?? 0),
             'profit_margin' => $sales > 0 ? (($sales - ($costs ?? 0)) / $sales) * 100 : 0,
+            'by_branch' => $byBranch,
         ];
     }
 
