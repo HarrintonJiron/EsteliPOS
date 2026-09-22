@@ -597,6 +597,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentClient = null;
     let selectedItemIndex = -1;
     let padBuffer = '';
+    let quantityEditorOpen = false;
+    let replaceQuantityOnNextInput = true;
     let currentCategory = 'all';
     let orderDiscountPct = 0;
     let ticketCounter = parseInt(localStorage.getItem('pos_ticket_counter') || '1');
@@ -1208,7 +1210,8 @@ document.addEventListener('DOMContentLoaded', function() {
             container.innerHTML = '';
             emptyMsg.classList.remove('hidden');
             selectedItemIndex = -1;
-            document.getElementById('selectedItemBar').classList.add('hidden');
+            quantityEditorOpen = false;
+            syncQuantityEditor();
             updateTotals();
             return;
         }
@@ -1252,22 +1255,23 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `).join('');
 
-        if (selectedItemIndex >= 0 && ticket[selectedItemIndex]) {
-            document.getElementById('selectedItemBar').classList.remove('hidden');
-            document.getElementById('selectedItemName').textContent = ticket[selectedItemIndex].name;
-            document.getElementById('selectedItemQty').textContent = ticket[selectedItemIndex].quantity;
-        }
+        syncQuantityEditor();
         updateTotals();
     }
 
     window.selectTicketItem = function(idx) {
+        if (!ticket[idx]) return;
         selectedItemIndex = idx;
         padBuffer = String(ticket[idx].quantity);
+        quantityEditorOpen = true;
+        replaceQuantityOnNextInput = true;
         renderTicket();
-        expandPosPad();
+        setPosPadOpen(false);
+        revealTicketLine(idx);
+        focusQuantityInput();
     };
 
-    window.addProductToTicket = function(productId, qty = 1, unitId = null) {
+    window.addProductToTicket = function(productId, qty = 1, unitId = null, openQuantityEditor = false) {
         const product = products.find(p => p.id == productId);
         if (!product) return;
 
@@ -1305,8 +1309,11 @@ document.addEventListener('DOMContentLoaded', function() {
             existing.max_stock = maxQty;
             existing.source_warehouse_id = product.preferred_warehouse_id || selectedWarehouseId;
             existing.source_warehouse_name = product.preferred_warehouse_name || null;
-            renderTicket();
-            revealTicketLine(existingIdx);
+            if (openQuantityEditor) selectTicketItem(existingIdx);
+            else {
+                renderTicket();
+                revealTicketLine(existingIdx);
+            }
             return;
         }
 
@@ -1323,8 +1330,12 @@ document.addEventListener('DOMContentLoaded', function() {
             source_warehouse_id: product.preferred_warehouse_id || selectedWarehouseId,
             source_warehouse_name: product.preferred_warehouse_name || null,
         });
-        renderTicket();
-        revealTicketLine(ticket.length - 1);
+        const newIndex = ticket.length - 1;
+        if (openQuantityEditor) selectTicketItem(newIndex);
+        else {
+            renderTicket();
+            revealTicketLine(newIndex);
+        }
     };
 
     window.changeTicketUnit = function(idx, unitId) {
@@ -1403,16 +1414,80 @@ document.addEventListener('DOMContentLoaded', function() {
         ticket.splice(idx, 1);
         selectedItemIndex = -1;
         padBuffer = '';
+        quantityEditorOpen = false;
+        replaceQuantityOnNextInput = true;
+        renderTicket();
+    };
+
+    function syncQuantityEditor() {
+        const tools = document.getElementById('posQuantityTools');
+        const pad = document.getElementById('posNumpad');
+        const item = selectedItemIndex >= 0 ? ticket[selectedItemIndex] : null;
+        const canOpen = quantityEditorOpen && !!item;
+
+        tools?.classList.toggle('hidden', !canOpen);
+        pad?.classList.toggle('hidden', !canOpen);
+
+        if (!canOpen) {
+            pad?.classList.remove('pos-pad--open');
+            document.getElementById('posPadToggle')?.setAttribute('aria-expanded', 'false');
+            return;
+        }
+
+        document.getElementById('selectedItemName').textContent = item.name;
+        const quantityInput = document.getElementById('selectedItemQty');
+        if (quantityInput) quantityInput.value = padBuffer || String(item.quantity);
+    }
+
+    function focusQuantityInput() {
+        const quantityInput = document.getElementById('selectedItemQty');
+        if (!quantityEditorOpen || !quantityInput) return;
+
+        window.setTimeout(() => {
+            const posShell = document.getElementById('posApp');
+            const shellScrollTop = posShell?.scrollTop ?? 0;
+            if (window.matchMedia('(max-width: 767px)').matches) {
+                const ticketColumn = document.querySelector('.pos-ticket-col');
+                const editor = document.getElementById('selectedItemBar');
+                if (ticketColumn && editor) {
+                    const columnBox = ticketColumn.getBoundingClientRect();
+                    const editorBox = editor.getBoundingClientRect();
+                    const margin = 8;
+
+                    if (editorBox.bottom > columnBox.bottom - margin) {
+                        ticketColumn.scrollTop += editorBox.bottom - columnBox.bottom + margin;
+                    } else if (editorBox.top < columnBox.top + margin) {
+                        ticketColumn.scrollTop -= columnBox.top - editorBox.top + margin;
+                    }
+                }
+            }
+            quantityInput.focus({ preventScroll: true });
+            quantityInput.setSelectionRange(0, quantityInput.value.length);
+            if (posShell) posShell.scrollTop = shellScrollTop;
+        }, 0);
+    }
+
+    window.hideQuantityEditor = function() {
+        quantityEditorOpen = false;
+        selectedItemIndex = -1;
+        padBuffer = '';
+        replaceQuantityOnNextInput = true;
+        setPosPadOpen(false);
         renderTicket();
     };
 
     function setPosPadOpen(open) {
         const pad = document.getElementById('posNumpad');
         const toggle = document.getElementById('posPadToggle');
+        const label = document.getElementById('posPadToggleLabel');
+        const canOpen = quantityEditorOpen && selectedItemIndex >= 0 && !!ticket[selectedItemIndex];
         if (!pad) return;
-        pad.classList.toggle('pos-pad--open', open);
-        if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        if (open && selectedItemIndex >= 0) {
+
+        pad.classList.toggle('hidden', !canOpen);
+        pad.classList.toggle('pos-pad--open', canOpen && open);
+        if (toggle) toggle.setAttribute('aria-expanded', canOpen && open ? 'true' : 'false');
+        if (label) label.textContent = canOpen && open ? 'Ocultar teclado' : 'Mostrar teclado';
+        if (canOpen && open && selectedItemIndex >= 0) {
             window.setTimeout(() => revealTicketLine(selectedItemIndex), 280);
         }
     }
@@ -1430,55 +1505,99 @@ document.addEventListener('DOMContentLoaded', function() {
     window.padInput = function(key) {
         if (selectedItemIndex < 0) {
             alert('Selecciona un producto del ticket para editar cantidad');
-            return;
+            return false;
         }
-        expandPosPad();
-        if (padBuffer === '0' && key !== '.') padBuffer = key;
-        else padBuffer += key;
-        document.getElementById('selectedItemQty').textContent = padBuffer || '0';
+        if (key === '.' && padBuffer.includes('.') && !replaceQuantityOnNextInput) return false;
+
+        if (replaceQuantityOnNextInput) {
+            padBuffer = key === '.' ? '0.' : key;
+            replaceQuantityOnNextInput = false;
+        } else if (padBuffer === '0' && key !== '.') {
+            padBuffer = key;
+        } else {
+            padBuffer += key;
+        }
+
+        const quantityInput = document.getElementById('selectedItemQty');
+        if (quantityInput) quantityInput.value = padBuffer || '0';
+
+        return true;
     };
 
     window.padBackspace = function() {
+        replaceQuantityOnNextInput = false;
         padBuffer = padBuffer.slice(0, -1);
         if (selectedItemIndex >= 0) {
-            document.getElementById('selectedItemQty').textContent = padBuffer || '0';
+            document.getElementById('selectedItemQty').value = padBuffer || '0';
         }
     };
 
-    window.padAdjust = function(delta) {
-        if (selectedItemIndex < 0) return;
-        const item = ticket[selectedItemIndex];
+    function applyTicketQuantity(idx, rawQuantity) {
+        const item = ticket[idx];
+        if (!item) return false;
+
+        const normalized = String(rawQuantity).trim().replace(',', '.');
+        const qty = Number.parseFloat(normalized);
         const product = products.find(p => p.id == item.product_id);
-        const maxStock = maxPresentationQty(product, productUnit(product, item.unit_id), selectedItemIndex);
+        const unit = productUnit(product, item.unit_id);
+        const maxStock = maxPresentationQty(product, unit, idx);
+
+        if (!Number.isFinite(qty) || qty <= 0) {
+            alert('Ingresa una cantidad mayor que cero.');
+            focusQuantityInput();
+            return false;
+        }
+        if (qty > maxStock) {
+            alert(`Stock máximo: ${formatQty(maxStock)} ${item.unit_label || ''} (hay ${formatQty(product?.total_stock ?? 0)} ${product?.base_unit_label || 'und'})`);
+            focusQuantityInput();
+            return false;
+        }
+
+        item.quantity = Math.round(qty * 10000) / 10000;
+        item.price = tierPrice(unit, item.quantity);
+        item.max_stock = maxStock;
+        padBuffer = String(item.quantity);
+        replaceQuantityOnNextInput = true;
+        renderTicket();
+
+        return true;
+    }
+
+    window.padAdjust = function(delta) {
+        if (selectedItemIndex < 0) return false;
+        const item = ticket[selectedItemIndex];
         const current = parseFloat(padBuffer || item.quantity) || 1;
         const next = Math.round((current + delta) * 100) / 100;
-        if (next < 0.01) return;
-        if (next > maxStock) {
-            alert(`Stock máximo: ${formatQty(maxStock)} ${item.unit_label || ''} (hay ${formatQty(product?.total_stock ?? 0)} ${product?.base_unit_label || 'und'})`);
-            return;
-        }
-        item.quantity = next;
-        padBuffer = String(next);
-        renderTicket();
+        if (next < 0.01) return false;
+
+        return applyTicketQuantity(selectedItemIndex, next);
     };
 
     window.padConfirm = function() {
-        if (selectedItemIndex < 0) return;
-        const qty = parseFloat(padBuffer) || 1;
-        const item = ticket[selectedItemIndex];
-        const product = products.find(p => p.id == item.product_id);
-        const maxStock = maxPresentationQty(product, productUnit(product, item.unit_id), selectedItemIndex);
+        if (selectedItemIndex < 0) return false;
 
-        if (qty <= 0) { alert('Cantidad inválida'); return; }
-        if (qty > maxStock) {
-            alert(`Stock máximo: ${formatQty(maxStock)} ${item.unit_label || ''} (hay ${formatQty(product?.total_stock ?? 0)} ${product?.base_unit_label || 'und'})`);
-            return;
-        }
-
-        item.quantity = qty;
-        padBuffer = '';
-        renderTicket();
+        return applyTicketQuantity(selectedItemIndex, padBuffer);
     };
+
+    const quantityInput = document.getElementById('selectedItemQty');
+    quantityInput?.addEventListener('input', (event) => {
+        const normalized = event.target.value.replace(',', '.');
+        const cleaned = normalized.replace(/[^0-9.]/g, '');
+        const parts = cleaned.split('.');
+        padBuffer = parts.length > 1 ? `${parts.shift()}.${parts.join('')}` : cleaned;
+        event.target.value = padBuffer;
+        replaceQuantityOnNextInput = false;
+    });
+    quantityInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            if (padConfirm()) hideQuantityEditor();
+        }
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            hideQuantityEditor();
+        }
+    });
 
     function renderProducts(filter = '') {
         const grid = document.querySelector('#productsGrid > div');
@@ -1530,7 +1649,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     title="${p.image_url ? 'Cambiar imagen' : 'Cargar imagen'}">
                     <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 </button>
-                <button type="button" onclick="addProductToTicket(${p.id}, 1, cardUnitId(${p.id}))" ${outStock ? 'disabled' : ''}
+                <button type="button" onclick="addProductToTicket(${p.id}, 1, cardUnitId(${p.id}), true)" ${outStock ? 'disabled' : ''}
                     class="w-full text-left ${outStock ? 'cursor-not-allowed' : ''}">
                     <div class="flex h-14 w-full items-center justify-center overflow-hidden border-b border-slate-100 bg-slate-100">
                         ${imageBlock}
@@ -1962,6 +2081,24 @@ document.addEventListener('DOMContentLoaded', function() {
         const editingText = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable;
         const openModal = visibleModal();
 
+        if (!openModal && quantityEditorOpen && selectedItemIndex >= 0 && !editingText) {
+            if (/^[0-9]$/.test(e.key) || e.key === '.' || e.key === ',') {
+                e.preventDefault();
+                padInput(e.key === ',' ? '.' : e.key);
+                return;
+            }
+            if (e.key === 'Backspace') {
+                e.preventDefault();
+                padBackspace();
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (padConfirm()) hideQuantityEditor();
+                return;
+            }
+        }
+
         if (supportedFunctionKeys.includes(e.key)) {
             e.preventDefault();
             if (e.repeat) return;
@@ -2018,6 +2155,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Escape') {
             e.preventDefault();
             if (openModal) openModal.classList.add('hidden');
+            else if (quantityEditorOpen) hideQuantityEditor();
             else if (editingText) e.target.blur();
             return;
         }
