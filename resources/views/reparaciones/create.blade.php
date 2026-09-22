@@ -292,9 +292,9 @@
                 <div class="repair-section">
                     <div class="repair-section-head">Foto de {{ $isJewelry ? 'la joya' : 'el equipo o artículo' }}</div>
                     <div class="repair-section-body">
-                        <label class="repair-label" for="photos">Estado al recibirla</label>
-                        <input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" class="input-field w-full" data-photo-input>
-                        <p class="mt-1 text-xs text-slate-500">Una foto. JPG, PNG o WebP, máximo 2 MB. Se optimiza automáticamente.</p>
+                        <label class="repair-label" for="photos">Estado al recibir{{ $isJewelry ? 'la' : ' el equipo' }}</label>
+                        <input id="photos" name="photos[]" type="file" accept="image/jpeg,image/png,image/webp" multiple class="input-field w-full" data-photo-input data-max-photos="5">
+                        <p class="mt-1 text-xs text-slate-500">Hasta 5 fotografías. JPG, PNG o WebP, máximo 8 MB cada una. Se optimizan automáticamente.</p>
                         <div data-photo-preview class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"></div>
                     </div>
                 </div>
@@ -517,7 +517,7 @@ let isDrawingPattern = false;
 document.querySelectorAll('[data-photo-input]').forEach((input) => {
     input.addEventListener('change', () => {
         const preview = document.querySelector('[data-photo-preview]');
-        const files = Array.from(input.files).slice(0, 1);
+        const files = Array.from(input.files).slice(0, Number(input.dataset.maxPhotos || 5));
         preview.innerHTML = '';
         files.forEach((file) => {
             const image = document.createElement('img');

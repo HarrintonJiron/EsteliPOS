@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Schema;
 
 class RepairOrder extends Model
 {
+    public const MAX_PHOTOS = 5;
+
     protected $fillable = [
         'order_number',
         'order_type',

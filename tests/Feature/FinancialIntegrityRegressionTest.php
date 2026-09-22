@@ -137,7 +137,7 @@ test('repair order stores one optimized photo', function () {
         'priority' => 'normal',
         'received_date' => now()->toDateString(),
         'payment_type' => 'cash',
-        'photo' => UploadedFile::fake()->image('joya.jpg', 1800, 1200),
+        'photos' => [UploadedFile::fake()->image('joya.jpg', 1800, 1200)],
     ])->assertRedirect();
 
     $order = RepairOrder::query()->latest('id')->firstOrFail();
@@ -145,6 +145,48 @@ test('repair order stores one optimized photo', function () {
         ->and($order->photos->first()->path)->toEndWith('.webp');
     Storage::disk('public')->assertExists($order->photos->first()->path);
     $this->get($order->photos->first()->url)->assertOk();
+});
+
+test('workshop order accepts up to five optimized photos', function () {
+    Storage::fake('public');
+    $admin = financialIntegrityAdmin();
+    Module::query()->where('slug', 'reparaciones')->update(['is_active' => true]);
+    $photos = collect(range(1, 5))->map(fn ($number) => UploadedFile::fake()->image("pieza-{$number}.jpg", 1800, 1200))->all();
+
+    $this->actingAs($admin)->post(route('reparaciones.store'), [
+        'client_name' => 'Cliente cinco fotos',
+        'device_brand' => 'Samsung',
+        'device_model' => 'A55',
+        'problem_description' => 'Diagnóstico general',
+        'status' => 'received',
+        'priority' => 'normal',
+        'received_date' => now()->toDateString(),
+        'payment_type' => 'cash',
+        'photos' => $photos,
+    ])->assertRedirect();
+
+    $order = RepairOrder::query()->latest('id')->firstOrFail();
+    expect($order->photos)->toHaveCount(5);
+    $order->photos->each(fn ($photo) => Storage::disk('public')->assertExists($photo->path));
+});
+
+test('workshop order rejects more than five photos', function () {
+    Storage::fake('public');
+    $admin = financialIntegrityAdmin();
+    Module::query()->where('slug', 'reparaciones')->update(['is_active' => true]);
+    $photos = collect(range(1, 6))->map(fn ($number) => UploadedFile::fake()->image("pieza-{$number}.jpg", 300, 300))->all();
+
+    $this->actingAs($admin)->from(route('reparaciones.create'))->post(route('reparaciones.store'), [
+        'client_name' => 'Cliente seis fotos',
+        'device_brand' => 'Samsung',
+        'device_model' => 'A55',
+        'problem_description' => 'Diagnóstico general',
+        'status' => 'received',
+        'priority' => 'normal',
+        'received_date' => now()->toDateString(),
+        'payment_type' => 'cash',
+        'photos' => $photos,
+    ])->assertRedirect(route('reparaciones.create'))->assertSessionHasErrors('photos');
 });
 
 test('cash repair payments are posted and included in the cash closing', function () {

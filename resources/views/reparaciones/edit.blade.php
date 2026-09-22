@@ -63,7 +63,7 @@
                 <div class="card p-5 space-y-3">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-2">
                         <h2 class="font-semibold text-slate-800">Foto de {{ $isJewelry ? 'la joya' : 'el equipo o artículo' }}</h2>
-                        <span class="text-xs font-medium text-slate-500">{{ $order->photos->isNotEmpty() ? '1/1' : '0/1' }}</span>
+                        <span class="text-xs font-medium text-slate-500">{{ $order->photos->count() }}/5</span>
                     </div>
                     @if($order->photos->isNotEmpty())
                         <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -74,11 +74,12 @@
                                 </div>
                             @endforeach
                         </div>
-                    @else
+                    @endif
+                    @if($order->photos->count() < 5)
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1" for="photo">Agregar foto</label>
-                            <input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" class="input-field" data-photo-input>
-                            <p class="mt-1 text-xs text-slate-500">Una foto. JPG, PNG o WebP, máximo 2 MB. Se optimiza automáticamente.</p>
+                            <label class="block text-sm text-slate-600 mb-1" for="photos">Agregar fotografías</label>
+                            <input id="photos" name="photos[]" type="file" accept="image/jpeg,image/png,image/webp" multiple class="input-field" data-photo-input data-max-photos="{{ 5 - $order->photos->count() }}">
+                            <p class="mt-1 text-xs text-slate-500">Puedes agregar {{ 5 - $order->photos->count() }} más. Máximo 8 MB cada una; se optimizan automáticamente.</p>
                             <div data-photo-preview class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"></div>
                         </div>
                     @endif
@@ -433,7 +434,7 @@ let isDrawingPattern = false;
 document.querySelectorAll('[data-photo-input]').forEach((input) => {
     input.addEventListener('change', () => {
         const preview = document.querySelector('[data-photo-preview]');
-        const files = Array.from(input.files).slice(0, 1);
+        const files = Array.from(input.files).slice(0, Number(input.dataset.maxPhotos || 5));
         preview.innerHTML = '';
         files.forEach((file) => {
             const image = document.createElement('img');

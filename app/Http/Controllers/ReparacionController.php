@@ -291,7 +291,8 @@ class ReparacionController extends Controller
             'items.*.service_id' => ['nullable', Rule::exists('repair_services', 'id')->where('workshop_type', $this->workshopType())],
             'items.*.item_type' => 'nullable|in:part,service',
             'items.*.device_brand' => 'nullable|string|max:60',
-            'photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048|dimensions:max_width=3000,max_height=3000',
+            'photos' => 'nullable|array|max:'.RepairOrder::MAX_PHOTOS,
+            'photos.*' => 'image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
         ], $this->timeValidationMessages());
 
         $this->ensureSingleDiscountType($validated);
@@ -383,7 +384,7 @@ class ReparacionController extends Controller
                 ]);
             }
 
-            $this->storePhoto($order, $request->file('photo'));
+            $this->storePhotos($order, $request->file('photos', []));
 
             if (RepairOrder::supportsPaymentTracking()) {
                 app(AccountingService::class)->recordRepairPayment($order->fresh());
@@ -461,13 +462,16 @@ class ReparacionController extends Controller
             'items.*.service_id' => ['nullable', Rule::exists('repair_services', 'id')->where('workshop_type', $this->workshopType())],
             'items.*.item_type' => 'nullable|in:part,service',
             'items.*.device_brand' => 'nullable|string|max:60',
-            'photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048|dimensions:max_width=3000,max_height=3000',
+            'photos' => 'nullable|array|max:'.RepairOrder::MAX_PHOTOS,
+            'photos.*' => 'image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
         ], $this->timeValidationMessages());
 
         $this->ensureSingleDiscountType($validated);
 
-        if ($request->hasFile('photo') && $order->photos()->exists()) {
-            throw ValidationException::withMessages(['photo' => 'Elimina la foto actual antes de agregar otra.']);
+        if ($order->photos()->count() + count($request->file('photos', [])) > RepairOrder::MAX_PHOTOS) {
+            throw ValidationException::withMessages([
+                'photos' => 'Cada orden admite hasta '.RepairOrder::MAX_PHOTOS.' fotografías. Elimina alguna antes de agregar más.',
+            ]);
         }
 
         $lockData = $this->workshopType() === 'jewelry'
@@ -586,7 +590,7 @@ class ReparacionController extends Controller
                 ]);
             }
 
-            $this->storePhoto($order, $request->file('photo'));
+            $this->storePhotos($order, $request->file('photos', []));
 
             if ($financialDataChanged) {
                 app(AccountingService::class)->recordRepairPayment($order->fresh());
@@ -731,12 +735,16 @@ class ReparacionController extends Controller
         ];
     }
 
-    private function storePhoto(RepairOrder $order, ?UploadedFile $photo): void
+    /** @param array<int, UploadedFile> $photos */
+    private function storePhotos(RepairOrder $order, array $photos): void
     {
-        if (! $photo) {
-            return;
+        foreach ($photos as $photo) {
+            $this->storePhoto($order, $photo);
         }
+    }
 
+    private function storePhoto(RepairOrder $order, UploadedFile $photo): void
+    {
         $source = imagecreatefromstring(file_get_contents($photo->getRealPath()));
         if ($source === false) {
             throw ValidationException::withMessages(['photo' => 'No fue posible procesar la imagen.']);
