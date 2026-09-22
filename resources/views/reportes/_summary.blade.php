@@ -21,17 +21,14 @@
         <x-ui.stat-card label="Costos" :value="'C$ ' . number_format($summary['total_cost'] ?? 0, 2)" accent="#dc2626" />
         <x-ui.stat-card label="Ganancia bruta" :value="'C$ ' . number_format($summary['gross_profit'] ?? 0, 2)" :accent="($summary['gross_profit'] ?? 0) >= 0 ? '#059669' : '#dc2626'" />
         <x-ui.stat-card label="Margen" :value="number_format($summary['profit_margin'] ?? 0, 1) . '%'" :accent="($summary['profit_margin'] ?? 0) >= 0 ? '#0d9488' : '#dc2626'" />
-        
+
         @if(isset($summary['by_branch']) && $summary['by_branch']->isNotEmpty())
             <div class="col-span-full mt-4">
                 <h3 class="text-sm font-semibold text-slate-900 mb-3">Rentabilidad por sucursal</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     @foreach($summary['by_branch'] as $branchProfit)
-                        @php
-                            $branch = \App\Models\Branch::find($branchProfit->branch_id);
-                        @endphp
                         <div class="rounded-lg border border-slate-200 bg-white p-3">
-                            <p class="text-xs font-medium text-slate-700">{{ $branch ? $branch->name : 'Sucursal ' . $branchProfit->branch_id }}</p>
+                            <p class="text-xs font-medium text-slate-700">{{ $branchProfit->branch_name }}</p>
                             <p class="mt-1 text-sm font-semibold text-slate-900">C$ {{ number_format($branchProfit->gross_profit, 2) }}</p>
                             <p class="mt-1 text-xs text-slate-500">Ventas: C$ {{ number_format($branchProfit->total_sales, 2) }}</p>
                         </div>

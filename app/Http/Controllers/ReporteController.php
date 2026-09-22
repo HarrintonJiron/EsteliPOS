@@ -237,11 +237,12 @@ class ReporteController extends Controller
 
     private function getProfitSummary($startDate, $endDate, ?Request $request = null)
     {
+        $branchId = $request?->filled('branch_id') ? $request->integer('branch_id') : null;
         $query = Sale::whereBetween('date', [$startDate, $endDate])
             ->where('status', 'completed');
 
-        if ($request && $request->filled('branch_id')) {
-            $query->where('branch_id', $request->branch_id);
+        if ($branchId) {
+            $query->where('branch_id', $branchId);
         }
 
         $sales = $query->sum('total');
@@ -252,32 +253,51 @@ class ReporteController extends Controller
             ->whereBetween('sales.date', [$startDate, $endDate])
             ->where('sales.status', 'completed');
 
-        if ($request && $request->filled('branch_id')) {
-            $costQuery->where('sales.branch_id', $request->branch_id);
+        if ($branchId) {
+            $costQuery->where('sales.branch_id', $branchId);
         }
 
-        $costs = $costQuery->select(DB::raw('SUM(sale_details.quantity * products.purchase_price) as total_cost'))
+        $costs = $costQuery->select(DB::raw('SUM(COALESCE(sale_details.base_quantity, sale_details.quantity) * products.purchase_price) as total_cost'))
             ->value('total_cost');
 
-        // Get profit by branch
-        $byBranchQuery = DB::table('sales')
+        $branchSales = DB::table('sales')
             ->select(
                 'branch_id',
-                DB::raw('SUM(total) as total_sales'),
-                DB::raw('SUM(sale_details.quantity * products.purchase_price) as total_cost'),
-                DB::raw('SUM(total) - SUM(sale_details.quantity * products.purchase_price) as gross_profit')
+                DB::raw('SUM(total) as total_sales')
+            )
+            ->whereBetween('date', [$startDate, $endDate])
+            ->where('status', 'completed')
+            ->groupBy('branch_id');
+
+        $branchCosts = DB::table('sales')
+            ->select(
+                'sales.branch_id',
+                DB::raw('SUM(COALESCE(sale_details.base_quantity, sale_details.quantity) * products.purchase_price) as total_cost')
             )
             ->join('sale_details', 'sales.id', '=', 'sale_details.sale_id')
             ->join('products', 'sale_details.product_id', '=', 'products.id')
             ->whereBetween('sales.date', [$startDate, $endDate])
             ->where('sales.status', 'completed')
-            ->groupBy('branch_id');
+            ->groupBy('sales.branch_id');
 
-        if ($request && $request->filled('branch_id')) {
-            $byBranchQuery->where('sales.branch_id', $request->branch_id);
+        if ($branchId) {
+            $branchSales->where('branch_id', $branchId);
+            $branchCosts->where('sales.branch_id', $branchId);
         }
 
-        $byBranch = $byBranchQuery->get();
+        $byBranch = DB::query()
+            ->fromSub($branchSales, 'branch_sales')
+            ->leftJoinSub($branchCosts, 'branch_costs', 'branch_costs.branch_id', '=', 'branch_sales.branch_id')
+            ->leftJoin('branches', 'branches.id', '=', 'branch_sales.branch_id')
+            ->select([
+                'branch_sales.branch_id',
+                DB::raw("COALESCE(branches.name, 'Sin sucursal') as branch_name"),
+                'branch_sales.total_sales',
+                DB::raw('COALESCE(branch_costs.total_cost, 0) as total_cost'),
+                DB::raw('branch_sales.total_sales - COALESCE(branch_costs.total_cost, 0) as gross_profit'),
+            ])
+            ->orderBy('branch_name')
+            ->get();
 
         return [
             'total_sales' => $sales,
