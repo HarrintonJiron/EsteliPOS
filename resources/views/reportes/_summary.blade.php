@@ -29,7 +29,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     @foreach($summary['by_branch'] as $branchProfit)
                         <div class="rounded-lg border border-slate-200 bg-white p-3">
-                            <p class="text-xs font-medium text-slate-700">{{ $branchProfit->branch_name }}</p>
+                            <p class="text-xs font-medium text-slate-700">{{ $branchProfit->branch_name ?? 'Sucursal ' . $branchProfit->branch_id }}</p>
                             <p class="mt-1 text-sm font-semibold text-slate-900">C$ {{ number_format($branchProfit->gross_profit, 2) }}</p>
                             <p class="mt-1 text-xs text-slate-500">Ventas: C$ {{ number_format($branchProfit->total_sales, 2) }}</p>
                         </div>

@@ -241,6 +241,11 @@ class Product extends Model
         return $this->hasMany(WarehouseStock::class);
     }
 
+    public function branchSources()
+    {
+        return $this->hasMany(BranchProductSource::class);
+    }
+
     public function priceListItems()
     {
         return $this->hasMany(PriceListItem::class);

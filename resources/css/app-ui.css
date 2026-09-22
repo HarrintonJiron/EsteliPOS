@@ -2110,6 +2110,15 @@ main > div,
 }
 
 /* ── POS retractable numpad ── */
+.pos-quantity-tools {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.pos-quantity-tools.hidden {
+    display: none;
+}
+
 .pos-pad-item {
     display: flex;
     align-items: center;
@@ -2127,7 +2136,9 @@ main > div,
 }
 
 .pos-pad-item__meta {
+    flex: 1 1 auto;
     min-width: 0;
+    overflow: hidden;
 }
 
 .pos-pad-item__label {
@@ -2158,11 +2169,41 @@ main > div,
 }
 
 .pos-pad-item__value {
+    width: 5rem;
     min-width: 2.25rem;
+    padding: 0.32rem 0.45rem;
+    border: 1px solid #a5b4fc;
+    border-radius: 0.65rem;
+    outline: none;
+    background: #fff;
+    color: #1e1b4b;
     text-align: center;
     font-size: 1.05rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
+}
+
+.pos-pad-item__value:focus {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+.pos-pad-item__close {
+    display: inline-flex;
+    width: 1.85rem;
+    height: 1.85rem;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.75);
+    color: #64748b;
+    cursor: pointer;
+}
+
+.pos-pad-item__close:hover {
+    background: #fff;
+    color: #dc2626;
 }
 
 .pos-pad {
@@ -2454,6 +2495,33 @@ main > div,
 @media (max-width: 767px) {
     .pos-shell {
         flex-direction: column;
+        overflow: clip;
+    }
+
+    .pos-ticket-col {
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+    }
+
+    .pos-pad-item {
+        align-items: stretch;
+        gap: 0.5rem;
+        flex-direction: column;
+    }
+
+    .pos-pad-item__meta {
+        width: 100%;
+    }
+
+    .pos-pad-item__qty {
+        width: 100%;
+    }
+
+    .pos-pad-item__value {
+        flex: 1 1 auto;
+        width: auto;
     }
 }
 

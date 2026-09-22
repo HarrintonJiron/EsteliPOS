@@ -72,16 +72,31 @@
                 <label class="form-label" for="end_date">Hasta</label>
                 <input type="date" id="end_date" name="end_date" value="{{ $endDate }}" class="input-field">
             </div>
-            @if($reportType === 'profit' && \App\Models\Branch::count() > 1)
-                <div>
-                    <label class="form-label" for="branch_id">Sucursal</label>
-                    <select id="branch_id" name="branch_id" class="input-field">
-                        <option value="">Todas las sucursales</option>
-                        @foreach(\App\Models\Branch::orderBy('name')->get() as $branch)
-                            <option value="{{ $branch->id }}" @selected(request('branch_id') == $branch->id)>{{ $branch->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
+            @if($reportType === 'profit')
+                @php
+                    $hasBranches = \App\Models\Branch::count() > 0;
+                    $hasBranchSales = \App\Models\Sale::whereNotNull('branch_id')->exists();
+                @endphp
+                @if($hasBranches || $hasBranchSales)
+                    <div>
+                        <label class="form-label" for="branch_id">Sucursal</label>
+                        <select id="branch_id" name="branch_id" class="input-field">
+                            <option value="">Todas las sucursales</option>
+                            @if($hasBranches)
+                                @foreach(\App\Models\Branch::orderBy('name')->get() as $branch)
+                                    <option value="{{ $branch->id }}" @selected(request('branch_id') == $branch->id)>{{ $branch->name }}</option>
+                                @endforeach
+                            @else
+                                @php
+                                    $branchIds = \App\Models\Sale::whereNotNull('branch_id')->distinct('branch_id')->pluck('branch_id');
+                                @endphp
+                                @foreach($branchIds as $branchId)
+                                    <option value="{{ $branchId }}" @selected(request('branch_id') == $branchId)>Sucursal {{ $branchId }}</option>
+                                @endforeach
+                            @endif
+                        </select>
+                    </div>
+                @endif
             @endif
             <div class="flex items-end gap-2">
                 <button type="submit" class="btn-primary flex-1">Generar reporte</button>

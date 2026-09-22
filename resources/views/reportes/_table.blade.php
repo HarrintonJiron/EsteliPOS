@@ -165,6 +165,7 @@
                     <tr>
                         <th>Factura</th>
                         <th>Fecha</th>
+                        <th>Sucursal</th>
                         <th class="text-right">Venta</th>
                         <th class="text-right">Costo</th>
                         <th class="text-right">Ganancia</th>
@@ -174,13 +175,14 @@
                 <tbody>
                     @forelse($data as $sale)
                         @php
-                            $cost = $sale->details->sum(fn ($d) => $d->quantity * ($d->product?->purchase_price ?? 0));
-                            $profit = $sale->total - $cost;
-                            $margin = $sale->total > 0 ? ($profit / $sale->total) * 100 : 0;
+                            $cost = (float) $sale->calculated_cost;
+                            $profit = (float) $sale->calculated_profit;
+                            $margin = (float) $sale->calculated_margin;
                         @endphp
                         <tr>
                             <td class="font-medium">{{ $sale->invoice_number ?? '#' . $sale->id }}</td>
                             <td>{{ $sale->date->format('d/m/Y') }}</td>
+                            <td>{{ $sale->branch?->name ?? 'Sin sucursal' }}</td>
                             <td class="text-right">C$ {{ number_format($sale->total, 2) }}</td>
                             <td class="text-right">C$ {{ number_format($cost, 2) }}</td>
                             <td class="text-right font-semibold {{ $profit >= 0 ? 'text-emerald-600' : 'text-red-600' }}">
@@ -191,7 +193,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6">@include('reportes._empty')</td></tr>
+                        <tr><td colspan="7">@include('reportes._empty')</td></tr>
                     @endforelse
                 </tbody>
 
