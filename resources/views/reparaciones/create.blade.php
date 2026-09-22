@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('hide_back', true)
 
-@section('title', 'Nueva Orden de Reparación')
+@section('title', 'Nueva Orden de ' . $workshopName)
 
 @section('content')
 <style>
@@ -118,12 +118,12 @@
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
             </div>
             <div class="min-w-0">
-                <h1 class="text-lg sm:text-xl font-bold text-slate-900 truncate">Nueva Orden de Reparación</h1>
-                <p class="text-xs text-slate-500">Ingreso rápido de equipo al taller</p>
+                <h1 class="text-lg sm:text-xl font-bold text-slate-900 truncate">Nueva Orden de {{ $workshopName }}</h1>
+                <p class="text-xs text-slate-500">Ingreso rápido de {{ $itemName }} al taller</p>
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <a href="{{ route('reparaciones.index') }}" class="btn-outline text-xs py-1.5 px-3">← Volver</a>
+            <a href="{{ route($routePrefix.'.index') }}" class="btn-outline text-xs py-1.5 px-3">← Volver</a>
             <button type="submit" form="repairForm" class="btn-primary text-xs py-1.5 px-4 lg:hidden">Guardar</button>
         </div>
     </div>
@@ -134,7 +134,7 @@
     </div>
     @endif
 
-    <form action="{{ route('reparaciones.store') }}" method="POST" id="repairForm" enctype="multipart/form-data">
+    <form action="{{ route($routePrefix.'.store') }}" method="POST" id="repairForm" enctype="multipart/form-data">
         @csrf
 
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_18.5rem] xl:grid-cols-[minmax(0,1fr)_20rem] gap-3">
@@ -146,7 +146,7 @@
                 <div class="repair-section">
                     <div class="repair-section-head">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                        Cliente y Equipo
+                        Cliente y {{ $isJewelry ? 'Pieza' : 'Equipo' }}
                     </div>
                     <div class="repair-section-body space-y-3">
                         <div>
@@ -204,10 +204,10 @@
                                     <input type="text" name="device_color" value="{{ old('device_color') }}" class="input-field w-full" placeholder="Negro">
                                 </div>
                                 <div>
-                                    <label class="repair-label">IMEI / Serie</label>
+                                    <label class="repair-label">{{ $isJewelry ? 'Serie / Referencia' : 'IMEI / Serie' }}</label>
                                     <input type="text" name="device_imei" value="{{ old('device_imei') }}" class="input-field w-full" placeholder="15 dígitos">
                                 </div>
-                                <div>
+                                <div @class(['hidden' => $isJewelry])>
                                     <label class="repair-label">Bloqueo</label>
                                     <select id="lockTypeSelect" name="lock_type" class="select-field w-full" onchange="toggleLockFields()">
                                         <option value="password" {{ old('lock_type') === 'password' ? 'selected' : '' }}>PIN / Clave</option>
@@ -240,7 +240,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <input type="hidden" name="device_password" id="devicePasswordHidden" value="{{ old('device_password') }}">
+                            <input type="hidden" name="device_password" id="devicePasswordHidden" value="{{ $isJewelry ? '' : old('device_password') }}">
                         </div>
                     </div>
                 </div>

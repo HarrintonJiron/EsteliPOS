@@ -31,7 +31,8 @@ class ConfigurationSeeder extends Seeder
             ['name' => 'Créditos', 'slug' => 'creditos', 'description' => 'Créditos y abonos', 'icon' => '💳', 'route' => 'creditos.index', 'is_active' => true, 'sort_order' => 10],
             ['name' => 'Proformas', 'slug' => 'proformas', 'description' => 'Cotizaciones', 'icon' => '📄', 'route' => 'proformas.index', 'is_active' => true, 'sort_order' => 11],
             ['name' => 'Reparaciones', 'slug' => 'reparaciones', 'description' => 'Órdenes de reparación', 'icon' => '🛠️', 'route' => 'reparaciones.index', 'is_active' => true, 'sort_order' => 12],
-            ['name' => 'Planilla', 'slug' => 'planilla', 'description' => 'Planilla y nómina', 'icon' => '🧑‍💼', 'route' => 'planilla.index', 'is_active' => true, 'sort_order' => 13],
+            ['name' => 'Joyería', 'slug' => 'joyeria', 'description' => 'Taller y órdenes de joyería', 'icon' => '💎', 'route' => 'joyeria.index', 'is_active' => false, 'sort_order' => 13],
+            ['name' => 'Planilla', 'slug' => 'planilla', 'description' => 'Planilla y nómina', 'icon' => '🧑‍💼', 'route' => 'planilla.index', 'is_active' => true, 'sort_order' => 14],
         ];
 
         foreach ($modules as $module) {

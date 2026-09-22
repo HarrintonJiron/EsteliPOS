@@ -23,18 +23,52 @@ use Illuminate\Validation\ValidationException;
 
 class ReparacionController extends Controller
 {
+    protected function workshopType(): string
+    {
+        return 'repair';
+    }
+
+    protected function workshopRoutePrefix(): string
+    {
+        return 'reparaciones';
+    }
+
+    private function workshopQuery()
+    {
+        return RepairOrder::query()->where('order_type', $this->workshopType());
+    }
+
+    private function findWorkshopOrder(int|string $id): RepairOrder
+    {
+        return $this->workshopQuery()->findOrFail($id);
+    }
+
+    private function workshopViewData(): array
+    {
+        $isJewelry = $this->workshopType() === 'jewelry';
+
+        return [
+            'routePrefix' => $this->workshopRoutePrefix(),
+            'isJewelry' => $isJewelry,
+            'workshopName' => $isJewelry ? 'Joyería' : 'Reparaciones',
+            'itemName' => $isJewelry ? 'pieza' : 'equipo',
+        ];
+    }
+
     private function nextOrderNumber(): string
     {
-        $minimum = RepairOrder::query()
+        $type = $this->workshopType() === 'jewelry' ? 'joyeria' : 'reparacion';
+        $prefix = $type === 'joyeria' ? 'JOY' : 'REP';
+        $minimum = $this->workshopQuery()
             ->whereNotNull('order_number')
             ->pluck('order_number')
-            ->reduce(function (int $max, mixed $value): int {
-                return is_string($value) && preg_match('/^REP-([0-9]+)$/', $value, $matches) === 1
+            ->reduce(function (int $max, mixed $value) use ($prefix): int {
+                return is_string($value) && preg_match("/^{$prefix}-([0-9]+)$/", $value, $matches) === 1
                     ? max($max, (int) $matches[1])
                     : $max;
             }, 0) + 1;
 
-        return NumberSequence::getNextAtLeast('reparacion', $minimum);
+        return NumberSequence::getNextAtLeast($type, $minimum);
     }
 
     private function resolveLockType(Request $request, ?RepairOrder $order = null): string
@@ -83,24 +117,24 @@ class ReparacionController extends Controller
 
     public function index(Request $request)
     {
-        $query = RepairOrder::query()->with('technician')->latest();
+        $query = $this->workshopQuery()->with('technician')->latest();
 
         $this->applyRepairIndexFilters($query, $request);
 
         $orders = $query->paginate(20)->withQueryString();
 
         $stats = [
-            'total' => RepairOrder::count(),
-            'received' => RepairOrder::where('status', 'received')->count(),
-            'in_repair' => RepairOrder::whereIn('status', ['diagnosing', 'waiting_parts', 'in_repair'])->count(),
-            'ready' => RepairOrder::where('status', 'ready')->count(),
-            'delivered' => RepairOrder::where('status', 'delivered')->count(),
-            'overdue' => RepairOrder::query()
+            'total' => $this->workshopQuery()->count(),
+            'received' => $this->workshopQuery()->where('status', 'received')->count(),
+            'in_repair' => $this->workshopQuery()->whereIn('status', ['diagnosing', 'waiting_parts', 'in_repair'])->count(),
+            'ready' => $this->workshopQuery()->where('status', 'ready')->count(),
+            'delivered' => $this->workshopQuery()->where('status', 'delivered')->count(),
+            'overdue' => $this->workshopQuery()
                 ->whereNotIn('status', ['delivered', 'cancelled'])
                 ->whereNotNull('estimated_date')
                 ->whereDate('estimated_date', '<', now()->toDateString())
                 ->count(),
-            'due_today' => RepairOrder::query()
+            'due_today' => $this->workshopQuery()
                 ->whereNotIn('status', ['delivered', 'cancelled'])
                 ->whereDate('estimated_date', now()->toDateString())
                 ->count(),
@@ -113,7 +147,7 @@ class ReparacionController extends Controller
 
         $technicians = User::query()->select('id', 'name')->orderBy('name')->get();
 
-        $deviceBrands = RepairOrder::query()
+        $deviceBrands = $this->workshopQuery()
             ->whereNotNull('device_brand')
             ->where('device_brand', '!=', '')
             ->distinct()
@@ -122,14 +156,14 @@ class ReparacionController extends Controller
 
         $filteredCount = $orders->total();
 
-        return view('reparaciones.index', compact(
+        return view('reparaciones.index', array_merge(compact(
             'orders',
             'stats',
             'expenseStats',
             'technicians',
             'deviceBrands',
             'filteredCount',
-        ));
+        ), $this->workshopViewData()));
     }
 
     private function applyRepairIndexFilters($query, Request $request): void
@@ -206,7 +240,7 @@ class ReparacionController extends Controller
         $brands = DeviceBrand::select('id', 'name')->active()->orderBy('name')->get();
         $services = RepairService::active()->orderBy('name')->get();
 
-        return view('reparaciones.create', compact('clients', 'technicians', 'products', 'brands', 'services'));
+        return view('reparaciones.create', array_merge(compact('clients', 'technicians', 'products', 'brands', 'services'), $this->workshopViewData()));
     }
 
     public function store(Request $request)
@@ -255,10 +289,12 @@ class ReparacionController extends Controller
 
         $this->ensureSingleDiscountType($validated);
 
-        $lockData = $this->normalizeLockData(
-            $this->resolveLockType($request),
-            $validated['device_password'] ?? null
-        );
+        $lockData = $this->workshopType() === 'jewelry'
+            ? ['lock_type' => 'none', 'device_password' => null]
+            : $this->normalizeLockData(
+                $this->resolveLockType($request),
+                $validated['device_password'] ?? null
+            );
         $validated['lock_type'] = $lockData['lock_type'];
         $validated['device_password'] = $lockData['device_password'];
 
@@ -282,6 +318,7 @@ class ReparacionController extends Controller
 
             $orderData = [
                 'order_number' => $this->nextOrderNumber(),
+                'order_type' => $this->workshopType(),
                 'client_id' => $validated['client_id'] ?? null,
                 'client_name' => $validated['client_name'],
                 'client_phone' => $validated['client_phone'] ?? null,
@@ -346,20 +383,20 @@ class ReparacionController extends Controller
             }
         });
 
-        return redirect()->route('reparaciones.show', $order->id)
-            ->with('success', 'Orden de reparación creada correctamente.');
+        return redirect()->route($this->workshopRoutePrefix().'.show', $order->id)
+            ->with('success', 'Orden creada correctamente.');
     }
 
     public function show($id)
     {
-        $order = RepairOrder::with('items.product', 'photos', 'client', 'technician', 'user')->findOrFail($id);
+        $order = $this->workshopQuery()->with('items.product', 'photos', 'client', 'technician', 'user')->findOrFail($id);
 
-        return view('reparaciones.show', compact('order'));
+        return view('reparaciones.show', array_merge(compact('order'), $this->workshopViewData()));
     }
 
     public function edit($id)
     {
-        $order = RepairOrder::with('items.product', 'photos')->findOrFail($id);
+        $order = $this->workshopQuery()->with('items.product', 'photos')->findOrFail($id);
         $clients = Client::select('id', 'name', 'phone')->orderBy('name')->get();
         $technicians = User::select('id', 'name')->orderBy('name')->get();
         $products = Product::select('id', 'name', 'code', 'sale_price', 'stock')
@@ -370,12 +407,12 @@ class ReparacionController extends Controller
         $brands = DeviceBrand::select('id', 'name')->active()->orderBy('name')->get();
         $services = RepairService::active()->orderBy('name')->get();
 
-        return view('reparaciones.edit', compact('order', 'clients', 'technicians', 'products', 'brands', 'services'));
+        return view('reparaciones.edit', array_merge(compact('order', 'clients', 'technicians', 'products', 'brands', 'services'), $this->workshopViewData()));
     }
 
     public function update(Request $request, $id)
     {
-        $order = RepairOrder::findOrFail($id);
+        $order = $this->findWorkshopOrder($id);
         $this->normalizeTimeInputs($request);
 
         $validated = $request->validate([
@@ -426,10 +463,12 @@ class ReparacionController extends Controller
             throw ValidationException::withMessages(['photo' => 'Elimina la foto actual antes de agregar otra.']);
         }
 
-        $lockData = $this->normalizeLockData(
-            $this->resolveLockType($request, $order),
-            $validated['device_password'] ?? null
-        );
+        $lockData = $this->workshopType() === 'jewelry'
+            ? ['lock_type' => 'none', 'device_password' => null]
+            : $this->normalizeLockData(
+                $this->resolveLockType($request, $order),
+                $validated['device_password'] ?? null
+            );
         $validated['lock_type'] = $lockData['lock_type'];
         $validated['device_password'] = $lockData['device_password'];
 
@@ -548,7 +587,7 @@ class ReparacionController extends Controller
             $this->syncWorkshopInvoice($order->fresh());
         });
 
-        return redirect()->route('reparaciones.show', $order->id)
+        return redirect()->route($this->workshopRoutePrefix().'.show', $order->id)
             ->with('success', 'Orden actualizada correctamente.');
     }
 
@@ -569,19 +608,20 @@ class ReparacionController extends Controller
 
     public function destroy($id)
     {
-        $order = RepairOrder::with('photos')->findOrFail($id);
+        $order = $this->workshopQuery()->with('photos')->findOrFail($id);
         foreach ($order->photos as $photo) {
             Storage::disk('public')->delete($photo->path);
         }
         $order->items()->delete();
         $order->delete();
 
-        return redirect()->route('reparaciones.index')
+        return redirect()->route($this->workshopRoutePrefix().'.index')
             ->with('success', 'Orden eliminada.');
     }
 
     public function destroyPhoto(RepairOrderPhoto $photo)
     {
+        abort_unless($photo->repairOrder?->order_type === $this->workshopType(), 404);
         Storage::disk('public')->delete($photo->path);
         $photo->delete();
 
@@ -590,6 +630,7 @@ class ReparacionController extends Controller
 
     public function showPhoto(RepairOrderPhoto $photo)
     {
+        abort_unless($photo->repairOrder?->order_type === $this->workshopType(), 404);
         abort_unless(Storage::disk('public')->exists($photo->path), 404);
 
         return Storage::disk('public')->response($photo->path);
@@ -597,7 +638,7 @@ class ReparacionController extends Controller
 
     public function updateStatus(Request $request, $id)
     {
-        $order = RepairOrder::findOrFail($id);
+        $order = $this->findWorkshopOrder($id);
         $status = $request->validate(['status' => 'required|in:received,diagnosing,waiting_parts,in_repair,ready,delivered,cancelled'])['status'];
 
         $update = ['status' => $status];
@@ -639,16 +680,16 @@ class ReparacionController extends Controller
 
     public function ticket($id)
     {
-        $order = RepairOrder::with('items.product', 'technician')->findOrFail($id);
+        $order = $this->workshopQuery()->with('items.product', 'technician')->findOrFail($id);
 
-        return view('reparaciones.ticket', compact('order'));
+        return view('reparaciones.ticket', array_merge(compact('order'), $this->workshopViewData()));
     }
 
     public function pdf($id)
     {
-        $order = RepairOrder::with('items.product', 'client', 'technician', 'user')->findOrFail($id);
+        $order = $this->workshopQuery()->with('items.product', 'client', 'technician', 'user')->findOrFail($id);
 
-        return view('reparaciones.pdf', compact('order'));
+        return view('reparaciones.pdf', array_merge(compact('order'), $this->workshopViewData()));
     }
 
     private function calcPaymentStatus(float $total, float $advance): string
@@ -747,7 +788,7 @@ class ReparacionController extends Controller
                 'tax_included' => false,
                 'tax_rate' => 0,
                 'status' => 'completed',
-                'notes' => 'Taller de reparación · Orden '.$order->order_number,
+                'notes' => ($order->order_type === 'jewelry' ? 'Taller de joyería' : 'Taller de reparación').' · Orden '.$order->order_number,
             ],
         );
     }

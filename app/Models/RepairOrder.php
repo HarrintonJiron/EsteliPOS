@@ -12,6 +12,7 @@ class RepairOrder extends Model
 {
     protected $fillable = [
         'order_number',
+        'order_type',
         'client_id',
         'client_name',
         'client_phone',

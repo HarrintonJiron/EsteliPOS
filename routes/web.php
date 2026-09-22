@@ -30,6 +30,7 @@ use App\Http\Controllers\HumanResourcesHubController;
 use App\Http\Controllers\IncomeStatementController;
 use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\JoyeriaController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\LedgerController;
 use App\Http\Controllers\LoanController;
@@ -443,6 +444,28 @@ Route::middleware(['auth'])->group(function () {
             Route::delete('/reparaciones/fotos/{photo}', [ReparacionController::class, 'destroyPhoto'])->name('reparaciones.photos.destroy');
         });
         Route::delete('/reparaciones/{id}', [ReparacionController::class, 'destroy'])->whereNumber('id')->middleware('permission:reparaciones.delete')->name('reparaciones.destroy');
+    });
+
+    // Joyería: taller independiente que comparte inventario, clientes, caja y contabilidad.
+    Route::middleware('module:joyeria')->prefix('joyeria')->name('joyeria.')->group(function () {
+        Route::middleware('permission:joyeria.view')->group(function () {
+            Route::get('/', [JoyeriaController::class, 'index'])->name('index');
+            Route::get('/{id}', [JoyeriaController::class, 'show'])->whereNumber('id')->name('show');
+            Route::get('/{id}/ticket', [JoyeriaController::class, 'ticket'])->whereNumber('id')->name('ticket');
+            Route::get('/{id}/pdf', [JoyeriaController::class, 'pdf'])->whereNumber('id')->name('pdf');
+            Route::get('/fotos/{photo}', [JoyeriaController::class, 'showPhoto'])->name('photos.show');
+        });
+        Route::middleware('permission:joyeria.create')->group(function () {
+            Route::get('/nueva', [JoyeriaController::class, 'create'])->name('create');
+            Route::post('/', [JoyeriaController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:joyeria.edit')->group(function () {
+            Route::get('/{id}/edit', [JoyeriaController::class, 'edit'])->whereNumber('id')->name('edit');
+            Route::put('/{id}', [JoyeriaController::class, 'update'])->whereNumber('id')->name('update');
+            Route::patch('/{id}/status', [JoyeriaController::class, 'updateStatus'])->whereNumber('id')->name('status');
+            Route::delete('/fotos/{photo}', [JoyeriaController::class, 'destroyPhoto'])->name('photos.destroy');
+        });
+        Route::delete('/{id}', [JoyeriaController::class, 'destroy'])->whereNumber('id')->middleware('permission:joyeria.delete')->name('destroy');
     });
 
     // Reportes solo para admin

@@ -234,7 +234,7 @@ test('the windows deployment package is self contained and production safe', fun
         ->toContain('Invoke-EsteliPOSWalCheckpoint')
         ->toContain('PRAGMA wal_checkpoint(TRUNCATE)')
         ->and(file_get_contents(base_path('VERSION')))
-        ->toContain('1.0.17')
+        ->toContain('1.0.18')
         ->and(file_exists(base_path('deployment/windows/Bootstrap-UpdateFromZip.ps1')))->toBeTrue()
         ->and(file_get_contents(base_path('deployment/windows/Actualizar-EsteliPOS.bat')))
         ->toContain('Bootstrap-UpdateFromZip.ps1')

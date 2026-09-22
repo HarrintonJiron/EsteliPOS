@@ -9,7 +9,7 @@
     {{-- Header --}}
     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div class="flex min-w-0 items-start gap-3">
-            <a href="{{ route('reparaciones.index') }}" class="text-slate-400 hover:text-slate-600">
+            <a href="{{ route($routePrefix.'.index') }}" class="text-slate-400 hover:text-slate-600">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             </a>
             <div>
@@ -38,9 +38,9 @@
             </div>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a href="{{ route('reparaciones.ticket', $order->id) }}" target="_blank" class="btn-outline text-sm">Ticket</a>
-            <a href="{{ route('reparaciones.pdf', $order->id) }}" target="_blank" class="btn-outline text-sm">PDF</a>
-            <a href="{{ route('reparaciones.edit', $order->id) }}" class="btn-secondary text-sm">Editar</a>
+            <a href="{{ route($routePrefix.'.ticket', $order->id) }}" target="_blank" class="btn-outline text-sm">Ticket</a>
+            <a href="{{ route($routePrefix.'.pdf', $order->id) }}" target="_blank" class="btn-outline text-sm">PDF</a>
+            <a href="{{ route($routePrefix.'.edit', $order->id) }}" class="btn-secondary text-sm">Editar</a>
         </div>
     </div>
 
@@ -62,7 +62,7 @@
                     @if($order->client_email)<p class="text-sm text-slate-600">✉ {{ $order->client_email }}</p>@endif
                 </div>
                 <div>
-                    <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Equipo</p>
+                    <p class="text-xs font-semibold text-slate-500 uppercase mb-2">{{ $isJewelry ? 'Pieza' : 'Equipo' }}</p>
                     <p class="font-bold text-slate-900 text-lg">{{ $order->device_brand }} {{ $order->device_model }}</p>
                     @if($order->device_color)<p class="text-sm text-slate-600">Color: {{ $order->device_color }}</p>@endif
                     @if($order->device_imei)<p class="text-sm text-slate-600">IMEI: <span class="font-mono">{{ $order->device_imei }}</span></p>@endif
@@ -165,7 +165,7 @@
             {{-- Quick status change --}}
             <div class="card p-5">
                 <h2 class="font-semibold text-slate-700 mb-3">Actualizar Estado</h2>
-                <form action="{{ route('reparaciones.status', $order->id) }}" method="POST" class="space-y-3">
+                <form action="{{ route($routePrefix.'.status', $order->id) }}" method="POST" class="space-y-3">
                     @csrf @method('PATCH')
                     <select name="status" class="select-field text-sm">
                         @foreach(['received' => 'Recibido', 'diagnosing' => 'En Diagnóstico', 'waiting_parts' => 'Esperando Repuestos', 'in_repair' => 'En Reparación', 'ready' => 'Listo para Entregar', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
@@ -270,7 +270,7 @@
             </div>
 
             {{-- Delete --}}
-            <form action="{{ route('reparaciones.destroy', $order->id) }}" method="POST"
+            <form action="{{ route($routePrefix.'.destroy', $order->id) }}" method="POST"
                   onsubmit="return confirm('¿Eliminar esta orden de reparación?')">
                 @csrf @method('DELETE')
                 <button type="submit" class="w-full bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium py-2.5 rounded-xl border border-red-200">

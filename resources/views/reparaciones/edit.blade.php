@@ -11,7 +11,7 @@
             <h1 class="page-title">Editar {{ $order->order_number }}</h1>
             <p class="page-subtitle">{{ $order->device_brand }} {{ $order->device_model }} · {{ $order->client_name }}</p>
         </div>
-        <a href="{{ route('reparaciones.show', $order->id) }}" class="btn-outline text-sm">← Volver</a>
+        <a href="{{ route($routePrefix.'.show', $order->id) }}" class="btn-outline text-sm">← Volver</a>
     </div>
 
     @if($errors->any())
@@ -20,7 +20,7 @@
     </div>
     @endif
 
-    <form action="{{ route('reparaciones.update', $order->id) }}" method="POST" id="repairForm" enctype="multipart/form-data">
+    <form action="{{ route($routePrefix.'.update', $order->id) }}" method="POST" id="repairForm" enctype="multipart/form-data">
         @csrf @method('PUT')
 
         <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -131,7 +131,7 @@
                             <label class="block text-sm text-slate-600 mb-1">IMEI / Serie</label>
                             <input type="text" name="device_imei" value="{{ old('device_imei', $order->device_imei) }}" class="input-field">
                         </div>
-                        <div>
+                        <div @class(['hidden' => $isJewelry])>
                             <label class="block text-sm text-slate-600 mb-1">Tipo de bloqueo</label>
                             <select id="lockTypeSelect" name="lock_type" class="select-field" onchange="toggleLockFields()">
                                 <option value="password" {{ old('lock_type', $order->lock_type ?? 'none') === 'password' ? 'selected' : '' }}>Contraseña/PIN</option>
@@ -162,7 +162,7 @@
                                 <x-pattern-viewer :pattern="old('device_password', $order->device_password)" />
                             </div>
                         </div>
-                        <input type="hidden" name="device_password" id="devicePasswordHidden" value="{{ old('device_password', $order->device_password) }}">
+                        <input type="hidden" name="device_password" id="devicePasswordHidden" value="{{ $isJewelry ? '' : old('device_password', $order->device_password) }}">
                         <div>
                             <label class="block text-sm text-slate-600 mb-1">Accesorios entregados</label>
                             <input type="text" name="accessories" value="{{ old('accessories', $order->accessories) }}" class="input-field">
@@ -349,7 +349,7 @@
     </form>
 
     @foreach($order->photos as $photo)
-        <form id="delete-photo-{{ $photo->id }}" method="POST" action="{{ route('reparaciones.photos.destroy', $photo) }}">
+        <form id="delete-photo-{{ $photo->id }}" method="POST" action="{{ route($routePrefix.'.photos.destroy', $photo) }}">
             @csrf @method('DELETE')
         </form>
     @endforeach

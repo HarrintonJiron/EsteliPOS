@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Dashboard de Reparaciones')
+@section('title', 'Dashboard de ' . $workshopName)
 
 @section('content')
 @php
@@ -15,7 +15,7 @@
 
     <x-ui.command-hero
         kicker="Taller"
-        title="Reparaciones"
+        :title="$workshopName"
         subtitle="Panel operativo · entregas, estados y seguimiento"
         metric-label="Órdenes activas"
         :metric-value="number_format($stats['in_repair'] + $stats['received'] + $stats['ready'])"
@@ -27,10 +27,10 @@
         ]"
     >
         <x-slot:actions>
-            @if(auth()->user()?->isAdmin() || auth()->user()?->hasPermission('reparaciones.view_expenses'))
+            @if(!$isJewelry && (auth()->user()?->isAdmin() || auth()->user()?->hasPermission('reparaciones.view_expenses')))
                 <a href="{{ route('reparaciones.gastos.index') }}" class="ex-btn">Gastos operativos</a>
             @endif
-            <a href="{{ route('reparaciones.create') }}" class="ex-btn ex-btn--solid">+ Nueva orden</a>
+            <a href="{{ route($routePrefix.'.create') }}" class="ex-btn ex-btn--solid">+ Nueva orden</a>
         </x-slot:actions>
     </x-ui.command-hero>
 
@@ -50,7 +50,7 @@
     </div>
 
     {{-- Filtros --}}
-    <form method="GET" action="{{ route('reparaciones.index') }}" class="filter-panel">
+    <form method="GET" action="{{ route($routePrefix.'.index') }}" class="filter-panel">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
                 <h2 class="font-semibold text-slate-800 text-sm">Filtros del tablero</h2>
@@ -58,7 +58,7 @@
             </div>
             <div class="flex gap-2">
                 @if($activeFilters)
-                    <a href="{{ route('reparaciones.index') }}" class="btn-outline text-xs py-1.5">Limpiar</a>
+                    <a href="{{ route($routePrefix.'.index') }}" class="btn-outline text-xs py-1.5">Limpiar</a>
                 @endif
                 <button type="submit" class="btn-primary text-xs py-1.5">Aplicar filtros</button>
             </div>
@@ -141,11 +141,11 @@
                 Solo entregas atrasadas
             </label>
             <div class="flex flex-wrap gap-2 text-xs">
-                <a href="{{ route('reparaciones.index', ['delivery_from' => now()->toDateString(), 'delivery_to' => now()->toDateString()]) }}"
+                <a href="{{ route($routePrefix.'.index', ['delivery_from' => now()->toDateString(), 'delivery_to' => now()->toDateString()]) }}"
                    class="rounded-full bg-amber-50 px-3 py-1 font-semibold text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100">Entregan hoy</a>
-                <a href="{{ route('reparaciones.index', ['status' => 'ready']) }}"
+                <a href="{{ route($routePrefix.'.index', ['status' => 'ready']) }}"
                    class="rounded-full bg-green-50 px-3 py-1 font-semibold text-green-700 ring-1 ring-green-200 hover:bg-green-100">Listos para entregar</a>
-                <a href="{{ route('reparaciones.index', ['overdue_only' => 1]) }}"
+                <a href="{{ route($routePrefix.'.index', ['overdue_only' => 1]) }}"
                    class="rounded-full bg-red-50 px-3 py-1 font-semibold text-red-700 ring-1 ring-red-200 hover:bg-red-100">Atrasadas</a>
             </div>
         </div>
@@ -159,7 +159,7 @@
                     <tr>
                         <th>Orden</th>
                         <th>Cliente</th>
-                        <th>Equipo</th>
+                        <th>{{ $isJewelry ? 'Pieza' : 'Equipo' }}</th>
                         <th>Falla</th>
                         <th>Recepción</th>
                         <th>Entrega est.</th>
@@ -233,9 +233,9 @@
                         <td class="text-right font-semibold text-slate-900 whitespace-nowrap">C$ {{ number_format($order->total, 2) }}</td>
                         <td>
                             <div class="flex items-center justify-center gap-1">
-                                <a href="{{ route('reparaciones.show', $order->id) }}" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Ver">Ver</a>
-                                <a href="{{ route('reparaciones.ticket', $order->id) }}" target="_blank" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Ticket">Ticket</a>
-                                <a href="{{ route('reparaciones.edit', $order->id) }}" class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title="Editar">Editar</a>
+                                <a href="{{ route($routePrefix.'.show', $order->id) }}" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Ver">Ver</a>
+                                <a href="{{ route($routePrefix.'.ticket', $order->id) }}" target="_blank" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Ticket">Ticket</a>
+                                <a href="{{ route($routePrefix.'.edit', $order->id) }}" class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title="Editar">Editar</a>
                             </div>
                         </td>
                     </tr>

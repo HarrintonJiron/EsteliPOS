@@ -172,7 +172,7 @@
         <button onclick="window.print()" class="px-6 py-2.5 bg-slate-800 text-white rounded-xl font-semibold text-sm hover:bg-slate-700">
             Imprimir / Guardar PDF
         </button>
-        <a href="{{ route('reparaciones.show', $order->id) }}" class="px-6 py-2.5 bg-slate-200 text-slate-700 rounded-xl font-semibold text-sm hover:bg-slate-300">
+        <a href="{{ route($routePrefix.'.show', $order->id) }}" class="px-6 py-2.5 bg-slate-200 text-slate-700 rounded-xl font-semibold text-sm hover:bg-slate-300">
             Volver
         </a>
     </div>
