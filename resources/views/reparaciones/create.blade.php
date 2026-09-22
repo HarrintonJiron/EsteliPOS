@@ -436,7 +436,7 @@
                     <div class="repair-section-body space-y-1">
                         <textarea id="warrantyTextField" name="warranty_text" rows="2"
                             class="input-field w-full resize-none text-xs"
-                            placeholder="Texto de garantía en ticket...">{{ old('warranty_text', $companyProfile['repair_warranty_text'] ?? '') }}</textarea>
+                            placeholder="Texto de garantía en ticket...">{{ old('warranty_text', $isJewelry ? 'Garantía aplicable únicamente al trabajo realizado por el taller. No cubre golpes, pérdida de piedras, desgaste, alteraciones ni trabajos posteriores de terceros.' : ($companyProfile['repair_warranty_text'] ?? '')) }}</textarea>
                         <button type="button" onclick="loadDefaultWarranty()" class="text-[10px] text-indigo-600 hover:text-indigo-800">Usar texto predeterminado</button>
                     </div>
                 </div>
