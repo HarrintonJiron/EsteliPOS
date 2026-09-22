@@ -115,11 +115,12 @@
     <div class="divider"></div>
 
     <div style="font-size:10px; margin-bottom:0.2cm;">
-        <div class="bold">EQUIPO</div>
+        <div class="bold">{{ $isJewelry ? 'JOYA' : 'EQUIPO' }}</div>
         <div>{{ $order->device_brand }} {{ $order->device_model }}</div>
-        @if($order->device_color)<div>Color: {{ $order->device_color }}</div>@endif
-        @if($order->device_imei)<div>IMEI: {{ $order->device_imei }}</div>@endif
-        @if($order->accessories)<div>Accesorios: {{ $order->accessories }}</div>@endif
+        <div>{{ $isJewelry ? 'Material / ley' : 'Modelo' }}: {{ $order->device_model }}</div>
+        @if($order->device_color)<div>{{ $isJewelry ? 'Color / acabado' : 'Color' }}: {{ $order->device_color }}</div>@endif
+        @if($order->device_imei)<div>{{ $isJewelry ? 'Peso / identificación' : 'IMEI' }}: {{ $order->device_imei }}</div>@endif
+        @if($order->accessories)<div>{{ $isJewelry ? 'Piezas recibidas' : 'Accesorios' }}: {{ $order->accessories }}</div>@endif
     </div>
 
     <div class="divider"></div>
@@ -156,7 +157,7 @@
         <span class="item-qty">{{ number_format($item->quantity, 0) }}</span>
         <span class="item-amount">{{ $companyProfile['currency_symbol'] }} {{ number_format($item->subtotal, 2) }}</span>
         @if(isset($item->item_type) && $item->item_type === 'service' && $item->device_brand)
-        <span class="item-meta">Marca: {{ $item->device_brand }}</span>
+        <span class="item-meta">{{ $isJewelry ? 'Tipo de joya' : 'Marca' }}: {{ $item->device_brand }}</span>
         @else
         <span class="item-meta">{{ number_format($item->quantity, 0) }} x {{ $companyProfile['currency_symbol'] }} {{ number_format($item->price, 2) }}</span>
         @endif
@@ -167,7 +168,7 @@
     <div class="divider"></div>
 
     @if($order->parts_cost > 0)
-    <div class="row"><span>Repuestos</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($order->parts_cost,2) }}</span></div>
+    <div class="row"><span>{{ $isJewelry ? 'Materiales/servicios' : 'Repuestos' }}</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($order->parts_cost,2) }}</span></div>
     @endif
     <div class="row"><span>Mano de obra</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($order->labor_cost,2) }}</span></div>
     <div class="items-footer">
@@ -187,7 +188,7 @@
     </div>
 
     @if($order->technician)
-    <div class="row" style="margin-top:4px;"><span>Técnico:</span><span>{{ $order->technician->name }}</span></div>
+    <div class="row" style="margin-top:4px;"><span>{{ $isJewelry ? 'Joyero' : 'Técnico' }}:</span><span>{{ $order->technician->name }}</span></div>
     @endif
 
     @if($order->warranty_enabled)
@@ -200,7 +201,7 @@
 
     <div class="footer">
         Gracias por su confianza.<br>
-        Conserve este comprobante para retirar su equipo.<br>
+        Conserve este comprobante para retirar {{ $isJewelry ? 'su joya' : 'su equipo' }}.<br>
         {{ now()->format($companyProfile['date_format'].' H:i') }}
     </div>
 </div>

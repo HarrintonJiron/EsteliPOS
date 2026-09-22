@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\DeviceBrand;
 use App\Models\Module;
 use App\Models\RepairOrder;
+use App\Models\RepairService;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\ConfigurationSeeder;
@@ -71,4 +73,46 @@ test('orders cannot be opened through the other workshop module', function () {
 
     $this->actingAs($admin)->get(route('reparaciones.show', $order))->assertNotFound();
     $this->actingAs($admin)->get(route('joyeria.show', $order))->assertOk();
+});
+
+test('jewelry workshop has specialized and isolated catalogs', function () {
+    $admin = jewelryAdmin();
+
+    DeviceBrand::create(['name' => 'Samsung', 'workshop_type' => 'repair', 'is_active' => true]);
+    RepairService::create(['name' => 'Cambio de pantalla', 'workshop_type' => 'repair', 'price' => 1000, 'is_active' => true]);
+
+    $this->actingAs($admin)->getJson(route('joyeria.catalogs.types.index'))
+        ->assertOk()
+        ->assertJsonFragment(['name' => 'Anillo'])
+        ->assertJsonMissing(['name' => 'Samsung']);
+
+    $this->actingAs($admin)->get(route('joyeria.create'))
+        ->assertOk()
+        ->assertSee('Tipo de joya')
+        ->assertSee('Material / ley')
+        ->assertSee('Peso / identificación')
+        ->assertSee('Trabajo solicitado y estado recibido')
+        ->assertSee('Limpieza y pulido')
+        ->assertDontSee('Cambio de pantalla');
+});
+
+test('jewelry catalog entries are stored only in jewelry', function () {
+    $admin = jewelryAdmin();
+
+    $this->actingAs($admin)
+        ->postJson(route('joyeria.catalogs.types.store'), ['name' => 'Prendedor'])
+        ->assertCreated();
+
+    $this->actingAs($admin)
+        ->postJson(route('joyeria.catalogs.services.store'), [
+            'name' => 'Restauración de engaste',
+            'price' => 450,
+        ])
+        ->assertCreated();
+
+    $this->assertDatabaseHas('device_brands', ['name' => 'Prendedor', 'workshop_type' => 'jewelry']);
+    $this->assertDatabaseHas('repair_services', ['name' => 'Restauración de engaste', 'workshop_type' => 'jewelry']);
+
+    $this->actingAs($admin)->getJson(route('device-brands.index'))
+        ->assertJsonMissing(['name' => 'Prendedor']);
 });

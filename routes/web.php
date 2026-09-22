@@ -30,6 +30,7 @@ use App\Http\Controllers\HumanResourcesHubController;
 use App\Http\Controllers\IncomeStatementController;
 use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\JoyeriaCatalogController;
 use App\Http\Controllers\JoyeriaController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\LedgerController;
@@ -449,6 +450,7 @@ Route::middleware(['auth'])->group(function () {
     // Joyería: taller independiente que comparte inventario, clientes, caja y contabilidad.
     Route::middleware('module:joyeria')->prefix('joyeria')->name('joyeria.')->group(function () {
         Route::middleware('permission:joyeria.view')->group(function () {
+            Route::get('/catalogos/tipos', [JoyeriaCatalogController::class, 'types'])->name('catalogs.types.index');
             Route::get('/', [JoyeriaController::class, 'index'])->name('index');
             Route::get('/{id}', [JoyeriaController::class, 'show'])->whereNumber('id')->name('show');
             Route::get('/{id}/ticket', [JoyeriaController::class, 'ticket'])->whereNumber('id')->name('ticket');
@@ -456,6 +458,8 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/fotos/{photo}', [JoyeriaController::class, 'showPhoto'])->name('photos.show');
         });
         Route::middleware('permission:joyeria.create')->group(function () {
+            Route::post('/catalogos/tipos', [JoyeriaCatalogController::class, 'storeType'])->name('catalogs.types.store');
+            Route::post('/catalogos/servicios', [JoyeriaCatalogController::class, 'storeService'])->name('catalogs.services.store');
             Route::get('/nueva', [JoyeriaController::class, 'create'])->name('create');
             Route::post('/', [JoyeriaController::class, 'store'])->name('store');
         });

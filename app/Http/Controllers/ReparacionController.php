@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ReparacionController extends Controller
@@ -52,6 +53,12 @@ class ReparacionController extends Controller
             'isJewelry' => $isJewelry,
             'workshopName' => $isJewelry ? 'Joyería' : 'Reparaciones',
             'itemName' => $isJewelry ? 'pieza' : 'equipo',
+            'catalogTypeIndexRoute' => $isJewelry ? 'joyeria.catalogs.types.index' : 'device-brands.index',
+            'catalogTypeStoreRoute' => $isJewelry ? 'joyeria.catalogs.types.store' : 'device-brands.store',
+            'catalogServiceStoreRoute' => $isJewelry ? 'joyeria.catalogs.services.store' : 'repair-services.store',
+            'workshopStatusLabels' => $isJewelry
+                ? ['received' => 'Recibida', 'diagnosing' => 'En evaluación', 'waiting_parts' => 'Esperando materiales', 'in_repair' => 'En taller', 'ready' => 'Lista para entregar', 'delivered' => 'Entregada', 'cancelled' => 'Cancelada']
+                : [],
         ];
     }
 
@@ -237,8 +244,8 @@ class ReparacionController extends Controller
             ->orderBy('name')
             ->get();
 
-        $brands = DeviceBrand::select('id', 'name')->active()->orderBy('name')->get();
-        $services = RepairService::active()->orderBy('name')->get();
+        $brands = DeviceBrand::select('id', 'name')->forWorkshop($this->workshopType())->active()->orderBy('name')->get();
+        $services = RepairService::forWorkshop($this->workshopType())->active()->orderBy('name')->get();
 
         return view('reparaciones.create', array_merge(compact('clients', 'technicians', 'products', 'brands', 'services'), $this->workshopViewData()));
     }
@@ -281,7 +288,7 @@ class ReparacionController extends Controller
             'items.*.quantity' => 'required_with:items|numeric|min:0.01',
             'items.*.price' => 'required_with:items|numeric|min:0',
             'items.*.product_id' => 'nullable|exists:products,id',
-            'items.*.service_id' => 'nullable|exists:repair_services,id',
+            'items.*.service_id' => ['nullable', Rule::exists('repair_services', 'id')->where('workshop_type', $this->workshopType())],
             'items.*.item_type' => 'nullable|in:part,service',
             'items.*.device_brand' => 'nullable|string|max:60',
             'photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048|dimensions:max_width=3000,max_height=3000',
@@ -404,8 +411,8 @@ class ReparacionController extends Controller
             ->orderBy('name')
             ->get();
 
-        $brands = DeviceBrand::select('id', 'name')->active()->orderBy('name')->get();
-        $services = RepairService::active()->orderBy('name')->get();
+        $brands = DeviceBrand::select('id', 'name')->forWorkshop($this->workshopType())->active()->orderBy('name')->get();
+        $services = RepairService::forWorkshop($this->workshopType())->active()->orderBy('name')->get();
 
         return view('reparaciones.edit', array_merge(compact('order', 'clients', 'technicians', 'products', 'brands', 'services'), $this->workshopViewData()));
     }
@@ -451,7 +458,7 @@ class ReparacionController extends Controller
             'items.*.quantity' => 'required_with:items|numeric|min:0.01',
             'items.*.price' => 'required_with:items|numeric|min:0',
             'items.*.product_id' => 'nullable|exists:products,id',
-            'items.*.service_id' => 'nullable|exists:repair_services,id',
+            'items.*.service_id' => ['nullable', Rule::exists('repair_services', 'id')->where('workshop_type', $this->workshopType())],
             'items.*.item_type' => 'nullable|in:part,service',
             'items.*.device_brand' => 'nullable|string|max:60',
             'photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048|dimensions:max_width=3000,max_height=3000',

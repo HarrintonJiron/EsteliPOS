@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Orden de Reparación {{ $order->order_number }}</title>
+    <title>Orden de {{ $isJewelry ? 'Joyería' : 'Reparación' }} {{ $order->order_number }}</title>
     @vite(['resources/css/app.css'])
     <style>
         @media print {
@@ -51,10 +51,10 @@
 
     {{-- Status bar --}}
     <div class="flex gap-2 mb-5">
-        <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold {{ $order->statusColor() }}">{{ $order->statusLabel() }}</span>
+        <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold {{ $order->statusColor() }}">{{ $workshopStatusLabels[$order->status] ?? $order->statusLabel() }}</span>
         <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold {{ $order->priorityColor() }}">Prioridad: {{ $order->priorityLabel() }}</span>
         @if($order->technician)
-        <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">Técnico: {{ $order->technician->name }}</span>
+        <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">{{ $isJewelry ? 'Joyero' : 'Técnico' }}: {{ $order->technician->name }}</span>
         @endif
     </div>
 
@@ -67,22 +67,23 @@
             @if($order->client_email)<p class="text-xs text-slate-600">✉ {{ $order->client_email }}</p>@endif
         </div>
         <div class="bg-slate-50 rounded-xl p-4">
-            <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Equipo</p>
+            <p class="text-xs font-semibold text-slate-500 uppercase mb-2">{{ $isJewelry ? 'Joya' : 'Equipo' }}</p>
             <p class="font-bold text-slate-900">{{ $order->device_brand }} {{ $order->device_model }}</p>
-            @if($order->device_color)<p class="text-xs text-slate-600">Color: {{ $order->device_color }}</p>@endif
-            @if($order->device_imei)<p class="text-xs text-slate-600">IMEI: <span class="font-mono">{{ $order->device_imei }}</span></p>@endif
-            @if($order->accessories)<p class="text-xs text-slate-600">Accesorios: {{ $order->accessories }}</p>@endif
+            <p class="text-xs text-slate-600">{{ $isJewelry ? 'Material / ley' : 'Modelo' }}: {{ $order->device_model }}</p>
+            @if($order->device_color)<p class="text-xs text-slate-600">{{ $isJewelry ? 'Color / acabado' : 'Color' }}: {{ $order->device_color }}</p>@endif
+            @if($order->device_imei)<p class="text-xs text-slate-600">{{ $isJewelry ? 'Peso / identificación' : 'IMEI' }}: <span class="font-mono">{{ $order->device_imei }}</span></p>@endif
+            @if($order->accessories)<p class="text-xs text-slate-600">{{ $isJewelry ? 'Piedras, grabados y piezas recibidas' : 'Accesorios' }}: {{ $order->accessories }}</p>@endif
         </div>
     </div>
     {{-- Diagnosis section --}}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
         <div>
-            <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Falla reportada por cliente</p>
+            <p class="text-xs font-semibold text-slate-500 uppercase mb-1">{{ $isJewelry ? 'Trabajo solicitado y estado recibido' : 'Falla reportada por cliente' }}</p>
             <p class="text-xs text-slate-700 bg-slate-50 rounded-xl p-3 whitespace-pre-line">{{ $order->problem_description }}</p>
         </div>
         @if($order->diagnosis)
         <div>
-            <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Diagnóstico técnico</p>
+            <p class="text-xs font-semibold text-slate-500 uppercase mb-1">{{ $isJewelry ? 'Evaluación del joyero' : 'Diagnóstico técnico' }}</p>
             <p class="text-xs text-slate-700 bg-blue-50 rounded-xl p-3 whitespace-pre-line">{{ $order->diagnosis }}</p>
         </div>
         @endif
@@ -130,7 +131,7 @@
         </div>
         <div class="w-52 space-y-1">
             @if($order->parts_cost > 0)
-            <div class="flex justify-between text-xs text-slate-600"><span>Repuestos</span><span>C$ {{ number_format($order->parts_cost,2) }}</span></div>
+            <div class="flex justify-between text-xs text-slate-600"><span>{{ $isJewelry ? 'Materiales y servicios' : 'Repuestos' }}</span><span>C$ {{ number_format($order->parts_cost,2) }}</span></div>
             @endif
             <div class="flex justify-between text-xs text-slate-600"><span>Mano de obra</span><span>C$ {{ number_format($order->labor_cost,2) }}</span></div>
             <div class="flex justify-between font-bold text-sm border-t border-slate-300 pt-1 text-slate-900">
@@ -149,7 +150,7 @@
     <div class="grid grid-cols-2 gap-8 pt-4">
         <div class="text-center">
             <div class="border-t border-slate-400 pt-2">
-                <p class="text-xs text-slate-500">Firma del Técnico</p>
+                <p class="text-xs text-slate-500">Firma del {{ $isJewelry ? 'Joyero' : 'Técnico' }}</p>
                 <p class="text-xs text-slate-400 mt-0.5">{{ $order->technician?->name ?? '' }}</p>
             </div>
         </div>
@@ -162,7 +163,7 @@
     </div>
 
     <p class="text-center text-xs text-slate-400 mt-4 border-t border-slate-200 pt-3">
-        Conserve este documento para retirar su equipo. Agroservicio S.A. no se hace responsable de equipos no retirados después de 30 días.
+        Conserve este documento para retirar {{ $isJewelry ? 'su joya' : 'su equipo' }}. No nos hacemos responsables de {{ $isJewelry ? 'joyas' : 'equipos' }} no retirados después de 30 días.
     </p>
 
     </div>

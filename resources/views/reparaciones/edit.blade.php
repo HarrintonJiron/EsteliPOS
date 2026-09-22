@@ -62,7 +62,7 @@
 
                 <div class="card p-5 space-y-3">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                        <h2 class="font-semibold text-slate-800">Foto del equipo o artículo</h2>
+                        <h2 class="font-semibold text-slate-800">Foto de {{ $isJewelry ? 'la joya' : 'el equipo o artículo' }}</h2>
                         <span class="text-xs font-medium text-slate-500">{{ $order->photos->isNotEmpty() ? '1/1' : '0/1' }}</span>
                     </div>
                     @if($order->photos->isNotEmpty())
@@ -86,13 +86,13 @@
 
                 {{-- DEVICE --}}
                 <div class="card p-5 space-y-4">
-                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Datos del Equipo</h2>
+                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">{{ $isJewelry ? 'Datos de la joya' : 'Datos del equipo' }}</h2>
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">Marca *</label>
+                            <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Tipo de joya' : 'Marca' }} *</label>
                             <div class="flex gap-2">
-                                <input type="text" name="device_brand" value="{{ old('device_brand', $order->device_brand) }}" required 
-                                    list="brands_list" class="input-field flex-1" placeholder="Selecciona o escribe una marca..." autocomplete="off">
+                                <input type="text" name="device_brand" value="{{ old('device_brand', $order->device_brand) }}" required
+                                    list="brands_list" class="input-field flex-1" placeholder="{{ $isJewelry ? 'Selecciona o escribe el tipo...' : 'Selecciona o escribe una marca...' }}" autocomplete="off">
                                 <button type="button" onclick="showAddBrandModal()" class="px-3 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 text-sm flex-shrink-0" title="Agregar nueva marca">
                                     +
                                 </button>
@@ -120,15 +120,17 @@
                             </datalist>
                         </div>
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">Modelo *</label>
-                            <input type="text" name="device_model" value="{{ old('device_model', $order->device_model) }}" required class="input-field">
+                            <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Material / ley' : 'Modelo' }} *</label>
+                            <input type="text" name="device_model" value="{{ old('device_model', $order->device_model) }}" required list="{{ $isJewelry ? 'jewelry_materials' : '' }}" class="input-field">
+                            @if($isJewelry)<datalist id="jewelry_materials">@foreach(['Oro amarillo 10K', 'Oro amarillo 14K', 'Oro amarillo 18K', 'Oro blanco', 'Oro rosa', 'Plata 925', 'Acero', 'Platino', 'Bisutería', 'Por confirmar'] as $material)<option value="{{ $material }}">@endforeach</datalist>@endif
                         </div>
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">Color</label>
-                            <input type="text" name="device_color" value="{{ old('device_color', $order->device_color) }}" class="input-field">
+                            <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Color / acabado' : 'Color' }}</label>
+                            <input type="text" name="device_color" value="{{ old('device_color', $order->device_color) }}" list="{{ $isJewelry ? 'jewelry_finishes' : '' }}" class="input-field">
+                            @if($isJewelry)<datalist id="jewelry_finishes">@foreach(['Pulido brillante', 'Mate', 'Satinado', 'Rodiado', 'Baño oro amarillo', 'Baño oro rosa', 'Envejecido', 'Bicolor'] as $finish)<option value="{{ $finish }}">@endforeach</datalist>@endif
                         </div>
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">IMEI / Serie</label>
+                            <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Peso / identificación' : 'IMEI / Serie' }}</label>
                             <input type="text" name="device_imei" value="{{ old('device_imei', $order->device_imei) }}" class="input-field">
                         </div>
                         <div @class(['hidden' => $isJewelry])>
@@ -164,7 +166,7 @@
                         </div>
                         <input type="hidden" name="device_password" id="devicePasswordHidden" value="{{ $isJewelry ? '' : old('device_password', $order->device_password) }}">
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">Accesorios entregados</label>
+                            <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Piedras, grabados y piezas recibidas' : 'Accesorios entregados' }}</label>
                             <input type="text" name="accessories" value="{{ old('accessories', $order->accessories) }}" class="input-field">
                         </div>
                     </div>
@@ -172,14 +174,14 @@
 
                 {{-- DIAGNOSIS --}}
                 <div class="card p-5 space-y-4">
-                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Diagnóstico</h2>
+                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">{{ $isJewelry ? 'Evaluación del taller' : 'Diagnóstico' }}</h2>
                     <div>
-                        <label class="block text-sm text-slate-600 mb-1">Falla reportada *</label>
+                        <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Trabajo solicitado y estado recibido' : 'Falla reportada' }} *</label>
                         <textarea name="problem_description" rows="3" required class="input-field resize-none">{{ old('problem_description', $order->problem_description) }}</textarea>
                     </div>
                     <div>
                         <div class="flex items-center gap-2 mb-2">
-                            <label class="text-sm text-slate-600">Diagnóstico técnico</label>
+                            <label class="text-sm text-slate-600">{{ $isJewelry ? 'Evaluación del joyero' : 'Diagnóstico técnico' }}</label>
                             <label class="inline-flex items-center gap-2 text-sm text-slate-500">
                                 <input type="checkbox" id="diagnosisToggle" onclick="toggleOptionalField('diagnosis')"
                                     {{ old('diagnosis', $order->diagnosis) ? 'checked' : '' }}>
@@ -204,11 +206,11 @@
                 {{-- PARTS --}}
                 <div class="card p-5 space-y-4">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                        <h2 class="font-semibold text-slate-800">Repuestos / Materiales</h2>
+                        <h2 class="font-semibold text-slate-800">{{ $isJewelry ? 'Materiales / Servicios' : 'Repuestos / Materiales' }}</h2>
                         <button type="button" onclick="addItem()" class="btn-primary text-xs py-1.5">+ Agregar</button>
                     </div>
                     <div id="itemsContainer" class="space-y-3"></div>
-                    <p id="noItemsMsg" class="{{ $order->items->count() ? 'hidden' : '' }} text-sm text-slate-400 text-center py-4">No se han agregado repuestos.</p>
+                    <p id="noItemsMsg" class="{{ $order->items->count() ? 'hidden' : '' }} text-sm text-slate-400 text-center py-4">No se han agregado {{ $isJewelry ? 'materiales o servicios' : 'repuestos' }}.</p>
                 </div>
             </div>
 
@@ -219,7 +221,7 @@
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Estado</label>
                         <select name="status" class="select-field">
-                            @foreach(['received' => 'Recibido', 'diagnosing' => 'En Diagnóstico', 'waiting_parts' => 'Esperando Repuestos', 'in_repair' => 'En Reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
+                            @foreach($isJewelry ? ['received' => 'Recibida', 'diagnosing' => 'En evaluación', 'waiting_parts' => 'Esperando materiales', 'in_repair' => 'En taller', 'ready' => 'Lista para entregar', 'delivered' => 'Entregada', 'cancelled' => 'Cancelada'] : ['received' => 'Recibido', 'diagnosing' => 'En Diagnóstico', 'waiting_parts' => 'Esperando Repuestos', 'in_repair' => 'En Reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
                                 <option value="{{ $val }}" {{ old('status', $order->status) === $val ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
@@ -233,7 +235,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm text-slate-600 mb-1">Técnico asignado</label>
+                        <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Joyero asignado' : 'Técnico asignado' }}</label>
                         <select name="technician_id" class="select-field">
                             <option value="">Sin asignar</option>
                             @foreach($technicians as $t)
@@ -292,7 +294,7 @@
                         </div>
                     </div>
                     <div class="bg-slate-50 rounded-xl p-3 space-y-1 text-sm">
-                        <div class="flex justify-between text-slate-600"><span>Repuestos</span><span id="partsCostDisplay">C$ {{ number_format($order->parts_cost, 2) }}</span></div>
+                        <div class="flex justify-between text-slate-600"><span>{{ $isJewelry ? 'Materiales y servicios' : 'Repuestos' }}</span><span id="partsCostDisplay">C$ {{ number_format($order->parts_cost, 2) }}</span></div>
                         <div class="flex justify-between text-slate-600"><span>Mano de obra</span><span id="laborDisplay">C$ {{ number_format($order->labor_cost, 2) }}</span></div>
                         <div class="flex justify-between text-red-600 hidden" id="discountRow">
                             <span>Descuento</span><span id="discountDisplay">C$ 0.00</span>
@@ -358,13 +360,13 @@
     <div id="addBrandModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
         <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
             <div class="p-5 border-b border-slate-200 flex justify-between items-center">
-                <h2 class="text-lg font-bold text-slate-900">Agregar Nueva Marca</h2>
+                <h2 class="text-lg font-bold text-slate-900">{{ $isJewelry ? 'Agregar tipo de joya' : 'Agregar nueva marca' }}</h2>
                 <button type="button" onclick="closeAddBrandModal()" class="text-slate-400 hover:text-slate-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
             <div class="p-5">
-                <label class="block text-sm text-slate-600 mb-2">Nombre de la marca</label>
+                <label class="block text-sm text-slate-600 mb-2">{{ $isJewelry ? 'Nombre del tipo de joya' : 'Nombre de la marca' }}</label>
                 <input type="text" id="newBrandInput" class="input-field" placeholder="Ej: Vivo, Alcatel, HTC...">
             </div>
             <div class="p-4 border-t border-slate-200 flex gap-2">
@@ -415,7 +417,8 @@
             'stock' => (float) $p->stock,
         ];
     })->values()->toJson();
-    $defaultRepairWarrantyJson = json_encode($companyProfile['repair_warranty_text'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+    $defaultRepairWarrantyJson = json_encode($isJewelry ? 'Garantía aplicable únicamente al trabajo realizado por el taller. No cubre golpes, pérdida de piedras, desgaste, alteraciones ni trabajos posteriores de terceros.' : ($companyProfile['repair_warranty_text'] ?? ''), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+    $fallbackBrandsJson = json_encode($isJewelry ? ['Anillo', 'Argolla', 'Aretes', 'Brazalete', 'Cadena', 'Dije', 'Pulsera', 'Reloj'] : ['Samsung', 'Apple', 'Xiaomi', 'Huawei', 'Motorola', 'LG', 'Sony', 'Nokia', 'OPPO', 'Realme', 'OnePlus', 'Tecno', 'ZTE']);
 @endphp
 <script>
 const productsData = {!! $productsJson !!};
@@ -856,7 +859,7 @@ async function addNewBrand(buttonEl = null) {
             button.textContent = 'Agregando...';
         }
 
-        const response = await fetch('{{ route('device-brands.store') }}', {
+        const response = await fetch('{{ route($catalogTypeStoreRoute) }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -897,7 +900,7 @@ async function addNewBrand(buttonEl = null) {
         // Show success message
         const successMsg = document.createElement('div');
         successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-        successMsg.textContent = 'Marca agregada exitosamente';
+        successMsg.textContent = @json($isJewelry ? 'Tipo de joya agregado' : 'Marca agregada exitosamente');
         document.body.appendChild(successMsg);
         setTimeout(() => successMsg.remove(), 3000);
         
@@ -989,8 +992,9 @@ function loadDefaultWarranty() {
 
 async function loadBrands() {
     // Check if brands are cached in localStorage
-    const cachedBrands = localStorage.getItem('device_brands');
-    const cacheTime = localStorage.getItem('device_brands_timestamp');
+    const catalogCacheKey = @json($isJewelry ? 'jewelry_types' : 'device_brands');
+    const cachedBrands = localStorage.getItem(catalogCacheKey);
+    const cacheTime = localStorage.getItem(`${catalogCacheKey}_timestamp`);
     const cacheDuration = 30 * 60 * 1000; // 30 minutes
     
     // Use cached brands if available and recent
@@ -1011,7 +1015,7 @@ async function loadBrands() {
     
     // Fetch from API if no cache or expired
     try {
-        const response = await fetch('{{ route('device-brands.index') }}');
+        const response = await fetch('{{ route($catalogTypeIndexRoute) }}');
         console.log('Respuesta recibida:', response.status);
         
         if (response.ok) {
@@ -1029,8 +1033,8 @@ async function loadBrands() {
                 });
                 
                 // Cache the brands
-                localStorage.setItem('device_brands', JSON.stringify(brands));
-                localStorage.setItem('device_brands_timestamp', Date.now().toString());
+                localStorage.setItem(catalogCacheKey, JSON.stringify(brands));
+                localStorage.setItem(`${catalogCacheKey}_timestamp`, Date.now().toString());
                 
                 console.log('Marcas cargadas en datalist:', brands.length);
             } else {
@@ -1045,7 +1049,7 @@ async function loadBrands() {
         const brandsList = document.getElementById('brands_list');
         if (brandsList && brandsList.options.length === 0) {
             console.log('Usando marcas por defecto');
-            const defaultBrands = ['Samsung', 'Apple', 'Xiaomi', 'Huawei', 'Motorola', 'LG', 'Sony', 'Nokia', 'OPPO', 'Realme', 'OnePlus', 'Tecno', 'ZTE'];
+            const defaultBrands = {!! $fallbackBrandsJson !!};
             defaultBrands.forEach(brand => {
                 const option = document.createElement('option');
                 option.value = brand;
@@ -1101,7 +1105,7 @@ async function addNewService(buttonEl = null) {
     }
     
     try {
-        const response = await fetch('{{ route('repair-services.store') }}', {
+        const response = await fetch('{{ route($catalogServiceStoreRoute) }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

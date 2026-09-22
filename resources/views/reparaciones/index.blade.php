@@ -68,14 +68,14 @@
             <div class="sm:col-span-2">
                 <label class="form-label" for="search">Búsqueda</label>
                 <input type="search" id="search" name="search" value="{{ request('search') }}"
-                    placeholder="Orden, cliente, teléfono, equipo, IMEI, falla..."
+                    placeholder="{{ $isJewelry ? 'Orden, cliente, teléfono, joya, material, trabajo...' : 'Orden, cliente, teléfono, equipo, IMEI, falla...' }}"
                     class="input-field">
             </div>
             <div>
                 <label class="form-label" for="status">Estado</label>
                 <select id="status" name="status" class="select-field">
                     <option value="">Todos</option>
-                    @foreach(['received' => 'Recibido', 'diagnosing' => 'Diagnóstico', 'waiting_parts' => 'Esp. repuestos', 'in_repair' => 'En reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
+                    @foreach($isJewelry ? ['received' => 'Recibida', 'diagnosing' => 'En evaluación', 'waiting_parts' => 'Esperando materiales', 'in_repair' => 'En taller', 'ready' => 'Lista para entregar', 'delivered' => 'Entregada', 'cancelled' => 'Cancelada'] : ['received' => 'Recibido', 'diagnosing' => 'Diagnóstico', 'waiting_parts' => 'Esp. repuestos', 'in_repair' => 'En reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
                         <option value="{{ $val }}" @selected(request('status') === $val)>{{ $label }}</option>
                     @endforeach
                 </select>
@@ -90,7 +90,7 @@
                 </select>
             </div>
             <div>
-                <label class="form-label" for="technician_id">Técnico</label>
+                <label class="form-label" for="technician_id">{{ $isJewelry ? 'Joyero' : 'Técnico' }}</label>
                 <select id="technician_id" name="technician_id" class="select-field">
                     <option value="">Todos</option>
                     @foreach($technicians as $technician)
@@ -99,7 +99,7 @@
                 </select>
             </div>
             <div>
-                <label class="form-label" for="device_brand">Marca</label>
+                <label class="form-label" for="device_brand">{{ $isJewelry ? 'Tipo de joya' : 'Marca' }}</label>
                 <select id="device_brand" name="device_brand" class="select-field">
                     <option value="">Todas</option>
                     @foreach($deviceBrands as $brand)
@@ -160,7 +160,7 @@
                         <th>Orden</th>
                         <th>Cliente</th>
                         <th>{{ $isJewelry ? 'Pieza' : 'Equipo' }}</th>
-                        <th>Falla</th>
+                        <th>{{ $isJewelry ? 'Trabajo solicitado' : 'Falla' }}</th>
                         <th>Recepción</th>
                         <th>Entrega est.</th>
                         <th class="text-center">Prioridad</th>
