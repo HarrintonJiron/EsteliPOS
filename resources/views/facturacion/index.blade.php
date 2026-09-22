@@ -92,7 +92,7 @@
                     </td>
                     <td class="text-center space-x-2">
                         <a href="{{ route('facturacion.show', $sale->id) }}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">Ver</a>
-                        <a href="{{ route('facturacion.receipt', $sale->id) }}" target="_blank" class="text-slate-600 hover:text-slate-800 text-sm">Recibo</a>
+                        <a href="{{ route('facturacion.receipt', $sale->id) }}" target="print-window" class="text-slate-600 hover:text-slate-800 text-sm">Recibo</a>
                         @if($sale->status !== 'canceled')
                         <a href="{{ route('facturacion.edit', $sale->id) }}" class="text-amber-600 hover:text-amber-800 text-sm">Editar</a>
                         @endif

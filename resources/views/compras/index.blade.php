@@ -7,7 +7,7 @@
     <x-ui.command-hero
         kicker="Abastecimiento"
         title="Compras"
-        subtitle="La mercadería entra al inventario; el pago puede ser de contado o a crédito"
+        subtitle="Compras que ya llegaron o pedidos por recibir; el pago puede ser de contado o a crédito"
         metric-label="Este mes"
         :metric-value="$companySymbol . ' ' . number_format($stats['month_total'], 0)"
         :meta="[$stats['completed_count'] . ' pagadas', $stats['pending_count'] . ' por pagar', $stats['ordered_count'] . ' pedidos']"
@@ -19,7 +19,6 @@
     >
         <x-slot:actions>
             @if(auth()->user()?->isAdmin() || auth()->user()?->hasPermission('compras.create'))
-                <a href="{{ route('compras.proformas.create') }}" class="ex-btn">Proforma compras</a>
                 <a href="{{ route('compras.create') }}" class="ex-btn ex-btn--solid">+ Nueva compra</a>
             @endif
         </x-slot:actions>

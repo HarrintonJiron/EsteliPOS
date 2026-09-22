@@ -58,7 +58,7 @@ class ImageProcessingService
         if (! Storage::disk('public')->exists($directory) && ! Storage::disk('public')->makeDirectory($directory)) {
             imagedestroy($canvas);
 
-            throw new RuntimeException('No se pudo preparar la carpeta donde se guardan los logos.');
+            throw new RuntimeException('No se pudo preparar la carpeta donde se guardan las imágenes. Revisa los permisos de almacenamiento del servidor.');
         }
 
         [$filename, $absolutePath] = $this->resolveOutputPath($directory);
@@ -99,7 +99,7 @@ class ImageProcessingService
         }
 
         if ($width * $height > self::MAX_SOURCE_PIXELS) {
-            throw new RuntimeException('La resolución del logo es demasiado alta. Use una imagen de hasta 20 megapíxeles.');
+            throw new RuntimeException('La resolución de la imagen es demasiado alta ('.round($width * $height / 1_000_000, 1).' megapíxeles). Use una de hasta 20 megapíxeles o reduzca su tamaño.');
         }
 
         return [$width, $height, $type];

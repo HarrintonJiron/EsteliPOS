@@ -147,6 +147,9 @@
                 <h2 class="font-semibold text-slate-900">Logos</h2>
                 <p class="mt-1 text-sm text-slate-500">Se guardan de forma segura y se utilizan según el tipo de documento.</p>
             </div>
+            @if($errors->any())
+                <p class="mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 sm:mx-6">Por seguridad el navegador no conserva los archivos elegidos cuando el formulario tiene errores. Si ibas a cambiar un logo, vuelve a seleccionarlo.</p>
+            @endif
             <div class="grid grid-cols-1 gap-5 p-5 lg:grid-cols-2 sm:p-6">
                 <x-settings.image-upload name="company_logo" label="Logo principal" :current-url="$settings['company_logo_url']" help="Fondo transparente recomendado. Se redimensiona y optimiza al guardar." remove-name="remove_company_logo" />
                 <x-settings.image-upload name="ticket_logo" label="Logo para tickets" :current-url="$settings['ticket_logo_url']" help="Alto contraste recomendado para impresión térmica. Se optimiza al guardar." remove-name="remove_ticket_logo" />

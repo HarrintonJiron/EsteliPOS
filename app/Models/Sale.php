@@ -34,6 +34,7 @@ class Sale extends Model
         'tax_total',
         'discount_amount',
         'discount_percentage',
+        'trade_in_value',
         'total',
         'payment_type',
         'currency',
@@ -110,6 +111,11 @@ class Sale extends Model
     public function shipment()
     {
         return $this->hasOne(Shipment::class);
+    }
+
+    public function tradeIns()
+    {
+        return $this->hasMany(PhoneTradeIn::class);
     }
 
     public function getBillingDocumentLabelAttribute(): string

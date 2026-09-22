@@ -785,6 +785,19 @@
         })();
     </script>
 
+    @include('partials.lightbox')
+
+    <script>
+        // La app se desplaza dentro de <main>; el documento nunca debe moverse. Si un campo oculto
+        // (p. ej. un input de archivo) recibe el foco, el navegador puede desplazar el <html> y dejar
+        // la pantalla en blanco. Aquí se devuelve siempre a su sitio.
+        (() => {
+            const root = document.scrollingElement || document.documentElement;
+            window.addEventListener('scroll', () => {
+                if (root.scrollTop !== 0 || root.scrollLeft !== 0) root.scrollTo(0, 0);
+            }, { passive: true });
+        })();
+    </script>
     @stack('scripts')
 
 </body>

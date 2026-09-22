@@ -35,8 +35,8 @@
             <div class="flex flex-wrap items-center gap-2 lg:justify-end">
                 <a href="{{ route('compras.index') }}" class="btn-outline">Volver</a>
                 @if($purchase->status === 'ordered')
-                    <a href="{{ route('compras.proformas.ticket', $purchase->id) }}" target="_blank" class="btn-outline">Imprimir ticket</a>
-                    <a href="{{ route('compras.proformas.pdf', $purchase->id) }}" target="_blank" class="btn-outline text-indigo-700">Imprimir PDF</a>
+                    <a href="{{ route('compras.proformas.ticket', $purchase->id) }}" target="print-window" class="btn-outline">Imprimir ticket</a>
+                    <a href="{{ route('compras.proformas.pdf', $purchase->id) }}" target="print-window" class="btn-outline text-indigo-700">Imprimir PDF</a>
                 @endif
                 @if($purchase->status !== 'canceled')
                     <a href="{{ route('compras.edit', $purchase->id) }}" class="btn-outline">Editar</a>

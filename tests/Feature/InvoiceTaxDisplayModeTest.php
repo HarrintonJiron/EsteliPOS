@@ -87,3 +87,64 @@ test('invoice print shows exempt label when mode is exempt', function () {
         ->assertSee('Exento de IVA:', false)
         ->assertSee('C$ 0.00', false);
 });
+
+test('product device data is rendered in every invoice print format', function () {
+    $admin = adminForTaxDisplayTests();
+    $sale = createSampleSale($admin);
+    $category = Category::create(['name' => 'Celulares']);
+    $unit = Unit::create(['name' => 'Unidad', 'abbreviation' => 'und', 'is_active' => true]);
+    $product = Product::create([
+        'category_id' => $category->id,
+        'name' => 'iPhone 13 Pro',
+        'code' => 'IPH-SPECS',
+        'brand' => 'Apple',
+        'model' => 'A2638',
+        'color' => 'Azul sierra',
+        'imei' => '356789012345678',
+        'battery_percentage' => 87,
+        'condition' => 'used',
+        'description' => "Incluye cargador\ny funda original.",
+        'purchase_price' => 80,
+        'sale_price' => 100,
+        'stock' => 1,
+        'unit' => 'und',
+        'base_unit_id' => $unit->id,
+        'status' => 'active',
+    ]);
+
+    SaleDetail::create([
+        'sale_id' => $sale->id,
+        'product_id' => $product->id,
+        'unit_id' => $unit->id,
+        'quantity' => 1,
+        'unit_factor' => 1,
+        'base_quantity' => 1,
+        'price' => 100,
+        'subtotal' => 100,
+        'tax_rate' => 0,
+        'tax_amount' => 0,
+    ]);
+
+    foreach ([
+        route('facturacion.print', ['sale_id' => $sale->id]),
+        route('facturacion.pdf', ['sale_id' => $sale->id]),
+        route('facturacion.receipt', ['saleId' => $sale->id]),
+    ] as $url) {
+        $this->actingAs($admin)
+            ->get($url)
+            ->assertOk()
+            ->assertSeeText('iPhone 13 Pro')
+            ->assertSeeText('Marca: Apple')
+            ->assertSeeText('Modelo: A2638')
+            ->assertSeeText('Azul sierra')
+            ->assertSeeText('356789012345678')
+            ->assertSeeText('87%')
+            ->assertSeeText('Incluye cargador y funda original.');
+    }
+});
+
+test('product without device data adds no extra lines to the invoice', function () {
+    $product = new Product(['name' => 'Tornillo', 'condition' => null, 'battery_percentage' => null]);
+
+    expect($product->invoiceSpecs())->toBe([]);
+});

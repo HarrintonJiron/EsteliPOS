@@ -2,7 +2,7 @@
 
 @php($isPurchaseProforma = ($purchaseMode ?? 'immediate') === 'proforma')
 
-@section('title', $isPurchaseProforma ? 'Nueva proforma de compra' : 'Nueva compra')
+@section('title', 'Nueva compra')
 @section('main-class', 'p-0 overflow-hidden')
 @section('hide_back', true)
 

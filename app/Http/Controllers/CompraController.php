@@ -339,6 +339,7 @@ class CompraController extends Controller
 
     public function create(Request $request)
     {
+        // Un solo formulario para compras: ?modo=pedido lo abre ya marcado como pedido (proforma).
         return view('compras.create', array_merge($this->purchaseFormData(), [
             'purchaseMode' => $request->query('modo') === 'pedido' ? 'proforma' : 'immediate',
         ]));

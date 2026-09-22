@@ -79,7 +79,7 @@
             @endif
             <a 
                 href="{{ route('facturacion.receipt', $sale->id) }}"
-                target="_blank"
+                target="print-window"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors block text-center">
                 Imprimir ticket
             </a>

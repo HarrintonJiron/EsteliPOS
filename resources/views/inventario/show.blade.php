@@ -48,6 +48,8 @@
         </span>
     </div>
 
+    @include('inventario.partials._gallery_view')
+
     @include('inventario._product_conversions')
 
 

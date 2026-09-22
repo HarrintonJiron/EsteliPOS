@@ -158,9 +158,13 @@ class CompanySettingsService
         } catch (Throwable $exception) {
             report($exception);
 
-            throw ValidationException::withMessages([
-                $field => 'No se pudo procesar el logo. Use una imagen JPG, PNG, WebP o GIF de hasta 8 MB y 20 megapíxeles.',
-            ]);
+            // Los RuntimeException del procesador de imágenes traen el motivo real en español
+            // (resolución, archivo dañado, permisos…); cualquier otro error usa el mensaje general.
+            $reason = $exception instanceof \RuntimeException
+                ? $exception->getMessage()
+                : 'No se pudo procesar el logo. Use una imagen JPG, PNG, WebP o GIF de hasta 8 MB y 20 megapíxeles.';
+
+            throw ValidationException::withMessages([$field => $reason]);
         }
     }
 

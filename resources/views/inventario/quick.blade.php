@@ -130,6 +130,15 @@
                     <p id="newCategoryErrorQuick" class="mt-1 text-xs text-red-600 hidden"></p>
                 </div>
             </div>
+            <div class="sm:col-span-3">
+                <label class="mb-1 block text-xs text-slate-500">Proveedor <span class="text-slate-400">(opcional)</span></label>
+                <select name="supplier_id" class="select-field py-1.5 text-sm">
+                    <option value="">Sin proveedor</option>
+                    @foreach($suppliers as $supplier)
+                        <option value="{{ $supplier->id }}" @selected(old('supplier_id') == $supplier->id)>{{ $supplier->name }}</option>
+                    @endforeach
+                </select>
+            </div>
         </div>
 
         @include('inventario._inline_location_creator', [

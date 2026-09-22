@@ -175,7 +175,13 @@
             }
         });
 
-        recalc(); // initial calc on page load
+        // Al editar, el precio ya guardado manda: solo se calcula automáticamente
+        // cuando el campo de venta llega vacío (producto nuevo).
+        if (s && parseFloat(s.value || 0) > 0) {
+            s.dispatchEvent(new Event('input'));
+        } else {
+            recalc();
+        }
     });
 })();
 </script>
