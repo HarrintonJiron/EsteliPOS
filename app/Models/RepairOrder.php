@@ -35,6 +35,7 @@ class RepairOrder extends Model
         'received_date',
         'received_time',
         'estimated_date',
+        'due_date',
         'estimated_delivery_time',
         'delivered_date',
         'delivered_time',
@@ -54,6 +55,7 @@ class RepairOrder extends Model
     protected $casts = [
         'received_date' => 'date',
         'estimated_date' => 'date',
+        'due_date' => 'date',
         'delivered_date' => 'date',
         'payment_received_at' => 'datetime',
         'warranty_enabled' => 'boolean',
@@ -100,6 +102,16 @@ class RepairOrder extends Model
     public function photos()
     {
         return $this->hasMany(RepairOrderPhoto::class);
+    }
+
+    public function creditPayments()
+    {
+        return $this->hasMany(RepairCreditPayment::class);
+    }
+
+    public function creditBalance(): float
+    {
+        return max(0, round((float) $this->total - (float) $this->advance_payment - (float) $this->creditPayments()->sum('amount'), 2));
     }
 
     public function cajaSession()
@@ -169,7 +181,7 @@ class RepairOrder extends Model
 
     public function balance(): float
     {
-        return max(0, (float) $this->total - (float) $this->advance_payment);
+        return $this->creditBalance();
     }
 
     public function formattedReceivedTime(): ?string
