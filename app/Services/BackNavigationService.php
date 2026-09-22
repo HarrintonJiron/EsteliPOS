@@ -97,6 +97,7 @@ class BackNavigationService
             'planilla.index',
             'proformas.index',
             'reparaciones.index',
+            'joyeria.index',
             'reportes.index',
             'ajustes.index',
             'settings.index',

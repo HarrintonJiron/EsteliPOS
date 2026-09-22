@@ -59,6 +59,7 @@ test('jewelry is an independent configurable module with isolated orders', funct
 
     $this->actingAs($admin)->get(route('joyeria.index'))
         ->assertOk()
+        ->assertSee('Joyería')
         ->assertSee('Cliente joyería')
         ->assertDontSee('Cliente reparación');
 });
