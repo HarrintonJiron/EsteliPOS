@@ -6,6 +6,7 @@ use App\Services\CompanySettingsService;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Schema;
 
 class RepairOrder extends Model
 {
@@ -29,6 +30,7 @@ class RepairOrder extends Model
         'priority',
         'technician_id',
         'user_id',
+        'caja_session_id',
         'received_date',
         'received_time',
         'estimated_date',
@@ -43,6 +45,7 @@ class RepairOrder extends Model
         'advance_payment',
         'payment_type',
         'payment_status',
+        'payment_received_at',
         'warranty_enabled',
         'warranty_text',
     ];
@@ -51,6 +54,7 @@ class RepairOrder extends Model
         'received_date' => 'date',
         'estimated_date' => 'date',
         'delivered_date' => 'date',
+        'payment_received_at' => 'datetime',
         'warranty_enabled' => 'boolean',
     ];
 
@@ -90,6 +94,26 @@ class RepairOrder extends Model
     public function items()
     {
         return $this->hasMany(RepairOrderItem::class);
+    }
+
+    public function photos()
+    {
+        return $this->hasMany(RepairOrderPhoto::class);
+    }
+
+    public function cajaSession()
+    {
+        return $this->belongsTo(CajaSession::class);
+    }
+
+    public function workshopInvoice()
+    {
+        return $this->hasOne(Sale::class);
+    }
+
+    public static function supportsPaymentTracking(): bool
+    {
+        return Schema::hasColumns('repair_orders', ['caja_session_id', 'payment_received_at']);
     }
 
     public function statusLabel(): string

@@ -11,6 +11,7 @@ use App\Models\NumberSequence;
 use App\Models\OperationalExpense;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Models\SupplierPayment;
 use Carbon\CarbonImmutable;
@@ -143,16 +144,16 @@ class AccountingService
     }
 
     /**
-     * Voids the posted journal entry linked to a given source model, if one exists (no-op otherwise).
+     * Voids all posted journal entries linked to a given source model (no-op otherwise).
      */
     public function voidForSource(string $sourceType, int $sourceId, ?string $reason = null): void
     {
-        $entry = JournalEntry::where('source_type', $sourceType)
+        $entries = JournalEntry::where('source_type', $sourceType)
             ->where('source_id', $sourceId)
             ->where('status', JournalEntry::STATUS_POSTED)
-            ->first();
+            ->get();
 
-        if ($entry) {
+        foreach ($entries as $entry) {
             $this->void($entry, $reason);
         }
     }
@@ -266,6 +267,35 @@ class AccountingService
             'source_id' => $payment->id,
             'user_id' => $payment->user_id,
             'lines' => $lines,
+        ], post: true);
+    }
+
+    /**
+     * Asiento automático de un cobro recibido por un trabajo de taller.
+     */
+    public function recordRepairPayment(RepairOrder $repairOrder): ?JournalEntry
+    {
+        $amount = (float) $repairOrder->advance_payment;
+        if ($repairOrder->status === 'cancelled' || $amount <= 0) {
+            return null;
+        }
+
+        $debitAccount = $repairOrder->payment_type === 'cash'
+            ? $this->account(self::ACC_CAJA)
+            : $this->account(self::ACC_BANCO);
+        $reference = $repairOrder->order_number ?? ('REP-'.$repairOrder->id);
+
+        return $this->createEntry([
+            'date' => $repairOrder->payment_received_at?->toDateString() ?? now()->toDateString(),
+            'concept' => "Cobro de taller {$reference}",
+            'reference' => $reference,
+            'source_type' => RepairOrder::class,
+            'source_id' => $repairOrder->id,
+            'user_id' => $repairOrder->user_id,
+            'lines' => [
+                ['account_id' => $debitAccount->id, 'detail' => "Cobro de taller {$reference}", 'debit' => $amount, 'credit' => 0],
+                ['account_id' => $this->account(self::ACC_VENTAS)->id, 'detail' => "Servicio de taller {$reference}", 'debit' => 0, 'credit' => $amount],
+            ],
         ], post: true);
     }
 

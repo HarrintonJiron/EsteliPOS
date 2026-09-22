@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CajaSession;
 use App\Models\Client;
 use App\Models\DeviceBrand;
 use App\Models\NumberSequence;
@@ -9,10 +10,16 @@ use App\Models\OperationalExpense;
 use App\Models\Product;
 use App\Models\RepairOrder;
 use App\Models\RepairOrderItem;
+use App\Models\RepairOrderPhoto;
 use App\Models\RepairService;
+use App\Models\Sale;
 use App\Models\User;
+use App\Services\AccountingService;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class ReparacionController extends Controller
 {
@@ -204,6 +211,8 @@ class ReparacionController extends Controller
 
     public function store(Request $request)
     {
+        $this->normalizeTimeInputs($request);
+
         $validated = $request->validate([
             'client_id' => 'nullable|exists:clients,id',
             'client_name' => 'required|string|max:150',
@@ -241,7 +250,10 @@ class ReparacionController extends Controller
             'items.*.service_id' => 'nullable|exists:repair_services,id',
             'items.*.item_type' => 'nullable|in:part,service',
             'items.*.device_brand' => 'nullable|string|max:60',
-        ]);
+            'photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048|dimensions:max_width=3000,max_height=3000',
+        ], $this->timeValidationMessages());
+
+        $this->ensureSingleDiscountType($validated);
 
         $lockData = $this->normalizeLockData(
             $this->resolveLockType($request),
@@ -268,7 +280,7 @@ class ReparacionController extends Controller
                 throw new \RuntimeException('El descuento total no puede superar el subtotal de la reparación.');
             }
 
-            $order = RepairOrder::create([
+            $orderData = [
                 'order_number' => $this->nextOrderNumber(),
                 'client_id' => $validated['client_id'] ?? null,
                 'client_name' => $validated['client_name'],
@@ -303,7 +315,14 @@ class ReparacionController extends Controller
                 'payment_status' => $this->calcPaymentStatus($total, (float) ($validated['advance_payment'] ?? 0)),
                 'warranty_enabled' => $validated['warranty_enabled'] ?? true,
                 'warranty_text' => $validated['warranty_text'] ?? null,
-            ]);
+            ];
+            if (RepairOrder::supportsPaymentTracking()) {
+                $orderData['caja_session_id'] = $validated['payment_type'] === 'cash'
+                    ? CajaSession::currentForUser($request->user()?->id)?->id
+                    : null;
+                $orderData['payment_received_at'] = (float) ($validated['advance_payment'] ?? 0) > 0 ? now() : null;
+            }
+            $order = RepairOrder::create($orderData);
 
             foreach ($items as $item) {
                 $subtotal = (float) $item['quantity'] * (float) $item['price'];
@@ -319,6 +338,12 @@ class ReparacionController extends Controller
                     'device_brand' => $item['device_brand'] ?? null,
                 ]);
             }
+
+            $this->storePhoto($order, $request->file('photo'));
+
+            if (RepairOrder::supportsPaymentTracking()) {
+                app(AccountingService::class)->recordRepairPayment($order->fresh());
+            }
         });
 
         return redirect()->route('reparaciones.show', $order->id)
@@ -327,14 +352,14 @@ class ReparacionController extends Controller
 
     public function show($id)
     {
-        $order = RepairOrder::with('items.product', 'client', 'technician', 'user')->findOrFail($id);
+        $order = RepairOrder::with('items.product', 'photos', 'client', 'technician', 'user')->findOrFail($id);
 
         return view('reparaciones.show', compact('order'));
     }
 
     public function edit($id)
     {
-        $order = RepairOrder::with('items.product')->findOrFail($id);
+        $order = RepairOrder::with('items.product', 'photos')->findOrFail($id);
         $clients = Client::select('id', 'name', 'phone')->orderBy('name')->get();
         $technicians = User::select('id', 'name')->orderBy('name')->get();
         $products = Product::select('id', 'name', 'code', 'sale_price', 'stock')
@@ -351,6 +376,7 @@ class ReparacionController extends Controller
     public function update(Request $request, $id)
     {
         $order = RepairOrder::findOrFail($id);
+        $this->normalizeTimeInputs($request);
 
         $validated = $request->validate([
             'client_id' => 'nullable|exists:clients,id',
@@ -391,7 +417,14 @@ class ReparacionController extends Controller
             'items.*.service_id' => 'nullable|exists:repair_services,id',
             'items.*.item_type' => 'nullable|in:part,service',
             'items.*.device_brand' => 'nullable|string|max:60',
-        ]);
+            'photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048|dimensions:max_width=3000,max_height=3000',
+        ], $this->timeValidationMessages());
+
+        $this->ensureSingleDiscountType($validated);
+
+        if ($request->hasFile('photo') && $order->photos()->exists()) {
+            throw ValidationException::withMessages(['photo' => 'Elimina la foto actual antes de agregar otra.']);
+        }
 
         $lockData = $this->normalizeLockData(
             $this->resolveLockType($request, $order),
@@ -400,7 +433,7 @@ class ReparacionController extends Controller
         $validated['lock_type'] = $lockData['lock_type'];
         $validated['device_password'] = $lockData['device_password'];
 
-        DB::transaction(function () use ($validated, $order) {
+        DB::transaction(function () use ($validated, $order, $request) {
             $items = $validated['items'] ?? [];
             $partsCost = array_sum(array_map(fn ($i) => ($i['quantity'] ?? 0) * ($i['price'] ?? 0), $items));
             $laborCost = (float) ($validated['labor_cost'] ?? 0);
@@ -417,6 +450,19 @@ class ReparacionController extends Controller
                 throw new \RuntimeException('El descuento total no puede superar el subtotal de la reparación.');
             }
 
+            if ($validated['status'] === 'delivered') {
+                $advance = $total;
+            }
+
+            $paymentTrackingEnabled = RepairOrder::supportsPaymentTracking();
+            $financialDataChanged = $paymentTrackingEnabled && ((float) $order->advance_payment !== $advance
+                || $order->payment_type !== $validated['payment_type']
+                || $order->status === 'cancelled'
+                || $validated['status'] === 'cancelled');
+            if ($financialDataChanged) {
+                app(AccountingService::class)->voidForSource(RepairOrder::class, $order->id, 'Cobro de taller actualizado o anulado.');
+            }
+
             // Mark delivered_date automatically
             $deliveredDate = $validated['delivered_date'] ?? null;
             $deliveredTime = $validated['delivered_time'] ?? null;
@@ -431,7 +477,7 @@ class ReparacionController extends Controller
                 $validated['lock_type'] = 'none';
             }
 
-            $order->update([
+            $orderData = [
                 'client_id' => $validated['client_id'] ?? null,
                 'client_name' => $validated['client_name'],
                 'client_phone' => $validated['client_phone'] ?? null,
@@ -463,7 +509,14 @@ class ReparacionController extends Controller
                 'payment_status' => $this->calcPaymentStatus($total, $advance),
                 'warranty_enabled' => $validated['warranty_enabled'] ?? false,
                 'warranty_text' => $validated['warranty_text'] ?? null,
-            ]);
+            ];
+            if ($paymentTrackingEnabled) {
+                $orderData['caja_session_id'] = $validated['payment_type'] === 'cash'
+                    ? ($order->caja_session_id ?? CajaSession::currentForUser($order->user_id)?->id)
+                    : null;
+                $orderData['payment_received_at'] = $financialDataChanged && $advance > 0 ? now() : ($advance > 0 ? $order->payment_received_at : null);
+            }
+            $order->update($orderData);
 
             $order->update([
                 'discount_percentage' => $discountPct,
@@ -486,20 +539,60 @@ class ReparacionController extends Controller
                     'device_brand' => $item['device_brand'] ?? null,
                 ]);
             }
+
+            $this->storePhoto($order, $request->file('photo'));
+
+            if ($financialDataChanged) {
+                app(AccountingService::class)->recordRepairPayment($order->fresh());
+            }
+            $this->syncWorkshopInvoice($order->fresh());
         });
 
         return redirect()->route('reparaciones.show', $order->id)
             ->with('success', 'Orden actualizada correctamente.');
     }
 
+    /**
+     * A repair may use a percentage or a fixed discount, never both.
+     */
+    private function ensureSingleDiscountType(array $validated): void
+    {
+        $percentage = (float) ($validated['discount_percentage'] ?? 0);
+        $fixed = (float) ($validated['discount_amount'] ?? 0);
+
+        if ($percentage > 0 && $fixed > 0) {
+            throw ValidationException::withMessages([
+                'discount_type' => 'Selecciona un descuento porcentual o uno fijo, no ambos.',
+            ]);
+        }
+    }
+
     public function destroy($id)
     {
-        $order = RepairOrder::findOrFail($id);
+        $order = RepairOrder::with('photos')->findOrFail($id);
+        foreach ($order->photos as $photo) {
+            Storage::disk('public')->delete($photo->path);
+        }
         $order->items()->delete();
         $order->delete();
 
         return redirect()->route('reparaciones.index')
             ->with('success', 'Orden eliminada.');
+    }
+
+    public function destroyPhoto(RepairOrderPhoto $photo)
+    {
+        Storage::disk('public')->delete($photo->path);
+        $photo->delete();
+
+        return back()->with('success', 'Foto eliminada.');
+    }
+
+    public function showPhoto(RepairOrderPhoto $photo)
+    {
+        abort_unless(Storage::disk('public')->exists($photo->path), 404);
+
+        return Storage::disk('public')->response($photo->path);
     }
 
     public function updateStatus(Request $request, $id)
@@ -508,6 +601,8 @@ class ReparacionController extends Controller
         $status = $request->validate(['status' => 'required|in:received,diagnosing,waiting_parts,in_repair,ready,delivered,cancelled'])['status'];
 
         $update = ['status' => $status];
+        $paymentTrackingEnabled = RepairOrder::supportsPaymentTracking();
+        $shouldRecordPayment = $paymentTrackingEnabled && $status === 'delivered' && (float) $order->advance_payment < (float) $order->total;
         if ($status === 'delivered') {
             if (! $order->delivered_date) {
                 $update['delivered_date'] = now()->toDateString();
@@ -515,9 +610,29 @@ class ReparacionController extends Controller
             if (! $order->delivered_time) {
                 $update['delivered_time'] = now()->format('H:i');
             }
+            if ($shouldRecordPayment) {
+                $update['advance_payment'] = $order->total;
+                $update['payment_status'] = 'paid';
+                $update['payment_received_at'] = now();
+                $update['caja_session_id'] = $order->payment_type === 'cash'
+                    ? ($order->caja_session_id ?? CajaSession::currentForUser($order->user_id)?->id)
+                    : null;
+            }
         }
 
-        $order->update($update);
+        DB::transaction(function () use ($order, $update, $shouldRecordPayment): void {
+            if ($shouldRecordPayment) {
+                app(AccountingService::class)->voidForSource(RepairOrder::class, $order->id, 'Cobro de taller actualizado al entregar la orden.');
+            }
+
+            $order->update($update);
+
+            if ($shouldRecordPayment) {
+                app(AccountingService::class)->recordRepairPayment($order->fresh());
+            }
+
+            $this->syncWorkshopInvoice($order->fresh());
+        });
 
         return back()->with('success', 'Estado actualizado a: '.$order->fresh()->statusLabel());
     }
@@ -546,5 +661,94 @@ class ReparacionController extends Controller
         }
 
         return 'pending';
+    }
+
+    private function normalizeTimeInputs(Request $request): void
+    {
+        foreach (['received_time', 'estimated_delivery_time', 'delivered_time'] as $field) {
+            $value = $request->input($field);
+
+            if (is_string($value) && preg_match('/^\d{2}:\d{2}:\d{2}$/', $value)) {
+                $request->merge([$field => substr($value, 0, 5)]);
+            }
+        }
+    }
+
+    private function timeValidationMessages(): array
+    {
+        return [
+            'received_time.date_format' => 'La hora de recepción debe tener el formato HH:MM.',
+            'estimated_delivery_time.date_format' => 'La hora estimada de entrega debe tener el formato HH:MM.',
+            'delivered_time.date_format' => 'La hora de entrega debe tener el formato HH:MM.',
+        ];
+    }
+
+    private function storePhoto(RepairOrder $order, ?UploadedFile $photo): void
+    {
+        if (! $photo) {
+            return;
+        }
+
+        $source = imagecreatefromstring(file_get_contents($photo->getRealPath()));
+        if ($source === false) {
+            throw ValidationException::withMessages(['photo' => 'No fue posible procesar la imagen.']);
+        }
+
+        $sourceWidth = imagesx($source);
+        $sourceHeight = imagesy($source);
+        $scale = min(1, 1200 / max($sourceWidth, $sourceHeight));
+        $width = max(1, (int) round($sourceWidth * $scale));
+        $height = max(1, (int) round($sourceHeight * $scale));
+        $optimized = imagecreatetruecolor($width, $height);
+        imagealphablending($optimized, false);
+        imagesavealpha($optimized, true);
+        imagecopyresampled($optimized, $source, 0, 0, 0, 0, $width, $height, $sourceWidth, $sourceHeight);
+
+        $path = 'repair-orders/'.$order->id.'/'.uniqid('photo_', true).'.webp';
+        Storage::disk('public')->makeDirectory('repair-orders/'.$order->id);
+        imagewebp($optimized, Storage::disk('public')->path($path), 78);
+        imagedestroy($optimized);
+        imagedestroy($source);
+
+        $order->photos()->create(['path' => $path]);
+    }
+
+    private function syncWorkshopInvoice(RepairOrder $order): void
+    {
+        if ($order->status !== 'delivered' || (float) $order->advance_payment < (float) $order->total) {
+            return;
+        }
+
+        $client = $order->client ?? Client::firstOrCreate(
+            ['code' => 'GEN'],
+            ['name' => 'Cliente genérico', 'phone' => 'N/A']
+        );
+        $cashSession = $order->payment_type === 'cash'
+            ? ($order->cajaSession ?? CajaSession::currentForUser($order->user_id))
+            : null;
+
+        Sale::updateOrCreate(
+            ['repair_order_id' => $order->id],
+            [
+                'invoice_number' => Sale::where('repair_order_id', $order->id)->value('invoice_number') ?? NumberSequence::getNext('factura'),
+                'client_id' => $client->id,
+                'user_id' => $order->user_id,
+                'branch_id' => $cashSession?->branch_id,
+                'caja_session_id' => $cashSession?->id,
+                'billing_name' => $order->client_name,
+                'billing_phone' => $order->client_phone,
+                'billing_email' => $order->client_email,
+                'date' => $order->payment_received_at ?? now(),
+                'subtotal' => $order->total,
+                'tax_total' => 0,
+                'total' => $order->total,
+                'amount_paid' => $order->advance_payment,
+                'payment_type' => $order->payment_type,
+                'tax_included' => false,
+                'tax_rate' => 0,
+                'status' => 'completed',
+                'notes' => 'Taller de reparación · Orden '.$order->order_number,
+            ],
+        );
     }
 }

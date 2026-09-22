@@ -70,7 +70,12 @@
             <tbody>
                 @forelse($sales as $sale)
                 <tr>
-                    <td class="font-semibold text-indigo-600">{{ $sale->invoice_number ?? str_pad($sale->id, 6, '0', STR_PAD_LEFT) }}</td>
+                    <td class="font-semibold text-indigo-600">
+                        {{ $sale->invoice_number ?? str_pad($sale->id, 6, '0', STR_PAD_LEFT) }}
+                        @if($sale->repair_order_id)
+                            <span class="ml-1 inline-flex rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-violet-700">Taller de reparación</span>
+                        @endif
+                    </td>
                     <td>{{ $sale->client->name ?? $sale->billing_name ?? 'N/A' }}</td>
                     <td>{{ $sale->date ? $sale->date->format('d/m/Y') : 'N/A' }}</td>
                     <td>

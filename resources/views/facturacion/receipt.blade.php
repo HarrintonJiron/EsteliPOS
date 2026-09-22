@@ -183,6 +183,7 @@
 
         <section class="info" aria-label="Datos de la venta">
             <div class="info-row"><strong>FACTURA</strong><span>#{{ str_pad($sale->invoice_number, 6, '0', STR_PAD_LEFT) }}</span></div>
+            @if($sale->repair_order_id)<div class="info-row"><strong>ORIGEN</strong><span>TALLER DE REPARACIÓN · {{ $sale->repairOrder?->order_number }}</span></div>@endif
             <div class="info-row"><strong>FECHA</strong><span>{{ $sale->date->format($companyProfile['date_format'].' H:i') }}</span></div>
             <div class="info-row"><strong>CAJERO</strong><span>{{ $sale->user?->name ?? 'Sistema' }}</span></div>
         </section>

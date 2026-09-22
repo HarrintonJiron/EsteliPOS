@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Arqueo;
+use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Client;
 use App\Models\CreditPayment;
@@ -10,6 +12,7 @@ use App\Models\Purchase;
 use App\Models\RepairOrder;
 use App\Models\Role;
 use App\Models\Sale;
+use App\Models\SaleDetail;
 use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
@@ -18,6 +21,9 @@ use App\Services\CreditService;
 use Database\Seeders\ConfigurationSeeder;
 use Database\Seeders\InventoryCatalogSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
@@ -106,16 +112,231 @@ test('repair order stores the discounted total and correct balance', function ()
         'received_date' => now()->toDateString(),
         'labor_cost' => 100,
         'discount_percentage' => 10,
-        'discount_amount' => 5,
         'advance_payment' => 20,
         'payment_type' => 'cash',
     ])->assertRedirect();
 
     $order = RepairOrder::query()->latest('id')->firstOrFail();
 
-    expect((float) $order->total)->toBe(85.0)
-        ->and($order->balance())->toBe(65.0)
+    expect((float) $order->total)->toBe(90.0)
+        ->and($order->balance())->toBe(70.0)
         ->and($order->payment_status)->toBe('partial');
+});
+
+test('repair order stores one optimized photo', function () {
+    Storage::fake('public');
+    $admin = financialIntegrityAdmin();
+    Module::query()->where('slug', 'reparaciones')->update(['is_active' => true]);
+
+    $this->actingAs($admin)->post(route('reparaciones.store'), [
+        'client_name' => 'Cliente con fotos',
+        'device_brand' => 'Anillo',
+        'device_model' => 'Oro 14K',
+        'problem_description' => 'Pulido',
+        'status' => 'received',
+        'priority' => 'normal',
+        'received_date' => now()->toDateString(),
+        'payment_type' => 'cash',
+        'photo' => UploadedFile::fake()->image('joya.jpg', 1800, 1200),
+    ])->assertRedirect();
+
+    $order = RepairOrder::query()->latest('id')->firstOrFail();
+    expect($order->photos)->toHaveCount(1)
+        ->and($order->photos->first()->path)->toEndWith('.webp');
+    Storage::disk('public')->assertExists($order->photos->first()->path);
+    $this->get($order->photos->first()->url)->assertOk();
+});
+
+test('cash repair payments are posted and included in the cash closing', function () {
+    $admin = financialIntegrityAdmin();
+    Module::query()->where('slug', 'reparaciones')->update(['is_active' => true]);
+
+    $this->actingAs($admin)->post(route('reparaciones.store'), [
+        'client_name' => 'Cliente taller',
+        'device_brand' => 'Anillo',
+        'device_model' => 'Oro 14K',
+        'problem_description' => 'Ajustar talla',
+        'status' => 'received',
+        'priority' => 'normal',
+        'received_date' => now()->toDateString(),
+        'labor_cost' => 100,
+        'advance_payment' => 40,
+        'payment_type' => 'cash',
+    ])->assertRedirect();
+
+    $order = RepairOrder::query()->latest('id')->firstOrFail();
+    expect($order->caja_session_id)->not->toBeNull()
+        ->and(JournalEntry::query()->where('source_type', RepairOrder::class)->where('source_id', $order->id)->where('status', JournalEntry::STATUS_POSTED)->exists())->toBeTrue();
+
+    $this->actingAs($admin)->post(route('arqueo.run'), [
+        'date' => now()->toDateString(),
+        'caja_session_id' => $order->caja_session_id,
+        'physical_counts' => [['amount' => 10, 'qty' => 4]],
+    ])->assertOk();
+
+    expect((float) Arqueo::query()->latest('id')->value('cash_total'))->toBe(40.0);
+});
+
+test('delivering a repair collects its outstanding balance', function () {
+    $admin = financialIntegrityAdmin();
+    Module::query()->where('slug', 'reparaciones')->update(['is_active' => true]);
+    $order = RepairOrder::query()->create([
+        'order_number' => 'REP-ENTREGA-001',
+        'client_name' => 'Cliente entrega',
+        'device_brand' => 'Anillo',
+        'device_model' => 'Oro',
+        'problem_description' => 'Pulido',
+        'status' => 'ready',
+        'priority' => 'normal',
+        'user_id' => $admin->id,
+        'received_date' => now()->toDateString(),
+        'labor_cost' => 600,
+        'total' => 600,
+        'payment_type' => 'cash',
+        'payment_status' => 'pending',
+    ]);
+
+    $this->actingAs($admin)->patch(route('reparaciones.status', $order), ['status' => 'delivered'])
+        ->assertRedirect();
+
+    expect((float) $order->fresh()->advance_payment)->toBe(600.0)
+        ->and($order->fresh()->payment_status)->toBe('paid')
+        ->and(JournalEntry::query()->where('source_type', RepairOrder::class)->where('source_id', $order->id)->where('status', JournalEntry::STATUS_POSTED)->exists())->toBeTrue();
+
+    $invoice = Sale::query()->where('repair_order_id', $order->id)->firstOrFail();
+    expect($invoice->status)->toBe('completed')
+        ->and((float) $invoice->total)->toBe(600.0)
+        ->and($invoice->notes)->toContain('Taller de reparación');
+});
+
+test('canceling a workshop invoice reverses the repair payment and accounting entry', function () {
+    $admin = financialIntegrityAdmin();
+    Module::query()->where('slug', 'reparaciones')->update(['is_active' => true]);
+    $order = RepairOrder::query()->create([
+        'order_number' => 'REP-ANULA-001',
+        'client_name' => 'Cliente anulación',
+        'device_brand' => 'Cadena',
+        'device_model' => 'Plata',
+        'problem_description' => 'Soldadura',
+        'status' => 'ready',
+        'priority' => 'normal',
+        'user_id' => $admin->id,
+        'received_date' => now()->toDateString(),
+        'labor_cost' => 450,
+        'total' => 450,
+        'payment_type' => 'cash',
+        'payment_status' => 'pending',
+    ]);
+
+    $this->actingAs($admin)->patch(route('reparaciones.status', $order), ['status' => 'delivered'])
+        ->assertRedirect();
+    $invoice = Sale::query()->where('repair_order_id', $order->id)->firstOrFail();
+
+    $this->actingAs($admin)->delete(route('facturacion.destroy', $invoice))
+        ->assertRedirect(route('facturacion.index'));
+
+    expect($invoice->fresh()->status)->toBe('canceled')
+        ->and($order->fresh()->status)->toBe('ready')
+        ->and((float) $order->fresh()->advance_payment)->toBe(0.0)
+        ->and($order->fresh()->payment_status)->toBe('pending')
+        ->and($order->fresh()->payment_received_at)->toBeNull()
+        ->and(JournalEntry::query()->where('source_type', RepairOrder::class)->where('source_id', $order->id)->where('status', JournalEntry::STATUS_POSTED)->exists())->toBeFalse();
+});
+
+test('repair order rejects simultaneous fixed and percentage discounts', function () {
+    $admin = financialIntegrityAdmin();
+    Module::query()->where('slug', 'reparaciones')->update(['is_active' => true]);
+
+    $this->actingAs($admin)->post(route('reparaciones.store'), [
+        'client_name' => 'Cliente descuento inválido',
+        'device_brand' => 'Cadena',
+        'device_model' => 'Plata 925',
+        'problem_description' => 'Soldar eslabón',
+        'status' => 'received',
+        'priority' => 'normal',
+        'received_date' => now()->toDateString(),
+        'labor_cost' => 100,
+        'discount_type' => 'percentage',
+        'discount_percentage' => 10,
+        'discount_amount' => 5,
+        'payment_type' => 'cash',
+    ])->assertSessionHasErrors('discount_type');
+
+    $this->assertDatabaseMissing('repair_orders', ['client_name' => 'Cliente descuento inválido']);
+});
+
+test('branch profitability counts an invoice once when it has multiple details', function () {
+    $admin = financialIntegrityAdmin();
+    $branch = Branch::query()->create([
+        'code' => 'RENT-01',
+        'name' => 'Sucursal Rentabilidad',
+        'type' => 'sucursal',
+        'is_active' => true,
+    ]);
+    $client = Client::query()->create(['name' => 'Cliente rentabilidad']);
+    $category = Category::firstOrCreate(['name' => 'Rentabilidad']);
+    $firstProduct = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto rentable A',
+        'code' => 'RENT-A',
+        'purchase_price' => 20,
+        'sale_price' => 50,
+        'stock' => 10,
+        'unit' => 'unidad',
+        'status' => 'active',
+    ]);
+    $secondProduct = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto rentable B',
+        'code' => 'RENT-B',
+        'purchase_price' => 30,
+        'sale_price' => 50,
+        'stock' => 10,
+        'unit' => 'unidad',
+        'status' => 'active',
+    ]);
+    $sale = Sale::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $admin->id,
+        'branch_id' => $branch->id,
+        'date' => now()->toDateString(),
+        'total' => 100,
+        'payment_type' => 'cash',
+        'status' => 'completed',
+    ]);
+    DB::table('sales')->where('id', $sale->id)->update(['date' => now()->toDateString()]);
+
+    SaleDetail::query()->create([
+        'sale_id' => $sale->id,
+        'product_id' => $firstProduct->id,
+        'quantity' => 1,
+        'base_quantity' => 1,
+        'price' => 50,
+        'subtotal' => 50,
+    ]);
+    SaleDetail::query()->create([
+        'sale_id' => $sale->id,
+        'product_id' => $secondProduct->id,
+        'quantity' => 1,
+        'base_quantity' => 1,
+        'price' => 50,
+        'subtotal' => 50,
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('reportes.index', [
+            'report_type' => 'profit',
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->toDateString(),
+        ]))
+        ->assertOk()
+        ->assertViewHas('summary', function (array $summary) use ($branch): bool {
+            $row = $summary['by_branch']->firstWhere('branch_id', $branch->id);
+
+            return (float) $row->total_sales === 100.0
+                && (float) $row->total_cost === 50.0
+                && (float) $row->gross_profit === 50.0;
+        });
 });
 
 test('credit payments cannot exceed debt and aging uses the outstanding balance', function () {

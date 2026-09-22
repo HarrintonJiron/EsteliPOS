@@ -14,6 +14,7 @@ class Sale extends Model
         'invoice_number',
         'request_token',
         'client_id',
+        'repair_order_id',
         'user_id',
         'branch_id',
         'caja_session_id',
@@ -64,6 +65,16 @@ class Sale extends Model
     public function client()
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function repairOrder()
+    {
+        return $this->belongsTo(RepairOrder::class);
+    }
+
+    public function scopeRetail($query)
+    {
+        return $query->whereNull('repair_order_id');
     }
 
     public function user()

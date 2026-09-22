@@ -111,6 +111,11 @@
             <p class="ex-kpi__meta">Contado C$ {{ number_format($kpis['cash_month'], 0) }}</p>
         </article>
         <article class="ex-kpi">
+            <p class="ex-kpi__label">Ingresos de taller</p>
+            <p class="ex-kpi__value">C$ {{ number_format($kpis['workshop_income_month'], 0) }}</p>
+            <p class="ex-kpi__meta">{{ number_format($kpis['workshop_payment_count_month']) }} cobros este mes</p>
+        </article>
+        <article class="ex-kpi">
             <p class="ex-kpi__label">Nómina neta</p>
             <p class="ex-kpi__value">C$ {{ number_format($kpis['payroll_net'], 0) }}</p>
             <p class="ex-kpi__meta">{{ $kpis['clients'] }} clientes activos</p>

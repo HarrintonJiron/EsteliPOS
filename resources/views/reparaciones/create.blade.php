@@ -134,7 +134,7 @@
     </div>
     @endif
 
-    <form action="{{ route('reparaciones.store') }}" method="POST" id="repairForm">
+    <form action="{{ route('reparaciones.store') }}" method="POST" id="repairForm" enctype="multipart/form-data">
         @csrf
 
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_18.5rem] xl:grid-cols-[minmax(0,1fr)_20rem] gap-3">
@@ -279,6 +279,17 @@
                 </div>
 
                 {{-- Repuestos --}}
+                <div class="repair-section">
+                    <div class="repair-section-head">Foto del equipo o artículo</div>
+                    <div class="repair-section-body">
+                        <label class="repair-label" for="photos">Estado al recibirla</label>
+                        <input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" class="input-field w-full" data-photo-input>
+                        <p class="mt-1 text-xs text-slate-500">Una foto. JPG, PNG o WebP, máximo 2 MB. Se optimiza automáticamente.</p>
+                        <div data-photo-preview class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"></div>
+                    </div>
+                </div>
+
+                {{-- Materiales y servicios --}}
                 <div class="repair-section">
                     <div class="repair-section-head justify-between">
                         <span class="flex items-center gap-2">
@@ -489,6 +500,21 @@ let itemIndex = 0;
 let partsCost = 0;
 let patternPoints = [];
 let isDrawingPattern = false;
+
+document.querySelectorAll('[data-photo-input]').forEach((input) => {
+    input.addEventListener('change', () => {
+        const preview = document.querySelector('[data-photo-preview]');
+        const files = Array.from(input.files).slice(0, 1);
+        preview.innerHTML = '';
+        files.forEach((file) => {
+            const image = document.createElement('img');
+            image.src = URL.createObjectURL(file);
+            image.alt = 'Vista previa del equipo o artículo';
+            image.className = 'aspect-square w-full rounded-lg object-cover ring-1 ring-slate-200';
+            preview.appendChild(image);
+        });
+    });
+});
 
 function toggleLockFields() {
     const type = document.getElementById('lockTypeSelect').value;

@@ -13,6 +13,7 @@ use App\Models\Payroll;
 use App\Models\PerformanceEvaluation;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Models\WarehouseStock;
 use Carbon\Carbon;
@@ -33,8 +34,8 @@ class ExecutiveAnalyticsService
         $previousStart = $start->copy()->subMonth();
         $previousEnd = $start->copy()->subDay();
 
-        $salesMonth = (float) Sale::query()->whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total');
-        $salesPrevious = (float) Sale::query()->whereBetween('date', [$previousStart, $previousEnd])->where('status', 'completed')->sum('total');
+        $salesMonth = (float) Sale::query()->retail()->whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total') + $this->repairPaymentsBetween($start, $end);
+        $salesPrevious = (float) Sale::query()->retail()->whereBetween('date', [$previousStart, $previousEnd])->where('status', 'completed')->sum('total') + $this->repairPaymentsBetween($previousStart, $previousEnd);
         $purchasesMonth = (float) Purchase::query()->whereBetween('date', [$start, $end])->whereNotIn('status', ['canceled', 'cancelled'])->sum('total');
         $inventoryValue = (float) Product::query()->selectRaw('SUM(stock * purchase_price) as value')->value('value');
         $receivables = (float) Sale::query()->where('payment_type', 'credit')->where('status', 'completed')->selectRaw('SUM(total - amount_paid) as due')->value('due');
@@ -45,7 +46,7 @@ class ExecutiveAnalyticsService
 
             return [
                 'label' => ucfirst($cursor->locale('es')->translatedFormat('M')),
-                'sales' => (float) Sale::query()->whereBetween('date', [$cursor, $cursor->copy()->endOfMonth()])->where('status', 'completed')->sum('total'),
+                'sales' => (float) Sale::query()->retail()->whereBetween('date', [$cursor, $cursor->copy()->endOfMonth()])->where('status', 'completed')->sum('total') + $this->repairPaymentsBetween($cursor, $cursor->copy()->endOfMonth()),
                 'purchases' => (float) Purchase::query()->whereBetween('date', [$cursor, $cursor->copy()->endOfMonth()])->whereNotIn('status', ['canceled', 'cancelled'])->sum('total'),
             ];
         });
@@ -79,7 +80,7 @@ class ExecutiveAnalyticsService
                 DB::raw('SUM(sale_details.subtotal) as total'),
             ]);
 
-        $tickets = (int) Sale::query()->whereBetween('date', [$start, $end])->where('status', 'completed')->count();
+        $tickets = (int) Sale::query()->retail()->whereBetween('date', [$start, $end])->where('status', 'completed')->count() + $this->repairPaymentsCountBetween($start, $end);
         $costOfGoodsSold = (float) DB::table('sale_details')
             ->join('sales', 'sale_details.sale_id', '=', 'sales.id')
             ->join('products', 'sale_details.product_id', '=', 'products.id')
@@ -92,8 +93,8 @@ class ExecutiveAnalyticsService
             ->whereBetween('sales.date', [$start, $end])
             ->where('sales.status', 'completed')
             ->sum('sale_details.subtotal');
-        $margin = $netSales - $costOfGoodsSold;
-        $mix = Sale::query()
+        $margin = $netSales + $this->repairPaymentsBetween($start, $end) - $costOfGoodsSold;
+        $mix = Sale::query()->retail()
             ->whereBetween('date', [$start, $end])
             ->where('status', 'completed')
             ->selectRaw("SUM(CASE WHEN payment_type = 'credit' THEN total ELSE 0 END) as credit_total")
@@ -101,9 +102,12 @@ class ExecutiveAnalyticsService
             ->first();
         $cashMonth = (float) ($mix->cash_total ?? 0);
         $creditMonth = (float) ($mix->credit_total ?? 0);
+        $repairCashMonth = RepairOrder::supportsPaymentTracking()
+            ? (float) RepairOrder::query()->whereBetween('payment_received_at', [$start, $end])->where('status', '!=', 'cancelled')->whereIn('payment_type', ['cash', 'card', 'transfer'])->sum('advance_payment')
+            : 0;
 
         $from = now()->subDays(13)->startOfDay();
-        $salesByDay = Sale::query()
+        $salesByDay = Sale::query()->retail()
             ->where('status', 'completed')
             ->where('date', '>=', $from->toDateString())
             ->get(['date', 'total'])
@@ -156,8 +160,11 @@ class ExecutiveAnalyticsService
             'period_label' => ucfirst(now()->locale('es')->translatedFormat('F Y')),
             'generated_at' => now()->format('d/m/Y H:i'),
             'kpis' => [
-                'sales_today' => (float) Sale::query()->whereDate('date', $today)->where('status', 'completed')->sum('total'),
+                'sales_today' => (float) Sale::query()->retail()->whereDate('date', $today)->where('status', 'completed')->sum('total') + $this->repairPaymentsBetween($today->copy()->startOfDay(), $today->copy()->endOfDay()),
                 'sales_month' => $salesMonth,
+                'workshop_income_today' => $this->repairPaymentsBetween($today->copy()->startOfDay(), $today->copy()->endOfDay()),
+                'workshop_income_month' => $this->repairPaymentsBetween($start, $end),
+                'workshop_payment_count_month' => $this->repairPaymentsCountBetween($start, $end),
                 'sales_change' => $salesChange,
                 'purchases_month' => $purchasesMonth,
                 'margin' => $margin,
@@ -169,9 +176,9 @@ class ExecutiveAnalyticsService
                 'payroll_net' => $payrollNet,
                 'clients' => Client::query()->count(),
                 'tickets' => $tickets,
-                'cash_month' => $cashMonth,
+                'cash_month' => $cashMonth + $repairCashMonth,
                 'credit_month' => $creditMonth,
-                'cash_share' => ($cashMonth + $creditMonth) > 0 ? round(($cashMonth / ($cashMonth + $creditMonth)) * 100, 1) : 0,
+                'cash_share' => ($cashMonth + $repairCashMonth + $creditMonth) > 0 ? round((($cashMonth + $repairCashMonth) / ($cashMonth + $repairCashMonth + $creditMonth)) * 100, 1) : 0,
                 'low_stock' => $lowStock,
                 'overdue_count' => $overdue,
             ],
@@ -184,6 +191,30 @@ class ExecutiveAnalyticsService
             'cost_centers' => $this->costCenterScorecard(now()->startOfYear(), $end),
             'alerts' => $alerts,
         ];
+    }
+
+    private function repairPaymentsBetween(Carbon $start, Carbon $end): float
+    {
+        if (! RepairOrder::supportsPaymentTracking()) {
+            return 0;
+        }
+
+        return (float) RepairOrder::query()
+            ->whereBetween('payment_received_at', [$start, $end])
+            ->where('status', '!=', 'cancelled')
+            ->sum('advance_payment');
+    }
+
+    private function repairPaymentsCountBetween(Carbon $start, Carbon $end): int
+    {
+        if (! RepairOrder::supportsPaymentTracking()) {
+            return 0;
+        }
+
+        return RepairOrder::query()
+            ->whereBetween('payment_received_at', [$start, $end])
+            ->where('status', '!=', 'cancelled')
+            ->count();
     }
 
     /**
