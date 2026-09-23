@@ -44,27 +44,75 @@ function purchaseProformaContext(): array
     return compact('admin', 'unit', 'warehouse', 'supplier', 'product');
 }
 
-test('purchase and proforma use separate entry buttons without a record type selector', function () {
+test('purchases and proformas share one entry button and one form that asks if the merchandise arrived', function () {
     $context = purchaseProformaContext();
 
     $this->actingAs($context['admin'])
         ->get(route('compras.index'))
         ->assertOk()
-        ->assertSee('Proforma compras')
-        ->assertSee('+ Nueva compra');
+        ->assertSee('+ Nueva compra')
+        ->assertDontSee('Proforma compras')
+        ->assertDontSee(route('compras.proformas.create'), false);
 
     $this->actingAs($context['admin'])
         ->get(route('compras.create'))
         ->assertOk()
+        ->assertSee('¿La mercadería ya llegó?')
+        ->assertSee('Sí, ya llegó')
+        ->assertSee('Aún no · pedido')
         ->assertSee('Ingreso a inventario')
+        ->assertSee('const selectedProductIds = new Set(items.map(item => String(item.id)));', false)
+        ->assertSee('Los productos encontrados ya están agregados a la compra.')
+        ->assertSee('searchInput.blur();', false)
+        ->assertSee('name="purchase_mode" id="purchase_mode" value="immediate"', false)
         ->assertDontSee('Tipo de registro');
+});
 
-    $this->actingAs($context['admin'])
-        ->get(route('compras.proformas.create'))
-        ->assertOk()
-        ->assertSee('Proforma de compra')
-        ->assertSee('pedido en proceso')
-        ->assertDontSee('Tipo de registro');
+test('the shared purchase form can open already set as an order and keeps the old proforma link working', function () {
+    $context = purchaseProformaContext();
+
+    foreach ([route('compras.create', ['modo' => 'pedido']), route('compras.proformas.create')] as $url) {
+        $this->actingAs($context['admin'])
+            ->get($url)
+            ->assertOk()
+            ->assertSee('¿La mercadería ya llegó?')
+            ->assertSee('Proforma de compra')
+            ->assertSee('pedido en proceso')
+            ->assertSee('name="purchase_mode" id="purchase_mode" value="proforma"', false)
+            ->assertDontSee('Tipo de registro');
+    }
+});
+
+test('the arrival question sits in positioned labels so opening it cannot scroll the whole app', function () {
+    $context = purchaseProformaContext();
+
+    $html = $this->actingAs($context['admin'])->get(route('compras.create'))->assertOk()->getContent();
+
+    expect($html)->toContain('<label class="relative cursor-pointer">')
+        ->and(substr_count($html, 'name="purchase_mode_choice" value='))->toBe(2)
+        ->and($html)->toContain('applyPurchaseMode');
+});
+
+test('editing a purchase or a proforma does not offer to switch its type', function () {
+    $context = purchaseProformaContext();
+
+    foreach (['immediate' => 'completed', 'proforma' => 'ordered'] as $mode => $status) {
+        $this->actingAs($context['admin'])->post(route('compras.store'), [
+            'supplier_id' => $context['supplier']->id,
+            'warehouse_id' => $context['warehouse']->id,
+            'date' => now()->toDateString(),
+            'payment_type' => 'transfer',
+            'purchase_mode' => $mode,
+            'items' => [['product_id' => $context['product']->id, 'unit_id' => $context['unit']->id, 'quantity' => 1, 'price' => 5]],
+        ])->assertSessionHasNoErrors();
+
+        $purchase = Purchase::query()->latest('id')->firstOrFail();
+        expect($purchase->status)->toBe($status);
+
+        $this->actingAs($context['admin'])->get(route('compras.edit', $purchase->id))
+            ->assertOk()
+            ->assertDontSee('id="purchaseModeChooser"', false);
+    }
 });
 
 test('purchases receive unique persisted document numbers from the configured sequence', function () {

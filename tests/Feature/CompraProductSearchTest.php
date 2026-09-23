@@ -20,7 +20,7 @@ function comprasAdmin(): User
     return $user;
 }
 
-test('purchase product search only returns active products linked to the selected supplier', function () {
+test('purchase product search returns supplier products first and also offers the general catalog', function () {
     $admin = comprasAdmin();
     $category = Category::create(['name' => 'General']);
 
@@ -55,7 +55,12 @@ test('purchase product search only returns active products linked to the selecte
     ]));
 
     $response->assertSuccessful()
-        ->assertExactJson([]);
+        ->assertJsonFragment([
+            'code' => 'VAR-038',
+            'price' => 45,
+            'has_supplier_price' => false,
+            'is_supplier_product' => false,
+        ]);
 
     $response = $this->actingAs($admin)->getJson(route('compras.products.search', [
         'search' => 'Cemento',
@@ -63,12 +68,20 @@ test('purchase product search only returns active products linked to the selecte
     ]));
 
     $response->assertSuccessful()
-        ->assertJsonFragment(['code' => 'CEM-001', 'price' => 230, 'has_supplier_price' => true]);
+        ->assertJsonFragment([
+            'code' => 'CEM-001',
+            'price' => 230,
+            'has_supplier_price' => true,
+            'is_supplier_product' => true,
+        ]);
 
-    $this->actingAs($admin)->getJson(route('compras.products.search', [
+    $catalog = $this->actingAs($admin)->getJson(route('compras.products.search', [
         'supplier_id' => $supplier->id,
-    ]))->assertSuccessful()
-        ->assertJsonFragment(['code' => 'CEM-001']);
+    ]))->assertSuccessful()->json();
+
+    expect(array_column($catalog, 'code'))
+        ->toContain('CEM-001', 'VAR-038')
+        ->and($catalog[0]['code'])->toBe('CEM-001');
 });
 
 test('purchase product search recognizes products bought historically from the supplier', function () {
@@ -117,6 +130,7 @@ test('purchase product search recognizes products bought historically from the s
         ->assertJsonFragment([
             'code' => 'HIST-001',
             'price' => 80,
+            'is_supplier_product' => true,
         ]);
 });
 

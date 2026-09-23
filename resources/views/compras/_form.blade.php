@@ -62,14 +62,14 @@
                     label="Regresar"
                     class="mb-3"
                 />
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400" id="purchaseKicker">
                     @if($isEdit)
                         {{ $defaultPurchaseMode === 'proforma' ? 'Editar proforma de compra' : 'Editar compra' }}
                     @else
-                        {{ $defaultPurchaseMode === 'proforma' ? 'Nueva proforma de compra' : 'Nueva compra' }}
+                        Nueva compra
                     @endif
                 </p>
-                <h1 class="mt-1 text-xl font-bold text-slate-900">{{ $title }}</h1>
+                <h1 class="mt-1 text-xl font-bold text-slate-900" id="purchaseTitle">{{ $title }}</h1>
                 @if($isEdit)
                     <p class="mt-0.5 text-sm text-slate-500">#{{ $purchase->id }}</p>
                 @endif
@@ -85,6 +85,28 @@
                         </ul>
                     </div>
                 @endif
+
+                @unless($isEdit)
+                    <fieldset id="purchaseModeChooser">
+                        <legend class="mb-1.5 text-xs font-semibold text-slate-700">¿La mercadería ya llegó?</legend>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="relative cursor-pointer">
+                                <input type="radio" name="purchase_mode_choice" value="immediate" class="peer sr-only" @checked($defaultPurchaseMode !== 'proforma')>
+                                <span class="block h-full rounded-xl border-2 border-slate-200 p-2.5 text-left transition hover:border-emerald-300 peer-checked:border-emerald-600 peer-checked:bg-emerald-50 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-300">
+                                    <strong class="block text-sm text-slate-800">Sí, ya llegó</strong>
+                                    <span class="mt-0.5 block text-[11px] leading-snug text-slate-500">Entra al inventario al guardar.</span>
+                                </span>
+                            </label>
+                            <label class="relative cursor-pointer">
+                                <input type="radio" name="purchase_mode_choice" value="proforma" class="peer sr-only" @checked($defaultPurchaseMode === 'proforma')>
+                                <span class="block h-full rounded-xl border-2 border-slate-200 p-2.5 text-left transition hover:border-blue-300 peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-300">
+                                    <strong class="block text-sm text-slate-800">Aún no · pedido</strong>
+                                    <span class="mt-0.5 block text-[11px] leading-snug text-slate-500">Queda como proforma hasta confirmar la recepción.</span>
+                                </span>
+                            </label>
+                        </div>
+                    </fieldset>
+                @endunless
 
                 <div>
                     <div class="mb-1 flex items-center justify-between gap-2">
@@ -137,7 +159,7 @@
                         />
                     </div>
                     <div>
-                        <label for="payment_type" class="mb-1 block text-xs font-medium text-slate-500">Pago</label>
+                        <label for="payment_type" id="paymentLabel" class="mb-1 block text-xs font-medium text-slate-500">{{ $defaultPurchaseMode === 'proforma' ? 'Pago previsto' : 'Pago' }}</label>
                         @php
                             $defaultPaymentType = old(
                                 'payment_type',
@@ -159,13 +181,13 @@
                     </div>
                 </div>
                 <input type="hidden" name="purchase_mode" id="purchase_mode" value="{{ $defaultPurchaseMode }}">
-                @if($defaultPurchaseMode === 'proforma')
+                @if($isEdit && $defaultPurchaseMode === 'proforma')
                     <div class="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                        @if($isEdit)
-                            Pedido en proceso. Editarlo no ingresará existencias; utiliza “Confirmar ingreso” desde el detalle cuando llegue la mercadería.
-                        @else
-                            Esta proforma quedará como pedido en proceso. No ingresará existencias ni generará contabilidad hasta confirmar la recepción.
-                        @endif
+                        Pedido en proceso. Editarlo no ingresará existencias; utiliza “Confirmar ingreso” desde el detalle cuando llegue la mercadería.
+                    </div>
+                @elseif(! $isEdit)
+                    <div id="proformaNotice" class="{{ $defaultPurchaseMode === 'proforma' ? '' : 'hidden' }} rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                        Esta proforma quedará como pedido en proceso. No ingresará existencias ni generará contabilidad hasta confirmar la recepción desde el detalle.
                     </div>
                 @endif
                 <p id="paymentHint" class="text-[11px] text-slate-500">
@@ -248,7 +270,8 @@
                     <a href="{{ $isEdit ? route('compras.show', $purchase->id) : route('compras.index') }}" class="btn-outline flex-1 justify-center text-center">
                         Cancelar
                     </a>
-                    <button type="submit" id="purchaseSubmit" class="btn-primary flex-[1.4] justify-center" disabled>
+                    <button type="submit" id="purchaseSubmit" class="btn-primary flex-[1.4] justify-center" disabled
+                            data-label-immediate="Registrar compra" data-label-proforma="Guardar proforma">
                         {{ $submitLabel }}
                     </button>
                 </div>
@@ -282,7 +305,7 @@
                         Nuevo producto
                     </button>
                 </div>
-                <p id="searchHint" class="mt-2 text-xs text-slate-500">Selecciona un proveedor para ver únicamente los productos asociados.</p>
+                <p id="searchHint" class="mt-2 text-xs text-slate-500">Selecciona un proveedor para buscar en todo el catálogo.</p>
             </div>
 
             <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
@@ -295,7 +318,7 @@
                         </svg>
                     </div>
                     <p class="text-base font-medium text-slate-700">Sin productos en la compra</p>
-                    <p class="mt-1 text-sm text-slate-500">Selecciona un proveedor y agrega productos de su catálogo.</p>
+                    <p class="mt-1 text-sm text-slate-500">Selecciona un proveedor y agrega cualquiera de los productos del inventario.</p>
                 </div>
             </div>
         </section>
@@ -492,6 +515,24 @@
         syncPaymentHint();
     };
 
+    const applyPurchaseMode = mode => {
+        if (purchaseModeSelect) purchaseModeSelect.value = mode;
+        const proforma = mode === 'proforma';
+        const title = document.getElementById('purchaseTitle');
+        const notice = document.getElementById('proformaNotice');
+        const paymentLabel = document.getElementById('paymentLabel');
+
+        if (title && !isEdit) title.textContent = proforma ? 'Proforma de compra' : 'Ingreso a inventario';
+        notice?.classList.toggle('hidden', !proforma);
+        if (paymentLabel) paymentLabel.textContent = proforma ? 'Pago previsto' : 'Pago';
+        if (submitBtn) submitBtn.textContent = (proforma ? submitBtn.dataset.labelProforma : submitBtn.dataset.labelImmediate).trim();
+        syncPaymentHint();
+    };
+
+    document.querySelectorAll('input[name="purchase_mode_choice"]').forEach(radio => {
+        radio.addEventListener('change', () => { if (radio.checked) applyPurchaseMode(radio.value); });
+    });
+
     paymentTypeSelect?.addEventListener('change', syncPaymentHint);
     purchaseModeSelect?.addEventListener('change', syncPaymentHint);
     syncPaymentHint();
@@ -602,11 +643,11 @@
         searchInput.disabled = !hasSupplier;
         openQuickBtn.disabled = !hasSupplier;
         searchInput.placeholder = hasSupplier
-            ? 'Buscar productos de este proveedor…'
+            ? 'Buscar en todos los productos…'
             : 'Selecciona un proveedor para buscar productos';
         searchHint.textContent = hasSupplier
-            ? 'Mostrando únicamente productos asociados al proveedor seleccionado.'
-            : 'Selecciona un proveedor para ver únicamente los productos asociados.';
+            ? 'Los productos habituales del proveedor aparecen primero; también puedes elegir cualquier producto del inventario.'
+            : 'Selecciona un proveedor para buscar en todo el catálogo.';
 
         if (!hasSupplier) {
             searchInput.value = '';
@@ -622,27 +663,36 @@
     }
 
     function renderResults(products) {
-        searchCache = products;
-        activeResultIndex = products.length ? 0 : -1;
+        const selectedProductIds = new Set(items.map(item => String(item.id)));
+        const availableProducts = products.filter(product => !selectedProductIds.has(String(product.id)));
 
-        if (!products.length) {
+        searchCache = availableProducts;
+        activeResultIndex = availableProducts.length ? 0 : -1;
+
+        if (!availableProducts.length) {
             const term = escapeHtml(lastSearchTerm);
             const createLabel = term
                 ? `Crear producto «${term}»`
                 : 'Crear un producto para este proveedor';
-            searchResults.innerHTML = `
-                <div class="px-4 py-3 text-sm text-slate-500">Este proveedor no tiene productos que coincidan.</div>
+            const emptyMessage = products.length
+                ? 'Los productos encontrados ya están agregados a la compra.'
+                : 'No hay productos activos que coincidan.';
+            const createAction = products.length ? '' : `
                 <button type="button" id="createFromSearch" class="flex w-full items-center gap-2 border-t border-slate-100 px-4 py-3 text-left text-sm font-medium text-indigo-700 hover:bg-indigo-50">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                     ${createLabel}
                 </button>
+            `;
+            searchResults.innerHTML = `
+                <div class="px-4 py-3 text-sm text-slate-500">${emptyMessage}</div>
+                ${createAction}
             `;
             searchResults.classList.remove('hidden');
             document.getElementById('createFromSearch')?.addEventListener('click', () => openQuickProductModal(lastSearchTerm));
             return;
         }
 
-        searchResults.innerHTML = products.map((product, index) => `
+        searchResults.innerHTML = availableProducts.map((product, index) => `
             <button
                 type="button"
                 class="purchase-result flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50 ${index === activeResultIndex ? 'bg-indigo-50' : ''}"
@@ -651,7 +701,9 @@
             >
                 <div class="min-w-0">
                     <p class="truncate font-medium text-slate-800">${escapeHtml(product.name)}</p>
-                    <p class="text-xs text-slate-500">${escapeHtml(product.code)}${product.has_supplier_price ? ' · costo proveedor' : ''}</p>
+                    <p class="text-xs text-slate-500">
+                        ${escapeHtml(product.code)} · ${product.is_supplier_product ? 'Producto del proveedor' : 'Catálogo general'}${product.has_supplier_price ? ' · costo proveedor' : ''}
+                    </p>
                 </div>
                 <span class="shrink-0 text-sm font-semibold text-emerald-700">${money(product.price, companyCurrency)}</span>
             </button>
@@ -723,7 +775,7 @@
         searchInput.value = '';
         hideResults();
         renderLines();
-        searchInput.focus();
+        searchInput.blur();
     }
 
     function removeItem(index) {
