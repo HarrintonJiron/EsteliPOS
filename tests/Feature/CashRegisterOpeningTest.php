@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Arqueo;
+use App\Models\Branch;
 use App\Models\CajaSession;
 use App\Models\Client;
 use App\Models\CreditPayment;
@@ -79,6 +80,65 @@ test('open cash screen shows compact closing summary when session is active', fu
         ->assertSee('Conteo y cierre')
         ->assertSee('qty-input', false)
         ->assertSee('denom-row', false);
+});
+
+test('administrator can open a register in one branch and close another branch register', function () {
+    $admin = cashRegisterAdmin();
+    $primary = Branch::query()->create([
+        'code' => 'CAJA-PRI',
+        'name' => 'Sucursal primaria',
+        'is_active' => true,
+    ]);
+    $secondary = Branch::query()->create([
+        'code' => 'CAJA-SEC',
+        'name' => 'Sucursal secundaria',
+        'is_active' => true,
+    ]);
+    $cashier = User::factory()->create([
+        'name' => 'Cajero secundario',
+        'branch_id' => $secondary->id,
+        'is_active' => true,
+    ]);
+    $secondarySession = CajaSession::query()->create([
+        'date' => now()->toDateString(),
+        'opened_at' => now(),
+        'opened_by' => $cashier->id,
+        'branch_id' => $secondary->id,
+        'opening_amount' => 0,
+        'status' => 'open',
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('arqueo.index', ['session_id' => $secondarySession->id]))
+        ->assertOk()
+        ->assertSee('Cajas abiertas por sucursal')
+        ->assertSee('Sucursal secundaria')
+        ->assertSee('Cajero secundario')
+        ->assertSee('value="'.$secondarySession->id.'"', false);
+
+    $this->actingAs($admin)
+        ->post(route('arqueo.run'), [
+            'date' => now()->toDateString(),
+            'caja_session_id' => $secondarySession->id,
+            'physical_counts' => [],
+        ])
+        ->assertOk();
+
+    expect($secondarySession->fresh()->status)->toBe('closed')
+        ->and($secondarySession->fresh()->closed_by)->toBe($admin->id);
+
+    $this->actingAs($admin)
+        ->post(route('arqueo.open'), [
+            'branch_id' => $primary->id,
+            'opening_amount' => 500,
+        ])
+        ->assertRedirect(route('facturacion.pos'))
+        ->assertSessionHasNoErrors();
+
+    $adminSession = CajaSession::currentForUser($admin->id);
+    expect($adminSession)->not->toBeNull()
+        ->and($adminSession->branch_id)->toBe($primary->id)
+        ->and((float) $adminSession->opening_amount)->toBe(500.0);
 });
 
 test('opening amount is included in expected cash at closing', function () {

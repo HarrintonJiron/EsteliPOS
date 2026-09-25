@@ -4,8 +4,8 @@
 
 @section('content')
 
-<div class="h-screen bg-slate-100 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl p-12 max-w-2xl w-full text-center">
+<div class="min-h-full bg-slate-100 flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-2xl shadow-2xl p-4 sm:p-8 lg:p-12 max-w-2xl w-full min-w-0 text-center">
         
         {{-- Icono de éxito --}}
         <div class="mb-8">
@@ -21,9 +21,9 @@
         <p class="text-lg text-slate-600 mb-8">Factura #{{ str_pad($sale->invoice_number, 6, '0', STR_PAD_LEFT) }}</p>
 
         {{-- Sección de cambio --}}
-        <div class="bg-indigo-50 rounded-xl p-8 mb-8 border-2 border-indigo-200">
+        <div class="change-card min-w-0 overflow-hidden bg-indigo-50 rounded-xl p-4 sm:p-8 mb-8 border-2 border-indigo-200">
             <p class="text-slate-700 text-lg mb-3">Cambio a entregar:</p>
-            <p class="text-7xl font-black text-indigo-600" id="changeAmount">
+            <p class="change-amount block w-full max-w-full font-black leading-none tracking-tight text-indigo-600 tabular-nums" id="changeAmount">
                 C$ {{ number_format($changeAmount, 2) }}
             </p>
         </div>
@@ -104,6 +104,21 @@
 </div>
 
 <style>
+    .change-card {
+        container-type: inline-size;
+    }
+
+    .change-amount {
+        font-size: clamp(1.75rem, 10cqw, 4.5rem);
+        overflow-wrap: anywhere;
+    }
+
+    @supports not (font-size: 1cqw) {
+        .change-amount {
+            font-size: clamp(1.75rem, 8vw, 4.5rem);
+        }
+    }
+
     @media print {
         body { display: none; }
     }

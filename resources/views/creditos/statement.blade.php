@@ -17,6 +17,7 @@
         .products { font-size: 11px; }
         @media print { body { width: 80mm; } }
     </style>
+    <x-mobile-ticket-paper selector="body" desktop-content-width="72mm" mobile-content-width="46mm" />
 </head>
 <body>
     <div class="center">
@@ -107,7 +108,7 @@
     <div class="line"></div>
 
     <p class="xs center">Gracias por su preferencia</p>
-    <div style="text-align:center; margin-top:8px">
+    <div class="screen-only" style="text-align:center; margin-top:8px">
         <button onclick="window.print()" style="padding:8px 12px; font-size:13px">Imprimir</button>
     </div>
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AuditLog;
+use App\Models\Branch;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -54,6 +55,36 @@ test('users can be searched and filtered by status and role', function () {
 
     $this->actingAs($admin)->get(route('settings.users', ['search' => 'Especial', 'status' => 'inactive', 'role' => 'seller']))
         ->assertOk()->assertSee('Usuario Especial')->assertDontSee('Otro Usuario');
+});
+
+test('an administrator can change and see a users habitual branch', function () {
+    [$admin] = adminWithRole();
+    $user = User::factory()->create(['is_active' => true, 'branch_id' => null]);
+    $branch = Branch::create([
+        'code' => 'SUC-02',
+        'name' => 'Sucursal 2',
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($admin)->patch(route('settings.users.update', $user), [
+        'name' => $user->name,
+        'email' => $user->email,
+        'branch_id' => $branch->id,
+        'roles' => [],
+        'permissions' => [],
+    ])->assertSessionHasNoErrors()
+        ->assertRedirect(route('settings.users.show', $user));
+
+    expect($user->fresh()->branch_id)->toBe($branch->id);
+
+    $this->actingAs($admin)->get(route('settings.users.show', $user))
+        ->assertOk()
+        ->assertSee('Sucursal habitual')
+        ->assertSee('Sucursal 2');
+
+    $this->actingAs($admin)->get(route('settings.users.edit', $user))
+        ->assertOk()
+        ->assertSee('value="'.$branch->id.'" selected', false);
 });
 
 test('the last active administrator cannot be deactivated demoted or deleted', function () {

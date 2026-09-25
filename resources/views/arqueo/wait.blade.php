@@ -14,6 +14,33 @@
             <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">{{ session('warning') }}</div>
         @endif
 
+        @if(auth()->user()?->isAdmin() && ($openSessions ?? collect())->isNotEmpty())
+            <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-labelledby="open-registers-title">
+                <div class="border-b border-slate-100 bg-slate-50 px-4 py-3">
+                    <h2 id="open-registers-title" class="text-sm font-bold text-slate-900">Cajas abiertas por sucursal</h2>
+                    <p class="mt-0.5 text-xs text-slate-500">Como administrador puedes revisar el conteo y cerrar cualquier caja abierta.</p>
+                </div>
+                <div class="grid gap-2 p-3 sm:grid-cols-2">
+                    @foreach($openSessions as $session)
+                        <a href="{{ route('arqueo.index', ['session_id' => $session->id]) }}"
+                           class="rounded-xl border p-3 transition {{ $openSession?->id === $session->id ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-200' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50' }}">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-bold text-slate-900">{{ $session->branch?->name ?? 'Sin sucursal' }}</p>
+                                    <p class="truncate text-xs text-slate-500">{{ $session->openedBy?->name ?? 'Usuario eliminado' }} · {{ $session->opened_at?->format('d/m H:i') }}</p>
+                                </div>
+                                <span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">ABIERTA</span>
+                            </div>
+                            <div class="mt-2 flex items-center justify-between text-xs">
+                                <span class="text-slate-500">Fondo C$ {{ number_format((float) $session->opening_amount, 2) }}</span>
+                                <span class="font-semibold text-indigo-700">Administrar cierre →</span>
+                            </div>
+                        </a>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
         @if(empty($openSession))
             {{-- Apertura compacta: primer paso del día --}}
             <form id="openForm" method="POST" action="{{ route('arqueo.open') }}" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -33,12 +60,15 @@
                     @if($branches->isNotEmpty())
                     <div>
                         <label for="branch_id" class="mb-1 block text-sm font-semibold text-slate-700">Sucursal o punto de caja</label>
-                        <select id="branch_id" name="branch_id" class="input-field w-full">
-                            <option value="">Casa matriz / sin asignar</option>
+                        <select id="branch_id" name="branch_id" class="input-field w-full" @if($branches->count() > 1) required @endif>
+                            <option value="">Seleccione una sucursal</option>
                             @foreach($branches as $branch)
-                                <option value="{{ $branch->id }}" @selected(old('branch_id') == $branch->id)>{{ $branch->name }}</option>
+                                <option value="{{ $branch->id }}" @selected(old('branch_id') == $branch->id || (!old('branch_id') && $branches->count() === 1))>{{ $branch->name }}</option>
                             @endforeach
                         </select>
+                        @error('branch_id')
+                            <p class="mt-1 text-sm font-medium text-red-600">{{ $message }}</p>
+                        @enderror
                     </div>
                     @endif
                     <div>

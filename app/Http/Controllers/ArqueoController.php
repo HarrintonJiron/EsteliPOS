@@ -25,12 +25,20 @@ class ArqueoController extends Controller
     {
         $now = Carbon::now();
         $today = Carbon::today()->toDateString();
+        $user = request()->user();
 
-        $openSession = CajaSession::query()
+        $openSessions = CajaSession::query()
             ->with(['openedBy', 'branch'])
-            ->where('opened_by', request()->user()?->id)
             ->where('status', 'open')
-            ->first();
+            ->when(! $user?->isAdmin(), fn ($query) => $query->where('opened_by', $user?->id))
+            ->orderBy('branch_id')
+            ->orderBy('opened_at')
+            ->get();
+
+        $openSession = $user?->isAdmin() && request()->integer('session_id') > 0
+            ? $openSessions->firstWhere('id', request()->integer('session_id'))
+            : null;
+        $openSession ??= $openSessions->firstWhere('opened_by', $user?->id);
 
         $closingSummary = null;
 
@@ -90,6 +98,7 @@ class ArqueoController extends Controller
         return view('arqueo.wait', [
             'now' => $now,
             'openSession' => $openSession,
+            'openSessions' => $openSessions,
             'closingSummary' => $closingSummary,
             'denominations' => [1000, 500, 200, 100, 50, 20, 10, 5, 1],
             'branches' => Branch::query()

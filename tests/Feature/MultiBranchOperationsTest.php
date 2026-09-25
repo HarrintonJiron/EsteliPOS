@@ -114,6 +114,61 @@ test('each branch exposes its own stock and price for the same product', functio
         ->and((float) WarehouseStock::query()->where('warehouse_id', $b['warehouse']->id)->where('product_id', $product->id)->value('quantity'))->toBe(5.0);
 });
 
+test('POS follows the open cash session branch for an administrator without a habitual branch', function () {
+    $primary = branchFixture('CTX-PRI', 100);
+    $secondary = branchFixture('CTX-SEC', 125);
+    $category = Category::query()->create(['name' => 'Contexto POS']);
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto sucursal secundaria',
+        'code' => 'CTX-PROD-1',
+        'purchase_price' => 70,
+        'sale_price' => 125,
+        'stock' => 10,
+        'unit' => 'unidad',
+        'status' => 'active',
+    ]);
+    WarehouseStock::query()->create([
+        'warehouse_id' => $secondary['warehouse']->id,
+        'product_id' => $product->id,
+        'quantity' => 10,
+        'purchase_price' => 70,
+    ]);
+
+    $admin = User::factory()->create(['role' => 'admin', 'branch_id' => null, 'is_active' => true]);
+    $role = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Administrador', 'is_system' => true]);
+    $admin->roles()->sync([$role->id]);
+    $cashSession = openCashSessionFor($admin);
+    $cashSession->update(['branch_id' => $secondary['branch']->id]);
+
+    $response = $this->actingAs($admin)->get(route('facturacion.pos'));
+
+    $response->assertOk()
+        ->assertViewHas('defaultWarehouseId', $secondary['warehouse']->id)
+        ->assertViewHas('warehouses', fn ($warehouses) => $warehouses->pluck('id')->all() === [$secondary['warehouse']->id])
+        ->assertSee('value="'.$secondary['warehouse']->id.'" selected', false)
+        ->assertDontSee($primary['warehouse']->name);
+
+    $accounting = Mockery::mock(AccountingService::class);
+    $accounting->shouldReceive('recordSale')->once();
+    app()->instance(AccountingService::class, $accounting);
+
+    $this->actingAs($admin)->post(route('facturacion.pos-store'), [
+        'payment_type' => 'cash',
+        'items' => json_encode([['product_id' => $product->id, 'quantity' => 1]]),
+        'amount_received' => 200,
+        'request_token' => (string) Str::uuid(),
+    ])->assertRedirect();
+
+    $sale = Sale::query()->latest('id')->firstOrFail();
+    expect($sale->branch_id)->toBe($secondary['branch']->id)
+        ->and($sale->warehouse_id)->toBe($secondary['warehouse']->id)
+        ->and((float) WarehouseStock::query()
+            ->where('warehouse_id', $secondary['warehouse']->id)
+            ->where('product_id', $product->id)
+            ->value('quantity'))->toBe(9.0);
+});
+
 test('branch import is explicit and idempotent for stock prices and receivables', function () {
     $branch = branchFixture('IMP', 0);
     User::factory()->create();

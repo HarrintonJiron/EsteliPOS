@@ -107,6 +107,7 @@
             }
         }
     </style>
+    <x-mobile-ticket-paper selector=".receipt" mobile-columns="minmax(0, 1fr) 15mm" />
 </head>
 <body>
 @php
@@ -115,10 +116,10 @@
 @endphp
 
 <div class="print-hint screen-only">
-    Impresora térmica 80 mm: papel <strong>80 mm</strong>, márgenes <strong>ninguno</strong>, escala <strong>100%</strong>.
+    Móvil: papel <strong>50 mm</strong>. Computadora: papel <strong>80 mm</strong>. Márgenes ninguno y escala 100%.
 </div>
 <div class="screen-actions screen-only">
-    <button type="button" onclick="window.print()">Imprimir ticket 80 mm</button>
+    <button type="button" onclick="window.print()">Imprimir ticket</button>
     <button type="button" onclick="window.close()">Cerrar</button>
 </div>
 

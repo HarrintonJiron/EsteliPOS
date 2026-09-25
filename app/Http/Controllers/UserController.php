@@ -65,7 +65,7 @@ class UserController extends Controller
 
     public function show(User $user): View
     {
-        $user->load('roles.permissions', 'directPermissions');
+        $user->load('roles.permissions', 'directPermissions', 'branch');
         $activity = AuditLog::query()
             ->with('user')
             ->where(function ($query) use ($user) {

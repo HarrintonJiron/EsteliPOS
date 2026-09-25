@@ -37,6 +37,7 @@
             .ticket { width: 72mm; margin: 0 auto; padding: 2mm 4mm; }
         }
     </style>
+    <x-mobile-ticket-paper selector=".ticket" />
 </head>
 <body>
 @php
@@ -89,8 +90,8 @@
     <div class="footer">Elaborado por: {{ $purchase->user?->name ?? 'Sistema' }}<br>{{ now()->format($companyProfile['date_format'].' H:i') }}</div>
 </div>
 <div class="actions no-print">
-    <p style="margin-bottom:8px;color:#9a3412;font-size:10px;">Papel 80 mm · márgenes ninguno · escala 100%</p>
-    <button type="button" onclick="window.print()">Imprimir ticket 80 mm</button>
+    <p style="margin-bottom:8px;color:#9a3412;font-size:10px;">Móvil: papel 50 mm · PC: papel 80 mm · márgenes ninguno · escala 100%</p>
+    <button type="button" onclick="window.print()">Imprimir ticket</button>
     <a href="{{ route('compras.show', $purchase->id) }}">Volver</a>
 </div>
 </body>

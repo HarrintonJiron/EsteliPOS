@@ -275,7 +275,7 @@
     </style>
 </head>
 
-<body class="{{ $bodyBg }}">
+<body class="{{ $bodyBg }} {{ request()->routeIs('facturacion.pos') ? 'is-mobile-pos' : 'has-mobile-dock' }}">
 
     <div class="flex h-dvh max-h-dvh overflow-hidden">
 
@@ -629,6 +629,31 @@
 
     </div>
 
+    @unless(request()->routeIs('facturacion.pos'))
+    <nav class="mobile-dock md:hidden" aria-label="Accesos principales para móvil">
+        @if($accessibleModuleSlugs->contains('ventas'))
+        <a href="{{ route('facturacion.pos') }}" class="mobile-dock__item {{ request()->routeIs('facturacion.pos') ? 'is-active' : '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13 5.4 5M7 13l-2 2h13m-9 4a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm8 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/></svg>
+            <span>Vender</span>
+        </a>
+        <a href="{{ route('facturacion.index') }}" class="mobile-dock__item {{ request()->routeIs('facturacion.*') ? 'is-active' : '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6M7 3h7l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/></svg>
+            <span>Ventas</span>
+        </a>
+        @endif
+        @if($accessibleModuleSlugs->contains('inventario'))
+        <a href="{{ route('inventario.index') }}" class="mobile-dock__item {{ request()->routeIs('inventario.*') ? 'is-active' : '' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m4 7 8-4 8 4-8 4-8-4Zm0 0v10l8 4 8-4V7M12 11v10"/></svg>
+            <span>Inventario</span>
+        </a>
+        @endif
+        <button type="button" class="mobile-dock__item" data-mobile-menu aria-label="Abrir todos los módulos">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <span>Más</span>
+        </button>
+    </nav>
+    @endunless
+
     <div id="quick-user-switch-modal"
          class="fixed inset-0 z-[80] hidden items-center justify-center bg-slate-950/55 p-4"
          role="dialog"
@@ -688,6 +713,7 @@
             const overlay = document.getElementById('sidebar-overlay');
             const openButtons = [
                 document.getElementById('sidebar-open'),
+                document.querySelector('[data-mobile-menu]'),
                 document.getElementById('sidebar-open-compact'),
             ].filter(Boolean);
             const closeButton = document.getElementById('sidebar-close');

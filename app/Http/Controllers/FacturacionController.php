@@ -503,8 +503,12 @@ class FacturacionController extends Controller
      */
     public function pos()
     {
-        $userBranchId = request()->user()?->branch_id;
-        $assignedBranch = $userBranchId ? Branch::query()->where('is_active', true)->find($userBranchId) : null;
+        $user = request()->user();
+        $currentCashSession = CajaSession::currentForUser($user?->id);
+        $operatingBranchId = $currentCashSession?->branch_id ?? $user?->branch_id;
+        $assignedBranch = $operatingBranchId
+            ? Branch::query()->where('is_active', true)->find($operatingBranchId)
+            : null;
         $defaultWarehouseId = $this->posCatalog->resolveWarehouseId($assignedBranch?->warehouse_id);
         $products = Product::with(['category', 'tax', 'baseUnit', 'unitConversions.unit', 'warehouseStocks.warehouse'])
             ->where('status', 'active')
@@ -758,7 +762,8 @@ class FacturacionController extends Controller
         $userId = $request->user()?->id ?? 1;
         $requestedPaymentType = $validated['payment_type'];
         $storedPaymentType = $requestedPaymentType === 'card' ? 'transfer' : $requestedPaymentType;
-        $cashSession = $storedPaymentType === 'cash' ? CajaSession::currentForUser($userId) : null;
+        $operatingSession = CajaSession::currentForUser($userId);
+        $cashSession = $storedPaymentType === 'cash' ? $operatingSession : null;
         if ($storedPaymentType === 'cash' && ! $cashSession) {
             return back()->withInput()->with('error', 'Debes abrir una caja antes de registrar una venta en efectivo.');
         }
@@ -776,7 +781,7 @@ class FacturacionController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($validated, $items, &$sale, $userId, $cashSession, $request) {
+            DB::transaction(function () use ($validated, $items, &$sale, $userId, $cashSession, $operatingSession, $request) {
                 $invoiceNumber = $this->nextInvoiceNumber();
                 $requestedPaymentType = $validated['payment_type'];
                 $storedPaymentType = $requestedPaymentType === 'card' ? 'transfer' : $requestedPaymentType;
@@ -803,11 +808,15 @@ class FacturacionController extends Controller
                     );
                 }
 
+                $contextWarehouseId = $operatingSession?->branch?->warehouse_id
+                    ?? ($request->user()?->branch_id
+                        ? Branch::query()->whereKey($request->user()->branch_id)->value('warehouse_id')
+                        : null);
                 $preferredWarehouseId = isset($validated['warehouse_id'])
                     ? (int) $validated['warehouse_id']
-                    : null;
+                    : ($contextWarehouseId ? (int) $contextWarehouseId : null);
                 $resolvedWarehouseId = $this->posCatalog->resolveWarehouseId($preferredWarehouseId);
-                $branch = $this->branches->resolve($resolvedWarehouseId, $cashSession, $request->user()?->branch_id);
+                $branch = $this->branches->resolve($resolvedWarehouseId, $operatingSession, $request->user()?->branch_id);
                 $resolvedPriceList = $this->pricing->resolvePriceList($client->price_list_id, $branch?->id);
                 $priceListId = $resolvedPriceList?->id;
                 $saleWarehouseId = null;

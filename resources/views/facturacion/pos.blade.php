@@ -27,6 +27,18 @@
 
     <input type="file" id="posProductImageInput" class="hidden" accept="image/jpeg,image/png,image/webp" capture="environment">
 
+    <div class="pos-mobile-tabs" role="tablist" aria-label="Vista del punto de venta">
+        <button type="button" class="pos-mobile-tab is-active" data-pos-mobile-view="catalog" role="tab" aria-selected="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M5 7l1 13h12l1-13M9 11v5m6-5v5M8 4h8"/></svg>
+            <span>Productos</span>
+        </button>
+        <button type="button" class="pos-mobile-tab" data-pos-mobile-view="ticket" role="tab" aria-selected="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6"/></svg>
+            <span>Ticket <b id="mobileTicketCount">0</b></span>
+            <small id="mobileTicketTotal">C$ 0.00</small>
+        </button>
+    </div>
+
     {{-- COLUMNA IZQUIERDA: TICKET --}}
     <div class="pos-ticket-col min-h-0 w-full flex-[1.05] overflow-hidden border-b border-slate-200 bg-white md:h-full md:max-h-none md:min-w-[280px] md:max-w-[480px] md:w-[38%] md:flex-none md:border-b-0 md:border-r">
 
@@ -96,9 +108,9 @@
     </div>
 
     {{-- COLUMNA DERECHA: PRODUCTOS Y PAGO --}}
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
+    <div id="posCatalogCol" class="pos-catalog-col flex min-h-0 min-w-0 flex-1 flex-col bg-white">
 
-        <div class="shrink-0 space-y-2 border-b border-slate-200 bg-white p-2.5 sm:p-3">
+        <div class="pos-catalog-toolbar shrink-0 space-y-2 border-b border-slate-200 bg-white p-2.5 sm:p-3">
             <div class="flex items-center gap-2 overflow-x-auto text-[11px] text-slate-500" aria-label="Atajos de teclado del punto de venta">
                 <button type="button" onclick="showShortcutHelp()" class="shrink-0 rounded-md bg-slate-800 px-2 py-1 font-semibold text-white" title="Ver todos los atajos">F1 Atajos</button>
                 <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 lg:inline"><b>F2</b> Buscar</span>
@@ -130,11 +142,11 @@
                         class="input-with-leading-icon w-full rounded-xl border border-slate-300 py-2 pr-4 text-sm focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 sm:py-2.5" autocomplete="off">
                 </div>
             </div>
-            <div class="flex min-w-0 flex-col gap-2 sm:flex-row">
+            <div class="pos-catalog-filters flex min-w-0 flex-col gap-2 sm:flex-row">
                 <select id="warehouseSelect" class="select-field min-w-0 text-sm sm:max-w-xs" title="Bodega de salida (opcional)">
-                    <option value="" selected>Automática (según stock)</option>
+                    <option value="">Automática (según stock)</option>
                     @foreach($warehouses as $wh)
-                        <option value="{{ $wh->id }}">{{ $wh->name }}{{ $wh->is_default ? ' · Principal' : '' }}</option>
+                        <option value="{{ $wh->id }}" @selected((int) $defaultWarehouseId === (int) $wh->id)>{{ $wh->name }}{{ $wh->is_default ? ' · Principal' : '' }}</option>
                     @endforeach
                 </select>
                 <button type="button" onclick="applyOrderDiscount()" class="shrink-0 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100" title="Descuento global">% Descuento</button>
@@ -147,7 +159,8 @@
             <div class="grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"></div>
         </div>
 
-        <div class="pos-pay-dock shrink-0 space-y-2 border-t border-slate-200 bg-white p-3">
+        <div id="posPayDockHome" aria-hidden="true"></div>
+        <div id="posPayDock" class="pos-pay-dock shrink-0 space-y-2 border-t border-slate-200 bg-white p-3">
             <label class="block text-xs font-semibold text-slate-700 sm:text-sm">Método de Pago</label>
             <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
                 @foreach([
@@ -608,6 +621,38 @@ document.addEventListener('DOMContentLoaded', function() {
     let creditOverrideClientId = null;
     const HELD_KEY = 'pos_held_tickets';
     const modalIds = ['presentationModal', 'shortcutModal', 'clientModal', 'paymentModal', 'creditOverrideModal', 'heldModal', 'dailyReportModal'];
+    const mobilePosMedia = window.matchMedia('(max-width: 767px)');
+    const ticketColumn = document.querySelector('.pos-ticket-col');
+    const payDock = document.getElementById('posPayDock');
+    const payDockHome = document.getElementById('posPayDockHome');
+
+    function setMobilePosView(view) {
+        const showTicket = view === 'ticket';
+        app.classList.toggle('pos-mobile-ticket', showTicket);
+        document.querySelectorAll('[data-pos-mobile-view]').forEach(button => {
+            const active = button.dataset.posMobileView === (showTicket ? 'ticket' : 'catalog');
+            button.classList.toggle('is-active', active);
+            button.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        if (!showTicket) {
+            window.setTimeout(() => document.getElementById('productSearch')?.focus({ preventScroll: true }), 0);
+        }
+    }
+
+    function syncMobilePosLayout() {
+        if (mobilePosMedia.matches) {
+            if (payDock && ticketColumn && payDock.parentElement !== ticketColumn) ticketColumn.appendChild(payDock);
+        } else {
+            if (payDock && payDockHome && payDock.previousElementSibling !== payDockHome) payDockHome.after(payDock);
+            setMobilePosView('catalog');
+        }
+    }
+
+    document.querySelectorAll('[data-pos-mobile-view]').forEach(button => {
+        button.addEventListener('click', () => setMobilePosView(button.dataset.posMobileView));
+    });
+    mobilePosMedia.addEventListener?.('change', syncMobilePosLayout);
+    syncMobilePosLayout();
 
     document.getElementById('ticketNumber').textContent = ticketCounter;
 
@@ -619,11 +664,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return (product.sale_units || []).find(u => u.id == unitId) || product.sale_units?.[0];
     }
 
-    function tierPrice(unit, quantity) {
+    function tierPrice(unit, quantity, fallbackPrice = 0) {
         const eligible = (unit?.price_breaks || [])
             .filter(tier => tier.min_quantity <= quantity)
             .sort((a, b) => b.min_quantity - a.min_quantity)[0];
-        return eligible ? eligible.price : parseFloat(unit?.price ?? 0);
+        return eligible ? eligible.price : parseFloat(unit?.price ?? fallbackPrice ?? 0);
     }
 
     function nextTierHint(unit, quantity) {
@@ -638,7 +683,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ticket.forEach(item => {
             const product = products.find(candidate => candidate.id == item.product_id);
             const unit = product ? productUnit(product, item.unit_id) : null;
-            if (unit) item.price = tierPrice(unit, parseFloat(item.quantity) || 1);
+            if (product) item.price = tierPrice(unit, parseFloat(item.quantity) || 1, product.price);
         });
     }
 
@@ -1051,6 +1096,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('totalDisplay').textContent = formatMoney(total);
         document.getElementById('paymentTotalDisplay').textContent = formatMoney(total);
         document.getElementById('payBtnAmount').textContent = formatMoney(total);
+        document.getElementById('mobileTicketCount').textContent = ticket.length;
+        document.getElementById('mobileTicketTotal').textContent = formatMoney(total);
 
         const totalReference = document.getElementById('totalReferenceDisplay');
         const referenceLabel = formatReference(total);
@@ -1274,6 +1321,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addProductToTicket = function(productId, qty = 1, unitId = null, openQuantityEditor = false) {
         const product = products.find(p => p.id == productId);
         if (!product) return;
+        const shouldOpenQuantityEditor = openQuantityEditor && !mobilePosMedia.matches;
 
         const unit = productUnit(product, unitId ?? product.unit_id);
         const resolvedUnitId = unit?.id ?? product.unit_id;
@@ -1305,11 +1353,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (existing) {
             existing.quantity = newQty;
-            existing.price = tierPrice(unit, newQty);
+            existing.price = tierPrice(unit, newQty, unitPrice);
             existing.max_stock = maxQty;
             existing.source_warehouse_id = product.preferred_warehouse_id || selectedWarehouseId;
             existing.source_warehouse_name = product.preferred_warehouse_name || null;
-            if (openQuantityEditor) selectTicketItem(existingIdx);
+            if (shouldOpenQuantityEditor) selectTicketItem(existingIdx);
             else {
                 renderTicket();
                 revealTicketLine(existingIdx);
@@ -1322,7 +1370,7 @@ document.addEventListener('DOMContentLoaded', function() {
             unit_id: resolvedUnitId,
             unit_label: unit?.abbreviation ?? product.unit_label,
             name: product.name,
-            price: tierPrice(unit, qty),
+            price: tierPrice(unit, qty, unitPrice),
             quantity: qty,
             discount: product.discount_pct || 0,
             tax_rate: product.tax_rate,
@@ -1331,7 +1379,7 @@ document.addEventListener('DOMContentLoaded', function() {
             source_warehouse_name: product.preferred_warehouse_name || null,
         });
         const newIndex = ticket.length - 1;
-        if (openQuantityEditor) selectTicketItem(newIndex);
+        if (shouldOpenQuantityEditor) selectTicketItem(newIndex);
         else {
             renderTicket();
             revealTicketLine(newIndex);
@@ -1355,7 +1403,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const mergedIdx = otherIdx > idx ? otherIdx - 1 : otherIdx;
             const merged = ticket[mergedIdx];
             const maxQty = maxPresentationQty(product, unit, mergedIdx);
-            merged.price = tierPrice(unit, merged.quantity);
+            merged.price = tierPrice(unit, merged.quantity, product.price);
             merged.unit_id = unit.id;
             merged.unit_label = unit.abbreviation;
             merged.max_stock = maxQty;
@@ -1368,7 +1416,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const maxQty = maxPresentationQty(product, unit, idx);
         item.unit_id = unit.id;
         item.unit_label = unit.abbreviation;
-        item.price = tierPrice(unit, item.quantity);
+        item.price = tierPrice(unit, item.quantity, product.price);
         item.max_stock = maxQty;
         if (item.quantity > maxQty) item.quantity = maxQty;
         renderTicket();
@@ -1554,7 +1602,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         item.quantity = Math.round(qty * 10000) / 10000;
-        item.price = tierPrice(unit, item.quantity);
+        item.price = tierPrice(unit, item.quantity, product?.price);
         item.max_stock = maxStock;
         padBuffer = String(item.quantity);
         replaceQuantityOnNextInput = true;

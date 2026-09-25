@@ -2400,6 +2400,8 @@ main > div,
     overflow: hidden;
 }
 
+.pos-mobile-tabs { display: none; }
+
 .ticket-line--fresh {
     animation: ticket-line-flash 1.15s ease;
 }
@@ -2494,16 +2496,118 @@ main > div,
 
 @media (max-width: 767px) {
     .pos-shell {
-        flex-direction: column;
-        overflow: clip;
+        display: grid !important;
+        grid-template-rows: auto minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr);
+        overflow: hidden;
+        background: #f8fafc;
+    }
+
+    .pos-mobile-tabs {
+        position: relative;
+        z-index: 8;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.35rem;
+        padding: 0.4rem;
+        border-bottom: 1px solid #e2e8f0;
+        background: #fff;
+    }
+
+    .pos-mobile-tab {
+        display: flex;
+        min-height: 2.8rem;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.8rem;
+        background: #f8fafc;
+        color: #64748b;
+        font-size: 0.75rem;
+        font-weight: 750;
+    }
+
+    .pos-mobile-tab svg { width: 1.1rem; height: 1.1rem; }
+    .pos-mobile-tab small { font-size: 0.65rem; font-weight: 800; }
+    .pos-mobile-tab.is-active { border-color: #a5b4fc; background: #eef2ff; color: #4338ca; }
+
+    .pos-ticket-col,
+    .pos-catalog-col {
+        grid-row: 2;
+        grid-column: 1;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
     }
 
     .pos-ticket-col {
+        display: none;
+        flex-direction: column;
+        border-bottom: 0;
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior: contain;
         scrollbar-width: thin;
     }
+
+    .pos-shell.pos-mobile-ticket .pos-ticket-col { display: flex; }
+    .pos-shell.pos-mobile-ticket .pos-catalog-col { display: none; }
+
+    .pos-ticket-col #ticketScroller {
+        flex: 0 0 auto;
+        min-height: 8rem;
+        max-height: 32vh;
+        overflow-y: auto;
+    }
+
+    .pos-ticket-actions,
+    .pos-pay-dock { flex: 0 0 auto; }
+
+    .pos-catalog-toolbar {
+        padding: 0.5rem !important;
+    }
+
+    .pos-catalog-toolbar > :first-child { display: none; }
+
+    .pos-catalog-filters {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.4rem !important;
+    }
+
+    .pos-catalog-filters select,
+    .pos-catalog-filters button {
+        min-height: 2.5rem;
+        padding-top: 0.4rem;
+        padding-bottom: 0.4rem;
+        font-size: 0.75rem;
+    }
+
+    #productsGrid { padding: 0.5rem; }
+    #productsGrid > div {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 0.5rem !important;
+    }
+
+    .pos-pay-dock {
+        padding: 0.65rem !important;
+    }
+
+    .pos-pay-dock > label { display: none; }
+    .pos-pay-dock .payment-method {
+        min-height: 2.75rem;
+        justify-content: center;
+        padding: 0.35rem;
+        text-align: center;
+    }
+
+    .pos-pay-dock .payment-method > div:first-child {
+        width: 1.75rem;
+        height: 1.75rem;
+    }
+
+    .pos-pay-dock .payment-method p { font-size: 0.68rem; }
 
     .pos-pad-item {
         align-items: stretch;
@@ -2525,6 +2629,10 @@ main > div,
     }
 }
 
+@media (min-width: 480px) and (max-width: 767px) {
+    #productsGrid > div { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+
 /* Financial workspace */
 .accounting-nav { position: relative; overflow: hidden; border: 1px solid #dbeafe; border-radius: 1.25rem; background: linear-gradient(135deg, #07152d 0%, #10234a 54%, #153b55 100%); box-shadow: 0 18px 45px -28px rgba(2,15,40,.8); color: #fff; }
 .accounting-nav::after { content: ''; position: absolute; inset: -5rem -2rem auto auto; width: 15rem; height: 15rem; border-radius: 999px; background: rgba(45,212,191,.12); pointer-events: none; }
@@ -2537,3 +2645,82 @@ main > div,
 .accounting-pulse { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: .65rem; }.accounting-pulse__card { position: relative; min-width: 0; overflow: hidden; padding: 1rem; border: 1px solid #dce6ef; border-radius: 1rem; background: #fff; box-shadow: 0 12px 26px -24px #10213d; }.accounting-pulse__card::before { content: ''; position: absolute; width: 4rem; height: 4rem; right: -2rem; top: -2rem; border-radius: 999px; background: #ccfbf1; opacity: .65; }.accounting-pulse__card--1::before { background:#dbeafe }.accounting-pulse__card--2::before { background:#ede9fe }.accounting-pulse__card--3::before { background:#fef3c7 }.accounting-pulse__card--4::before { background:#ffe4e6 }
 .accounting-pulse__label { display:block; overflow:hidden; color:#64748b; font-size:.62rem; font-weight:750; letter-spacing:.055em; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; }.accounting-pulse__card strong { display:block; margin-top:.45rem; color:#10213d; font-size:1.15rem; font-variant-numeric:tabular-nums; letter-spacing:-.04em; }.accounting-pulse__line { display:block; width:2rem; height:.18rem; margin-top:.75rem; border-radius:1rem; background:#14b8a6; }.accounting-pulse__card--1 .accounting-pulse__line { background:#3b82f6 }.accounting-pulse__card--2 .accounting-pulse__line { background:#8b5cf6 }.accounting-pulse__card--3 .accounting-pulse__line { background:#f59e0b }.accounting-pulse__card--4 .accounting-pulse__line { background:#f43f5e }.accounting-chart { padding:.35rem; border-radius:1rem; background:linear-gradient(180deg,#fbfdff,#f7fafc); }
 @media(max-width:1279px){.accounting-pulse{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:639px){.accounting-nav__brand{padding-bottom:.45rem}.accounting-nav__scroll{gap:.75rem}.accounting-pulse{grid-template-columns:repeat(2,minmax(0,1fr))}.accounting-pulse__card{padding:.8rem}.accounting-pulse__card strong{font-size:.95rem}}
+
+/* Mobile workspace: quick access without changing the desktop navigation. */
+.mobile-dock {
+    position: fixed;
+    right: max(0.65rem, env(safe-area-inset-right));
+    bottom: max(0.65rem, env(safe-area-inset-bottom));
+    left: max(0.65rem, env(safe-area-inset-left));
+    z-index: 65;
+    display: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    min-height: 4rem;
+    overflow: hidden;
+    border: 1px solid rgba(203, 213, 225, 0.92);
+    border-radius: 1.15rem;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.24);
+    backdrop-filter: blur(16px);
+}
+
+.mobile-dock__item {
+    display: flex;
+    min-width: 0;
+    min-height: 4rem;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.18rem;
+    border: 0;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 750;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-dock__item svg { width: 1.35rem; height: 1.35rem; }
+.mobile-dock__item.is-active { color: #4338ca; background: #eef2ff; }
+.mobile-dock__item:active { background: #e2e8f0; }
+
+@media (max-width: 1023px) {
+    .app-header { min-height: 3.5rem; }
+    .btn-primary, .btn-outline, .btn-ghost, button, select { touch-action: manipulation; }
+    .input-field, .select-field, textarea { font-size: 16px; }
+    .table-agro { min-width: 42rem; }
+}
+
+@media (max-width: 767px) {
+    .mobile-dock { display: grid; }
+    body.has-mobile-dock .app-main:not(.overflow-hidden) > div { padding-bottom: 5.5rem; }
+}
+
+@media (max-width: 639px) {
+    body:not(.is-mobile-pos) .app-main { padding: 0.75rem !important; }
+    .app-header { padding: 0.55rem 0.75rem !important; }
+    .page-title { font-size: 1.35rem; line-height: 1.2; }
+    .page-subtitle { font-size: 0.8rem; }
+    .card { border-radius: 0.9rem; }
+    .ex-shell { gap: 0.75rem; }
+    .ex-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.inventory-mobile-list { display: none; }
+
+@media (max-width: 767px) {
+    .inventory-desktop-table { display: none; }
+    .inventory-mobile-list { display: grid; gap: 0.6rem; padding: 0.65rem; }
+    .inventory-mobile-card {
+        display: grid;
+        gap: 0.65rem;
+        padding: 0.85rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.9rem;
+        background: #fff;
+        color: #334155;
+    }
+    .inventory-mobile-card:active { background: #f8fafc; }
+}

@@ -142,14 +142,15 @@
             }
         }
     </style>
+    <x-mobile-ticket-paper selector=".receipt" />
 </head>
 <body>
     <div class="print-hint screen-only">
-        Impresora térmica 80 mm: papel <strong>80 mm</strong>, márgenes <strong>ninguno</strong>, escala <strong>100%</strong>.
+        En móvil se prepara papel <strong>50 mm</strong>; en computadora conserva <strong>80 mm</strong>. Márgenes ninguno y escala 100%.
         No uses Word; imprime directo desde el navegador (Chrome o Edge).
     </div>
     <div class="screen-actions screen-only">
-        <button type="button" onclick="window.print()">Imprimir ticket 80 mm</button>
+        <button type="button" onclick="window.print()">Imprimir ticket</button>
         <button type="button" onclick="window.close()">Cerrar</button>
     </div>
 
