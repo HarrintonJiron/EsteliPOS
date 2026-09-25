@@ -23,7 +23,7 @@ class UserManagementService
             $photo = isset($data['profile_photo']) ? $this->storePhoto($data['profile_photo']) : null;
 
             $user = User::create([
-                ...Arr::only($data, ['name', 'username', 'email', 'phone', 'password']),
+                ...Arr::only($data, ['name', 'username', 'email', 'phone', 'branch_id', 'password']),
                 'pin_hash' => filled($data['pin'] ?? null) ? Hash::make($data['pin']) : null,
                 'profile_photo' => $photo,
                 'is_active' => $data['is_active'] ?? true,
@@ -64,7 +64,7 @@ class UserManagementService
             }
 
             $user->update([
-                ...Arr::only($data, ['name', 'username', 'email', 'phone']),
+                ...Arr::only($data, ['name', 'username', 'email', 'phone', 'branch_id']),
                 'profile_photo' => $photo,
                 'role' => $willRemainAdmin ? 'admin' : 'user',
                 'pin_hash' => ! empty($data['clear_pin'])
@@ -178,6 +178,7 @@ class UserManagementService
             'username' => $user->username,
             'email' => $user->email,
             'phone' => $user->phone,
+            'branch_id' => $user->branch_id,
             'is_active' => $user->is_active,
             'has_pin' => filled($user->pin_hash),
             'roles' => $user->roles->pluck('slug')->sort()->values()->all(),

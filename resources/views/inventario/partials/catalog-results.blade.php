@@ -1,4 +1,29 @@
-<div class="overflow-x-auto">
+<div class="inventory-mobile-list">
+    @forelse($products as $product)
+        <a href="{{ route('inventario.show', $product->id) }}" class="inventory-mobile-card">
+            <div class="flex min-w-0 items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <p class="font-mono text-xs font-bold text-indigo-600">{{ $product->code }}</p>
+                    <p class="truncate font-semibold text-slate-900">{{ $product->name }}</p>
+                    <p class="mt-0.5 truncate text-xs text-slate-500">{{ $product->category->name ?? 'Sin categoría' }}</p>
+                </div>
+                <span class="badge-{{ match($product->inventory_status) { 'expired' => 'danger', 'expiring_soon', 'low_stock' => 'warning', default => 'success' } }} shrink-0 text-[10px]">
+                    {{ $product->inventory_status_label }}
+                </span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-2.5 text-sm">
+                <div><span class="block text-[10px] font-semibold uppercase text-slate-400">Existencia</span><strong class="{{ $product->stock <= 0 ? 'text-red-600' : ($product->isLowStock() ? 'text-amber-600' : 'text-emerald-600') }}">{{ number_format((float) $product->stock, 2) }} {{ $product->baseUnitLabel() }}</strong></div>
+                <div class="text-right"><span class="block text-[10px] font-semibold uppercase text-slate-400">Precio</span><strong class="text-slate-900">C$ {{ number_format($product->sale_price, 2) }}</strong></div>
+            </div>
+        </a>
+    @empty
+        <div class="p-6 text-center text-sm text-slate-500">
+            {{ request('q') ? 'Sin resultados para «'.request('q').'»' : 'Sin productos' }}
+        </div>
+    @endforelse
+</div>
+
+<div class="inventory-desktop-table overflow-x-auto">
     <table class="min-w-full text-xs">
         <thead class="bg-slate-50 text-left text-[10px] uppercase tracking-wide text-slate-500">
             <tr>

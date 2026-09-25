@@ -67,6 +67,7 @@
             }
         }
     </style>
+    <x-mobile-ticket-paper selector=".receipt" />
 </head>
 <body>
 @php($receiptLogoUrl = $companyProfile['ticket_logo_url'] ?: $companyProfile['company_logo_url'])
@@ -168,9 +169,9 @@
 </div>
 
 <div class="no-print" style="padding:8px; text-align:center; margin-top:8px;">
-    <p style="font-size:11px; color:#9a3412; margin-bottom:8px;">Impresora 80 mm: papel 80 mm, márgenes ninguno, escala 100%. Imprimir desde Chrome/Edge, no Word.</p>
+    <p style="font-size:11px; color:#9a3412; margin-bottom:8px;">Móvil: papel 50 mm · PC: papel 80 mm · márgenes ninguno · escala 100%.</p>
     <button onclick="window.print()" style="padding:6px 16px; background:#4f46e5; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:12px;">
-        Imprimir Ticket 80 mm
+        Imprimir ticket
     </button>
     <a href="{{ route('proformas.show', $proforma->id) }}" style="margin-left:8px; font-size:12px; color:#64748b;">Volver</a>
 </div>
