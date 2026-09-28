@@ -9,6 +9,11 @@ use Illuminate\Validation\Rule;
 
 class JoyeriaCatalogController extends Controller
 {
+    public function index()
+    {
+        return view('joyeria.catalogs.index');
+    }
+
     public function types()
     {
         return response()->json(
@@ -46,5 +51,12 @@ class JoyeriaCatalogController extends Controller
         ]);
 
         return response()->json($service, 201);
+    }
+
+    public function services()
+    {
+        return response()->json(
+            RepairService::forWorkshop('jewelry')->active()->orderBy('name')->get(['id', 'name', 'description', 'price'])
+        );
     }
 }

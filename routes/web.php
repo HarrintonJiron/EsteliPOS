@@ -20,6 +20,8 @@ use App\Http\Controllers\FiscalPeriodController;
 use App\Http\Controllers\IncomeStatementController;
 use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\JoyeriaCatalogController;
+use App\Http\Controllers\JoyeriaController;
 use App\Http\Controllers\LedgerController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\MovimientosController;
@@ -38,8 +40,6 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\JoyeriaController;
-use App\Http\Controllers\JoyeriaCatalogController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas públicas (sin autenticación)
@@ -225,10 +225,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/joyeria/{id}/pdf', [JoyeriaController::class, 'pdf'])->name('joyeria.pdf');
         Route::get('/joyeria/{id}/factura/ticket', [JoyeriaController::class, 'invoiceReceipt'])->name('joyeria.invoice-receipt');
         Route::get('/joyeria/{id}/factura/pdf', [JoyeriaController::class, 'invoicePdf'])->name('joyeria.invoice-pdf');
-        
+
         // Catálogos de joyería
-        Route::get('/joyeria/catalogos/tipos', [JoyeriaCatalogController::class, 'index'])->name('joyeria.catalogs.types.index');
-        Route::post('/joyeria/catalogos/tipos', [JoyeriaCatalogController::class, 'store'])->name('joyeria.catalogs.types.store');
+        Route::get('/joyeria/catalogos/tipos', [JoyeriaCatalogController::class, 'types'])->name('joyeria.catalogs.types.index');
+        Route::post('/joyeria/catalogos/tipos', [JoyeriaCatalogController::class, 'storeType'])->name('joyeria.catalogs.types.store');
         Route::get('/joyeria/catalogos/servicios', [JoyeriaCatalogController::class, 'services'])->name('joyeria.catalogs.services.index');
         Route::post('/joyeria/catalogos/servicios', [JoyeriaCatalogController::class, 'storeService'])->name('joyeria.catalogs.services.store');
     });
