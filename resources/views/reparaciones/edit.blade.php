@@ -11,7 +11,7 @@
             <h1 class="page-title">Editar {{ $order->order_number }}</h1>
             <p class="page-subtitle">{{ $order->device_brand }} {{ $order->device_model }} · {{ $order->client_name }}</p>
         </div>
-        <a href="{{ route($routePrefix.'.show', $order->id) }}" class="btn-outline text-sm">← Volver</a>
+        <a href="{{ route('reparaciones.show', $order->id) }}" class="btn-outline text-sm">← Volver</a>
     </div>
 
     @if($errors->any())
@@ -20,7 +20,7 @@
     </div>
     @endif
 
-    <form action="{{ route($routePrefix.'.update', $order->id) }}" method="POST" id="repairForm" enctype="multipart/form-data">
+    <form action="{{ route('reparaciones.update', $order->id) }}" method="POST" id="repairForm" enctype="multipart/form-data">
         @csrf @method('PUT')
 
         <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -62,8 +62,8 @@
 
                 <div class="card p-5 space-y-3">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                        <h2 class="font-semibold text-slate-800">Foto de {{ $isJewelry ? 'la joya' : 'el equipo o artículo' }}</h2>
-                        <span class="text-xs font-medium text-slate-500">{{ $order->photos->count() }}/5</span>
+                        <h2 class="font-semibold text-slate-800">Foto de la joya</h2>
+                        <span class="text-xs font-medium text-slate-500">{{ $order->photos->isNotEmpty() ? '1/1' : '0/1' }}</span>
                     </div>
                     @if($order->photos->isNotEmpty())
                         <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -74,27 +74,26 @@
                                 </div>
                             @endforeach
                         </div>
-                    @endif
-                    @if($order->photos->count() < 5)
+                    @else
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1" for="photos">Agregar fotografías</label>
-                            <input id="photos" name="photos[]" type="file" accept="image/jpeg,image/png,image/webp" multiple class="input-field" data-photo-input data-max-photos="{{ 5 - $order->photos->count() }}">
-                            <p class="mt-1 text-xs text-slate-500">Puedes agregar {{ 5 - $order->photos->count() }} más. Máximo 8 MB cada una; se optimizan automáticamente.</p>
+                            <label class="block text-sm text-slate-600 mb-1" for="photo">Agregar foto</label>
+                            <input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" class="input-field" data-photo-input>
+                            <p class="mt-1 text-xs text-slate-500">Una foto. JPG, PNG o WebP, máximo 2 MB. Se optimiza automáticamente.</p>
                             <div data-photo-preview class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"></div>
                         </div>
                     @endif
                 </div>
 
-                {{-- DEVICE --}}
+                {{-- JOYA --}}
                 <div class="card p-5 space-y-4">
-                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">{{ $isJewelry ? 'Datos de la joya' : 'Datos del equipo' }}</h2>
+                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Datos de la Joya</h2>
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Tipo de joya' : 'Marca' }} *</label>
+                            <label class="block text-sm text-slate-600 mb-1">Tipo de joya *</label>
                             <div class="flex gap-2">
-                                <input type="text" name="device_brand" value="{{ old('device_brand', $order->device_brand) }}" required
-                                    list="brands_list" class="input-field flex-1" placeholder="{{ $isJewelry ? 'Selecciona o escribe el tipo...' : 'Selecciona o escribe una marca...' }}" autocomplete="off">
-                                <button type="button" onclick="showAddBrandModal()" class="px-3 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 text-sm flex-shrink-0" title="Agregar nueva marca">
+                                <input type="text" name="device_brand" value="{{ old('device_brand', $order->device_brand) }}" required 
+                                    list="brands_list" class="input-field flex-1" placeholder="Selecciona o escribe un tipo..." autocomplete="off">
+                                <button type="button" onclick="showAddBrandModal()" class="px-3 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 text-sm flex-shrink-0" title="Agregar tipo de joya">
                                     +
                                 </button>
                             </div>
@@ -104,85 +103,58 @@
                                         <option value="{{ $brand->name }}">
                                     @endforeach
                                 @else
-                                    <option value="Samsung">
-                                    <option value="Apple">
-                                    <option value="Xiaomi">
-                                    <option value="Huawei">
-                                    <option value="Motorola">
-                                    <option value="LG">
-                                    <option value="Sony">
-                                    <option value="Nokia">
-                                    <option value="OPPO">
-                                    <option value="Realme">
-                                    <option value="OnePlus">
-                                    <option value="Tecno">
-                                    <option value="ZTE">
+                                    <option value="Anillo">
+                                    <option value="Argolla">
+                                    <option value="Aretes">
+                                    <option value="Brazalete">
+                                    <option value="Cadena">
+                                    <option value="Dije">
+                                    <option value="Pulsera">
+                                    <option value="Reloj">
+                                    <option value="Otra joya">
                                 @endif
                             </datalist>
                         </div>
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Material / ley' : 'Modelo' }} *</label>
-                            <input type="text" name="device_model" value="{{ old('device_model', $order->device_model) }}" required list="{{ $isJewelry ? 'jewelry_materials' : '' }}" class="input-field">
-                            @if($isJewelry)<datalist id="jewelry_materials">@foreach(['Oro amarillo 10K', 'Oro amarillo 14K', 'Oro amarillo 18K', 'Oro blanco', 'Oro rosa', 'Plata 925', 'Acero', 'Platino', 'Bisutería', 'Por confirmar'] as $material)<option value="{{ $material }}">@endforeach</datalist>@endif
+                            <label class="block text-sm text-slate-600 mb-1">Material / ley *</label>
+                            <input type="text" name="device_model" value="{{ old('device_model', $order->device_model) }}" required list="jewelry_materials" class="input-field" placeholder="Selecciona o escribe el material..." autocomplete="off">
                         </div>
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Color / acabado' : 'Color' }}</label>
-                            <input type="text" name="device_color" value="{{ old('device_color', $order->device_color) }}" list="{{ $isJewelry ? 'jewelry_finishes' : '' }}" class="input-field">
-                            @if($isJewelry)<datalist id="jewelry_finishes">@foreach(['Pulido brillante', 'Mate', 'Satinado', 'Rodiado', 'Baño oro amarillo', 'Baño oro rosa', 'Envejecido', 'Bicolor'] as $finish)<option value="{{ $finish }}">@endforeach</datalist>@endif
+                            <label class="block text-sm text-slate-600 mb-1">Color / acabado</label>
+                            <input type="text" name="device_color" value="{{ old('device_color', $order->device_color) }}" list="jewelry_finishes" class="input-field" placeholder="Selecciona o escribe el acabado..." autocomplete="off">
                         </div>
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Peso / identificación' : 'IMEI / Serie' }}</label>
-                            <input type="text" name="device_imei" value="{{ old('device_imei', $order->device_imei) }}" class="input-field">
+                            <label class="block text-sm text-slate-600 mb-1">Peso / identificación</label>
+                            <input type="text" name="device_imei" value="{{ old('device_imei', $order->device_imei) }}" class="input-field" placeholder="Ej. 4.25 g / grabado AJ">
                         </div>
-                        <div @class(['hidden' => $isJewelry])>
-                            <label class="block text-sm text-slate-600 mb-1">Tipo de bloqueo</label>
-                            <select id="lockTypeSelect" name="lock_type" class="select-field" onchange="toggleLockFields()">
-                                <option value="password" {{ old('lock_type', $order->lock_type ?? 'none') === 'password' ? 'selected' : '' }}>Contraseña/PIN</option>
-                                <option value="pattern" {{ old('lock_type', $order->lock_type ?? 'none') === 'pattern' ? 'selected' : '' }}>Patrón de desbloqueo</option>
-                                <option value="none" {{ old('lock_type', $order->lock_type ?? 'none') === 'none' ? 'selected' : '' }}>Sin bloqueo</option>
-                            </select>
-                        </div>
-                        <div id="lockPasswordContainer" class="hidden">
-                            <label class="block text-sm text-slate-600 mb-1">Contraseña / PIN</label>
-                            <input type="text" id="devicePasswordText" value="{{ old('device_password', $order->device_password) }}" class="input-field" oninput="syncLockValue()" placeholder="Ingrese la contraseña o PIN">
-                        </div>
-                        <div id="lockPatternContainer" class="hidden">
-                            <label class="block text-sm text-slate-600 mb-1">Patrón de desbloqueo</label>
-                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-                                <div id="patternPad" class="relative mx-auto grid max-w-[220px] grid-cols-3 gap-3">
-                                    <svg id="patternSvg" class="pointer-events-none absolute inset-0 h-full w-full"></svg>
-                                    @for($i = 1; $i <= 9; $i++)
-                                        <button type="button" class="pattern-dot relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-300 bg-white text-lg font-semibold text-slate-600 shadow-sm transition hover:border-indigo-400 hover:shadow-md" data-point="{{ $i }}">{{ $i }}</button>
-                                    @endfor
-                                </div>
-                                <div class="flex items-center justify-between gap-2">
-                                    <p class="text-xs text-slate-500">Dibuja el patrón arrastrando sobre los puntos.</p>
-                                    <button type="button" onclick="clearPattern()" class="btn-outline text-xs py-1.5">Limpiar</button>
-                                </div>
-                                <div class="text-xs text-slate-500">Secuencia actual: <span id="patternPreview" class="font-semibold text-slate-700">Sin patrón</span></div>
-                            </div>
-                            <div class="mt-4">
-                                <x-pattern-viewer :pattern="old('device_password', $order->device_password)" />
-                            </div>
-                        </div>
-                        <input type="hidden" name="device_password" id="devicePasswordHidden" value="{{ $isJewelry ? '' : old('device_password', $order->device_password) }}">
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Piedras, grabados y piezas recibidas' : 'Accesorios entregados' }}</label>
-                            <input type="text" name="accessories" value="{{ old('accessories', $order->accessories) }}" class="input-field">
+                        <div class="sm:col-span-2">
+                            <label class="block text-sm text-slate-600 mb-1">Piedras, grabados y piezas recibidas</label>
+                            <input type="text" name="accessories" value="{{ old('accessories', $order->accessories) }}" class="input-field" placeholder="Detalle cantidad, color, estado y piezas sueltas">
                         </div>
                     </div>
                 </div>
+                <datalist id="jewelry_materials">
+                    <option value="Oro amarillo 10K"><option value="Oro amarillo 14K"><option value="Oro amarillo 18K">
+                    <option value="Oro blanco 10K"><option value="Oro blanco 14K"><option value="Oro blanco 18K">
+                    <option value="Oro rosa 14K"><option value="Plata 925"><option value="Acero inoxidable">
+                    <option value="Platino"><option value="Bisutería"><option value="Material por confirmar">
+                </datalist>
+                <datalist id="jewelry_finishes">
+                    <option value="Pulido brillante"><option value="Mate"><option value="Satinado">
+                    <option value="Rodiado"><option value="Baño de oro amarillo"><option value="Baño de oro rosa">
+                    <option value="Envejecido"><option value="Bicolor"><option value="Sin acabado especial">
+                </datalist>
 
                 {{-- DIAGNOSIS --}}
                 <div class="card p-5 space-y-4">
-                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">{{ $isJewelry ? 'Evaluación del taller' : 'Diagnóstico' }}</h2>
+                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Diagnóstico</h2>
                     <div>
-                        <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Trabajo solicitado y estado recibido' : 'Falla reportada' }} *</label>
+                        <label class="block text-sm text-slate-600 mb-1">Trabajo solicitado y estado recibido *</label>
                         <textarea name="problem_description" rows="3" required class="input-field resize-none">{{ old('problem_description', $order->problem_description) }}</textarea>
                     </div>
                     <div>
                         <div class="flex items-center gap-2 mb-2">
-                            <label class="text-sm text-slate-600">{{ $isJewelry ? 'Evaluación del joyero' : 'Diagnóstico técnico' }}</label>
+                            <label class="text-sm text-slate-600">Evaluación del joyero</label>
                             <label class="inline-flex items-center gap-2 text-sm text-slate-500">
                                 <input type="checkbox" id="diagnosisToggle" onclick="toggleOptionalField('diagnosis')"
                                     {{ old('diagnosis', $order->diagnosis) ? 'checked' : '' }}>
@@ -207,11 +179,11 @@
                 {{-- PARTS --}}
                 <div class="card p-5 space-y-4">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                        <h2 class="font-semibold text-slate-800">{{ $isJewelry ? 'Materiales / Servicios' : 'Repuestos / Materiales' }}</h2>
+                        <h2 class="font-semibold text-slate-800">Materiales / Servicios</h2>
                         <button type="button" onclick="addItem()" class="btn-primary text-xs py-1.5">+ Agregar</button>
                     </div>
                     <div id="itemsContainer" class="space-y-3"></div>
-                    <p id="noItemsMsg" class="{{ $order->items->count() ? 'hidden' : '' }} text-sm text-slate-400 text-center py-4">No se han agregado {{ $isJewelry ? 'materiales o servicios' : 'repuestos' }}.</p>
+                    <p id="noItemsMsg" class="{{ $order->items->count() ? 'hidden' : '' }} text-sm text-slate-400 text-center py-4">No se han agregado materiales ni servicios.</p>
                 </div>
             </div>
 
@@ -222,7 +194,7 @@
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Estado</label>
                         <select name="status" class="select-field">
-                            @foreach($isJewelry ? ['received' => 'Recibida', 'diagnosing' => 'En evaluación', 'waiting_parts' => 'Esperando materiales', 'in_repair' => 'En taller', 'ready' => 'Lista para entregar', 'delivered' => 'Entregada', 'cancelled' => 'Cancelada'] : ['received' => 'Recibido', 'diagnosing' => 'En Diagnóstico', 'waiting_parts' => 'Esperando Repuestos', 'in_repair' => 'En Reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
+                            @foreach(['received' => 'Recibido', 'diagnosing' => 'En evaluación', 'waiting_parts' => 'Esperando materiales', 'in_repair' => 'En taller', 'ready' => 'Lista para entregar', 'delivered' => 'Entregada', 'cancelled' => 'Cancelada'] as $val => $label)
                                 <option value="{{ $val }}" {{ old('status', $order->status) === $val ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
@@ -236,7 +208,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm text-slate-600 mb-1">{{ $isJewelry ? 'Joyero asignado' : 'Técnico asignado' }}</label>
+                        <label class="block text-sm text-slate-600 mb-1">Joyero asignado</label>
                         <select name="technician_id" class="select-field">
                             <option value="">Sin asignar</option>
                             @foreach($technicians as $t)
@@ -282,20 +254,34 @@
                         <input type="number" step="0.01" min="0" name="labor_cost" id="laborCostInput"
                             value="{{ old('labor_cost', $order->labor_cost) }}" class="input-field" oninput="updateTotal()">
                     </div>
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    @php
+                        $savedDiscountType = (float) ($order->discount_percentage ?? 0) > 0
+                            ? 'percentage'
+                            : ((float) ($order->discount_amount ?? 0) > 0 ? 'fixed' : 'none');
+                        $selectedDiscountType = old('discount_type', $savedDiscountType);
+                    @endphp
+                    <div class="space-y-4">
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">Descuento %</label>
-                            <input type="number" step="0.01" min="0" max="100" name="discount_percentage" id="discountPercentageInput"
-                                value="{{ old('discount_percentage', $order->discount_percentage ?? 0) }}" class="input-field" oninput="updateTotal()">
+                            <label class="block text-sm text-slate-600 mb-1">Tipo de descuento</label>
+                            <select name="discount_type" id="discountTypeSelect" class="select-field" onchange="toggleDiscountType(true)">
+                                <option value="none" {{ $selectedDiscountType === 'none' ? 'selected' : '' }}>Sin descuento</option>
+                                <option value="percentage" {{ $selectedDiscountType === 'percentage' ? 'selected' : '' }}>Porcentaje (%)</option>
+                                <option value="fixed" {{ $selectedDiscountType === 'fixed' ? 'selected' : '' }}>Monto fijo (C$)</option>
+                            </select>
                         </div>
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Descuento Fijo (C$)</label>
+                        <div id="discountPercentageField" class="{{ $selectedDiscountType === 'percentage' ? '' : 'hidden' }}">
+                            <label class="block text-sm text-slate-600 mb-1">Porcentaje de descuento</label>
+                            <input type="number" step="0.01" min="0" max="100" name="discount_percentage" id="discountPercentageInput"
+                                value="{{ old('discount_percentage', $order->discount_percentage ?? 0) }}" class="input-field" oninput="updateTotal()" {{ $selectedDiscountType === 'percentage' ? '' : 'disabled' }}>
+                        </div>
+                        <div id="discountFixedField" class="{{ $selectedDiscountType === 'fixed' ? '' : 'hidden' }}">
+                            <label class="block text-sm text-slate-600 mb-1">Monto fijo de descuento (C$)</label>
                             <input type="number" step="0.01" min="0" name="discount_amount" id="discountFixedInput"
-                                value="{{ old('discount_amount', $order->discount_amount ?? 0) }}" class="input-field" oninput="updateTotal()">
+                                value="{{ old('discount_amount', $order->discount_amount ?? 0) }}" class="input-field" oninput="updateTotal()" {{ $selectedDiscountType === 'fixed' ? '' : 'disabled' }}>
                         </div>
                     </div>
                     <div class="bg-slate-50 rounded-xl p-3 space-y-1 text-sm">
-                        <div class="flex justify-between text-slate-600"><span>{{ $isJewelry ? 'Materiales y servicios' : 'Repuestos' }}</span><span id="partsCostDisplay">C$ {{ number_format($order->parts_cost, 2) }}</span></div>
+                        <div class="flex justify-between text-slate-600"><span>Materiales / servicios</span><span id="partsCostDisplay">C$ {{ number_format($order->parts_cost, 2) }}</span></div>
                         <div class="flex justify-between text-slate-600"><span>Mano de obra</span><span id="laborDisplay">C$ {{ number_format($order->labor_cost, 2) }}</span></div>
                         <div class="flex justify-between text-red-600 hidden" id="discountRow">
                             <span>Descuento</span><span id="discountDisplay">C$ 0.00</span>
@@ -316,13 +302,12 @@
                     </div>
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Método de pago</label>
-                        <select name="payment_type" id="repairPaymentType" class="select-field" onchange="toggleRepairCredit()">
-                            @foreach(['cash' => 'Efectivo', 'card' => 'Tarjeta', 'transfer' => 'Transferencia', 'credit' => 'Crédito'] as $val => $label)
+                        <select name="payment_type" class="select-field">
+                            @foreach(['cash' => 'Efectivo', 'card' => 'Tarjeta', 'transfer' => 'Transferencia'] as $val => $label)
                                 <option value="{{ $val }}" {{ old('payment_type', $order->payment_type) === $val ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div id="repairCreditTerms" class="rounded-xl border border-amber-200 bg-amber-50 p-3"><label class="block text-sm text-amber-900 mb-1">Fecha límite de pago</label><input id="repairDueDate" type="date" name="due_date" value="{{ old('due_date', $order->due_date?->toDateString()) }}" min="{{ $order->received_date->toDateString() }}" class="input-field"><div class="mt-2 flex gap-2">@foreach([15,30,45] as $days)<button type="button" onclick="setRepairCreditDays({{ $days }})" class="rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs font-semibold text-amber-800">{{ $days }} días</button>@endforeach</div></div>
                 </div>
 
                 {{-- WARRANTY --}}
@@ -353,23 +338,23 @@
     </form>
 
     @foreach($order->photos as $photo)
-        <form id="delete-photo-{{ $photo->id }}" method="POST" action="{{ route($routePrefix.'.photos.destroy', $photo) }}">
+        <form id="delete-photo-{{ $photo->id }}" method="POST" action="{{ route('reparaciones.photos.destroy', $photo) }}">
             @csrf @method('DELETE')
         </form>
     @endforeach
 
-    {{-- MODAL: Agregar Nueva Marca --}}
+    {{-- Modal: agregar tipo de joya --}}
     <div id="addBrandModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
         <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
             <div class="p-5 border-b border-slate-200 flex justify-between items-center">
-                <h2 class="text-lg font-bold text-slate-900">{{ $isJewelry ? 'Agregar tipo de joya' : 'Agregar nueva marca' }}</h2>
+                <h2 class="text-lg font-bold text-slate-900">Agregar tipo de joya</h2>
                 <button type="button" onclick="closeAddBrandModal()" class="text-slate-400 hover:text-slate-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
             <div class="p-5">
-                <label class="block text-sm text-slate-600 mb-2">{{ $isJewelry ? 'Nombre del tipo de joya' : 'Nombre de la marca' }}</label>
-                <input type="text" id="newBrandInput" class="input-field" placeholder="Ej: Vivo, Alcatel, HTC...">
+                <label class="block text-sm text-slate-600 mb-2">Nombre del tipo de joya</label>
+                <input type="text" id="newBrandInput" class="input-field" placeholder="Ej. prendedor, medalla, prendedor de corbata...">
             </div>
             <div class="p-4 border-t border-slate-200 flex gap-2">
                 <button type="button" onclick="closeAddBrandModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl">Cancelar</button>
@@ -390,7 +375,7 @@
             <div class="p-5 space-y-4">
                 <div>
                     <label class="block text-sm text-slate-600 mb-2">Nombre del servicio *</label>
-                    <input type="text" id="newServiceName" class="input-field" placeholder="Ej: Cambio de cámara trasera">
+                    <input type="text" id="newServiceName" class="input-field" placeholder="Ej. ajuste de talla, soldadura o pulido">
                 </div>
                 <div>
                     <label class="block text-sm text-slate-600 mb-2">Descripción</label>
@@ -419,8 +404,7 @@
             'stock' => (float) $p->stock,
         ];
     })->values()->toJson();
-    $defaultRepairWarrantyJson = json_encode($isJewelry ? 'Garantía aplicable únicamente al trabajo realizado por el taller. No cubre golpes, pérdida de piedras, desgaste, alteraciones ni trabajos posteriores de terceros.' : ($companyProfile['repair_warranty_text'] ?? ''), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
-    $fallbackBrandsJson = json_encode($isJewelry ? ['Anillo', 'Argolla', 'Aretes', 'Brazalete', 'Cadena', 'Dije', 'Pulsera', 'Reloj'] : ['Samsung', 'Apple', 'Xiaomi', 'Huawei', 'Motorola', 'LG', 'Sony', 'Nokia', 'OPPO', 'Realme', 'OnePlus', 'Tecno', 'ZTE']);
+    $defaultRepairWarrantyJson = json_encode($companyProfile['repair_warranty_text'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 @endphp
 <script>
 const productsData = {!! $productsJson !!};
@@ -434,12 +418,12 @@ let isDrawingPattern = false;
 document.querySelectorAll('[data-photo-input]').forEach((input) => {
     input.addEventListener('change', () => {
         const preview = document.querySelector('[data-photo-preview]');
-        const files = Array.from(input.files).slice(0, Number(input.dataset.maxPhotos || 5));
+        const files = Array.from(input.files).slice(0, 1);
         preview.innerHTML = '';
         files.forEach((file) => {
             const image = document.createElement('img');
             image.src = URL.createObjectURL(file);
-            image.alt = 'Vista previa del equipo o artículo';
+            image.alt = 'Vista previa de la joya';
             image.className = 'aspect-square w-full rounded-lg object-cover ring-1 ring-slate-200';
             preview.appendChild(image);
         });
@@ -620,7 +604,7 @@ function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part
                 <div class="col-span-2">
                     <label class="text-xs text-slate-500">Tipo de Item</label>
                     <select name="items[${idx}][item_type]" class="select-field text-sm" onchange="toggleItemTypeFields(${idx})">
-                        <option value="part" ${itemType === 'part' ? 'selected' : ''}>Repuesto</option>
+                        <option value="part" ${itemType === 'part' ? 'selected' : ''}>Material / insumo</option>
                         <option value="service" ${itemType === 'service' ? 'selected' : ''}>Servicio</option>
                     </select>
                 </div>
@@ -638,11 +622,11 @@ function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part
                 </div>
                 <div class="col-span-2">
                     <label class="text-xs text-slate-500">Descripción *</label>
-                    <input type="text" name="items[${idx}][description]" value="${desc}" required class="input-field text-sm" placeholder="Pantalla, batería, cambio de pantalla...">
+                    <input type="text" name="items[${idx}][description]" value="${desc}" required class="input-field text-sm" placeholder="Soldadura, broche, piedra, pulido...">
                 </div>
                 <div class="col-span-2 service-brand-field ${itemType === 'service' ? '' : 'hidden'}">
-                    <label class="text-xs text-slate-500">Marca del Dispositivo (para servicios)</label>
-                    <input type="text" name="items[${idx}][device_brand]" value="${deviceBrand}" class="input-field text-sm" placeholder="Samsung, iPhone, Alcatel...">
+                    <label class="text-xs text-slate-500">Tipo de joya (para servicios)</label>
+                    <input type="text" name="items[${idx}][device_brand]" value="${deviceBrand}" list="brands_list" class="input-field text-sm" placeholder="Anillo, cadena, pulsera..." autocomplete="off">
                 </div>
                 <div class="part-product-field ${itemType === 'part' ? '' : 'hidden'}">
                     <label class="text-xs text-slate-500">Vincular a producto</label>
@@ -805,11 +789,32 @@ function recalcParts() {
     updateTotal();
 }
 
+function toggleDiscountType(resetInactive = false) {
+    const type = document.getElementById('discountTypeSelect').value;
+    const percentageField = document.getElementById('discountPercentageField');
+    const fixedField = document.getElementById('discountFixedField');
+    const percentageInput = document.getElementById('discountPercentageInput');
+    const fixedInput = document.getElementById('discountFixedInput');
+
+    percentageField.classList.toggle('hidden', type !== 'percentage');
+    fixedField.classList.toggle('hidden', type !== 'fixed');
+    percentageInput.disabled = type !== 'percentage';
+    fixedInput.disabled = type !== 'fixed';
+
+    if (resetInactive) {
+        if (type !== 'percentage') percentageInput.value = 0;
+        if (type !== 'fixed') fixedInput.value = 0;
+    }
+
+    updateTotal();
+}
+
 function updateTotal() {
     const labor = parseFloat(document.getElementById('laborCostInput').value || 0);
     const advance = parseFloat(document.getElementById('advanceInput').value || 0);
-    const discountPct = parseFloat(document.getElementById('discountPercentageInput').value || 0);
-    const discountFixed = parseFloat(document.getElementById('discountFixedInput').value || 0);
+    const discountType = document.getElementById('discountTypeSelect').value;
+    const discountPct = discountType === 'percentage' ? parseFloat(document.getElementById('discountPercentageInput').value || 0) : 0;
+    const discountFixed = discountType === 'fixed' ? parseFloat(document.getElementById('discountFixedInput').value || 0) : 0;
     
     const subtotal = labor + partsCost;
     const percentageDiscount = subtotal * (discountPct / 100);
@@ -842,7 +847,7 @@ function closeAddBrandModal() {
 async function addNewBrand(buttonEl = null) {
     const newBrand = document.getElementById('newBrandInput').value.trim();
     if (!newBrand) {
-        alert('Por favor ingrese un nombre para la marca');
+        alert('Ingrese un nombre para el tipo de joya');
         return;
     }
     
@@ -850,7 +855,7 @@ async function addNewBrand(buttonEl = null) {
     const brandsList = document.getElementById('brands_list');
     const existingOptions = Array.from(brandsList.options).map(opt => opt.value.toLowerCase());
     if (existingOptions.includes(newBrand.toLowerCase())) {
-        alert('Esta marca ya existe en la lista');
+        alert('Este tipo de joya ya existe en la lista');
         return;
     }
     
@@ -861,7 +866,7 @@ async function addNewBrand(buttonEl = null) {
             button.textContent = 'Agregando...';
         }
 
-        const response = await fetch('{{ route($catalogTypeStoreRoute) }}', {
+        const response = await fetch('{{ route('device-brands.store') }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -878,7 +883,7 @@ async function addNewBrand(buttonEl = null) {
             } else if (error.error) {
                 alert(error.error);
             } else {
-                alert('Error al agregar la marca');
+                alert('Error al agregar el tipo de joya');
             }
             return;
         }
@@ -902,13 +907,13 @@ async function addNewBrand(buttonEl = null) {
         // Show success message
         const successMsg = document.createElement('div');
         successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-        successMsg.textContent = @json($isJewelry ? 'Tipo de joya agregado' : 'Marca agregada exitosamente');
+        successMsg.textContent = 'Tipo de joya agregado exitosamente';
         document.body.appendChild(successMsg);
         setTimeout(() => successMsg.remove(), 3000);
         
     } catch (error) {
         console.error('Error:', error);
-        alert('Error al agregar la marca. Por favor intenta nuevamente.');
+        alert('Error al agregar el tipo de joya. Intente nuevamente.');
     } finally {
         const button = buttonEl ?? document.querySelector('#addBrandModal button[onclick^="addNewBrand"]');
         if (button) {
@@ -953,13 +958,11 @@ function initRepairItems() {
 
 // Pre-load existing items
 document.addEventListener('DOMContentLoaded', () => {
-    initPatternPad();
-    toggleLockFields();
     toggleOptionalField('diagnosis');
     toggleOptionalField('repair_notes');
     toggleWarrantyText();
     initRepairItems();
-    toggleRepairCredit();
+    toggleDiscountType(false);
 
     // Load brands dynamically
     loadBrands();
@@ -978,19 +981,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTotal();
 });
 
-function toggleRepairCredit() {
-    const credit = document.getElementById('repairPaymentType')?.value === 'credit';
-    document.getElementById('repairCreditTerms')?.classList.toggle('hidden', !credit);
-    const dueDate = document.getElementById('repairDueDate');
-    if (dueDate) dueDate.required = credit;
-}
-
-function setRepairCreditDays(days) {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    document.getElementById('repairDueDate').value = date.toISOString().slice(0, 10);
-}
-
 function toggleWarrantyText() {
     const checkbox = document.getElementById('warrantyEnabled');
     const textarea = document.getElementById('warrantyTextField');
@@ -1008,9 +998,8 @@ function loadDefaultWarranty() {
 
 async function loadBrands() {
     // Check if brands are cached in localStorage
-    const catalogCacheKey = @json($isJewelry ? 'jewelry_types' : 'device_brands');
-    const cachedBrands = localStorage.getItem(catalogCacheKey);
-    const cacheTime = localStorage.getItem(`${catalogCacheKey}_timestamp`);
+    const cachedBrands = localStorage.getItem('device_brands');
+    const cacheTime = localStorage.getItem('device_brands_timestamp');
     const cacheDuration = 30 * 60 * 1000; // 30 minutes
     
     // Use cached brands if available and recent
@@ -1031,7 +1020,7 @@ async function loadBrands() {
     
     // Fetch from API if no cache or expired
     try {
-        const response = await fetch('{{ route($catalogTypeIndexRoute) }}');
+        const response = await fetch('{{ route('device-brands.index') }}');
         console.log('Respuesta recibida:', response.status);
         
         if (response.ok) {
@@ -1049,8 +1038,8 @@ async function loadBrands() {
                 });
                 
                 // Cache the brands
-                localStorage.setItem(catalogCacheKey, JSON.stringify(brands));
-                localStorage.setItem(`${catalogCacheKey}_timestamp`, Date.now().toString());
+                localStorage.setItem('device_brands', JSON.stringify(brands));
+                localStorage.setItem('device_brands_timestamp', Date.now().toString());
                 
                 console.log('Marcas cargadas en datalist:', brands.length);
             } else {
@@ -1065,7 +1054,7 @@ async function loadBrands() {
         const brandsList = document.getElementById('brands_list');
         if (brandsList && brandsList.options.length === 0) {
             console.log('Usando marcas por defecto');
-            const defaultBrands = {!! $fallbackBrandsJson !!};
+            const defaultBrands = ['Anillo', 'Argolla', 'Aretes', 'Brazalete', 'Cadena', 'Dije', 'Esclava', 'Pulsera', 'Reloj', 'Rosario', 'Tobillera', 'Otra joya'];
             defaultBrands.forEach(brand => {
                 const option = document.createElement('option');
                 option.value = brand;
@@ -1121,7 +1110,7 @@ async function addNewService(buttonEl = null) {
     }
     
     try {
-        const response = await fetch('{{ route($catalogServiceStoreRoute) }}', {
+        const response = await fetch('{{ route('repair-services.store') }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

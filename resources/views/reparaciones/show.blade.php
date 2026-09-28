@@ -9,13 +9,13 @@
     {{-- Header --}}
     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div class="flex min-w-0 items-start gap-3">
-            <a href="{{ route($routePrefix.'.index') }}" class="text-slate-400 hover:text-slate-600">
+            <a href="{{ route('reparaciones.index') }}" class="text-slate-400 hover:text-slate-600">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             </a>
             <div>
                 <div class="flex flex-wrap items-center gap-3">
                     <h1 class="break-all text-2xl font-bold text-slate-900">{{ $order->order_number }}</h1>
-                    <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold {{ $order->statusColor() }}">{{ $workshopStatusLabels[$order->status] ?? $order->statusLabel() }}</span>
+                    <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold {{ $order->statusColor() }}">{{ $order->statusLabel() }}</span>
                     <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold {{ $order->priorityColor() }}">{{ $order->priorityLabel() }}</span>
                 </div>
                 <p class="text-sm text-slate-500 mt-0.5">Recibido: {{ $order->received_date->format('d/m/Y') }}
@@ -38,9 +38,9 @@
             </div>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a href="{{ route($routePrefix.'.ticket', $order->id) }}" target="_blank" class="btn-outline text-sm">Ticket</a>
-            <a href="{{ route($routePrefix.'.pdf', $order->id) }}" target="_blank" class="btn-outline text-sm">PDF</a>
-            <a href="{{ route($routePrefix.'.edit', $order->id) }}" class="btn-secondary text-sm">Editar</a>
+            <a href="{{ route('reparaciones.ticket', $order->id) }}" target="_blank" class="btn-outline text-sm">Ticket</a>
+            <a href="{{ route('reparaciones.pdf', $order->id) }}" target="_blank" class="btn-outline text-sm">PDF</a>
+            <a href="{{ route('reparaciones.edit', $order->id) }}" class="btn-secondary text-sm">Editar</a>
         </div>
     </div>
 
@@ -53,7 +53,7 @@
         {{-- LEFT --}}
         <div class="space-y-5 lg:col-span-2">
 
-            {{-- Client & Device --}}
+            {{-- Cliente y joya --}}
             <div class="card grid grid-cols-1 gap-5 p-5 sm:grid-cols-2">
                 <div>
                     <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Cliente</p>
@@ -62,18 +62,17 @@
                     @if($order->client_email)<p class="text-sm text-slate-600">✉ {{ $order->client_email }}</p>@endif
                 </div>
                 <div>
-                    <p class="text-xs font-semibold text-slate-500 uppercase mb-2">{{ $isJewelry ? 'Pieza' : 'Equipo' }}</p>
+                    <p class="text-xs font-semibold text-slate-500 uppercase mb-2">Joya</p>
                     <p class="font-bold text-slate-900 text-lg">{{ $order->device_brand }} {{ $order->device_model }}</p>
-                    <p class="text-sm text-slate-600">{{ $isJewelry ? 'Material / ley' : 'Modelo' }}: {{ $order->device_model }}</p>
-                    @if($order->device_color)<p class="text-sm text-slate-600">{{ $isJewelry ? 'Color / acabado' : 'Color' }}: {{ $order->device_color }}</p>@endif
-                    @if($order->device_imei)<p class="text-sm text-slate-600">{{ $isJewelry ? 'Peso / identificación' : 'IMEI' }}: <span class="font-mono">{{ $order->device_imei }}</span></p>@endif
-                    @if($order->accessories)<p class="text-sm text-slate-600">{{ $isJewelry ? 'Piedras, grabados y piezas recibidas' : 'Accesorios' }}: {{ $order->accessories }}</p>@endif
+                    @if($order->device_color)<p class="text-sm text-slate-600">Color / acabado: {{ $order->device_color }}</p>@endif
+                    @if($order->device_imei)<p class="text-sm text-slate-600">Peso / identificación: {{ $order->device_imei }}</p>@endif
+                    @if($order->accessories)<p class="text-sm text-slate-600">Piedras y piezas recibidas: {{ $order->accessories }}</p>@endif
                 </div>
             </div>
 
             @if($order->photos->isNotEmpty())
             <div class="card p-5">
-                <h2 class="mb-3 font-semibold text-slate-800">Foto de {{ $isJewelry ? 'la joya' : 'el equipo o artículo' }}</h2>
+                <h2 class="mb-3 font-semibold text-slate-800">Fotos de la joya</h2>
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
                     @foreach($order->photos as $photo)
                         <a href="{{ $photo->url }}" target="_blank" class="block">
@@ -86,15 +85,15 @@
 
             {{-- Diagnosis --}}
             <div class="card p-5 space-y-4">
-                <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">{{ $isJewelry ? 'Evaluación y trabajo de taller' : 'Diagnóstico y Reparación' }}</h2>
+                <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Diagnóstico y Reparación</h2>
                 <div class="grid grid-cols-1 gap-4">
                     <div>
-                        <p class="text-xs font-semibold text-slate-500 uppercase mb-1">{{ $isJewelry ? 'Trabajo solicitado y estado recibido' : 'Falla reportada' }}</p>
+                        <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Trabajo solicitado y estado recibido</p>
                         <p class="text-sm text-slate-700 bg-slate-50 rounded-xl p-3 whitespace-pre-line">{{ $order->problem_description }}</p>
                     </div>
                     @if($order->diagnosis)
                     <div>
-                        <p class="text-xs font-semibold text-slate-500 uppercase mb-1">{{ $isJewelry ? 'Evaluación del joyero' : 'Diagnóstico técnico' }}</p>
+                        <p class="text-xs font-semibold text-slate-500 uppercase mb-1">Evaluación del joyero</p>
                         <p class="text-sm text-slate-700 bg-blue-50 rounded-xl p-3 whitespace-pre-line">{{ $order->diagnosis }}</p>
                     </div>
                     @endif
@@ -111,7 +110,7 @@
             @if($order->items->count())
             <div class="card overflow-hidden">
                 <div class="px-5 py-3 border-b border-slate-200">
-                    <h2 class="font-semibold text-slate-700">{{ $isJewelry ? 'Materiales y servicios' : 'Repuestos utilizados' }}</h2>
+                    <h2 class="font-semibold text-slate-700">Materiales y Servicios</h2>
                 </div>
                 <table class="w-full text-sm">
                     <thead class="bg-slate-50">
@@ -134,7 +133,7 @@
                     </tbody>
                     <tfoot class="bg-slate-50 border-t border-slate-200">
                         <tr>
-                            <td colspan="3" class="px-5 py-2 text-right text-slate-600 text-sm">{{ $isJewelry ? 'Materiales y servicios' : 'Repuestos' }}</td>
+                            <td colspan="3" class="px-5 py-2 text-right text-slate-600 text-sm">Materiales / servicios</td>
                             <td class="px-5 py-2 text-right font-medium">C$ {{ number_format($order->parts_cost, 2) }}</td>
                         </tr>
                         <tr>
@@ -166,10 +165,10 @@
             {{-- Quick status change --}}
             <div class="card p-5">
                 <h2 class="font-semibold text-slate-700 mb-3">Actualizar Estado</h2>
-                <form action="{{ route($routePrefix.'.status', $order->id) }}" method="POST" class="space-y-3">
+                <form action="{{ route('reparaciones.status', $order->id) }}" method="POST" class="space-y-3">
                     @csrf @method('PATCH')
                     <select name="status" class="select-field text-sm">
-                        @foreach($isJewelry ? ['received' => 'Recibida', 'diagnosing' => 'En evaluación', 'waiting_parts' => 'Esperando materiales', 'in_repair' => 'En taller', 'ready' => 'Lista para entregar', 'delivered' => 'Entregada', 'cancelled' => 'Cancelada'] : ['received' => 'Recibido', 'diagnosing' => 'En Diagnóstico', 'waiting_parts' => 'Esperando Repuestos', 'in_repair' => 'En Reparación', 'ready' => 'Listo para Entregar', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
+                        @foreach(['received' => 'Recibido', 'diagnosing' => 'En evaluación', 'waiting_parts' => 'Esperando materiales', 'in_repair' => 'En taller', 'ready' => 'Lista para entregar', 'delivered' => 'Entregada', 'cancelled' => 'Cancelada'] as $val => $label)
                             <option value="{{ $val }}" {{ $order->status === $val ? 'selected' : '' }}>{{ $label }}</option>
                         @endforeach
                     </select>
@@ -222,7 +221,7 @@
             <div class="card p-5 space-y-3 text-sm">
                 <h2 class="font-semibold text-slate-700 border-b border-slate-100 pb-2">Información</h2>
                 @if($order->technician)
-                <div class="flex justify-between"><span class="text-slate-500">{{ $isJewelry ? 'Joyero' : 'Técnico' }}</span><span class="font-medium">{{ $order->technician->name }}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Joyero</span><span class="font-medium">{{ $order->technician->name }}</span></div>
                 @endif
                 @if($order->user)
                 <div class="flex justify-between"><span class="text-slate-500">Atendido por</span><span class="font-medium">{{ $order->user->name }}</span></div>
@@ -254,25 +253,11 @@
                     </span>
                 </div>
                 @endif
-                @php
-                    $lockType = $order->lock_type ?? ($order->device_password ? (preg_match('/^[1-9](?:-[1-9])*$/', $order->device_password) ? 'pattern' : 'password') : 'none');
-                @endphp
-                @if(!$isJewelry && $order->device_password)
-                <details class="rounded-lg border border-amber-200 bg-amber-50 p-2">
-                    <summary class="cursor-pointer text-xs font-semibold text-amber-800">Mostrar acceso del dispositivo</summary>
-                    @if($lockType === 'pattern')
-                        <div class="mt-2"><x-pattern-viewer :pattern="$order->device_password" /></div>
-                    @else
-                        <p class="mt-2 font-mono text-xs text-slate-800">{{ $order->device_password }}</p>
-                    @endif
-                    <p class="mt-2 text-[11px] text-amber-700">Información confidencial. No compartir ni imprimir.</p>
-                </details>
-                @endif
             </div>
 
             {{-- Delete --}}
-            <form action="{{ route($routePrefix.'.destroy', $order->id) }}" method="POST"
-                  onsubmit="return confirm(@js($isJewelry ? '¿Eliminar esta orden de joyería?' : '¿Eliminar esta orden de reparación?'))">
+            <form action="{{ route('reparaciones.destroy', $order->id) }}" method="POST"
+                  onsubmit="return confirm('¿Eliminar esta orden de reparación?')">
                 @csrf @method('DELETE')
                 <button type="submit" class="w-full bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium py-2.5 rounded-xl border border-red-200">
                     Eliminar Orden

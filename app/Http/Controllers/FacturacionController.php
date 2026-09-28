@@ -11,7 +11,6 @@ use App\Models\Client;
 use App\Models\NumberSequence;
 use App\Models\Product;
 use App\Models\RepairOrder;
-use App\Models\Reservation;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
@@ -21,20 +20,18 @@ use App\Services\AccountingService;
 use App\Services\BranchContextService;
 use App\Services\CreditOverrideService;
 use App\Services\CreditService;
-use App\Services\ImageProcessingService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
 use App\Services\PricingService;
-use App\Services\ProductGalleryService;
 use App\Services\PurchaseCostingService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class FacturacionController extends Controller
@@ -522,12 +519,8 @@ class FacturacionController extends Controller
      */
     public function pos()
     {
-        $user = request()->user();
-        $currentCashSession = CajaSession::currentForUser($user?->id);
-        $operatingBranchId = $currentCashSession?->branch_id ?? $user?->branch_id;
-        $assignedBranch = $operatingBranchId
-            ? Branch::query()->where('is_active', true)->find($operatingBranchId)
-            : null;
+        $userBranchId = request()->user()?->branch_id;
+        $assignedBranch = $userBranchId ? Branch::query()->where('is_active', true)->find($userBranchId) : null;
         $defaultWarehouseId = $this->posCatalog->resolveWarehouseId($assignedBranch?->warehouse_id);
         $products = Product::with(['category', 'tax', 'baseUnit', 'unitConversions.unit', 'warehouseStocks.warehouse'])
             ->where('status', 'active')
@@ -646,25 +639,24 @@ class FacturacionController extends Controller
         $productModel = Product::where('status', 'active')->findOrFail($product);
 
         $validated = $request->validate([
-            'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
+            'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
         ]);
 
-        try {
-            $newImagePath = app(ImageProcessingService::class)->storePublicImage($validated['image'], 'products', 1600, 1600);
-        } catch (Throwable $exception) {
-            report($exception);
-
-            throw ValidationException::withMessages([
-                'image' => 'No se pudo procesar la imagen. Use JPG, PNG o WebP de hasta 8 MB y 20 megapíxeles.',
-            ]);
-        }
+        $oldImagePath = $productModel->getRawOriginal('image_url');
+        $newImagePath = $validated['image']->store('products', 'public');
 
         try {
-            app(ProductGalleryService::class)->replaceCover($productModel, $newImagePath);
+            $productModel->update(['image_url' => $newImagePath]);
         } catch (Throwable $exception) {
-            app(ProductGalleryService::class)->discard([$newImagePath]);
+            if ($newImagePath && str_starts_with($newImagePath, 'products/')) {
+                Storage::disk('public')->delete($newImagePath);
+            }
 
             throw $exception;
+        }
+
+        if ($oldImagePath && $oldImagePath !== $newImagePath && str_starts_with($oldImagePath, 'products/')) {
+            Storage::disk('public')->delete($oldImagePath);
         }
 
         $productModel->refresh();
@@ -744,7 +736,6 @@ class FacturacionController extends Controller
             'order_discount_pct' => 'nullable|numeric|min:0|max:100',
             'credit_override_token' => ['nullable', 'string', 'size:64'],
             'request_token' => ['nullable', 'uuid'],
-            'reservation_id' => ['nullable', 'integer', 'exists:reservations,id'],
         ]);
 
         $items = json_decode($validated['items'], true);
@@ -783,8 +774,7 @@ class FacturacionController extends Controller
         $userId = $request->user()?->id ?? 1;
         $requestedPaymentType = $validated['payment_type'];
         $storedPaymentType = $requestedPaymentType === 'card' ? 'transfer' : $requestedPaymentType;
-        $operatingSession = CajaSession::currentForUser($userId);
-        $cashSession = $storedPaymentType === 'cash' ? $operatingSession : null;
+        $cashSession = $storedPaymentType === 'cash' ? CajaSession::currentForUser($userId) : null;
         if ($storedPaymentType === 'cash' && ! $cashSession) {
             return back()->withInput()->with('error', 'Debes abrir una caja antes de registrar una venta en efectivo.');
         }
@@ -802,23 +792,7 @@ class FacturacionController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($validated, $items, &$sale, $userId, $cashSession, $operatingSession, $request) {
-                $reservation = filled($validated['reservation_id'] ?? null)
-                    ? Reservation::query()->with('items')->lockForUpdate()->findOrFail($validated['reservation_id'])
-                    : null;
-                if ($reservation && ($reservation->status !== 'active' || $reservation->sale_id)) {
-                    throw new \RuntimeException('Este apartado ya fue facturado o no está activo.');
-                }
-                if ($reservation) {
-                    $expected = $reservation->items->mapWithKeys(fn ($item) => [(int) $item->product_id => round((float) $item->quantity, 4)])->all();
-                    $submitted = collect($items)->mapWithKeys(fn ($item) => [(int) $item['product_id'] => round((float) $item['quantity'], 4)])->all();
-                    ksort($expected);
-                    ksort($submitted);
-                    if ($expected !== $submitted) {
-                        throw new \RuntimeException('Los productos del ticket no coinciden con el apartado.');
-                    }
-                    $reservation->update(['status' => 'completed']);
-                }
+            DB::transaction(function () use ($validated, $items, &$sale, $userId, $cashSession, $request) {
                 $invoiceNumber = $this->nextInvoiceNumber();
                 $requestedPaymentType = $validated['payment_type'];
                 $storedPaymentType = $requestedPaymentType === 'card' ? 'transfer' : $requestedPaymentType;
@@ -831,7 +805,7 @@ class FacturacionController extends Controller
                     $notes .= ($notes !== '' ? ' | ' : '').'Referencia: '.$validated['reference_number'];
                 }
 
-                $clientId = $reservation?->client_id ?? ($validated['client_id'] ?? null);
+                $clientId = $validated['client_id'] ?? null;
                 $client = $clientId
                     ? Client::query()
                         ->when($storedPaymentType === 'credit', fn ($query) => $query->lockForUpdate())
@@ -845,16 +819,11 @@ class FacturacionController extends Controller
                     );
                 }
 
-                $contextWarehouseId = $operatingSession?->branch?->warehouse_id
-                    ?? ($request->user()?->branch_id
-                        ? Branch::query()->whereKey($request->user()->branch_id)->value('warehouse_id')
-                        : null);
-                $preferredWarehouseId = $reservation?->warehouse_id
-                    ?? (isset($validated['warehouse_id'])
-                        ? (int) $validated['warehouse_id']
-                        : ($contextWarehouseId ? (int) $contextWarehouseId : null));
+                $preferredWarehouseId = isset($validated['warehouse_id'])
+                    ? (int) $validated['warehouse_id']
+                    : null;
                 $resolvedWarehouseId = $this->posCatalog->resolveWarehouseId($preferredWarehouseId);
-                $branch = $this->branches->resolve($resolvedWarehouseId, $operatingSession, $request->user()?->branch_id);
+                $branch = $this->branches->resolve($resolvedWarehouseId, $cashSession, $request->user()?->branch_id);
                 $resolvedPriceList = $this->pricing->resolvePriceList($client->price_list_id, $branch?->id);
                 $priceListId = $resolvedPriceList?->id;
                 $saleWarehouseId = null;
@@ -1009,9 +978,6 @@ class FacturacionController extends Controller
                 }
 
                 $this->accountingService->recordSale($sale->fresh());
-                if ($reservation) {
-                    $reservation->update(['sale_id' => $sale->id]);
-                }
             });
         } catch (\RuntimeException $e) {
             return back()->withErrors(['items' => $e->getMessage()]);
