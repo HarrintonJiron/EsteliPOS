@@ -13,6 +13,7 @@ use App\Models\RepairOrderItem;
 use App\Models\RepairOrderPhoto;
 use App\Models\RepairService;
 use App\Models\Sale;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\AccountingService;
 use Illuminate\Http\Request;
@@ -693,8 +694,8 @@ class ReparacionController extends Controller
     {
         $order = $this->workshopQuery()->with('items.product', 'technician')->findOrFail($id);
         $companyProfile = [
-            'company_name' => \App\Models\Setting::get('company_name', 'Mi Agroservicio'),
-            'company_phone' => \App\Models\Setting::get('company_phone', ''),
+            'company_name' => Setting::get('company_name', 'Mi Agroservicio'),
+            'company_phone' => Setting::get('company_phone', ''),
         ];
 
         return view('reparaciones.ticket', array_merge(compact('order', 'companyProfile'), $this->workshopViewData()));
@@ -704,13 +705,13 @@ class ReparacionController extends Controller
     {
         $order = $this->workshopQuery()->with('items.product', 'client', 'technician', 'user')->findOrFail($id);
         $companyProfile = [
-            'company_name' => \App\Models\Setting::get('company_name', 'Mi Agroservicio'),
-            'company_legal_name' => \App\Models\Setting::get('company_legal_name', ''),
-            'company_ruc' => \App\Models\Setting::get('company_ruc', ''),
-            'company_phone' => \App\Models\Setting::get('company_phone', ''),
-            'company_address' => \App\Models\Setting::get('company_address', ''),
-            'company_city' => \App\Models\Setting::get('company_city', ''),
-            'company_country' => \App\Models\Setting::get('company_country', ''),
+            'company_name' => Setting::get('company_name', 'Mi Agroservicio'),
+            'company_legal_name' => Setting::get('company_legal_name', ''),
+            'company_ruc' => Setting::get('company_ruc', ''),
+            'company_phone' => Setting::get('company_phone', ''),
+            'company_address' => Setting::get('company_address', ''),
+            'company_city' => Setting::get('company_city', ''),
+            'company_country' => Setting::get('company_country', ''),
         ];
 
         return view('reparaciones.pdf', array_merge(compact('order', 'companyProfile'), $this->workshopViewData()));
@@ -890,7 +891,6 @@ class ReparacionController extends Controller
         $order->sale->setRelation('repairOrder', $order);
 
         return view('facturacion.pdf', ['sale' => $order->sale]);
->>>>>>> bced51d (fix: usar nombre de empresa configurado en tickets y documentos)
     }
 
     private function calcPaymentStatus(float $total, float $advance): string
