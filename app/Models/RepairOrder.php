@@ -10,11 +10,8 @@ use Illuminate\Support\Facades\Schema;
 
 class RepairOrder extends Model
 {
-    public const MAX_PHOTOS = 5;
-
     protected $fillable = [
         'order_number',
-        'order_type',
         'client_id',
         'client_name',
         'client_phone',
@@ -37,7 +34,6 @@ class RepairOrder extends Model
         'received_date',
         'received_time',
         'estimated_date',
-        'due_date',
         'estimated_delivery_time',
         'delivered_date',
         'delivered_time',
@@ -57,7 +53,6 @@ class RepairOrder extends Model
     protected $casts = [
         'received_date' => 'date',
         'estimated_date' => 'date',
-        'due_date' => 'date',
         'delivered_date' => 'date',
         'payment_received_at' => 'datetime',
         'warranty_enabled' => 'boolean',
@@ -106,16 +101,6 @@ class RepairOrder extends Model
         return $this->hasMany(RepairOrderPhoto::class);
     }
 
-    public function creditPayments()
-    {
-        return $this->hasMany(RepairCreditPayment::class);
-    }
-
-    public function creditBalance(): float
-    {
-        return max(0, round((float) $this->total - (float) $this->advance_payment - (float) $this->creditPayments()->sum('amount'), 2));
-    }
-
     public function cajaSession()
     {
         return $this->belongsTo(CajaSession::class);
@@ -135,12 +120,12 @@ class RepairOrder extends Model
     {
         return match ($this->status) {
             'received' => 'Recibido',
-            'diagnosing' => 'Diagnóstico',
-            'waiting_parts' => 'Esp. Repuestos',
-            'in_repair' => 'En Reparación',
-            'ready' => 'Listo',
-            'delivered' => 'Entregado',
-            'cancelled' => 'Cancelado',
+            'diagnosing' => 'En Evaluación',
+            'waiting_parts' => 'Esp. Materiales',
+            'in_repair' => 'En Taller',
+            'ready' => 'Lista para Entregar',
+            'delivered' => 'Entregada',
+            'cancelled' => 'Cancelada',
             default => ucfirst($this->status),
         };
     }
@@ -183,7 +168,7 @@ class RepairOrder extends Model
 
     public function balance(): float
     {
-        return $this->creditBalance();
+        return max(0, (float) $this->total - (float) $this->advance_payment);
     }
 
     public function formattedReceivedTime(): ?string
