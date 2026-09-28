@@ -3,13 +3,10 @@ param(
     [int]$Port = 8080,
     [int]$RetentionDays = 30,
     [string]$ExternalBackupPath = "",
-    [string]$HostAddress = "0.0.0.0",
-    [ValidateSet("Simple", "IIS", "Auto")]
-    [string]$ServerProfile = "Auto"
+    [string]$HostAddress = "127.0.0.1"
 )
 
 $ErrorActionPreference = "Stop"
-. (Join-Path $PSScriptRoot "EsteliPOS-Common.ps1")
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $DatabasePath = Join-Path $ProjectRoot "database\database.sqlite"
 $BackupDirectory = Join-Path $ProjectRoot "storage\app\backups"
@@ -21,7 +18,7 @@ New-Item -ItemType Directory -Force -Path $BackupDirectory | Out-Null
 try {
     if (-not (Test-Path $DatabasePath)) { throw "No existe la base SQLite: $DatabasePath" }
 
-    & (Join-Path $PSScriptRoot "Stop-EsteliPOS.ps1") -ServerProfile $ServerProfile
+    & (Join-Path $PSScriptRoot "Stop-EsteliPOS.ps1")
     $Destination = Join-Path $BackupDirectory "estelipos-$Timestamp.sqlite"
     Copy-Item $DatabasePath $Destination -Force
 
@@ -42,11 +39,5 @@ try {
     Add-Content $LogPath "$(Get-Date -Format s) ERROR $($_.Exception.Message)"
     throw
 } finally {
-    $StartScript = Join-Path $PSScriptRoot "Start-EsteliPOS.ps1"
-    $ResolvedProfile = Get-EsteliPOSResolvedServerProfile -ServerProfile $ServerProfile
-    if ($ResolvedProfile -eq "Simple") {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $StartScript -Port $Port -ServerProfile Simple -HostAddress $HostAddress
-    } else {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $StartScript -Port $Port -ServerProfile IIS
-    }
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "Start-EsteliPOS.ps1") -Port $Port -HostAddress $HostAddress
 }
