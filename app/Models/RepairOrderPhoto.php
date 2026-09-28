@@ -17,8 +17,6 @@ class RepairOrderPhoto extends Model
 
     public function getUrlAttribute(): string
     {
-        $prefix = $this->repairOrder?->order_type === 'jewelry' ? 'joyeria' : 'reparaciones';
-
-        return route($prefix.'.photos.show', $this);
+        return route('reparaciones.photos.show', $this);
     }
 }
