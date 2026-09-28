@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Proforma {{ $proforma->proforma_number }}</title>
-    @vite(['resources/css/app.css'])
+    @vite('resources/css/app.css')
     <style>
         @media print {
             body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
@@ -29,29 +29,19 @@
     {{-- Header --}}
     <div class="flex justify-between items-start mb-6">
         <div class="flex items-center gap-4">
-            @php
-                $pdfLogoUrl = $companyProfile['company_logo_url'] ?: $companyProfile['ticket_logo_url'];
-                $addressLine = collect([
-                    $companyProfile['company_address'],
-                    $companyProfile['company_city'],
-                    $companyProfile['company_country'],
-                ])->filter()->implode(', ');
-            @endphp
-            @if($pdfLogoUrl)
-                <img src="{{ $pdfLogoUrl }}" alt="Logo de {{ $companyProfile['company_name'] }}" class="h-20 w-auto max-w-[9rem] object-contain" onerror="this.remove()">
-            @else
-                <div class="w-20 h-20 bg-gradient-to-br from-indigo-700 to-indigo-900 rounded-xl flex items-center justify-center text-white shadow-lg">
-                    <div class="text-center text-2xl font-bold">{{ mb_strtoupper(mb_substr($companyProfile['company_name'], 0, 2)) }}</div>
+            <div class="w-20 h-20 bg-gradient-to-br from-indigo-700 to-indigo-900 rounded-xl flex items-center justify-center text-white shadow-lg">
+                <div class="text-center">
+                    <div class="text-2xl font-bold">AS</div>
+                    <div class="text-xs">AGRO</div>
                 </div>
-            @endif
+            </div>
             <div>
-                <h1 class="text-xl font-black text-indigo-900 tracking-tight">{{ $companyProfile['company_name'] }}</h1>
-                @if($companyProfile['company_legal_name'])<p class="text-xs text-gray-600">{{ $companyProfile['company_legal_name'] }}</p>@endif
+                <h1 class="text-xl font-black text-indigo-900 tracking-tight">AGROSERVICIO S.A.</h1>
+                <p class="text-xs text-gray-600">SUMINISTROS AGRÍCOLAS Y AGROQUÍMICOS</p>
                 <div class="mt-1 space-y-0.5 text-xs text-gray-600">
-                    @if($companyProfile['company_ruc'])<p><span class="font-semibold">RUC:</span> {{ $companyProfile['company_ruc'] }}</p>@endif
-                    @if($addressLine)<p><span class="font-semibold">Dir:</span> {{ $addressLine }}</p>@endif
-                    @if($companyProfile['company_phone'])<p><span class="font-semibold">Tel:</span> {{ $companyProfile['company_phone'] }}</p>@endif
-                    @if($companyProfile['company_email'])<p><span class="font-semibold">Email:</span> {{ $companyProfile['company_email'] }}</p>@endif
+                    <p><span class="font-semibold">RUC:</span> J10240330417</p>
+                    <p><span class="font-semibold">Dir:</span> Carretera Norte Km. 4.5, Managua, NI</p>
+                    <p><span class="font-semibold">Tel:</span> +505 2772-0000</p>
                 </div>
             </div>
         </div>
@@ -60,9 +50,9 @@
             <p class="text-xs font-medium uppercase tracking-widest mb-1 opacity-80">PROFORMA</p>
             <p class="text-2xl font-black">{{ $proforma->proforma_number }}</p>
             <div class="mt-2 text-xs space-y-0.5 opacity-90">
-                <p>Fecha: {{ $proforma->date->format($companyProfile['date_format']) }}</p>
+                <p>Fecha: {{ $proforma->date->format('d/m/Y') }}</p>
                 @if($proforma->expiry_date)
-                <p>Válida hasta: {{ $proforma->expiry_date->format($companyProfile['date_format']) }}</p>
+                <p>Válida hasta: {{ $proforma->expiry_date->format('d/m/Y') }}</p>
                 @endif
             </div>
         </div>
@@ -113,16 +103,14 @@
     {{-- Totals --}}
     <div class="flex justify-end mb-5">
         <div class="w-56 space-y-1.5">
-            @if($invoiceTaxDisplay->showsTaxBreakdown())
-                <div class="flex justify-between text-xs text-slate-600">
-                    <span>Subtotal</span>
-                    <span>C$ {{ number_format($proforma->subtotal, 2) }}</span>
-                </div>
-                <div class="flex justify-between text-xs text-slate-600">
-                    <span>{{ $invoiceTaxDisplay->taxLabel((float) $proforma->tax_rate) }}</span>
-                    <span>C$ {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $proforma->tax_total), 2) }}</span>
-                </div>
-            @endif
+            <div class="flex justify-between text-xs text-slate-600">
+                <span>Subtotal</span>
+                <span>C$ {{ number_format($proforma->subtotal, 2) }}</span>
+            </div>
+            <div class="flex justify-between text-xs text-slate-600">
+                <span>IVA ({{ number_format($proforma->tax_rate * 100, 2) }}%)</span>
+                <span>C$ {{ number_format($proforma->tax_total, 2) }}</span>
+            </div>
             <div class="flex justify-between font-bold text-sm border-t border-indigo-300 pt-1.5 mt-1 text-indigo-900">
                 <span>TOTAL</span>
                 <span>C$ {{ number_format($proforma->total, 2) }}</span>
