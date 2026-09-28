@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(ProductionSeeder::class);
+        $this->call(JoyeriaModuleSeeder::class);
 
         if (! filter_var(env('SEED_DEMO_DATA', false), FILTER_VALIDATE_BOOLEAN)) {
             return;

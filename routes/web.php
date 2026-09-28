@@ -38,6 +38,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\JoyeriaController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas públicas (sin autenticación)
@@ -206,6 +207,23 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/reparaciones/{id}/pdf', [ReparacionController::class, 'pdf'])->name('reparaciones.pdf');
         Route::get('/reparaciones/{id}/factura/ticket', [ReparacionController::class, 'invoiceReceipt'])->name('reparaciones.invoice-receipt');
         Route::get('/reparaciones/{id}/factura/pdf', [ReparacionController::class, 'invoicePdf'])->name('reparaciones.invoice-pdf');
+    });
+
+    // Joyería
+    Route::middleware('module:joyeria')->group(function () {
+        Route::get('/joyeria', [JoyeriaController::class, 'index'])->name('joyeria.index');
+        Route::get('/joyeria/nueva', [JoyeriaController::class, 'create'])->name('joyeria.create');
+        Route::post('/joyeria', [JoyeriaController::class, 'store'])->name('joyeria.store');
+        Route::get('/joyeria/{id}', [JoyeriaController::class, 'show'])->name('joyeria.show');
+        Route::get('/joyeria/{id}/edit', [JoyeriaController::class, 'edit'])->name('joyeria.edit');
+        Route::put('/joyeria/{id}', [JoyeriaController::class, 'update'])->name('joyeria.update');
+        Route::patch('/joyeria/{id}/status', [JoyeriaController::class, 'updateStatus'])->name('joyeria.status');
+        Route::post('/joyeria/{id}/facturar', [JoyeriaController::class, 'bill'])->name('joyeria.bill');
+        Route::delete('/joyeria/{id}', [JoyeriaController::class, 'destroy'])->name('joyeria.destroy');
+        Route::get('/joyeria/{id}/ticket', [JoyeriaController::class, 'ticket'])->name('joyeria.ticket');
+        Route::get('/joyeria/{id}/pdf', [JoyeriaController::class, 'pdf'])->name('joyeria.pdf');
+        Route::get('/joyeria/{id}/factura/ticket', [JoyeriaController::class, 'invoiceReceipt'])->name('joyeria.invoice-receipt');
+        Route::get('/joyeria/{id}/factura/pdf', [JoyeriaController::class, 'invoicePdf'])->name('joyeria.invoice-pdf');
     });
 
     // Reportes solo para admin
