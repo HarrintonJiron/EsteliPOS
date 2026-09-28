@@ -39,6 +39,7 @@ use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\JoyeriaController;
+use App\Http\Controllers\JoyeriaCatalogController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas públicas (sin autenticación)
@@ -224,6 +225,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/joyeria/{id}/pdf', [JoyeriaController::class, 'pdf'])->name('joyeria.pdf');
         Route::get('/joyeria/{id}/factura/ticket', [JoyeriaController::class, 'invoiceReceipt'])->name('joyeria.invoice-receipt');
         Route::get('/joyeria/{id}/factura/pdf', [JoyeriaController::class, 'invoicePdf'])->name('joyeria.invoice-pdf');
+        
+        // Catálogos de joyería
+        Route::get('/joyeria/catalogos/tipos', [JoyeriaCatalogController::class, 'index'])->name('joyeria.catalogs.types.index');
+        Route::post('/joyeria/catalogos/tipos', [JoyeriaCatalogController::class, 'store'])->name('joyeria.catalogs.types.store');
+        Route::get('/joyeria/catalogos/servicios', [JoyeriaCatalogController::class, 'services'])->name('joyeria.catalogs.services.index');
+        Route::post('/joyeria/catalogos/servicios', [JoyeriaCatalogController::class, 'storeService'])->name('joyeria.catalogs.services.store');
     });
 
     // Reportes solo para admin
