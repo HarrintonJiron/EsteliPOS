@@ -31,6 +31,7 @@ test('the pro form links a supplier and stores battery percentage', function () 
     $this->actingAs($admin)->post(route('inventario.store'), [
         'category_id' => $category->id,
         'name' => 'iPhone 13 seminuevo',
+        'code' => 'SUP-IPHONE-13',
         'condition' => 'used',
         'battery_percentage' => 87,
         'supplier_id' => $supplier->id,
@@ -61,6 +62,7 @@ test('registro rapido links a supplier without requiring battery or condition fi
 
     $this->actingAs($admin)->post(route('inventario.quick-store'), [
         'name' => 'Cargador rápido 20W',
+        'code' => 'SUP-CARGADOR-20W',
         'sale_price' => 12,
         'supplier_id' => $supplier->id,
     ])->assertSessionHasNoErrors();
@@ -121,6 +123,7 @@ test('battery percentage is rejected outside 0-100', function () {
     $this->actingAs($admin)->post(route('inventario.store'), [
         'category_id' => $category->id,
         'name' => 'Producto con bateria invalida',
+        'code' => 'SUP-BAT-INVALIDA',
         'battery_percentage' => 150,
         'purchase_price' => 10,
         'sale_price' => 15,

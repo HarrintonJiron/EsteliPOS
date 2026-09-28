@@ -21,18 +21,20 @@ use App\Services\AccountingService;
 use App\Services\BranchContextService;
 use App\Services\CreditOverrideService;
 use App\Services\CreditService;
+use App\Services\ImageProcessingService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
 use App\Services\PricingService;
+use App\Services\ProductGalleryService;
 use App\Services\PurchaseCostingService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class FacturacionController extends Controller
@@ -644,24 +646,25 @@ class FacturacionController extends Controller
         $productModel = Product::where('status', 'active')->findOrFail($product);
 
         $validated = $request->validate([
-            'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
+            'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
         ]);
 
-        $oldImagePath = $productModel->getRawOriginal('image_url');
-        $newImagePath = $validated['image']->store('products', 'public');
-
         try {
-            $productModel->update(['image_url' => $newImagePath]);
+            $newImagePath = app(ImageProcessingService::class)->storePublicImage($validated['image'], 'products', 1600, 1600);
         } catch (Throwable $exception) {
-            if ($newImagePath && str_starts_with($newImagePath, 'products/')) {
-                Storage::disk('public')->delete($newImagePath);
-            }
+            report($exception);
 
-            throw $exception;
+            throw ValidationException::withMessages([
+                'image' => 'No se pudo procesar la imagen. Use JPG, PNG o WebP de hasta 8 MB y 20 megapíxeles.',
+            ]);
         }
 
-        if ($oldImagePath && $oldImagePath !== $newImagePath && str_starts_with($oldImagePath, 'products/')) {
-            Storage::disk('public')->delete($oldImagePath);
+        try {
+            app(ProductGalleryService::class)->replaceCover($productModel, $newImagePath);
+        } catch (Throwable $exception) {
+            app(ProductGalleryService::class)->discard([$newImagePath]);
+
+            throw $exception;
         }
 
         $productModel->refresh();

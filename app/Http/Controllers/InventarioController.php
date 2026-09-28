@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\ProductUnitConversion;
+use App\Models\Supplier;
 use App\Models\Tax;
 use App\Models\Unit;
 use App\Models\Warehouse;
@@ -16,6 +17,7 @@ use App\Models\WarehouseShelf;
 use App\Models\WarehouseStock;
 use App\Services\InventoryService;
 use App\Services\PricingService;
+use App\Services\ProductGalleryService;
 use App\Services\UnitConversionService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -34,6 +36,7 @@ class InventarioController extends Controller
         private InventoryService $inventory,
         private PricingService $pricing,
         private UnitConversionService $units,
+        private ProductGalleryService $gallery,
     ) {}
 
     public function index(Request $request): View
@@ -326,8 +329,9 @@ class InventarioController extends Controller
         $taxes = Tax::where('is_active', true)->orderBy('rate')->get();
         $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
         $warehouses = $this->activeWarehouses()->load('shelves');
+        $suppliers = Supplier::query()->where('status', 'active')->orderBy('name')->get();
 
-        return view('inventario.create', compact('categories', 'taxes', 'units', 'warehouses'));
+        return view('inventario.create', compact('categories', 'taxes', 'units', 'warehouses', 'suppliers'));
     }
 
     public function quick(): View
@@ -338,8 +342,9 @@ class InventarioController extends Controller
         $specialList = $this->pricing->specialList();
         $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
         $warehouses = $this->activeWarehouses()->load('shelves');
+        $suppliers = Supplier::query()->where('status', 'active')->orderBy('name')->get();
 
-        return view('inventario.quick', compact('categories', 'defaultCategory', 'wholesaleList', 'specialList', 'units', 'warehouses'));
+        return view('inventario.quick', compact('categories', 'defaultCategory', 'wholesaleList', 'specialList', 'units', 'warehouses', 'suppliers'));
     }
 
     public function lookupCode(string $code): JsonResponse
@@ -377,6 +382,9 @@ class InventarioController extends Controller
             'brand' => 'nullable|string|max:80',
             'model' => 'nullable|string|max:120',
             'color' => 'nullable|string|max:60',
+            'battery_percentage' => 'nullable|integer|min:0|max:100',
+            'supplier_id' => 'nullable|exists:suppliers,id',
+            'supplier_code' => 'nullable|string|max:100',
             'description' => 'nullable|string|max:2000',
             'stock' => 'nullable|numeric|min:0',
             'locations' => 'nullable|array|min:1',
@@ -402,6 +410,8 @@ class InventarioController extends Controller
         ]);
 
         $categoryId = $validated['category_id'] ?? Category::query()->value('id');
+        $supplierId = $validated['supplier_id'] ?? null;
+        $supplierCode = $validated['supplier_code'] ?? null;
         if (! $categoryId) {
             return back()->withErrors(['category_id' => 'Crea al menos una categoría antes de registrar productos.']);
         }
@@ -428,6 +438,7 @@ class InventarioController extends Controller
                 'brand' => $validated['brand'] ?? null,
                 'model' => $validated['model'] ?? null,
                 'color' => $validated['color'] ?? null,
+                'battery_percentage' => $validated['battery_percentage'] ?? null,
                 'description' => $validated['description'] ?? null,
                 'purchase_price' => $purchasePrice,
                 'sale_price' => $validated['sale_price'],
@@ -436,7 +447,7 @@ class InventarioController extends Controller
                 'base_unit_id' => $baseUnit?->id,
                 'low_stock_threshold' => $validated['low_stock_threshold'] ?? 5,
                 'status' => 'active',
-                'image_url' => $imagePath,
+                'image_url' => null,
             ]);
 
             foreach ($locations as $location) {
@@ -474,6 +485,12 @@ class InventarioController extends Controller
             }
 
             $product = $product->fresh();
+            if ($supplierId) {
+                $this->setPreferredSupplier($product, (int) $supplierId, $supplierCode);
+            }
+            if ($imagePath) {
+                $this->gallery->attach($product, [$imagePath]);
+            }
             $this->pricing->syncProductToDefaultList($product);
 
             if (! empty($validated['wholesale_price']) && ($wholesaleList = $this->pricing->wholesaleList())) {
@@ -522,6 +539,9 @@ class InventarioController extends Controller
             'brand' => 'nullable|string|max:80',
             'model' => 'nullable|string|max:120',
             'color' => 'nullable|string|max:60',
+            'battery_percentage' => 'nullable|integer|min:0|max:100',
+            'supplier_id' => 'nullable|exists:suppliers,id',
+            'supplier_code' => 'nullable|string|max:100',
             'imei' => 'nullable|string|max:30|unique:products,imei',
             'wholesale_price' => 'nullable|numeric|min:0',
             'special_price' => 'nullable|numeric|min:0',
@@ -549,13 +569,17 @@ class InventarioController extends Controller
             'discount_pct' => 'nullable|numeric|min:0|max:100',
             'discount_label' => 'nullable|string|max:100',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
+            'images' => 'nullable|array|max:'.ProductGalleryService::MAX_IMAGES,
+            'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
         ]);
 
         $locations = $this->initialLocations($validated);
         $validated['stock'] = 0;
         $wholesalePrice = $validated['wholesale_price'] ?? null;
         $specialPrice = $validated['special_price'] ?? null;
-        unset($validated['image'], $validated['warehouse_id'], $validated['shelf_id'], $validated['locations'], $validated['wholesale_price'], $validated['special_price']);
+        $supplierId = $validated['supplier_id'] ?? null;
+        $supplierCode = $validated['supplier_code'] ?? null;
+        unset($validated['image'], $validated['images'], $validated['supplier_id'], $validated['supplier_code'], $validated['warehouse_id'], $validated['shelf_id'], $validated['locations'], $validated['wholesale_price'], $validated['special_price']);
         $validated['expiry_date'] = $validated['expiry_date'] ?? null;
 
         $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
@@ -563,12 +587,16 @@ class InventarioController extends Controller
         $validated['unit'] = $baseUnit?->abbreviation ?? ($validated['unit'] ?? 'und');
 
         $imagePath = $request->file('image')?->store('products', 'public');
-        if ($imagePath) {
-            $validated['image_url'] = $imagePath;
-        }
+        $galleryFiles = $request->file('images', []);
+        $this->gallery->ensureCapacity(null, count($galleryFiles) + ($imagePath ? 1 : 0));
+        $galleryPaths = [...($imagePath ? [$imagePath] : []), ...$this->gallery->storeUploads($galleryFiles)];
 
         try {
             $product = Product::create($validated);
+            $this->gallery->attach($product, $galleryPaths);
+            if ($supplierId) {
+                $this->setPreferredSupplier($product, (int) $supplierId, $supplierCode);
+            }
 
             foreach ($locations as $location) {
                 if ($location['quantity'] > 0) {
@@ -593,7 +621,7 @@ class InventarioController extends Controller
                 $this->pricing->syncProductToList($product, $list, (float) $specialPrice);
             }
         } catch (Throwable $exception) {
-            $this->deleteProductImage($imagePath);
+            $this->gallery->discard($galleryPaths);
 
             throw $exception;
         }
@@ -870,12 +898,15 @@ class InventarioController extends Controller
 
     public function edit(int $id): View
     {
-        $product = Product::findOrFail($id);
+        $product = Product::with('suppliers')->findOrFail($id);
         $categories = Category::orderBy('name')->get();
         $taxes = Tax::where('is_active', true)->orderBy('rate')->get();
         $units = Unit::query()->where('is_active', true)->orderBy('name')->get();
+        $suppliers = Supplier::query()->where('status', 'active')->orderBy('name')->get();
+        $currentSupplier = $product->suppliers->firstWhere('pivot.preferred', true)
+            ?? $product->suppliers->first();
 
-        return view('inventario.edit', compact('product', 'categories', 'taxes', 'units'));
+        return view('inventario.edit', compact('product', 'categories', 'taxes', 'units', 'suppliers', 'currentSupplier'));
     }
 
     public function update(Request $request, int $id): RedirectResponse
@@ -891,6 +922,9 @@ class InventarioController extends Controller
             'brand' => 'nullable|string|max:80',
             'model' => 'nullable|string|max:120',
             'color' => 'nullable|string|max:60',
+            'battery_percentage' => 'nullable|integer|min:0|max:100',
+            'supplier_id' => 'nullable|exists:suppliers,id',
+            'supplier_code' => 'nullable|string|max:100',
             'imei' => 'nullable|string|max:30|unique:products,imei,'.$product->id,
             'wholesale_price' => 'nullable|numeric|min:0',
             'special_price' => 'nullable|numeric|min:0',
@@ -912,21 +946,25 @@ class InventarioController extends Controller
             'discount_label' => 'nullable|string|max:100',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
             'remove_image' => 'nullable|boolean',
+            'images' => 'nullable|array|max:'.ProductGalleryService::MAX_IMAGES,
+            'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
+            'remove_image_ids' => 'nullable|array',
+            'remove_image_ids.*' => 'integer',
         ]);
 
         $oldImagePath = $product->getRawOriginal('image_url');
         $newImagePath = $request->file('image')?->store('products', 'public');
         $removeImage = $request->boolean('remove_image');
+        $removeImageIds = array_map('intval', $validated['remove_image_ids'] ?? []);
+        $galleryFiles = $request->file('images', []);
+        $this->gallery->ensureCapacity($product, count($galleryFiles) + ($newImagePath ? 1 : 0), $removeImageIds);
+        $galleryPaths = [...($newImagePath ? [$newImagePath] : []), ...$this->gallery->storeUploads($galleryFiles)];
 
         $wholesalePrice = $validated['wholesale_price'] ?? null;
         $specialPrice = $validated['special_price'] ?? null;
-        unset($validated['image'], $validated['remove_image'], $validated['wholesale_price'], $validated['special_price']);
-
-        if ($newImagePath) {
-            $validated['image_url'] = $newImagePath;
-        } elseif ($removeImage) {
-            $validated['image_url'] = null;
-        }
+        $supplierId = $validated['supplier_id'] ?? null;
+        $supplierCode = $validated['supplier_code'] ?? null;
+        unset($validated['image'], $validated['images'], $validated['remove_image'], $validated['remove_image_ids'], $validated['supplier_id'], $validated['supplier_code'], $validated['wholesale_price'], $validated['special_price']);
 
         $baseUnit = $this->resolveBaseUnit($validated['base_unit_id'] ?? null, $validated['unit'] ?? null);
         $validated['base_unit_id'] = $baseUnit?->id;
@@ -934,6 +972,16 @@ class InventarioController extends Controller
 
         try {
             $product->update($validated);
+            if ($removeImageIds) {
+                $this->gallery->detach($product, $removeImageIds);
+            }
+            if ($removeImage && ! $removeImageIds) {
+                $this->gallery->detach($product, $product->images()->pluck('id')->all());
+            }
+            $this->gallery->attach($product, $galleryPaths);
+            if ($supplierId) {
+                $this->setPreferredSupplier($product, (int) $supplierId, $supplierCode);
+            }
             $this->pricing->syncProductToDefaultList($product->fresh());
             if ($wholesalePrice !== null && ($list = $this->pricing->wholesaleList())) {
                 $this->pricing->syncProductToList($product, $list, (float) $wholesalePrice);
@@ -942,13 +990,9 @@ class InventarioController extends Controller
                 $this->pricing->syncProductToList($product, $list, (float) $specialPrice);
             }
         } catch (Throwable $exception) {
-            $this->deleteProductImage($newImagePath);
+            $this->gallery->discard($galleryPaths);
 
             throw $exception;
-        }
-
-        if (($newImagePath || $removeImage) && $oldImagePath !== $newImagePath) {
-            $this->deleteProductImage($oldImagePath);
         }
 
         return redirect()->route('inventario.index')->with('success', 'Producto actualizado correctamente.');
@@ -1004,6 +1048,22 @@ class InventarioController extends Controller
         if ($path && str_starts_with($path, 'products/')) {
             Storage::disk('public')->delete($path);
         }
+    }
+
+    private function setPreferredSupplier(Product $product, int $supplierId, ?string $supplierCode): void
+    {
+        $product->suppliers()->newPivotStatement()
+            ->where('product_id', $product->id)
+            ->where('supplier_id', '!=', $supplierId)
+            ->update(['preferred' => false]);
+
+        $product->suppliers()->syncWithoutDetaching([
+            $supplierId => [
+                'purchase_price' => $product->purchase_price,
+                'supplier_code' => $supplierCode,
+                'preferred' => true,
+            ],
+        ]);
     }
 
     /** @return list<int> */

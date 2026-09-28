@@ -31,7 +31,9 @@
         @method('PUT')
 
         {{-- Información Básica --}}
-        <div class="bg-white p-4 rounded-xl shadow">
+            @include('inventario.partials._gallery_field', ['product' => $product])
+
+            <div class="bg-white p-4 rounded-xl shadow">
             <h2 class="text-lg font-semibold text-gray-700 mb-4">Información Básica</h2>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

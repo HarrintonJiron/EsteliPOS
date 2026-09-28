@@ -37,6 +37,7 @@ function galleryProductPayload(array $extra = []): array
     return [
         'category_id' => Category::firstOrCreate(['name' => 'Celulares'])->id,
         'name' => 'iPhone 13 con fotos',
+        'code' => 'GAL-IPHONE-13',
         'condition' => 'used',
         'purchase_price' => 300,
         'sale_price' => 420,
@@ -181,6 +182,7 @@ test('registro rapido still accepts one photo and keeps it as the cover', functi
 
     $this->actingAs($admin)->post(route('inventario.quick-store'), [
         'name' => 'Funda transparente',
+        'code' => 'GAL-FUNDA-1',
         'sale_price' => 5,
         'image' => UploadedFile::fake()->image('funda.jpg', 800, 800),
     ])->assertSessionHasNoErrors();

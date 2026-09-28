@@ -27,6 +27,7 @@ class Product extends Model
         'brand',
         'model',
         'color',
+        'battery_percentage',
         'imei',
         'purchase_price',
         'sale_price',
@@ -93,6 +94,11 @@ class Product extends Model
     public function category()
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function images()
+    {
+        return $this->hasMany(ProductImage::class)->orderBy('sort_order')->orderBy('id');
     }
 
     public function purchaseDetails()
