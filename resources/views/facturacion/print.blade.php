@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Factura {{ $sale?->invoice_number ?? ($sale ? str_pad((string)$sale->id, 6, '0', STR_PAD_LEFT) : '') }}</title>
-    @vite(['resources/css/app.css'])
+    @vite('resources/css/app.css')
     <style>
         @media print {
             body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
@@ -90,8 +90,8 @@
         <tbody>
             @foreach(($sale?->details ?? []) as $detail)
                 <tr>
-                    <td class="border px-4 py-2">{{ $detail->product->name ?? 'N/A' }} ({{ $detail->unit?->abbreviation ?? $detail->product?->baseUnitLabel() ?? 'und' }})</td>
-                    <td class="border px-4 py-2">{{ $detail->quantity }} {{ $detail->unit?->abbreviation ?? $detail->product?->baseUnitLabel() ?? 'und' }}</td>
+                    <td class="border px-4 py-2">{{ $detail->description ?? $detail->product?->name ?? 'Servicio' }}</td>
+                    <td class="border px-4 py-2">{{ $detail->quantity }}</td>
                     <td class="border px-4 py-2">{{ $companyProfile['currency_symbol'] }} {{ number_format($detail->price, 2) }}</td>
                     <td class="border px-4 py-2">{{ $companyProfile['currency_symbol'] }} {{ number_format($detail->subtotal, 2) }}</td>
                 </tr>
@@ -103,22 +103,30 @@
     {{-- Totales --}}
     <div class="flex justify-end">
         <div class="w-1/3 space-y-2">
-            @if($invoiceTaxDisplay->showsTaxBreakdown())
-                <div class="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->subtotal ?? 0, 2) }}</span>
-                </div>
+            <div class="flex justify-between">
+                <span>Subtotal:</span>
+                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->subtotal ?? 0, 2) }}</span>
+            </div>
 
-                <div class="flex justify-between">
-                    <span>{{ $invoiceTaxDisplay->taxLabel((float) ($sale?->tax_rate ?? 0)) }}:</span>
-                    <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($invoiceTaxDisplay->displayTaxAmount((float) ($sale?->tax_total ?? 0)), 2) }}</span>
-                </div>
-            @endif
+            <div class="flex justify-between">
+                <span>IVA ({{ number_format(($sale?->tax_rate ?? 0) * 100, 2) }}%):</span>
+                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->tax_total ?? 0, 2) }}</span>
+            </div>
 
             <div class="flex justify-between font-bold border-t pt-2">
                 <span>Total:</span>
                 <span>{{ $companyProfile['currency_symbol'] }} {{ number_format($sale?->total ?? 0, 2) }}</span>
             </div>
+            @if($sale?->repairOrder && (float) $sale->repairOrder->advance_payment > 0)
+            <div class="flex justify-between text-emerald-700">
+                <span>Anticipo:</span>
+                <span>-{{ $companyProfile['currency_symbol'] }} {{ number_format($sale->repairOrder->advance_payment, 2) }}</span>
+            </div>
+            <div class="flex justify-between font-bold">
+                <span>Pago final:</span>
+                <span>{{ $companyProfile['currency_symbol'] }} {{ number_format(max(0, $sale->total - $sale->repairOrder->advance_payment), 2) }}</span>
+            </div>
+            @endif
 
         </div>
     </div>
