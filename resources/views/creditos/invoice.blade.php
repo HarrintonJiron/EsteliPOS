@@ -31,7 +31,7 @@
             <table class="w-full text-sm">
                 <tr>
                     <td class="py-2">Monto</td>
-                    <td class="text-right font-bold">C$ {{ number_format($payment->amount, 2) }}</td>
+                    <td class="text-right font-bold">@money($payment->amount, 2)</td>
                 </tr>
                 <tr>
                     <td class="py-2">Tipo</td>
@@ -64,14 +64,14 @@
                             <tr class="border-b">
                                 <td class="py-2">#{{ str_pad($s->invoice_number, 6, '0', STR_PAD_LEFT) }}</td>
                                 <td class="py-2">{{ $s->date?->format('d/m/Y') }}</td>
-                                <td class="py-2 text-right">C$ {{ number_format($s->total, 2) }}</td>
+                                <td class="py-2 text-right">@money($s->total, 2)</td>
                             </tr>
                             <tr>
                                 <td colspan="3" class="px-4 pb-3 text-xs text-gray-600">
                                     Productos:
                                     <ul class="list-disc ml-5">
                                         @foreach($s->details as $d)
-                                            <li>{{ $d->product?->name ?? 'N/A' }} — {{ $d->quantity }} x C$ {{ number_format($d->price, 2) }} = C$ {{ number_format($d->subtotal, 2) }}</li>
+                                            <li>{{ $d->product?->name ?? 'N/A' }} — {{ $d->quantity }} x @money($d->price, 2) = @money($d->subtotal, 2)</li>
                                         @endforeach
                                     </ul>
                                 </td>

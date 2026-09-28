@@ -16,6 +16,11 @@ use App\Models\Sale;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\AccountingService;
+use App\Services\CompanySettingsService;
+use App\Services\CreditService;
+use App\Services\MoneyDisplayService;
+use App\Services\RepairPaymentService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +30,8 @@ use Illuminate\Validation\ValidationException;
 
 class ReparacionController extends Controller
 {
+    private const UNPAID_SQL = 'total - advance_payment - COALESCE((SELECT SUM(amount) FROM repair_credit_payments WHERE repair_credit_payments.repair_order_id = repair_orders.id), 0) > 0.00001';
+
     protected function workshopType(): string
     {
         return 'repair';
@@ -206,7 +213,14 @@ class ReparacionController extends Controller
         }
 
         if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->string('payment_status')->toString());
+            $paymentStatus = $request->string('payment_status')->toString();
+            if ($paymentStatus === 'delivered_unpaid') {
+                $query->where('status', 'delivered')->whereRaw(self::UNPAID_SQL);
+            } elseif ($paymentStatus === 'credit') {
+                $query->where('payment_type', 'credit')->whereRaw(self::UNPAID_SQL);
+            } else {
+                $query->where('payment_status', $paymentStatus);
+            }
         }
 
         if ($request->filled('received_from')) {
@@ -264,6 +278,7 @@ class ReparacionController extends Controller
             'device_model' => 'required|string|max:100',
             'device_color' => 'nullable|string|max:50',
             'device_imei' => 'nullable|string|max:60',
+            'device_battery' => 'nullable|integer|min:0|max:100',
             'lock_type' => 'nullable|in:password,pattern,none',
             'device_password' => 'nullable|string|max:100',
             'accessories' => 'nullable|string',
@@ -277,11 +292,12 @@ class ReparacionController extends Controller
             'received_time' => 'nullable|date_format:H:i',
             'estimated_date' => 'nullable|date',
             'estimated_delivery_time' => 'nullable|date_format:H:i',
+            'due_date' => 'nullable|required_if:payment_type,credit|date|after_or_equal:received_date',
             'labor_cost' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
             'advance_payment' => 'nullable|numeric|min:0',
-            'payment_type' => 'required|in:cash,card,transfer',
+            'payment_type' => 'required|in:cash,card,transfer,credit',
             'warranty_enabled' => 'nullable|boolean',
             'warranty_text' => 'nullable|string|max:2000',
             'items' => 'nullable|array',
@@ -336,6 +352,7 @@ class ReparacionController extends Controller
                 'device_model' => $validated['device_model'],
                 'device_color' => $validated['device_color'] ?? null,
                 'device_imei' => $validated['device_imei'] ?? null,
+                'device_battery' => $validated['device_battery'] ?? null,
                 'device_password' => $validated['device_password'] ?? null,
                 'lock_type' => $validated['lock_type'] ?? 'none',
                 'accessories' => $validated['accessories'] ?? null,
@@ -350,6 +367,7 @@ class ReparacionController extends Controller
                 'received_time' => $validated['received_time'] ?? now()->format('H:i'),
                 'estimated_date' => $validated['estimated_date'] ?? null,
                 'estimated_delivery_time' => $validated['estimated_delivery_time'] ?? null,
+                'due_date' => $validated['due_date'] ?? null,
                 'delivered_time' => $validated['status'] === 'delivered' ? now()->format('H:i') : null,
                 'labor_cost' => $laborCost,
                 'parts_cost' => $partsCost,
@@ -398,9 +416,18 @@ class ReparacionController extends Controller
 
     public function show($id)
     {
-        $order = $this->workshopQuery()->with('items.product', 'photos', 'client', 'technician', 'user')->findOrFail($id);
+        $order = $this->workshopQuery()->with('items.product', 'photos', 'client', 'technician', 'user', 'creditPayments')->findOrFail($id);
+        $creditClients = collect();
+        $defaultDueDate = now()->addDays(30)->toDateString();
+        if ($order->canCollect() && $order->payment_type !== 'credit') {
+            if ($order->client) {
+                $defaultDueDate = app(CreditService::class)->dueDateForClient($order->client);
+            } else {
+                $creditClients = Client::query()->where('credit_enabled', true)->orderBy('name')->get(['id', 'name', 'phone', 'credit_days']);
+            }
+        }
 
-        return view('reparaciones.show', array_merge(compact('order'), $this->workshopViewData()));
+        return view('reparaciones.show', array_merge(compact('order', 'creditClients', 'defaultDueDate'), $this->workshopViewData()));
     }
 
     public function edit($id)
@@ -433,6 +460,7 @@ class ReparacionController extends Controller
             'device_model' => 'required|string|max:100',
             'device_color' => 'nullable|string|max:50',
             'device_imei' => 'nullable|string|max:60',
+            'device_battery' => 'nullable|integer|min:0|max:100',
             'lock_type' => 'nullable|in:password,pattern,none',
             'device_password' => 'nullable|string|max:100',
             'accessories' => 'nullable|string',
@@ -448,11 +476,13 @@ class ReparacionController extends Controller
             'estimated_delivery_time' => 'nullable|date_format:H:i',
             'delivered_date' => 'nullable|date',
             'delivered_time' => 'nullable|date_format:H:i',
+            'due_date' => 'nullable|required_if:payment_type,credit|date|after_or_equal:received_date',
+            'delivery_notes' => 'nullable|string|max:2000',
             'labor_cost' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
             'advance_payment' => 'nullable|numeric|min:0',
-            'payment_type' => 'required|in:cash,card,transfer',
+            'payment_type' => 'required|in:cash,card,transfer,credit',
             'warranty_enabled' => 'nullable|boolean',
             'warranty_text' => 'nullable|string|max:2000',
             'items' => 'nullable|array',
@@ -537,6 +567,7 @@ class ReparacionController extends Controller
                 'device_model' => $validated['device_model'],
                 'device_color' => $validated['device_color'] ?? null,
                 'device_imei' => $validated['device_imei'] ?? null,
+                'device_battery' => $validated['device_battery'] ?? null,
                 'device_password' => $validated['device_password'] ?? null,
                 'lock_type' => $validated['lock_type'] ?? 'none',
                 'accessories' => $validated['accessories'] ?? null,
@@ -550,6 +581,8 @@ class ReparacionController extends Controller
                 'received_time' => $validated['received_time'] ?? ($order->received_time ?? now()->format('H:i')),
                 'estimated_date' => $validated['estimated_date'] ?? null,
                 'estimated_delivery_time' => $validated['estimated_delivery_time'] ?? null,
+                'due_date' => $validated['due_date'] ?? null,
+                'delivery_notes' => filled($validated['delivery_notes'] ?? null) ? trim($validated['delivery_notes']) : null,
                 'delivered_date' => $deliveredDate,
                 'delivered_time' => $deliveredTime,
                 'labor_cost' => $laborCost,
@@ -648,55 +681,190 @@ class ReparacionController extends Controller
         return Storage::disk('public')->response($photo->path);
     }
 
+    public function photo($id)
+    {
+        $order = $this->findWorkshopOrder($id);
+        $path = $order->getRawOriginal('device_photo');
+
+        abort_unless($path && $path === 'repair-orders/'.basename($path) && Storage::disk('public')->exists($path), 404);
+
+        return Storage::disk('public')->response($path, null, [
+            'Cache-Control' => 'private, max-age=3600',
+            'Content-Type' => Storage::disk('public')->mimeType($path) ?: 'application/octet-stream',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    public function orderPhoto(int $id, int $photo)
+    {
+        $order = $this->findWorkshopOrder($id);
+        $record = $order->photos()->findOrFail($photo);
+        $path = $record->photo_path;
+
+        abort_unless($path === 'repair-orders/'.basename($path) && Storage::disk('public')->exists($path), 404);
+
+        return Storage::disk('public')->response($path, null, [
+            'Cache-Control' => 'private, max-age=3600',
+            'Content-Type' => Storage::disk('public')->mimeType($path) ?: 'application/octet-stream',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    public function weeklyReport(Request $request)
+    {
+        $reference = $request->filled('week') ? Carbon::parse($request->string('week')->toString()) : now();
+        $weekStart = $reference->copy()->startOfWeek(Carbon::MONDAY);
+        $weekEnd = $reference->copy()->endOfWeek(Carbon::SUNDAY);
+        $orders = $this->workshopQuery()->with('technician')->withSum('creditPayments', 'amount')
+            ->where('status', 'delivered')->whereBetween('delivered_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->orderBy('delivered_date')->orderBy('delivered_time')->get();
+        $pendingInWindow = $this->workshopQuery()->whereNotIn('status', ['delivered', 'cancelled'])
+            ->whereBetween('received_date', [$weekStart->toDateString(), $weekEnd->toDateString()])->count();
+        $summary = [
+            'count' => $orders->count(),
+            'total' => (float) $orders->sum('total'),
+            'labor_total' => (float) $orders->sum('labor_cost'),
+            'parts_total' => (float) $orders->sum('parts_cost'),
+            'collected_total' => (float) $orders->sum(fn (RepairOrder $order) => $order->paidAmount()),
+            'balance_total' => (float) $orders->sum(fn (RepairOrder $order) => $order->balance()),
+            'avg_turnaround_days' => $orders->isEmpty() ? null : round($orders->avg(fn (RepairOrder $order) => $order->received_date->diffInDays($order->delivered_date)), 1),
+        ];
+
+        return view('reparaciones.informe-semanal', compact('orders', 'summary', 'weekStart', 'weekEnd', 'pendingInWindow'));
+    }
+
+    public function storeCreditPayment(Request $request, $id)
+    {
+        $data = $request->validate(['amount' => 'required|numeric|min:0.01', 'payment_type' => 'required|in:cash,transfer,check,other', 'reference_number' => 'nullable|string|max:100', 'notes' => 'nullable|string|max:1000']);
+        try {
+            DB::transaction(function () use ($id, $data, $request) {
+                $order = $this->workshopQuery()->lockForUpdate()->findOrFail($id);
+                if ($order->payment_type !== 'credit' || ! $order->client_id) {
+                    throw new \RuntimeException('Esta orden no corresponde a un crédito de cliente.');
+                }
+                if ((float) $data['amount'] > $order->balance() + 0.00001) {
+                    throw new \RuntimeException('El abono supera el saldo pendiente de '.$this->money($order->balance()).'.');
+                }
+                app(RepairPaymentService::class)->pay($order, (float) $data['amount'], $data['payment_type'], $data['reference_number'] ?? null, $data['notes'] ?? null, $request->user());
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Abono de taller registrado.');
+    }
+
+    private function money(float $amount): string
+    {
+        return app(MoneyDisplayService::class)->format($amount);
+    }
+
+    public function collect(Request $request, $id)
+    {
+        $data = $request->validate([
+            'method' => 'required|in:cash,card,transfer,credit', 'amount' => 'nullable|numeric|min:0.01',
+            'received' => 'nullable|numeric|min:0', 'reference_number' => 'nullable|string|max:100',
+            'client_id' => 'nullable|exists:clients,id', 'due_date' => 'nullable|date|after_or_equal:today',
+            'mark_delivered' => 'nullable|boolean',
+        ]);
+        $message = '';
+        try {
+            DB::transaction(function () use ($id, $data, $request, &$message) {
+                $order = $this->workshopQuery()->lockForUpdate()->findOrFail($id);
+                if (! in_array($order->status, ['ready', 'delivered'], true) || $order->balance() <= 0.00001) {
+                    throw new \RuntimeException('La orden debe estar lista y tener saldo pendiente para poder cobrarla.');
+                }
+                $balance = $order->balance();
+                if ($data['method'] === 'credit') {
+                    if ($order->payment_type === 'credit') {
+                        throw new \RuntimeException('Esta orden ya está a crédito; registra un abono.');
+                    }
+                    $clientId = $order->client_id ?: ($data['client_id'] ?? null);
+                    if (! $clientId) {
+                        throw new \RuntimeException('Elige un cliente registrado para conceder crédito.');
+                    }
+                    $client = Client::query()->lockForUpdate()->findOrFail($clientId);
+                    if (! app(CreditService::class)->canGrantCredit($client, $balance)) {
+                        throw new \RuntimeException('El cliente no tiene crédito habilitado o límite disponible.');
+                    }
+                    $order->update(['client_id' => $client->id, 'payment_type' => 'credit', 'due_date' => $data['due_date'] ?? app(CreditService::class)->dueDateForClient($client)]);
+                    $order->syncPaymentStatus();
+                    $message = 'Orden a crédito por '.$this->money($balance).'.';
+                } else {
+                    $amount = round((float) ($data['amount'] ?? $balance), 2);
+                    if ($amount <= 0.00001 || $amount > $balance + 0.00001) {
+                        throw new \RuntimeException('El monto no puede superar el saldo de '.$this->money($balance).'.');
+                    }
+                    $change = null;
+                    if ($data['method'] === 'cash' && array_key_exists('received', $data) && $data['received'] !== null) {
+                        if ((float) $data['received'] + 0.00001 < $amount) {
+                            throw new \RuntimeException('El efectivo recibido es menor al monto a cobrar.');
+                        }
+                        $change = round((float) $data['received'] - $amount, 2);
+                    }
+                    app(RepairPaymentService::class)->pay($order, $amount, $data['method'], $data['reference_number'] ?? null, null, $request->user());
+                    $remaining = max(0, round($balance - $amount, 2));
+                    $message = 'Cobro registrado: '.$this->money($amount).'.'.(($change ?? 0) > 0 ? ' Cambio: '.$this->money($change).'.' : '');
+                    $message .= $remaining > 0.00001 ? ' Saldo pendiente: '.$this->money($remaining).'.' : ' La reparación quedó pagada.';
+                }
+                if (($data['mark_delivered'] ?? false) && $order->status !== 'delivered') {
+                    $order->update(['status' => 'delivered', 'delivered_date' => $order->delivered_date ?: now()->toDateString(), 'delivered_time' => $order->delivered_time ?: now()->format('H:i'), 'device_password' => null, 'lock_type' => 'none']);
+                    $message .= ' Marcada como entregada.';
+                }
+            });
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', $message);
+    }
+
     public function updateStatus(Request $request, $id)
     {
         $order = $this->findWorkshopOrder($id);
-        $status = $request->validate(['status' => 'required|in:received,diagnosing,waiting_parts,in_repair,ready,delivered,cancelled'])['status'];
+        $validated = $request->validate([
+            'status' => 'required|in:received,diagnosing,waiting_parts,in_repair,ready,delivered,not_repaired,cancelled',
+            'delivery_notes' => 'nullable|string|max:2000',
+        ]);
+        $status = $validated['status'];
 
         $update = ['status' => $status];
-        $paymentTrackingEnabled = RepairOrder::supportsPaymentTracking();
-        $shouldRecordPayment = $paymentTrackingEnabled && $status === 'delivered' && (float) $order->advance_payment < (float) $order->total;
         if ($status === 'delivered') {
+            $deliveryNotes = trim((string) ($validated['delivery_notes'] ?? ''));
+            if ($deliveryNotes !== '') {
+                $update['delivery_notes'] = $deliveryNotes;
+            }
             if (! $order->delivered_date) {
                 $update['delivered_date'] = now()->toDateString();
             }
             if (! $order->delivered_time) {
                 $update['delivered_time'] = now()->format('H:i');
             }
-            if ($shouldRecordPayment) {
-                $update['advance_payment'] = $order->total;
-                $update['payment_status'] = 'paid';
-                $update['payment_received_at'] = now();
-                $update['caja_session_id'] = $order->payment_type === 'cash'
-                    ? ($order->caja_session_id ?? CajaSession::currentForUser($order->user_id)?->id)
-                    : null;
-            }
+            $update['device_password'] = null;
+            $update['lock_type'] = 'none';
         }
 
-        DB::transaction(function () use ($order, $update, $shouldRecordPayment): void {
-            if ($shouldRecordPayment) {
-                app(AccountingService::class)->voidForSource(RepairOrder::class, $order->id, 'Cobro de taller actualizado al entregar la orden.');
-            }
-
+        DB::transaction(function () use ($order, $update): void {
             $order->update($update);
-
-            if ($shouldRecordPayment) {
-                app(AccountingService::class)->recordRepairPayment($order->fresh());
-            }
-
             $this->syncWorkshopInvoice($order->fresh());
         });
 
-        return back()->with('success', 'Estado actualizado a: '.$order->fresh()->statusLabel());
+        $fresh = $order->fresh();
+        $message = 'Estado actualizado a: '.$fresh->statusLabel();
+        if ($fresh->isDeliveredWithBalance()) {
+            $message .= '. Atención: se entregó con saldo pendiente de '.$this->money($fresh->balance()).'.';
+        }
+
+        return back()->with('success', $message);
     }
 
     public function ticket($id)
     {
         $order = $this->workshopQuery()->with('items.product', 'technician')->findOrFail($id);
-        $companyProfile = [
+        $companyProfile = array_merge(app(CompanySettingsService::class)->get(), [
             'company_name' => Setting::get('company_name', 'Mi Agroservicio'),
             'company_phone' => Setting::get('company_phone', ''),
-        ];
+        ]);
 
         return view('reparaciones.ticket', array_merge(compact('order', 'companyProfile'), $this->workshopViewData()));
     }
@@ -704,7 +872,7 @@ class ReparacionController extends Controller
     public function pdf($id)
     {
         $order = $this->workshopQuery()->with('items.product', 'client', 'technician', 'user')->findOrFail($id);
-        $companyProfile = [
+        $companyProfile = array_merge(app(CompanySettingsService::class)->get(), [
             'company_name' => Setting::get('company_name', 'Mi Agroservicio'),
             'company_legal_name' => Setting::get('company_legal_name', ''),
             'company_ruc' => Setting::get('company_ruc', ''),
@@ -712,7 +880,7 @@ class ReparacionController extends Controller
             'company_address' => Setting::get('company_address', ''),
             'company_city' => Setting::get('company_city', ''),
             'company_country' => Setting::get('company_country', ''),
-        ];
+        ]);
 
         return view('reparaciones.pdf', array_merge(compact('order', 'companyProfile'), $this->workshopViewData()));
     }

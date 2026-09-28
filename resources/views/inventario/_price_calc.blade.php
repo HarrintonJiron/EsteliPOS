@@ -22,7 +22,7 @@
                 <option value="markup" selected>Markup % sobre costo &nbsp;·&nbsp; PV = PC × (1 + %)</option>
                 <option value="margin">Margen de utilidad % &nbsp;·&nbsp; PV = PC ÷ (1 − %)</option>
                 <option value="multiplier">Multiplicador (factor) &nbsp;·&nbsp; PV = PC × factor</option>
-                <option value="fixed">Monto fijo adicional (C$) &nbsp;·&nbsp; PV = PC + C$</option>
+                <option value="fixed">Monto fijo adicional ({{ $currencySymbol }}) &nbsp;·&nbsp; PV = PC + {{ $currencySymbol }}</option>
             </select>
         </div>
         <div>
@@ -82,14 +82,14 @@
     const saleInput   = () => document.getElementById(SALE_ID);
     const purchInput  = () => document.getElementById(PURCH_ID);
 
-    const fmt  = v  => 'C$ ' + parseFloat(v || 0).toFixed(2);
+    const fmt  = v  => '{{ $currencySymbol }} ' + parseFloat(v || 0).toFixed(2);
 
     const LABELS = {
         manual:     'Sin cálculo automático',
         markup:     'Markup (%)',
         margin:     'Margen de utilidad (%)',
         multiplier: 'Multiplicador (factor)',
-        fixed:      'Monto fijo adicional (C$)',
+        fixed:      'Monto fijo adicional ({{ $currencySymbol }})',
     };
 
     const DEFAULT_RATES = { manual: 0, markup: 30, margin: 30, multiplier: 1.5, fixed: 50 };

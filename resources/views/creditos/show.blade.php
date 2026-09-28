@@ -20,28 +20,28 @@
         <div class="card p-5">
             <p class="text-xs text-slate-500 mb-1">Límite de Crédito</p>
             <p class="text-xl font-bold text-indigo-600">
-                {{ $client->credit_limit > 0 ? 'C$ '.number_format($client->credit_limit, 2) : 'Ilimitado' }}
+                {{ $client->credit_limit > 0 ? app(\App\Services\MoneyDisplayService::class)->format($client->credit_limit, 2) : 'Ilimitado' }}
             </p>
             <p class="text-xs text-slate-400 mt-1">Plazo: {{ $client->credit_days ?? 30 }} días</p>
         </div>
         <div class="card p-5">
             <p class="text-xs text-slate-500 mb-1">Deuda Total</p>
-            <p class="text-xl font-bold text-slate-800">C$ {{ number_format($totalDebt, 2) }}</p>
+            <p class="text-xl font-bold text-slate-800">@money($totalDebt, 2)</p>
         </div>
         <div class="card p-5">
             <p class="text-xs text-slate-500 mb-1">Abonos</p>
-            <p class="text-xl font-bold text-emerald-600">C$ {{ number_format($totalPaid, 2) }}</p>
+            <p class="text-xl font-bold text-emerald-600">@money($totalPaid, 2)</p>
         </div>
         <div class="card p-5">
             <p class="text-xs text-slate-500 mb-1">Saldo Pendiente</p>
-            <p class="text-xl font-bold {{ $balance > 0 ? 'text-red-600' : 'text-emerald-600' }}">C$ {{ number_format($balance, 2) }}</p>
+            <p class="text-xl font-bold {{ $balance > 0 ? 'text-red-600' : 'text-emerald-600' }}">@money($balance, 2)</p>
             @if($creditSummary['over_limit'] ?? false)<span class="badge-danger text-xs mt-1">Sobre límite</span>@endif
         </div>
         <div class="card p-5">
             <p class="text-xs text-slate-500 mb-1">Disponible</p>
             <p class="text-xl font-bold text-violet-600">
                 @if($creditSummary['available_credit'] === null) Ilimitado
-                @else C$ {{ number_format($creditSummary['available_credit'], 2) }} @endif
+                @else @money($creditSummary['available_credit'], 2) @endif
             </p>
             <p class="text-xs text-slate-400">Uso: {{ $creditSummary['usage_percent'] }}%</p>
         </div>
@@ -53,7 +53,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0">
                 <h3 class="font-bold text-red-800 text-lg mb-1">
-                    ⚠ Mora Acumulada: C$ {{ number_format($totalMora, 2) }}
+                    ⚠ Mora Acumulada: @money($totalMora, 2)
                 </h3>
                 <p class="text-xs text-red-600 mb-3">
                     Tasa: {{ $client->mora_rate }}% diario
@@ -63,7 +63,7 @@
                 @if(count($moraBreakdown))
                 <table class="text-xs w-full max-w-lg">
                     <thead><tr class="text-red-700 font-semibold">
-                        <th class="text-left py-1 pr-3">Factura</th>
+                        <th class="text-left py-1 pr-3">Factura / Orden</th>
                         <th class="text-right pr-3">Principal</th>
                         <th class="text-right pr-3">Días venc.</th>
                         <th class="text-right pr-3">Días mora</th>
@@ -73,10 +73,10 @@
                     @foreach($moraBreakdown as $row)
                     <tr class="border-t border-red-200">
                         <td class="py-1 pr-3 font-mono">{{ $row['invoice_number'] }}</td>
-                        <td class="text-right pr-3">C$ {{ number_format($row['principal'], 2) }}</td>
+                        <td class="text-right pr-3">@money($row['principal'], 2)</td>
                         <td class="text-right pr-3">{{ $row['days_late'] }}d</td>
                         <td class="text-right pr-3">{{ $row['billable_days'] }}d</td>
-                        <td class="text-right font-bold text-red-700">C$ {{ number_format($row['mora'], 2) }}</td>
+                        <td class="text-right font-bold text-red-700">@money($row['mora'], 2)</td>
                     </tr>
                     @endforeach
                     </tbody>
@@ -84,8 +84,8 @@
                 @endif
             </div>
             <div class="shrink-0 text-left sm:text-right">
-                <p class="text-3xl font-black text-red-700">C$ {{ number_format($totalMora, 2) }}</p>
-                <p class="text-xs text-red-500 mt-1">Total + mora: C$ {{ number_format($balance + $totalMora, 2) }}</p>
+                <p class="text-3xl font-black text-red-700">@money($totalMora, 2)</p>
+                <p class="text-xs text-red-500 mt-1">Total + mora: @money($balance + $totalMora, 2)</p>
             </div>
         </div>
     </div>
@@ -124,7 +124,7 @@
                                         {{ $sale->date->format('d/m/Y') }}
                                     </td>
                                     <td class="px-4 py-3 text-sm font-medium text-gray-900 text-right">
-                                        C$ {{ number_format($sale->total, 2) }}
+                                        @money($sale->total, 2)
                                     </td>
                                     <td class="px-4 py-3 text-sm text-center">
                                         @if($sale->due_date)
@@ -140,7 +140,7 @@
                                         $saleRow = collect($moraBreakdown)->firstWhere('invoice_number', $sale->invoice_number);
                                     @endphp
                                     <td class="px-4 py-3 text-sm text-right font-semibold {{ ($saleRow['mora'] ?? 0) > 0 ? 'text-red-600' : 'text-slate-400' }}">
-                                        {{ ($saleRow['mora'] ?? 0) > 0 ? 'C$ '.number_format($saleRow['mora'], 2) : '—' }}
+                                        {{ ($saleRow['mora'] ?? 0) > 0 ? app(\App\Services\MoneyDisplayService::class)->format($saleRow['mora'], 2) : '—' }}
                                     </td>
                                     @endif
                                 </tr>
@@ -187,7 +187,7 @@
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-sm font-medium text-green-700 text-right">
-                                        C$ {{ number_format($payment->amount, 2) }}
+                                        @money($payment->amount, 2)
                                     </td>
                                     <td class="px-4 py-3 text-sm text-gray-600">
                                         {{ $payment->reference_number ?? 'N/A' }}
@@ -204,8 +204,80 @@
             @endif
         </div>
 
-        @if($repairCredits->isNotEmpty())
-        <div class="bg-white rounded shadow overflow-hidden lg:col-span-2"><div class="bg-indigo-50 border-b px-6 py-4"><h2 class="text-xl font-bold text-gray-900">Reparaciones a crédito</h2></div><div class="overflow-x-auto"><table class="w-full"><thead><tr><th>Orden</th><th>Equipo</th><th>Vence</th><th class="text-right">Total</th><th class="text-right">Saldo</th></tr></thead><tbody>@foreach($repairCredits as $repair)<tr><td><a class="text-indigo-600 font-semibold" href="{{ route('reparaciones.show',$repair) }}">{{ $repair->order_number }}</a></td><td>{{ $repair->device_brand }} {{ $repair->device_model }}</td><td>{{ $repair->due_date?->format('d/m/Y') ?? '—' }}</td><td class="text-right">C$ {{ number_format($repair->total,2) }}</td><td class="text-right font-bold">C$ {{ number_format($repair->creditBalance(),2) }}</td></tr>@endforeach</tbody></table></div></div>
+        @if($repairCredits->isNotEmpty() || $repairPayments->isNotEmpty())
+        <div class="bg-white rounded shadow overflow-hidden lg:col-span-2">
+            <div class="bg-violet-50 border-b border-violet-100 px-6 py-4 flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-xl font-bold text-gray-900">Créditos de reparaciones</h2>
+                @if($repairCredits->isNotEmpty())
+                    <a href="{{ route('creditos.create', ['clientId' => $client->id, 'apply_to' => 'repairs']) }}" class="rounded bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800">➕ Abonar a reparaciones</a>
+                @endif
+            </div>
+
+            @if($repairCredits->isNotEmpty())
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Orden</th>
+                            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Equipo</th>
+                            <th class="px-4 py-2 text-center text-xs font-semibold text-gray-600">Vence</th>
+                            <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600">Total</th>
+                            <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600">Pagado</th>
+                            <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600">Saldo</th>
+                            @if($client->mora_enabled)<th class="px-4 py-2 text-right text-xs font-semibold text-red-600">Mora</th>@endif
+                            <th class="px-4 py-2 text-center text-xs font-semibold text-gray-600">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        @foreach($repairCredits as $repair)
+                            @php
+                                $repairMora = collect($moraBreakdown)->where('type', 'repair')->firstWhere('invoice_number', $repair->order_number);
+                            @endphp
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-3 text-sm"><a class="font-semibold text-indigo-600" href="{{ route('reparaciones.show', $repair->id) }}">{{ $repair->order_number }}</a></td>
+                                <td class="px-4 py-3 text-sm text-gray-700">{{ $repair->device_brand }} {{ $repair->device_model }}</td>
+                                <td class="px-4 py-3 text-sm text-center">
+                                    @if($repair->due_date)
+                                        <span class="inline-block px-2 py-1 text-xs rounded {{ $repair->due_date->copy()->startOfDay()->isBefore(now()->startOfDay()) ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700' }}">{{ $repair->due_date->format('d/m/Y') }}</span>
+                                    @else <span class="text-slate-400 text-xs">—</span> @endif
+                                </td>
+                                <td class="px-4 py-3 text-sm text-right">@money($repair->total, 2)</td>
+                                <td class="px-4 py-3 text-sm text-right text-emerald-700">@money($repair->paidAmount(), 2)</td>
+                                <td class="px-4 py-3 text-sm text-right font-bold text-red-600">@money($repair->balance(), 2)</td>
+                                @if($client->mora_enabled)
+                                    <td class="px-4 py-3 text-sm text-right font-semibold {{ ($repairMora['mora'] ?? 0) > 0 ? 'text-red-600' : 'text-slate-400' }}">
+                                        {{ ($repairMora['mora'] ?? 0) > 0 ? app(\App\Services\MoneyDisplayService::class)->format($repairMora['mora'], 2) : '—' }}
+                                    </td>
+                                @endif
+                                <td class="px-4 py-3 text-center text-sm">
+                                    <a href="{{ route('creditos.create', ['clientId' => $client->id, 'apply_to' => 'repair:'.$repair->id]) }}" class="font-semibold text-emerald-700 hover:text-emerald-800">Abonar</a>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @endif
+
+            @if($repairPayments->isNotEmpty())
+            <div class="border-t border-gray-200 px-6 py-3">
+                <h3 class="mb-2 text-sm font-bold text-gray-700">Abonos a reparaciones</h3>
+                <table class="w-full text-sm">
+                    <tbody class="divide-y divide-gray-100">
+                        @foreach($repairPayments as $repairPayment)
+                            <tr>
+                                <td class="py-1.5 text-gray-700">{{ $repairPayment->payment_date->format('d/m/Y') }}</td>
+                                <td class="py-1.5"><a class="text-indigo-600" href="{{ route('reparaciones.show', $repairPayment->repair_order_id) }}">{{ $repairPayment->repairOrder?->order_number }}</a></td>
+                                <td class="py-1.5"><span class="inline-block rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">{{ $repairPayment->payment_type }}</span></td>
+                                <td class="py-1.5 text-right font-medium text-green-700">@money($repairPayment->amount, 2)</td>
+                                <td class="py-1.5 text-right"><a class="text-xs font-semibold text-slate-500 hover:text-slate-800" href="{{ route('creditos.repair-receipt', $repairPayment->id) }}" target="print-window">Recibo</a></td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @endif
+        </div>
         @endif
 
     </div>

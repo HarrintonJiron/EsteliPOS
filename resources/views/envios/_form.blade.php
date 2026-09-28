@@ -1,5 +1,4 @@
 @php($shipment = $shipment ?? null)
-@php($currencySymbol = $companyProfile['currency_symbol'] ?? (($companyProfile['currency'] ?? 'NIO') === 'USD' ? 'US$' : 'C$'))
 <div class="space-y-6">
 <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
   <div class="mb-5 flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 font-bold text-sky-700">1</span><div><h2 class="font-bold text-slate-900">Origen del envío</h2><p class="text-sm text-slate-500">Relaciona la entrega con un cliente o factura existente.</p></div></div>

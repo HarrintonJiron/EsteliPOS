@@ -13,7 +13,7 @@
         title="Catálogo de productos"
         subtitle="Búsqueda en tiempo real mientras escribes"
         metric-label="Valor al costo"
-        :metric-value="'C$ ' . number_format($stats['total_inventory_value'], 0)"
+        :metric-value="app(\App\Services\MoneyDisplayService::class)->format($stats['total_inventory_value'], 0)"
         :meta="[$stats['total_products'] . ' productos', $stats['low_stock_count'] . ' en mínimo']"
         :stats="[
             ['label' => 'Bajo', 'value' => number_format($stats['low_stock_count'])],
@@ -33,8 +33,8 @@
         <x-ui.command-kpi label="Bajo" :value="number_format($stats['low_stock_count'])" />
         <x-ui.command-kpi label="Sin stock" :value="number_format($stats['out_of_stock_count'])" />
         <x-ui.command-kpi label="Por vencer" :value="number_format($stats['expiring_soon_count'])" />
-        <x-ui.command-kpi label="Costo" :value="'C$ ' . number_format($stats['total_inventory_value'], 0)" />
-        <x-ui.command-kpi label="Venta" :value="'C$ ' . number_format($stats['total_sale_value'], 0)" />
+        <x-ui.command-kpi label="Costo" :value="app(\App\Services\MoneyDisplayService::class)->format($stats['total_inventory_value'], 0)" />
+        <x-ui.command-kpi label="Venta" :value="app(\App\Services\MoneyDisplayService::class)->format($stats['total_sale_value'], 0)" />
     </div>
 
     <div class="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">

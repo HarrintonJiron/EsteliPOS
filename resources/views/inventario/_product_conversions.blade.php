@@ -94,7 +94,7 @@
                                 @endif
                             </div>
                             <div class="flex items-center gap-3">
-                                <span class="text-slate-600">C$ {{ number_format((float) $product->sale_price, 2) }}</span>
+                                <span class="text-slate-600">{{ $currencySymbol }} {{ number_format((float) $product->sale_price, 2) }}</span>
                                 @if($product->unitConversions->contains('is_default_sale_unit', true))
                                     <form method="POST" action="{{ route('inventario.conversions.default', $product->id) }}">
                                         @csrf
@@ -117,7 +117,7 @@
                                 </div>
                                 <div class="flex items-center gap-3">
                                     <span class="text-slate-700">
-                                        C$ {{ number_format((float) ($conv->sale_price ?? $product->sale_price * $conv->factor_to_base), 2) }}
+                                        {{ $currencySymbol }} {{ number_format((float) ($conv->sale_price ?? $product->sale_price * $conv->factor_to_base), 2) }}
                                     </span>
                                     @if(! $conv->is_default_sale_unit)
                                         <form method="POST" action="{{ route('inventario.conversions.default', $product->id) }}">

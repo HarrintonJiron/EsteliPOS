@@ -8,30 +8,36 @@ use App\Models\Branch;
 use App\Models\CajaSession;
 use App\Models\Category;
 use App\Models\Client;
+use App\Models\CreditPayment;
+use App\Models\ExchangeRate;
 use App\Models\NumberSequence;
+use App\Models\PhoneTradeIn;
 use App\Models\Product;
-use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
+use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AccountingService;
 use App\Services\BranchContextService;
+use App\Services\CompanySettingsService;
 use App\Services\CreditOverrideService;
 use App\Services\CreditService;
+use App\Services\ExchangeRateService;
+use App\Services\ImageProcessingService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
 use App\Services\PricingService;
-use App\Services\PurchaseCostingService;
+use App\Services\ProductGalleryService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class FacturacionController extends Controller
@@ -41,10 +47,11 @@ class FacturacionController extends Controller
         private InventoryService $inventoryService,
         private CreditService $creditService,
         private CreditOverrideService $creditOverrides,
+        private ExchangeRateService $exchangeRates,
         private PosCatalogService $posCatalog,
-        private PurchaseCostingService $purchaseCosting,
         private PricingService $pricing,
         private BranchContextService $branches,
+        private CompanySettingsService $companySettings,
     ) {}
 
     private function nextInvoiceNumber(): string
@@ -190,6 +197,7 @@ class FacturacionController extends Controller
                         'unit_factor' => $line['unit_factor'],
                         'base_quantity' => $line['base_quantity'],
                         'price' => $line['price'],
+                        ...$this->referencePriceData($line['price']),
                         'subtotal' => $lineGross,
                         'tax_rate' => $rate,
                         'tax_amount' => round($lineTax, 2),
@@ -409,6 +417,7 @@ class FacturacionController extends Controller
                         'unit_factor' => $line['unit_factor'],
                         'base_quantity' => $line['base_quantity'],
                         'price' => $line['price'],
+                        ...$this->referencePriceData($line['price']),
                         'subtotal' => $lineNet,
                         'tax_rate' => $rate,
                         'tax_amount' => $lineTax,
@@ -469,35 +478,20 @@ class FacturacionController extends Controller
                 }
 
                 $oldValues = $sale->toArray();
-                $repairOrder = $sale->repair_order_id
-                    ? RepairOrder::query()->lockForUpdate()->findOrFail($sale->repair_order_id)
-                    : null;
 
-                if (! $repairOrder) {
-                    // Revert stock changes, but preserve the fiscal document and its detail.
-                    foreach ($sale->details as $detail) {
-                        $this->inventoryService->stockIn(
-                            $detail->product,
-                            $this->posCatalog->saleDetailBaseQuantity($detail),
-                            'sale_delete:'.$sale->id,
-                            'Reverso por eliminación de factura #'.($sale->invoice_number ?? $sale->id),
-                            $sale->user_id,
-                            $sale->warehouse_id,
-                        );
-                    }
+                // Revert stock changes, but preserve the fiscal document and its detail.
+                foreach ($sale->details as $detail) {
+                    $this->inventoryService->stockIn(
+                        $detail->product,
+                        $this->posCatalog->saleDetailBaseQuantity($detail),
+                        'sale_delete:'.$sale->id,
+                        'Reverso por eliminación de factura #'.($sale->invoice_number ?? $sale->id),
+                        $sale->user_id,
+                        $sale->warehouse_id,
+                    );
                 }
 
                 $this->accountingService->voidForSource(Sale::class, $sale->id, 'Factura anulada');
-                if ($repairOrder) {
-                    $this->accountingService->voidForSource(RepairOrder::class, $repairOrder->id, 'Factura de taller anulada');
-                    $repairOrder->update([
-                        'status' => 'ready',
-                        'advance_payment' => 0,
-                        'payment_status' => 'pending',
-                        'payment_received_at' => null,
-                        'caja_session_id' => null,
-                    ]);
-                }
                 $sale->update(['status' => 'canceled']);
                 AuditLog::log(
                     'sale.canceled',
@@ -547,7 +541,17 @@ class FacturacionController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'code', 'is_default']);
         $defaultTaxRate = Tax::defaultRate();
-        $posReferenceFx = $this->purchaseCosting->posReferenceFx();
+        $posExchangeRate = ExchangeRate::query()
+            ->where('from_currency', 'USD')
+            ->where('to_currency', 'NIO')
+            ->where('is_active', true)
+            ->whereDate('effective_date', '<=', now()->toDateString())
+            ->orderByDesc('effective_date')
+            ->orderByDesc('id')
+            ->first(['id', 'rate', 'effective_date']);
+        $companyProfile = $this->companySettings->get();
+        $currencySymbol = (string) ($companyProfile['currency_symbol'] ?? 'C$');
+        $companyCurrency = (string) ($companyProfile['currency'] ?? 'NIO');
 
         return view('facturacion.pos', compact(
             'products',
@@ -556,8 +560,53 @@ class FacturacionController extends Controller
             'warehouses',
             'defaultWarehouseId',
             'defaultTaxRate',
-            'posReferenceFx',
+            'posExchangeRate',
+            'companyProfile',
+            'currencySymbol',
+            'companyCurrency',
         ));
+    }
+
+    /**
+     * Looks up a phone by IMEI before it's accepted as a trade-in, so the cashier
+     * knows up front whether this exact phone already passed through the shop
+     * (sold before and now coming back) instead of finding out via a unique-
+     * constraint error after filling the whole trade-in form.
+     */
+    public function lookupTradeInImei(string $imei): JsonResponse
+    {
+        $imei = trim($imei);
+        $product = Product::withTrashed()->where('imei', $imei)->first();
+
+        if (! $product) {
+            return response()->json(['exists' => false]);
+        }
+
+        $lastSaleDetail = SaleDetail::query()
+            ->where('product_id', $product->id)
+            ->whereHas('sale')
+            ->with('sale:id,invoice_number,date')
+            ->latest('id')
+            ->first();
+
+        return response()->json([
+            'exists' => true,
+            'product' => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'brand' => $product->brand,
+                'model' => $product->model,
+                'color' => $product->color,
+                'battery_percentage' => $product->battery_percentage,
+                'status' => $product->status,
+                'stock' => (float) $product->stock,
+                'trashed' => $product->trashed(),
+                'lastSale' => $lastSaleDetail?->sale ? [
+                    'invoice_number' => $lastSaleDetail->sale->invoice_number,
+                    'date' => optional($lastSaleDetail->sale->date)->format('d/m/Y'),
+                ] : null,
+            ],
+        ]);
     }
 
     public function posProducts(Request $request)
@@ -639,24 +688,30 @@ class FacturacionController extends Controller
         $productModel = Product::where('status', 'active')->findOrFail($product);
 
         $validated = $request->validate([
-            'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:3072|dimensions:max_width=3000,max_height=3000',
+            'image' => 'required|image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
         ]);
 
-        $oldImagePath = $productModel->getRawOriginal('image_url');
-        $newImagePath = $validated['image']->store('products', 'public');
-
         try {
-            $productModel->update(['image_url' => $newImagePath]);
+            $newImagePath = app(ImageProcessingService::class)->storePublicImage(
+                $validated['image'],
+                'products',
+                1600,
+                1600,
+            );
         } catch (Throwable $exception) {
-            if ($newImagePath && str_starts_with($newImagePath, 'products/')) {
-                Storage::disk('public')->delete($newImagePath);
-            }
+            report($exception);
 
-            throw $exception;
+            throw ValidationException::withMessages([
+                'image' => 'No se pudo procesar la imagen. Use JPG, PNG o WebP de hasta 8 MB y 20 megapíxeles.',
+            ]);
         }
 
-        if ($oldImagePath && $oldImagePath !== $newImagePath && str_starts_with($oldImagePath, 'products/')) {
-            Storage::disk('public')->delete($oldImagePath);
+        try {
+            app(ProductGalleryService::class)->replaceCover($productModel, $newImagePath);
+        } catch (Throwable $exception) {
+            app(ProductGalleryService::class)->discard([$newImagePath]);
+
+            throw $exception;
         }
 
         $productModel->refresh();
@@ -720,6 +775,37 @@ class FacturacionController extends Controller
             });
     }
 
+    public function storePosExchangeRate(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
+
+        $data = $request->validate([
+            'rate' => ['required', 'numeric', 'min:0.000001', 'max:999999.999999'],
+        ]);
+
+        $attributes = [
+            'from_currency' => 'USD',
+            'to_currency' => 'NIO',
+            'rate' => (float) $data['rate'],
+            'effective_date' => now()->toDateString(),
+            'is_active' => true,
+        ];
+        $existing = ExchangeRate::query()
+            ->where('from_currency', 'USD')
+            ->where('to_currency', 'NIO')
+            ->whereDate('effective_date', $attributes['effective_date'])
+            ->first();
+        $exchangeRate = $existing
+            ? $this->exchangeRates->updateRate($existing, $attributes)
+            : $this->exchangeRates->createRate($attributes);
+
+        return response()->json([
+            'id' => $exchangeRate->id,
+            'rate' => (float) $exchangeRate->rate,
+            'effective_date' => $exchangeRate->effective_date->toDateString(),
+        ], 201);
+    }
+
     /**
      * POS - Procesar venta desde el interfaz de punto de venta
      */
@@ -730,9 +816,11 @@ class FacturacionController extends Controller
             'client_id' => 'nullable|exists:clients,id',
             'warehouse_id' => 'nullable|exists:warehouses,id',
             'items' => 'required|json',
+            'trade_ins' => 'nullable|json',
             'notes' => 'nullable|string',
             'reference_number' => 'nullable|string|max:100',
             'amount_received' => 'nullable|numeric|min:0',
+            'exchange_rate_id' => 'nullable|integer',
             'order_discount_pct' => 'nullable|numeric|min:0|max:100',
             'credit_override_token' => ['nullable', 'string', 'size:64'],
             'request_token' => ['nullable', 'uuid'],
@@ -770,6 +858,32 @@ class FacturacionController extends Controller
         $items = $itemsValidator->validated()['items'];
         usort($items, fn (array $left, array $right) => ((int) $left['product_id']) <=> ((int) $right['product_id']));
 
+        $tradeIns = json_decode($validated['trade_ins'] ?? '[]', true);
+        $tradeInsValidator = Validator::make(['trade_ins' => $tradeIns], [
+            'trade_ins' => ['nullable', 'array', 'max:10'],
+            'trade_ins.*.imei' => ['required', 'string', 'max:30'],
+            'trade_ins.*.name' => ['required', 'string', 'max:255'],
+            'trade_ins.*.brand' => ['nullable', 'string', 'max:80'],
+            'trade_ins.*.model' => ['nullable', 'string', 'max:120'],
+            'trade_ins.*.color' => ['nullable', 'string', 'max:60'],
+            'trade_ins.*.battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'trade_ins.*.category_id' => ['required', 'integer', 'exists:categories,id'],
+            'trade_ins.*.trade_in_value' => ['required', 'numeric', 'min:0.01'],
+            'trade_ins.*.sale_price' => ['required', 'numeric', 'min:0'],
+        ]);
+        if ($tradeInsValidator->fails()) {
+            return back()->withErrors($tradeInsValidator)->withInput();
+        }
+        $tradeIns = $tradeInsValidator->validated()['trade_ins'] ?? [];
+        $imeisSeen = [];
+        foreach ($tradeIns as $tradeIn) {
+            $imei = trim($tradeIn['imei']);
+            if (isset($imeisSeen[$imei])) {
+                return back()->withErrors(['trade_ins' => 'El mismo IMEI aparece más de una vez en el equipo recibido.'])->withInput();
+            }
+            $imeisSeen[$imei] = true;
+        }
+
         $sale = null;
         $userId = $request->user()?->id ?? 1;
         $requestedPaymentType = $validated['payment_type'];
@@ -792,7 +906,8 @@ class FacturacionController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($validated, $items, &$sale, $userId, $cashSession, $request) {
+            DB::transaction(function () use ($validated, $items, $tradeIns, &$sale, $userId, $cashSession, $request) {
+                $cordobaRate = $this->resolvePosCordobaRate($validated['exchange_rate_id'] ?? null);
                 $invoiceNumber = $this->nextInvoiceNumber();
                 $requestedPaymentType = $validated['payment_type'];
                 $storedPaymentType = $requestedPaymentType === 'card' ? 'transfer' : $requestedPaymentType;
@@ -896,6 +1011,7 @@ class FacturacionController extends Controller
                         'unit_factor' => $line['unit_factor'],
                         'base_quantity' => $line['base_quantity'],
                         'price' => $line['price'],
+                        ...$this->referencePriceData($line['price'], $cordobaRate),
                         'discount_percentage' => $discountPct,
                         'discount_amount' => $lineDiscountAmount,
                         'subtotal' => $lineNet,
@@ -926,6 +1042,20 @@ class FacturacionController extends Controller
                     $taxTotal += $lineTax;
                 }
 
+                $totalTradeInValue = 0.0;
+                foreach ($tradeIns as $tradeIn) {
+                    $totalTradeInValue += $this->processTradeIn(
+                        $tradeIn,
+                        $sale,
+                        $userId,
+                        $saleWarehouseId ?? $this->posCatalog->resolveWarehouseId($preferredWarehouseId),
+                    );
+                }
+                $totalTradeInValue = round($totalTradeInValue, 2);
+
+                $saleTotal = round($subtotalExcl + $taxTotal, 2);
+                $amountDue = max(0, round($saleTotal - $totalTradeInValue, 2));
+
                 $sale->update([
                     'warehouse_id' => $saleWarehouseId ?? $this->posCatalog->resolveWarehouseId($preferredWarehouseId),
                     'tax_rate' => $subtotalExcl > 0 ? round($taxTotal / $subtotalExcl, 4) : 0,
@@ -933,20 +1063,41 @@ class FacturacionController extends Controller
                     'discount_amount' => round($totalDiscountAmount, 2),
                     'discount_percentage' => $orderDiscountPct,
                     'tax_total' => round($taxTotal, 2),
-                    'total' => round($subtotalExcl + $taxTotal, 2),
+                    'trade_in_value' => $totalTradeInValue,
+                    'total' => $saleTotal,
                     'change_amount' => $storedPaymentType === 'cash'
-                        ? max(0, ($validated['amount_received'] ?? round($subtotalExcl + $taxTotal, 2)) - round($subtotalExcl + $taxTotal, 2))
+                        ? max(0, ($validated['amount_received'] ?? $amountDue) - $amountDue)
                         : 0,
                 ]);
 
+                if ($totalTradeInValue > $saleTotal) {
+                    throw new \RuntimeException('El valor recibido en equipos no puede superar el total de la venta.');
+                }
+
                 if ($storedPaymentType === 'cash'
-                    && (float) ($validated['amount_received'] ?? 0) < (float) $sale->total) {
-                    throw new \RuntimeException('El monto recibido es menor que el total de la venta.');
+                    && (float) ($validated['amount_received'] ?? 0) < $amountDue) {
+                    throw new \RuntimeException('El monto recibido es menor que el saldo a pagar después de descontar el equipo recibido.');
                 }
 
                 if ($storedPaymentType === 'credit') {
                     if (! $client->credit_enabled) {
                         throw new \RuntimeException('El cliente seleccionado no tiene crédito habilitado.');
+                    }
+                    // A trade-in phone is value received right now, exactly like a same-day
+                    // payment, so it must reduce this sale's contribution to the client's
+                    // outstanding balance before the credit-limit check runs below.
+                    if ($totalTradeInValue > 0.00001) {
+                        CreditPayment::create([
+                            'client_id' => $client->id,
+                            'sale_id' => $sale->id,
+                            'amount' => $totalTradeInValue,
+                            'payment_date' => now(),
+                            'payment_type' => 'other',
+                            'notes' => 'Recibido como parte de pago: equipo(s) entregado(s) en la misma venta.',
+                            'user_id' => $userId,
+                            'branch_id' => $sale->branch_id,
+                            'caja_session_id' => null,
+                        ]);
                     }
                     if ((float) $client->credit_limit > 0
                         && $this->creditService->pendingDebt($client) > (float) $client->credit_limit) {
@@ -999,14 +1150,126 @@ class FacturacionController extends Controller
         }
 
         if ($sale) {
-            $amountReceived = $validated['amount_received'] ?? $sale->total;
-            $changeAmount = $amountReceived - $sale->total;
+            $amountDue = max(0, (float) $sale->total - (float) $sale->trade_in_value);
+            $amountReceived = $validated['amount_received'] ?? $amountDue;
+            $changeAmount = $amountReceived - $amountDue;
 
             return redirect()->route('facturacion.change', ['saleId' => $sale->id])
                 ->with('changeAmount', max(0, $changeAmount));
         }
 
         return back()->withErrors(['error' => 'Error al procesar la venta']);
+    }
+
+    /** @return array{reference_price: ?float, reference_currency: ?string} */
+    private function referencePriceData(float $companyPrice, ?float $cordobaRate = null): array
+    {
+        if ($cordobaRate !== null) {
+            return [
+                'reference_price' => round($companyPrice * $cordobaRate, 4),
+                'reference_currency' => 'NIO',
+            ];
+        }
+
+        return ['reference_price' => round($companyPrice, 4), 'reference_currency' => 'USD'];
+    }
+
+    private function resolvePosCordobaRate(?int $exchangeRateId): ?float
+    {
+        if (! $exchangeRateId) {
+            return null;
+        }
+
+        $rate = ExchangeRate::query()
+            ->whereKey($exchangeRateId)
+            ->where('from_currency', 'USD')
+            ->where('to_currency', 'NIO')
+            ->where('is_active', true)
+            ->whereDate('effective_date', '<=', now()->toDateString())
+            ->value('rate');
+
+        if ($rate === null || (float) $rate <= 0) {
+            throw new \RuntimeException('La tasa seleccionada ya no está disponible. Selecciona una tasa vigente para mostrar los precios en córdobas.');
+        }
+
+        return (float) $rate;
+    }
+
+    /**
+     * Registra un equipo recibido como parte de pago en una venta.
+     * Si el IMEI ya existe (incluyendo productos eliminados), reactiva y
+     * actualiza ese mismo producto en lugar de crear uno duplicado, de forma
+     * que su historial de ventas previo siga vinculado al mismo registro.
+     */
+    private function processTradeIn(array $tradeIn, Sale $sale, ?int $userId, ?int $warehouseId): float
+    {
+        $imei = $tradeIn['imei'];
+        $tradeInValue = round((float) $tradeIn['trade_in_value'], 2);
+
+        $product = Product::withTrashed()->where('imei', $imei)->first();
+        $wasReturningPhone = (bool) $product;
+
+        $attributes = [
+            'category_id' => $tradeIn['category_id'],
+            'name' => $tradeIn['name'],
+            'condition' => 'used',
+            'brand' => $tradeIn['brand'] ?? null,
+            'model' => $tradeIn['model'] ?? null,
+            'color' => $tradeIn['color'] ?? null,
+            'battery_percentage' => $tradeIn['battery_percentage'] ?? null,
+            'imei' => $imei,
+            'purchase_price' => $tradeInValue,
+            'sale_price' => (float) $tradeIn['sale_price'],
+            'status' => 'active',
+        ];
+
+        if ($product) {
+            if (! $product->trashed() && (float) $product->stock > 0) {
+                throw new \RuntimeException("El IMEI {$imei} ya está en el inventario ({$product->name}); no se puede recibir como parte de pago.");
+            }
+
+            if ($product->trashed()) {
+                $product->restore();
+            }
+
+            $product->fill($attributes);
+            $product->save();
+        } else {
+            $unit = Unit::where('abbreviation', 'und')->first();
+
+            $data = array_merge($attributes, [
+                'code' => $this->inventoryService->nextProductCode(),
+                'stock' => 0,
+                'unit' => $unit?->abbreviation ?? 'und',
+                'base_unit_id' => $unit?->id,
+            ]);
+
+            try {
+                $product = Product::create($data);
+            } catch (UniqueConstraintViolationException $e) {
+                $data['code'] = $this->inventoryService->nextProductCode();
+                $product = Product::create($data);
+            }
+        }
+
+        $this->inventoryService->stockIn(
+            $product,
+            1,
+            'trade_in:'.$sale->id,
+            'Recibido como parte de pago — Venta #'.$sale->invoice_number,
+            $userId,
+            $warehouseId
+        );
+
+        PhoneTradeIn::create([
+            'sale_id' => $sale->id,
+            'product_id' => $product->id,
+            'trade_in_value' => $tradeInValue,
+            'was_returning_phone' => $wasReturningPhone,
+            'notes' => $wasReturningPhone ? 'Teléfono reconocido por IMEI (venta anterior).' : null,
+        ]);
+
+        return $tradeInValue;
     }
 
     /**

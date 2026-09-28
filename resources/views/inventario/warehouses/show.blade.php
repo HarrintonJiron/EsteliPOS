@@ -11,7 +11,7 @@
                 {{ $warehouse->code }}
                 @if($warehouse->is_default) · Principal @endif
                 · {{ $productsCount }} productos
-                · Valor estimado C$ {{ number_format($totalValue, 2) }}
+                · Valor estimado @money($totalValue, 2)
             </p>
             @if($warehouse->address || $warehouse->city || $warehouse->phone)
                 <p class="text-sm text-slate-500 mt-1">

@@ -14,10 +14,10 @@ class Sale extends Model
         'invoice_number',
         'request_token',
         'client_id',
-        'repair_order_id',
         'user_id',
         'branch_id',
         'caja_session_id',
+        'repair_order_id',
         'warehouse_id',
         'price_list_id',
         'price_list_name',
@@ -34,6 +34,7 @@ class Sale extends Model
         'tax_total',
         'discount_amount',
         'discount_percentage',
+        'trade_in_value',
         'total',
         'payment_type',
         'currency',
@@ -67,16 +68,6 @@ class Sale extends Model
         return $this->belongsTo(Client::class);
     }
 
-    public function repairOrder()
-    {
-        return $this->belongsTo(RepairOrder::class);
-    }
-
-    public function scopeRetail($query)
-    {
-        return $query->whereNull('repair_order_id');
-    }
-
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -92,6 +83,16 @@ class Sale extends Model
         return $this->belongsTo(CajaSession::class);
     }
 
+    public function repairOrder()
+    {
+        return $this->belongsTo(RepairOrder::class);
+    }
+
+    public function scopeRetail($query)
+    {
+        return $query->whereNull('repair_order_id');
+    }
+
     public function warehouse()
     {
         return $this->belongsTo(Warehouse::class);
@@ -105,6 +106,16 @@ class Sale extends Model
     public function details()
     {
         return $this->hasMany(SaleDetail::class);
+    }
+
+    public function shipment()
+    {
+        return $this->hasOne(Shipment::class);
+    }
+
+    public function tradeIns()
+    {
+        return $this->hasMany(PhoneTradeIn::class);
     }
 
     public function getBillingDocumentLabelAttribute(): string

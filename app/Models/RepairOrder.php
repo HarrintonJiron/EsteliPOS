@@ -12,6 +12,7 @@ class RepairOrder extends Model
 {
     protected $fillable = [
         'order_number',
+        'order_type',
         'client_id',
         'client_name',
         'client_phone',
@@ -20,6 +21,8 @@ class RepairOrder extends Model
         'device_model',
         'device_color',
         'device_imei',
+        'device_battery',
+        'device_photo',
         'device_password',
         'lock_type',
         'accessories',
@@ -34,9 +37,11 @@ class RepairOrder extends Model
         'received_date',
         'received_time',
         'estimated_date',
+        'due_date',
         'estimated_delivery_time',
         'delivered_date',
         'delivered_time',
+        'delivery_notes',
         'labor_cost',
         'parts_cost',
         'total',
@@ -53,6 +58,7 @@ class RepairOrder extends Model
     protected $casts = [
         'received_date' => 'date',
         'estimated_date' => 'date',
+        'due_date' => 'date',
         'delivered_date' => 'date',
         'payment_received_at' => 'datetime',
         'warranty_enabled' => 'boolean',
@@ -76,6 +82,13 @@ class RepairOrder extends Model
         $this->attributes['device_password'] = filled($value) ? Crypt::encryptString($value) : null;
     }
 
+    public function getDevicePhotoUrlAttribute(): ?string
+    {
+        $path = $this->attributes['device_photo'] ?? null;
+
+        return $path ? route('reparaciones.photo', $this, false) : null;
+    }
+
     public function client()
     {
         return $this->belongsTo(Client::class);
@@ -96,9 +109,9 @@ class RepairOrder extends Model
         return $this->hasMany(RepairOrderItem::class);
     }
 
-    public function photos()
+    public function creditPayments()
     {
-        return $this->hasMany(RepairOrderPhoto::class);
+        return $this->hasMany(RepairCreditPayment::class);
     }
 
     public function cajaSession()
@@ -116,16 +129,129 @@ class RepairOrder extends Model
         return Schema::hasColumns('repair_orders', ['caja_session_id', 'payment_received_at']);
     }
 
+    public const MAX_PHOTOS = 5;
+
+    public function photos()
+    {
+        return $this->hasMany(RepairOrderPhoto::class)->orderBy('id');
+    }
+
+    /**
+     * Pagos posteriores al anticipo (abonos de crédito y cobros al entregar).
+     * Usa el withSum ya cargado cuando existe para no consultar por cada fila.
+     */
+    public function paymentsTotal(): float
+    {
+        if (array_key_exists('credit_payments_sum_amount', $this->attributes)) {
+            return (float) $this->attributes['credit_payments_sum_amount'];
+        }
+
+        if ($this->relationLoaded('creditPayments')) {
+            return (float) $this->creditPayments->sum('amount');
+        }
+
+        return (float) $this->creditPayments()->sum('amount');
+    }
+
+    /** Todo lo cobrado hasta hoy: anticipo + pagos posteriores. */
+    public function paidAmount(): float
+    {
+        return round((float) $this->advance_payment + $this->paymentsTotal(), 2);
+    }
+
+    /**
+     * Estado de pago guardado: "paid" solo con total y cubierto por lo cobrado;
+     * una orden sin importe (aún sin cotizar) nunca queda como pagada.
+     */
+    public static function paymentStatusFor(float $total, float $paid): string
+    {
+        if ($total > 0.00001 && $paid >= $total - 0.00001) {
+            return 'paid';
+        }
+
+        return $paid > 0.00001 ? 'partial' : 'pending';
+    }
+
+    public function syncPaymentStatus(): void
+    {
+        $this->forceFill(['payment_status' => self::paymentStatusFor((float) $this->total, $this->paidAmount())])->save();
+    }
+
+    /**
+     * Estado de pago para mostrar: paid | partial | pending | credit | no_charge.
+     */
+    public function paymentState(): string
+    {
+        if ((float) $this->total <= 0.00001) {
+            return 'no_charge';
+        }
+
+        if ($this->balance() <= 0.00001) {
+            return 'paid';
+        }
+
+        if ($this->payment_type === 'credit') {
+            return 'credit';
+        }
+
+        return $this->paidAmount() > 0.00001 ? 'partial' : 'pending';
+    }
+
+    public function paymentStateLabel(): string
+    {
+        return match ($this->paymentState()) {
+            'paid' => 'Pagado',
+            'partial' => 'Abono parcial',
+            'credit' => 'A crédito',
+            'no_charge' => 'Sin cargo',
+            default => 'Pendiente de pago',
+        };
+    }
+
+    public function paymentStatusLabel(): string
+    {
+        return match ($this->payment_status) {
+            'paid' => 'Pagado',
+            'partial' => 'Parcial',
+            'pending' => 'Pendiente',
+            default => ucfirst((string) $this->payment_status),
+        };
+    }
+
+    public function paymentStateColor(): string
+    {
+        return match ($this->paymentState()) {
+            'paid' => 'bg-emerald-100 text-emerald-700',
+            'partial' => 'bg-sky-100 text-sky-700',
+            'credit' => 'bg-violet-100 text-violet-700',
+            'no_charge' => 'bg-slate-100 text-slate-600',
+            default => 'bg-amber-100 text-amber-800',
+        };
+    }
+
+    /** Ya se entregó el equipo pero todavía hay dinero por cobrar. */
+    public function isDeliveredWithBalance(): bool
+    {
+        return $this->status === 'delivered' && $this->balance() > 0.00001;
+    }
+
+    /** Se puede cobrar desde la ficha: listo para entregar, o entregado con saldo. */
+    public function canCollect(): bool
+    {
+        return in_array($this->status, ['ready', 'delivered'], true) && $this->balance() > 0.00001;
+    }
+
     public function statusLabel(): string
     {
         return match ($this->status) {
             'received' => 'Recibido',
-            'diagnosing' => 'En Evaluación',
-            'waiting_parts' => 'Esp. Materiales',
-            'in_repair' => 'En Taller',
-            'ready' => 'Lista para Entregar',
-            'delivered' => 'Entregada',
-            'cancelled' => 'Cancelada',
+            'diagnosing' => 'Diagnóstico',
+            'waiting_parts' => 'Esp. Repuestos',
+            'in_repair' => 'En Reparación',
+            'ready' => 'Listo',
+            'delivered' => 'Entregado',
+            'not_repaired' => 'No reparado',
+            'cancelled' => 'Cancelado',
             default => ucfirst($this->status),
         };
     }
@@ -139,6 +265,7 @@ class RepairOrder extends Model
             'in_repair' => 'bg-indigo-100 text-indigo-700',
             'ready' => 'bg-green-100 text-green-700',
             'delivered' => 'bg-emerald-100 text-emerald-700',
+            'not_repaired' => 'bg-rose-100 text-rose-700',
             'cancelled' => 'bg-red-100 text-red-700',
             default => 'bg-slate-100 text-slate-700',
         };
@@ -168,7 +295,7 @@ class RepairOrder extends Model
 
     public function balance(): float
     {
-        return max(0, (float) $this->total - (float) $this->advance_payment);
+        return max(0, round((float) $this->total - $this->paidAmount(), 2));
     }
 
     public function formattedReceivedTime(): ?string
@@ -207,7 +334,7 @@ class RepairOrder extends Model
 
     public function isEstimatedDeliveryOverdue(): bool
     {
-        if (! $this->estimated_date || in_array($this->status, ['delivered', 'cancelled'], true)) {
+        if (! $this->estimated_date || in_array($this->status, ['delivered', 'cancelled', 'not_repaired'], true)) {
             return false;
         }
 
@@ -226,21 +353,11 @@ class RepairOrder extends Model
 
     public function isEstimatedDeliveryToday(): bool
     {
-        if (! $this->estimated_date || in_array($this->status, ['delivered', 'cancelled'], true)) {
+        if (! $this->estimated_date || in_array($this->status, ['delivered', 'cancelled', 'not_repaired'], true)) {
             return false;
         }
 
         return $this->estimated_date->isToday();
-    }
-
-    public function paymentStatusLabel(): string
-    {
-        return match ($this->payment_status) {
-            'paid' => 'Pagado',
-            'partial' => 'Parcial',
-            'pending' => 'Pendiente',
-            default => ucfirst((string) $this->payment_status),
-        };
     }
 
     public function effectiveWarrantyText(): string

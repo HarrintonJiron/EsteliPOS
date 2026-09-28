@@ -1,12 +1,13 @@
 @extends('layouts.app')
+@section('hide_back', true)
 
 @section('title', 'Editar Orden ' . $order->order_number)
 
 @section('content')
 <div class="max-w-5xl mx-auto space-y-5">
 
-    <div class="flex justify-between items-center">
-        <div>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
             <h1 class="page-title">Editar {{ $order->order_number }}</h1>
             <p class="page-subtitle">{{ $order->device_brand }} {{ $order->device_model }} · {{ $order->client_name }}</p>
         </div>
@@ -19,19 +20,19 @@
     </div>
     @endif
 
-    <form action="{{ route('reparaciones.update', $order->id) }}" method="POST" id="repairForm">
+    <form action="{{ route('reparaciones.update', $order->id) }}" method="POST" enctype="multipart/form-data" id="repairForm">
         @csrf @method('PUT')
 
-        <div class="grid grid-cols-3 gap-5">
+        <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
 
             {{-- LEFT --}}
-            <div class="col-span-2 space-y-5">
+            <div class="space-y-5 lg:col-span-2">
 
                 {{-- CLIENT --}}
                 <div class="card p-5 space-y-4">
                     <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Datos del Cliente</h2>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="col-span-2">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div class="sm:col-span-2">
                             <label class="block text-sm text-slate-600 mb-1">Buscar cliente existente</label>
                             <select id="client_selector" onchange="fillClient(this)" class="select-field">
                                 <option value="">— Cliente nuevo / sin registro —</option>
@@ -52,7 +53,7 @@
                             <label class="block text-sm text-slate-600 mb-1">Teléfono</label>
                             <input type="text" name="client_phone" value="{{ old('client_phone', $order->client_phone) }}" class="input-field">
                         </div>
-                        <div class="col-span-2">
+                        <div class="sm:col-span-2">
                             <label class="block text-sm text-slate-600 mb-1">Email</label>
                             <input type="email" name="client_email" value="{{ old('client_email', $order->client_email) }}" class="input-field">
                         </div>
@@ -62,7 +63,7 @@
                 {{-- DEVICE --}}
                 <div class="card p-5 space-y-4">
                     <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Datos del Equipo</h2>
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label class="block text-sm text-slate-600 mb-1">Marca *</label>
                             <div class="flex gap-2">
@@ -107,6 +108,11 @@
                             <input type="text" name="device_imei" value="{{ old('device_imei', $order->device_imei) }}" class="input-field">
                         </div>
                         <div>
+                            <label class="block text-sm text-slate-600 mb-1" for="device_battery">Batería (%)</label>
+                            <input type="number" id="device_battery" name="device_battery" value="{{ old('device_battery', $order->device_battery) }}" min="0" max="100" step="1" inputmode="numeric" class="input-field" placeholder="Ej. 85">
+                            @error('device_battery')<p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
                             <label class="block text-sm text-slate-600 mb-1">Tipo de bloqueo</label>
                             <select id="lockTypeSelect" name="lock_type" class="select-field" onchange="toggleLockFields()">
                                 <option value="password" {{ old('lock_type', $order->lock_type ?? 'none') === 'password' ? 'selected' : '' }}>Contraseña/PIN</option>
@@ -142,6 +148,32 @@
                             <label class="block text-sm text-slate-600 mb-1">Accesorios entregados</label>
                             <input type="text" name="accessories" value="{{ old('accessories', $order->accessories) }}" class="input-field">
                         </div>
+                        <div class="sm:col-span-2">
+                            <div id="devicePhotoPreviewContainer" class="grid grid-cols-3 gap-3 sm:grid-cols-5 mb-3">
+                                @foreach($order->photos as $photo)
+                                    <div class="relative aspect-square overflow-hidden rounded-xl border-2 border-sky-200 bg-sky-50 transition" data-existing-photo>
+                                        <a href="{{ $photo->url }}" data-lightbox data-lightbox-list='@json($order->photos->pluck('url')->values())'>
+                                            <img src="{{ $photo->url }}" alt="Foto {{ $loop->iteration }} del equipo" class="absolute inset-0 h-full w-full object-contain p-1">
+                                        </a>
+                                        <span class="absolute left-1 top-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase text-white shadow {{ $loop->first ? 'bg-emerald-600' : 'bg-slate-500' }}">{{ $loop->first ? 'Principal' : 'Foto '.$loop->iteration }}</span>
+                                        <label class="absolute inset-x-0 bottom-0 flex cursor-pointer items-center gap-1 border-t border-sky-100 bg-white/95 px-1.5 py-1 text-[11px] font-semibold text-red-700">
+                                            <input type="checkbox" name="remove_photo_ids[]" value="{{ $photo->id }}" class="remove-photo rounded border-slate-300 text-red-600">
+                                            <span class="remove-text">Quitar</span>
+                                        </label>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <div id="devicePhotoPlaceholder" class="{{ $order->photos->count() > 0 ? 'hidden' : '' }} flex items-center justify-center h-12 w-12 rounded-lg bg-slate-100 text-lg text-slate-400">📷</div>
+                                <div class="min-w-0">
+                                    <label for="devicePhotoInput" class="mb-1 block text-xs font-medium text-slate-600">Fotos del equipo (hasta 5)</label>
+                                    <input id="devicePhotoInput" type="file" name="device_photos[]" accept="image/jpeg,image/png,image/webp" multiple
+                                        class="block w-full text-xs text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-slate-800 file:px-2 file:py-1 file:text-xs file:text-white">
+                                    <p id="devicePhotoName" class="mt-1 truncate text-[11px] text-slate-500">JPG, PNG o WebP · máximo 8 MB c/u</p>
+                                    @error('device_photos')<p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -174,31 +206,6 @@
                         </div>
                         <textarea id="repair_notesField" name="repair_notes" rows="2" class="input-field resize-none {{ old('repair_notes', $order->repair_notes) ? '' : 'hidden' }}" {{ old('repair_notes', $order->repair_notes) ? '' : 'disabled' }}>{{ old('repair_notes', $order->repair_notes) }}</textarea>
                     </div>
-                    @php
-                        $warrantyEnabled = (bool) old('include_warranty_policy', $order->include_warranty_policy);
-                        $defaultWarrantyPolicy = 'La garantía cubre únicamente el servicio realizado y los repuestos instalados. No cubre golpes, humedad, daños eléctricos, manipulación por terceros ni fallas distintas a la reportada. Para solicitar garantía es obligatorio presentar este ticket.';
-                    @endphp
-                    <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                        <input type="hidden" name="include_warranty_policy" value="0">
-                        <label class="flex items-start gap-3 cursor-pointer">
-                            <input type="checkbox" id="includeWarrantyPolicy" name="include_warranty_policy" value="1" onchange="toggleWarrantyPolicy()"
-                                class="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" {{ $warrantyEnabled ? 'checked' : '' }}>
-                            <span>
-                                <span class="block text-sm font-semibold text-emerald-900">Agregar garantía y políticas al ticket</span>
-                                <span class="block text-xs text-emerald-700">El cliente recibirá esta información impresa al pie de su comprobante.</span>
-                            </span>
-                        </label>
-                        <div id="warrantyPolicyFields" class="mt-4 space-y-3 {{ $warrantyEnabled ? '' : 'hidden' }}">
-                            <div class="max-w-40">
-                                <label class="block text-sm text-slate-600 mb-1">Días de garantía *</label>
-                                <input type="number" name="warranty_days" min="1" max="3650" value="{{ old('warranty_days', $order->warranty_days ?? 30) }}" class="input-field" {{ $warrantyEnabled ? '' : 'disabled' }}>
-                            </div>
-                            <div>
-                                <label class="block text-sm text-slate-600 mb-1">Políticas de garantía *</label>
-                                <textarea name="warranty_policy" rows="4" maxlength="2000" class="input-field resize-none" {{ $warrantyEnabled ? '' : 'disabled' }}>{{ old('warranty_policy', $order->warranty_policy ?? $defaultWarrantyPolicy) }}</textarea>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 {{-- PARTS --}}
@@ -219,7 +226,7 @@
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Estado</label>
                         <select name="status" class="select-field">
-                            @foreach(['received' => 'Recibido', 'diagnosing' => 'En Diagnóstico', 'waiting_parts' => 'Esperando Repuestos', 'in_repair' => 'En Reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
+                            @foreach(['received' => 'Recibido', 'diagnosing' => 'En Diagnóstico', 'waiting_parts' => 'Esperando Repuestos', 'in_repair' => 'En Reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'not_repaired' => 'No reparado', 'cancelled' => 'Cancelado'] as $val => $label)
                                 <option value="{{ $val }}" {{ old('status', $order->status) === $val ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
@@ -244,85 +251,111 @@
                 </div>
 
                 <div class="card p-5 space-y-4">
-                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Fechas y horas</h2>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Fecha de recepción *</label>
-                            <input type="date" name="received_date" value="{{ old('received_date', $order->received_date->format('Y-m-d')) }}" required class="input-field">
-                        </div>
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Hora de llegada *</label>
-                            <input type="time" name="received_time" value="{{ old('received_time', $order->received_time ? substr($order->received_time, 0, 5) : $order->created_at->format('H:i')) }}" required class="input-field">
-                        </div>
+                    <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Fechas y Horas</h2>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Fecha de recepción *</label>
+                        <input type="date" name="received_date" value="{{ old('received_date', $order->received_date->format('Y-m-d')) }}" required class="input-field">
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Fecha estimada</label>
-                            <input type="date" name="estimated_date" value="{{ old('estimated_date', $order->estimated_date?->format('Y-m-d')) }}" class="input-field">
-                        </div>
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Hora estimada</label>
-                            <input type="time" name="estimated_time" value="{{ old('estimated_time', $order->estimated_time ? substr($order->estimated_time, 0, 5) : '') }}" class="input-field">
-                        </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Hora de recepción *</label>
+                        <input type="time" name="received_time" value="{{ substr((string) old('received_time', $order->received_time ?? date('H:i')), 0, 5) }}" required class="input-field">
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Fecha real de entrega</label>
-                            <input type="date" name="delivered_date" value="{{ old('delivered_date', $order->delivered_date?->format('Y-m-d')) }}" class="input-field">
-                        </div>
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1">Hora de entrega</label>
-                            <input type="time" name="delivered_time" value="{{ old('delivered_time', $order->delivered_time ? substr($order->delivered_time, 0, 5) : '') }}" class="input-field">
-                        </div>
+                    <div class="pt-3 border-t border-slate-100">
+                        <label class="block text-sm text-slate-600 mb-1">Entrega estimada (fecha opcional)</label>
+                        <input type="date" name="estimated_date" value="{{ old('estimated_date', $order->estimated_date?->format('Y-m-d')) }}" class="input-field">
+                        <p class="text-xs text-slate-400 mt-1">Si solo quieres indicar la hora, deja este campo en blanco.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Hora estimada de entrega</label>
+                        <input type="time" name="estimated_delivery_time" value="{{ substr((string) old('estimated_delivery_time', $order->estimated_delivery_time), 0, 5) }}" class="input-field">
+                    </div>
+                    <div class="pt-3 border-t border-slate-100">
+                        <label class="block text-sm text-slate-600 mb-1">Fecha real de entrega</label>
+                        <input type="date" name="delivered_date" value="{{ old('delivered_date', $order->delivered_date?->format('Y-m-d')) }}" class="input-field">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Hora de entrega</label>
+                        <input type="time" name="delivered_time" value="{{ substr((string) old('delivered_time', $order->delivered_time), 0, 5) }}" class="input-field">
+                    </div>
+                    <div class="pt-3 border-t border-slate-100">
+                        <label for="delivery_notes" class="block text-sm text-slate-600 mb-1">Detalles del equipo al entregar <span class="text-xs text-slate-400">(opcional)</span></label>
+                        <textarea id="delivery_notes" name="delivery_notes" rows="3" maxlength="2000"
+                                  placeholder="Ej.: Se entrega con pantalla nueva, sin rayones, con cargador. Cliente revisó y recibe conforme."
+                                  class="input-field">{{ old('delivery_notes', $order->delivery_notes) }}</textarea>
+                        <p class="text-xs text-slate-400 mt-1">Puedes dejarlo vacío. Si escribes algo, sale en el ticket y el PDF como constancia de entrega.</p>
+                        @error('delivery_notes')<p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                     </div>
                 </div>
 
                 <div class="card p-5 space-y-4">
                     <h2 class="font-semibold text-slate-800 border-b border-slate-100 pb-2">Costos y Pago</h2>
                     <div>
-                        <label class="block text-sm text-slate-600 mb-1">Mano de obra (C$)</label>
+                        <label class="block text-sm text-slate-600 mb-1">Mano de obra ({{ $currencySymbol }})</label>
                         <input type="number" step="0.01" min="0" name="labor_cost" id="laborCostInput"
                             value="{{ old('labor_cost', $order->labor_cost) }}" class="input-field" oninput="updateTotal()">
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label class="block text-sm text-slate-600 mb-1">Descuento %</label>
                             <input type="number" step="0.01" min="0" max="100" name="discount_percentage" id="discountPercentageInput"
                                 value="{{ old('discount_percentage', $order->discount_percentage ?? 0) }}" class="input-field" oninput="updateTotal()">
                         </div>
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">Descuento Fijo (C$)</label>
+                            <label class="block text-sm text-slate-600 mb-1">Descuento Fijo ({{ $currencySymbol }})</label>
                             <input type="number" step="0.01" min="0" name="discount_amount" id="discountFixedInput"
                                 value="{{ old('discount_amount', $order->discount_amount ?? 0) }}" class="input-field" oninput="updateTotal()">
                         </div>
                     </div>
                     <div class="bg-slate-50 rounded-xl p-3 space-y-1 text-sm">
-                        <div class="flex justify-between text-slate-600"><span>Repuestos</span><span id="partsCostDisplay">C$ {{ number_format($order->parts_cost, 2) }}</span></div>
-                        <div class="flex justify-between text-slate-600"><span>Mano de obra</span><span id="laborDisplay">C$ {{ number_format($order->labor_cost, 2) }}</span></div>
+                        <div class="flex justify-between text-slate-600"><span>Repuestos</span><span id="partsCostDisplay">@money($order->parts_cost, 2)</span></div>
+                        <div class="flex justify-between text-slate-600"><span>Mano de obra</span><span id="laborDisplay">@money($order->labor_cost, 2)</span></div>
                         <div class="flex justify-between text-red-600 hidden" id="discountRow">
-                            <span>Descuento</span><span id="discountDisplay">C$ 0.00</span>
+                            <span>Descuento</span><span id="discountDisplay">{{ $currencySymbol }} 0.00</span>
                         </div>
                         <div class="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-1">
-                            <span>Total</span><span id="totalDisplay" class="text-indigo-700 text-base">C$ {{ number_format($order->total, 2) }}</span>
+                            <span>Total</span><span id="totalDisplay" class="text-indigo-700 text-base">@money($order->total, 2)</span>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-sm text-slate-600 mb-1">Anticipo (C$)</label>
+                        <label class="block text-sm text-slate-600 mb-1">Anticipo ({{ $currencySymbol }})</label>
                         <input type="number" step="0.01" min="0" name="advance_payment" id="advanceInput"
                             value="{{ old('advance_payment', $order->advance_payment) }}" class="input-field" oninput="updateTotal()">
                     </div>
                     <div class="bg-amber-50 rounded-xl p-3 text-sm">
                         <div class="flex justify-between font-bold text-amber-800">
-                            <span>Saldo</span><span id="balanceDisplay">C$ {{ number_format($order->balance(), 2) }}</span>
+                            <span>Saldo</span><span id="balanceDisplay">{{ $currencySymbol }} {{ number_format($order->balance(), 2) }}</span>
                         </div>
                     </div>
                     <div>
                         <label class="block text-sm text-slate-600 mb-1">Método de pago</label>
                         <select name="payment_type" class="select-field">
-                            @foreach(['cash' => 'Efectivo', 'card' => 'Tarjeta', 'transfer' => 'Transferencia'] as $val => $label)
+                            @foreach(['cash' => 'Efectivo', 'card' => 'Tarjeta', 'transfer' => 'Transferencia', 'credit' => 'Crédito'] as $val => $label)
                                 <option value="{{ $val }}" {{ old('payment_type', $order->payment_type) === $val ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
+                    </div>
+                    <div><label class="block text-sm text-slate-600 mb-1">Vencimiento del crédito</label><input type="date" name="due_date" value="{{ old('due_date', $order->due_date?->toDateString()) }}" class="input-field"></div>
+                </div>
+
+                {{-- WARRANTY --}}
+                <div class="card p-5 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h2 class="font-semibold text-slate-800">Garantía en Ticket</h2>
+                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                            <input type="hidden" name="warranty_enabled" value="0">
+                            <input type="checkbox" name="warranty_enabled" id="warrantyEnabled" value="1"
+                                {{ old('warranty_enabled', $order->warranty_enabled ?? true) ? 'checked' : '' }}
+                                onchange="toggleWarrantyText()"
+                                class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-sm text-slate-600">Incluir en ticket</span>
+                        </label>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Texto de la garantía</label>
+                        <textarea id="warrantyTextField" name="warranty_text" rows="4"
+                            class="input-field resize-none text-sm"
+                            placeholder="Texto de garantía a mostrar en el ticket del cliente...">{{ old('warranty_text', $order->warranty_text) }}</textarea>
+                        <button type="button" onclick="loadDefaultWarranty()" class="text-xs text-indigo-600 hover:text-indigo-800 mt-1">Usar texto predeterminado</button>
                     </div>
                 </div>
 
@@ -370,7 +403,7 @@
                     <textarea id="newServiceDescription" class="input-field" rows="2" placeholder="Descripción detallada del servicio..."></textarea>
                 </div>
                 <div>
-                    <label class="block text-sm text-slate-600 mb-2">Precio (C$) *</label>
+                    <label class="block text-sm text-slate-600 mb-2">Precio ({{ $currencySymbol }}) *</label>
                     <input type="number" id="newServicePrice" class="input-field" placeholder="0.00" step="0.01" min="0">
                 </div>
             </div>
@@ -383,12 +416,20 @@
 </div>
 
 @php
-    $productsJson = $products->map(function($p) {
-        return ['id' => $p->id, 'name' => $p->name, 'code' => $p->code, 'price' => (float)$p->sale_price];
+    $productsJson = $products->map(function ($p) {
+        return [
+            'id' => $p->id,
+            'name' => $p->name,
+            'code' => $p->code,
+            'price' => (float) $p->effectivePrice(),
+            'stock' => (float) $p->stock,
+        ];
     })->values()->toJson();
+    $defaultRepairWarrantyJson = json_encode($companyProfile['repair_warranty_text'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 @endphp
 <script>
 const productsData = {!! $productsJson !!};
+const defaultRepairWarranty = {!! $defaultRepairWarrantyJson !!};
 let itemIndex = 0;
 let partsCost = {{ $order->parts_cost }};
 let patternPoints = [];
@@ -551,14 +592,7 @@ function toggleOptionalField(field) {
     }
 }
 
-function toggleWarrantyPolicy() {
-    const enabled = document.getElementById('includeWarrantyPolicy').checked;
-    const container = document.getElementById('warrantyPolicyFields');
-    container.classList.toggle('hidden', !enabled);
-    container.querySelectorAll('input, textarea').forEach(field => field.disabled = !enabled);
-}
-
-function fmt(v) { return 'C$ ' + parseFloat(v || 0).toFixed(2); }
+function fmt(v) { return '{{ $currencySymbol }} ' + parseFloat(v || 0).toFixed(2); }
 
 function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part', deviceBrand = '', serviceId = '') {
     document.getElementById('noItemsMsg').classList.add('hidden');
@@ -567,7 +601,7 @@ function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part
         `<option value="${p.id}" data-price="${p.price}" ${productId == p.id ? 'selected' : ''}>${p.name} (${p.code})</option>`
     ).join('');
 
-    const servicesOpts = @json($services->map(fn($s) => ['id' => $s->id, 'name' => $s->name, 'price' => $s->price])->values());
+    const servicesOpts = @json($services->map(fn($s) => ['id' => $s->id, 'name' => $s->name, 'price' => (float) $s->price])->values());
 
     const html = `
     <div class="item-row flex gap-2 items-start bg-slate-50 rounded-xl p-3" data-idx="${idx}">
@@ -583,9 +617,9 @@ function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part
                 <div class="col-span-2 service-select-field ${itemType === 'service' ? '' : 'hidden'}">
                     <label class="text-xs text-slate-500">Seleccionar Servicio Predefinido</label>
                     <div class="flex gap-2">
-                        <select name="items[${idx}][service_id]" class="select-field text-sm flex-1" onchange="onServiceSelect(this, ${idx})">
+                        <select name="items[${idx}][service_id]" class="select-field text-sm flex-1 item-service-sel" data-idx="${idx}">
                             <option value="">— Manual —</option>
-                            ${servicesOpts.map(s => `<option value="${s.id}" data-price="${s.price}" data-description="${s.name}" ${serviceId == s.id ? 'selected' : ''}>${s.name} - C$ ${s.price.toFixed(2)}</option>`).join('')}
+                            ${servicesOpts.map(s => `<option value="${s.id}" data-price="${s.price}" data-description="${s.name}" ${serviceId == s.id ? 'selected' : ''}>${s.name} - {{ $currencySymbol }} ${Number(s.price).toFixed(2)}</option>`).join('')}
                         </select>
                         <button type="button" onclick="showAddServiceModal()" class="px-3 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 text-xs flex-shrink-0" title="Agregar nuevo servicio">
                             +
@@ -602,18 +636,18 @@ function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part
                 </div>
                 <div class="part-product-field ${itemType === 'part' ? '' : 'hidden'}">
                     <label class="text-xs text-slate-500">Vincular a producto</label>
-                    <select name="items[${idx}][product_id]" class="select-field text-sm part-product-sel" data-idx="${idx}" onchange="onProductSelect(this, ${idx})">
+                    <select name="items[${idx}][product_id]" class="select-field text-sm part-product-sel" data-idx="${idx}">
                         <option value="">— Manual —</option>${opts}
                     </select>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="text-xs text-slate-500">Cant.</label>
-                        <input type="number" name="items[${idx}][quantity]" value="${qty}" min="0.01" step="0.01" required class="input-field text-sm item-qty" data-idx="${idx}" oninput="calcItemSubtotal(${idx})">
+                        <input type="number" name="items[${idx}][quantity]" value="${qty}" min="0.01" step="0.01" required class="input-field text-sm item-qty" data-idx="${idx}">
                     </div>
                     <div>
                         <label class="text-xs text-slate-500">Precio</label>
-                        <input type="number" name="items[${idx}][price]" value="${price}" min="0" step="0.01" required class="input-field text-sm item-price" data-idx="${idx}" oninput="calcItemSubtotal(${idx})">
+                        <input type="number" name="items[${idx}][price]" value="${price}" min="0" step="0.01" required class="input-field text-sm item-price" data-idx="${idx}">
                     </div>
                 </div>
             </div>
@@ -625,7 +659,16 @@ function addItem(desc = '', qty = 1, price = 0, productId = '', itemType = 'part
         </div>
     </div>`;
     document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', html);
-    recalcParts();
+
+    if (productId) {
+        const sel = getItemRow(idx)?.querySelector('.part-product-sel');
+        if (sel) {
+            onProductSelect(sel, idx);
+            return;
+        }
+    }
+
+    syncItemRow(idx);
 }
 
 function toggleItemTypeFields(idx) {
@@ -646,34 +689,95 @@ function toggleItemTypeFields(idx) {
         serviceSelectField.querySelector('select').value = '';
         productField.classList.remove('hidden');
     }
+
+    recalcParts();
+}
+
+function getItemRow(idx) {
+    return document.querySelector(`.item-row[data-idx="${idx}"]`);
+}
+
+function findProduct(productId) {
+    return productsData.find(product => String(product.id) === String(productId));
+}
+
+function syncItemRow(idx) {
+    const row = getItemRow(idx);
+    if (!row) {
+        return;
+    }
+
+    const qty = parseFloat(row.querySelector('.item-qty')?.value || 0);
+    const price = parseFloat(row.querySelector('.item-price')?.value || 0);
+    const subtotalEl = row.querySelector('.item-subtotal');
+
+    if (subtotalEl) {
+        subtotalEl.textContent = fmt(qty * price);
+    }
+
+    recalcParts();
 }
 
 function onServiceSelect(sel, idx) {
-    const opt = sel.options[sel.selectedIndex];
-    if (opt.value) {
-        const descField = document.querySelector(`[name="items[${idx}][description]"]`);
-        const priceField = document.querySelector(`.item-price[data-idx="${idx}"]`);
-        
-        descField.value = opt.dataset.description || opt.text.split(' - ')[0];
-        priceField.value = opt.dataset.price || 0;
-        calcItemSubtotal(idx);
+    const row = getItemRow(idx) || sel.closest('.item-row');
+    if (!row) {
+        return;
     }
+
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt?.value) {
+        syncItemRow(idx);
+        return;
+    }
+
+    const descField = row.querySelector(`[name="items[${idx}][description]"]`);
+    const priceField = row.querySelector('.item-price');
+    const servicePrice = parseFloat(opt.dataset.price ?? '');
+
+    if (descField) {
+        descField.value = opt.dataset.description || opt.text.split(' - ')[0];
+    }
+
+    if (priceField) {
+        priceField.value = Number.isFinite(servicePrice) ? servicePrice.toFixed(2) : '0.00';
+    }
+
+    syncItemRow(idx);
 }
 
 function onProductSelect(sel, idx) {
-    const opt = sel.options[sel.selectedIndex];
-    if (opt.value) {
-        document.querySelector(`.item-price[data-idx="${idx}"]`).value = opt.dataset.price ?? 0;
-        calcItemSubtotal(idx);
+    const row = getItemRow(idx) || sel.closest('.item-row');
+    if (!row) {
+        return;
     }
+
+    const productId = sel.value;
+    if (!productId) {
+        syncItemRow(idx);
+        return;
+    }
+
+    const product = findProduct(productId);
+    if (!product) {
+        return;
+    }
+
+    const descField = row.querySelector(`[name="items[${idx}][description]"]`);
+    const priceField = row.querySelector('.item-price');
+
+    if (descField) {
+        descField.value = product.code ? `${product.name} (${product.code})` : product.name;
+    }
+
+    if (priceField) {
+        priceField.value = Number(product.price).toFixed(2);
+    }
+
+    syncItemRow(idx);
 }
 
 function calcItemSubtotal(idx) {
-    const qty  = parseFloat(document.querySelector(`.item-qty[data-idx="${idx}"]`)?.value || 0);
-    const prc  = parseFloat(document.querySelector(`.item-price[data-idx="${idx}"]`)?.value || 0);
-    const el   = document.querySelector(`.item-subtotal[data-idx="${idx}"]`);
-    if (el) el.textContent = fmt(qty * prc);
-    recalcParts();
+    syncItemRow(idx);
 }
 
 function removeItem(btn) {
@@ -684,12 +788,23 @@ function removeItem(btn) {
 
 function recalcParts() {
     partsCost = 0;
+    let serviceCost = 0;
     document.querySelectorAll('.item-row').forEach(row => {
-        const idx  = row.dataset.idx;
-        const qty  = parseFloat(document.querySelector(`.item-qty[data-idx="${idx}"]`)?.value || 0);
-        const prc  = parseFloat(document.querySelector(`.item-price[data-idx="${idx}"]`)?.value || 0);
-        partsCost += qty * prc;
+        const qty = parseFloat(row.querySelector('.item-qty')?.value || 0);
+        const price = parseFloat(row.querySelector('.item-price')?.value || 0);
+        const itemType = row.querySelector('select[name$="[item_type]"]')?.value || 'part';
+
+        if (itemType === 'service') {
+            serviceCost += qty * price;
+        } else {
+            partsCost += qty * price;
+        }
     });
+
+    if (serviceCost > 0) {
+        document.getElementById('laborCostInput').value = serviceCost.toFixed(2);
+    }
+
     document.getElementById('partsCostDisplay').textContent = fmt(partsCost);
     updateTotal();
 }
@@ -807,17 +922,131 @@ async function addNewBrand(buttonEl = null) {
     }
 }
 
+function initRepairItems() {
+    const itemsContainer = document.getElementById('itemsContainer');
+    if (!itemsContainer) {
+        return;
+    }
+
+    itemsContainer.addEventListener('change', (event) => {
+        const row = event.target.closest('.item-row');
+        if (!row) {
+            return;
+        }
+
+        const idx = row.dataset.idx;
+
+        if (event.target.classList.contains('part-product-sel')) {
+            onProductSelect(event.target, idx);
+        } else if (event.target.classList.contains('item-service-sel')) {
+            onServiceSelect(event.target, idx);
+        }
+    });
+
+    itemsContainer.addEventListener('input', (event) => {
+        const row = event.target.closest('.item-row');
+        if (!row) {
+            return;
+        }
+
+        if (event.target.matches('.item-qty, .item-price')) {
+            syncItemRow(row.dataset.idx);
+        }
+    });
+}
+
+function initDevicePhoto() {
+    const MAX_PHOTOS = {{ \App\Models\RepairOrder::MAX_PHOTOS }};
+    const input = document.getElementById('devicePhotoInput');
+    const previewContainer = document.getElementById('devicePhotoPreviewContainer');
+    const placeholder = document.getElementById('devicePhotoPlaceholder');
+    const filename = document.getElementById('devicePhotoName');
+
+    let filesArray = [];
+
+    if (!input || !previewContainer || !placeholder || !filename) return;
+
+    placeholder.classList.add('hidden');
+    previewContainer.className = 'mb-3 grid grid-cols-3 gap-3 sm:grid-cols-5';
+    const cameraIcon = '<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 9a2 2 0 012-2h1.5l1-1.5h9l1 1.5H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3.2" stroke-width="1.8"/></svg>';
+
+    const keptExisting = () => previewContainer.querySelectorAll('[data-existing-photo]').length
+        - previewContainer.querySelectorAll('.remove-photo:checked').length;
+
+    function render(skipped = 0) {
+        const dt = new DataTransfer();
+        filesArray.forEach(file => dt.items.add(file));
+        input.files = dt.files;
+
+        previewContainer.querySelectorAll('.new-photo').forEach(el => el.remove());
+
+        filesArray.forEach((file, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'new-photo relative aspect-square overflow-hidden rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/50';
+
+            const img = document.createElement('img');
+            img.className = 'absolute inset-0 h-full w-full object-contain p-1';
+            img.src = URL.createObjectURL(file);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.textContent = 'Quitar';
+            removeBtn.className = 'absolute inset-x-0 bottom-0 border-t border-sky-100 bg-white/95 px-1.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50';
+            removeBtn.addEventListener('click', () => { filesArray.splice(index, 1); render(); });
+
+            wrapper.append(img, removeBtn);
+            previewContainer.appendChild(wrapper);
+        });
+
+        const total = keptExisting() + filesArray.length;
+        previewContainer.querySelectorAll('[data-existing-photo]').forEach(card => {
+            const removed = card.querySelector('.remove-photo').checked;
+            card.classList.toggle('opacity-40', removed);
+            card.querySelector('.remove-text').textContent = removed ? 'Se quitará · deshacer' : 'Quitar';
+        });
+        previewContainer.querySelectorAll('.empty-slot').forEach(el => el.remove());
+        for (let slot = total + 1; slot <= MAX_PHOTOS; slot++) {
+            const empty = document.createElement('button');
+            empty.type = 'button';
+            empty.className = 'empty-slot flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-dashed border-sky-300 bg-sky-50 text-sky-500 transition hover:border-sky-500 hover:bg-sky-100';
+            empty.setAttribute('aria-label', 'Agregar foto ' + slot);
+            empty.innerHTML = cameraIcon + '<span class="text-[11px] font-bold">Foto ' + slot + '</span>';
+            empty.addEventListener('click', () => input.click());
+            previewContainer.appendChild(empty);
+        }
+        filename.textContent = total + ' de ' + MAX_PHOTOS + ' fotos'
+            + (skipped > 0 ? ' · máximo ' + MAX_PHOTOS + ' por orden' : '');
+    }
+
+    input.addEventListener('change', () => {
+        let skipped = 0;
+
+        Array.from(input.files).forEach(file => {
+            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) { skipped++; return; }
+            if (filesArray.some(f => f.name === file.name && f.size === file.size)) return;
+            if (keptExisting() + filesArray.length >= MAX_PHOTOS) { skipped++; return; }
+            filesArray.push(file);
+        });
+
+        render(skipped);
+    });
+
+    previewContainer.querySelectorAll('.remove-photo').forEach(box => box.addEventListener('change', () => render()));
+    render();
+}
 // Pre-load existing items
 document.addEventListener('DOMContentLoaded', () => {
     initPatternPad();
     toggleLockFields();
     toggleOptionalField('diagnosis');
     toggleOptionalField('repair_notes');
-    toggleWarrantyPolicy();
-    
+    toggleWarrantyText();
+    initRepairItems();
+    initDevicePhoto();
+
     // Load brands dynamically
     loadBrands();
-    
+
     @foreach($order->items as $item)
         addItem(
             @json($item->description),
@@ -831,6 +1060,21 @@ document.addEventListener('DOMContentLoaded', () => {
     @endforeach
     updateTotal();
 });
+
+function toggleWarrantyText() {
+    const checkbox = document.getElementById('warrantyEnabled');
+    const textarea = document.getElementById('warrantyTextField');
+    if (!checkbox || !textarea) return;
+    textarea.disabled = !checkbox.checked;
+    textarea.classList.toggle('opacity-50', !checkbox.checked);
+    textarea.classList.toggle('bg-slate-50', !checkbox.checked);
+}
+
+function loadDefaultWarranty() {
+    const textarea = document.getElementById('warrantyTextField');
+    if (!textarea) return;
+    textarea.value = defaultRepairWarranty;
+}
 
 async function loadBrands() {
     // Check if brands are cached in localStorage

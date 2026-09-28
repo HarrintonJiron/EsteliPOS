@@ -43,9 +43,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Module::class, ModulePolicy::class);
 
         View::composer('*', function ($view): void {
-            if (! array_key_exists('companyProfile', $view->getData())) {
-                $view->with('companyProfile', app(CompanySettingsService::class)->get());
-            }
+            $companyProfile = $view->getData()['companyProfile'] ?? app(CompanySettingsService::class)->get();
+            $view->with('companyProfile', $companyProfile);
+            $view->with('currencySymbol', $view->getData()['currencySymbol'] ?? ($companyProfile['currency_symbol'] ?? 'C$'));
+            $view->with('companyCurrency', $view->getData()['companyCurrency'] ?? ($companyProfile['currency'] ?? 'NIO'));
 
             if (! array_key_exists('invoiceTaxDisplay', $view->getData())) {
                 $view->with('invoiceTaxDisplay', app(InvoiceTaxDisplayService::class));

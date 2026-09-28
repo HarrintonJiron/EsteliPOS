@@ -67,11 +67,6 @@ class ShipmentController extends Controller
         return view('envios.label', compact('shipment'));
     }
 
-    public function ticket(Shipment $shipment)
-    {
-        return view('envios.ticket', compact('shipment'));
-    }
-
     public function edit(Request $request, Shipment $shipment)
     {
         return view('envios.edit', [

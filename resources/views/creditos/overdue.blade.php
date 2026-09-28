@@ -56,10 +56,10 @@
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 text-right font-semibold text-gray-900">
-                                    C$ {{ number_format($sale->total, 2) }}
+                                    @money($sale->total, 2)
                                 </td>
                                 <td class="px-6 py-4 text-right font-bold text-red-700">
-                                    C$ {{ number_format($sale->balance, 2) }}
+                                    @money($sale->balance, 2)
                                 </td>
                                 <td class="px-6 py-4 text-center">
                                     <span class="inline-block px-3 py-1 bg-orange-100 text-orange-700 text-sm font-bold rounded">

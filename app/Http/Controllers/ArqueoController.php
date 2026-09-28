@@ -72,7 +72,7 @@ class ArqueoController extends Controller
                     ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $openSession->opened_by)->whereDate('date', $today)))
                 ->where('status', 'completed')
                 ->where('payment_type', 'cash')
-                ->sum('total');
+                ->sum(DB::raw('total - COALESCE(trade_in_value, 0)'));
 
             $operationalExpensesCashTotal = (float) OperationalExpense::query()
                 ->registered()
@@ -239,10 +239,11 @@ class ArqueoController extends Controller
             $totalSalesCount = $sales->count();
             $totalSalesAmount = $sales->sum('total');
 
-            $byType = $sales->groupBy('payment_type')->map(function ($group) {
+            $byType = $sales->groupBy('payment_type')->map(function ($group, $paymentType) {
                 return [
                     'count' => $group->count(),
-                    'total' => $group->sum('total'),
+                    'total' => $group->sum(fn (Sale $sale) => (float) $sale->total
+                        - ($paymentType === 'cash' ? (float) $sale->trade_in_value : 0)),
                 ];
             });
 

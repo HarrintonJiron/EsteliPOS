@@ -31,6 +31,8 @@ class Product extends Model
         'imei',
         'purchase_price',
         'sale_price',
+        'source_sale_price',
+        'price_currency',
         'stock',
         'unit',
         'lot',
@@ -203,6 +205,60 @@ class Product extends Model
         };
     }
 
+    public function getConditionLabelAttribute(): string
+    {
+        return match ($this->condition) {
+            'new' => 'Nuevo',
+            'used' => 'Seminuevo',
+            'open_box' => 'Open box',
+            default => 'No aplica',
+        };
+    }
+
+    /**
+     * Datos del producto que se imprimen en tickets y facturas (solo los que tienen valor).
+     *
+     * @return array<string, string>
+     */
+    public function invoiceSpecs(): array
+    {
+        $specs = [];
+
+        if (filled($this->brand)) {
+            $specs['Marca'] = trim($this->brand);
+        }
+        if (filled($this->model)) {
+            $specs['Modelo'] = trim($this->model);
+        }
+        if (filled($this->color)) {
+            $specs['Color'] = trim($this->color);
+        }
+        if (filled($this->imei)) {
+            $specs['IMEI'] = trim($this->imei);
+        }
+        if ($this->battery_percentage !== null) {
+            $specs['Batería'] = rtrim(rtrim(number_format((float) $this->battery_percentage, 2, '.', ''), '0'), '.').'%';
+        }
+        if ($this->condition) {
+            $specs['Estado'] = $this->condition_label;
+        }
+        if (filled($this->description)) {
+            $specs['Descripción'] = trim(preg_replace('/\s+/', ' ', $this->description));
+        }
+
+        return $specs;
+    }
+
+    public function getConditionColorClassesAttribute(): string
+    {
+        return match ($this->condition) {
+            'new' => 'border-emerald-300 bg-emerald-100 text-emerald-800',
+            'used' => 'border-amber-300 bg-amber-100 text-amber-800',
+            'open_box' => 'border-sky-300 bg-sky-100 text-sky-800',
+            default => 'border-slate-300 bg-slate-100 text-slate-700',
+        };
+    }
+
     public function getInventoryStatusAttribute(): string
     {
         if ($this->isExpired()) {
@@ -245,11 +301,6 @@ class Product extends Model
     public function warehouseStocks()
     {
         return $this->hasMany(WarehouseStock::class);
-    }
-
-    public function branchSources()
-    {
-        return $this->hasMany(BranchProductSource::class);
     }
 
     public function priceListItems()
