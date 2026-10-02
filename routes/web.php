@@ -30,6 +30,8 @@ use App\Http\Controllers\HumanResourcesHubController;
 use App\Http\Controllers\IncomeStatementController;
 use App\Http\Controllers\InventarioController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\JoyeriaCatalogController;
+use App\Http\Controllers\JoyeriaController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\LedgerController;
 use App\Http\Controllers\LoanController;
@@ -41,14 +43,17 @@ use App\Http\Controllers\PasswordChangeController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PlanillaController;
 use App\Http\Controllers\PriceListController;
+use App\Http\Controllers\PrintQueueController;
 use App\Http\Controllers\ProformaController;
 use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\PublicImageController;
 use App\Http\Controllers\RepairServiceController;
 use App\Http\Controllers\ReparacionController;
 use App\Http\Controllers\ReporteController;
+use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\SystemResetController;
 use App\Http\Controllers\TaxController;
 use App\Http\Controllers\TrialBalanceController;
@@ -78,6 +83,26 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/cambiar-usuario', [AuthController::class, 'switchUser'])->name('auth.switch-user');
     Route::get('/ayuda', HelpCenterController::class)->name('help.index');
 
+    Route::middleware('module:operaciones_clientes')->group(function () {
+        Route::get('/operaciones-clientes', [ReservationController::class, 'hub'])->name('operaciones-clientes.index');
+        Route::get('/apartados', [ReservationController::class, 'index'])->middleware('permission:apartados.view')->name('apartados.index');
+        Route::get('/apartados/nuevo', [ReservationController::class, 'create'])->middleware('permission:apartados.create')->name('apartados.create');
+        Route::post('/apartados', [ReservationController::class, 'store'])->middleware('permission:apartados.create')->name('apartados.store');
+        Route::get('/apartados/{reservation}', [ReservationController::class, 'show'])->middleware('permission:apartados.view')->name('apartados.show');
+        Route::post('/apartados/{reservation}/abonos', [ReservationController::class, 'pay'])->middleware('permission:apartados.create')->name('apartados.pay');
+        Route::patch('/apartados/{reservation}/cancelar', [ReservationController::class, 'cancel'])->middleware('permission:apartados.cancel')->name('apartados.cancel');
+        Route::get('/apartados/{reservation}/ticket', [ReservationController::class, 'ticket'])->middleware('permission:apartados.view')->name('apartados.ticket');
+        Route::get('/envios', [ShipmentController::class, 'index'])->middleware('permission:envios.view')->name('envios.index');
+        Route::get('/envios/nuevo', [ShipmentController::class, 'create'])->middleware('permission:envios.create')->name('envios.create');
+        Route::post('/envios', [ShipmentController::class, 'store'])->middleware('permission:envios.create')->name('envios.store');
+        Route::get('/envios/{shipment}', [ShipmentController::class, 'show'])->middleware('permission:envios.view')->name('envios.show');
+        Route::get('/envios/{shipment}/etiqueta', [ShipmentController::class, 'label'])->middleware('permission:envios.view')->name('envios.label');
+        Route::get('/envios/{shipment}/ticket', [ShipmentController::class, 'ticket'])->middleware('permission:envios.view')->name('envios.ticket');
+        Route::get('/envios/{shipment}/editar', [ShipmentController::class, 'edit'])->middleware('permission:envios.edit')->name('envios.edit');
+        Route::put('/envios/{shipment}', [ShipmentController::class, 'update'])->middleware('permission:envios.edit')->name('envios.update');
+        Route::patch('/envios/{shipment}/estado', [ShipmentController::class, 'updateStatus'])->middleware('permission:envios.edit')->name('envios.status');
+    });
+
     Route::middleware('module:ventas')->group(function () {
         Route::get('/facturacion/create', [FacturacionController::class, 'create'])
             ->middleware('permission:ventas.create')->name('facturacion.create');
@@ -85,6 +110,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/facturacion', [FacturacionController::class, 'index'])->name('facturacion.index');
             Route::get('/facturacion/pos', [FacturacionController::class, 'pos'])->name('facturacion.pos');
             Route::get('/facturacion/pos/products', [FacturacionController::class, 'posProducts'])->name('facturacion.pos-products');
+            Route::get('/facturacion/pos/trade-in/imei/{imei}', [FacturacionController::class, 'lookupTradeInImei'])->name('facturacion.pos-trade-in-imei');
             Route::get('/facturacion/pos/daily-report', [FacturacionController::class, 'posDailyReport'])->name('facturacion.pos-daily-report');
             Route::get('/facturacion/change/{saleId}', [FacturacionController::class, 'change'])->name('facturacion.change');
             Route::get('/facturacion/receipt/{saleId}', [FacturacionController::class, 'receipt'])->name('facturacion.receipt');
@@ -98,6 +124,8 @@ Route::middleware(['auth'])->group(function () {
                 ->name('facturacion.credit-override');
             Route::post('/facturacion/pos/products/{product}/image', [FacturacionController::class, 'updateProductImage'])
                 ->middleware('permission:inventario.edit')->name('facturacion.pos-product-image')->whereNumber('product');
+            Route::post('/facturacion/pos/exchange-rates', [FacturacionController::class, 'storePosExchangeRate'])
+                ->name('facturacion.pos-exchange-rates.store');
             Route::post('/facturacion/pos-store', [FacturacionController::class, 'posStore'])->name('facturacion.pos-store');
         });
         Route::middleware('permission:ventas.edit')->group(function () {
@@ -108,6 +136,13 @@ Route::middleware(['auth'])->group(function () {
             ->middleware('permission:ventas.delete')->name('facturacion.destroy');
     });
 
+    Route::middleware(['module:ventas', 'permission:ventas.view'])->prefix('impresion')->name('printing.')->group(function () {
+        Route::get('/estacion', [PrintQueueController::class, 'station'])->name('station');
+        Route::post('/siguiente', [PrintQueueController::class, 'next'])->name('next');
+        Route::post('/trabajos/{printJob}/completar', [PrintQueueController::class, 'complete'])->name('complete');
+        Route::post('/ventas/{sale}', [PrintQueueController::class, 'enqueueSale'])->middleware('permission:ventas.create')->name('sales.enqueue');
+    });
+
     // Rutas de Crédito y Abonos
     Route::middleware('module:creditos')->group(function () {
         Route::middleware('permission:creditos.view')->group(function () {
@@ -116,6 +151,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/creditos/statement/{clientId}', [CreditController::class, 'statement'])->name('creditos.statement');
             Route::get('/creditos/cliente/{clientId}', [CreditController::class, 'show'])->name('creditos.show');
             Route::get('/creditos/payment/{paymentId}/invoice', [CreditController::class, 'invoice'])->name('creditos.invoice');
+            Route::get('/creditos/reparacion/abono/{paymentId}/recibo', [CreditController::class, 'repairReceipt'])->whereNumber('paymentId')->name('creditos.repair-receipt');
             Route::get('/creditos/vencidos', [CreditController::class, 'overdue'])->name('creditos.overdue');
             Route::get('/creditos/reporte', [CreditController::class, 'report'])->name('creditos.report');
         });
@@ -131,6 +167,12 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('module:caja')->group(function () {
         Route::get('/arqueo', [ArqueoController::class, 'index'])
             ->middleware('permission:caja.view')->name('arqueo.index');
+        Route::get('/arqueo/historial', [ArqueoController::class, 'history'])
+            ->middleware('permission:caja.view')->name('arqueo.history');
+        Route::get('/arqueo/{arqueo}', [ArqueoController::class, 'show'])
+            ->middleware('permission:caja.view')->name('arqueo.show');
+        Route::get('/arqueo/{arqueo}/pdf', [ArqueoController::class, 'pdf'])
+            ->middleware('permission:caja.view')->name('arqueo.pdf');
         Route::post('/arqueo/open', [ArqueoController::class, 'open'])
             ->middleware('permission:caja.open')->name('arqueo.open');
         Route::post('/arqueo/run', [ArqueoController::class, 'run'])
@@ -184,6 +226,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/categorias', [InventarioController::class, 'storeCategory'])->middleware('permission:inventario.create')->name('categorias.store');
         Route::get('/inventario/export', [InventarioController::class, 'export'])->middleware('permission:inventario.export')->name('inventario.export');
         Route::post('/inventario/{id}/conversiones', [InventarioController::class, 'storeUnitConversion'])->middleware('permission:inventario.edit')->name('inventario.conversions.store')->whereNumber('id');
+        Route::patch('/inventario/{id}/conversiones/{conversion}', [InventarioController::class, 'updateUnitConversion'])->middleware('permission:inventario.edit')->name('inventario.conversions.update')->whereNumber('id');
         Route::post('/inventario/{id}/conversiones/predeterminada', [InventarioController::class, 'setDefaultSaleUnit'])->middleware('permission:inventario.edit')->name('inventario.conversions.default')->whereNumber('id');
         Route::delete('/inventario/{id}/conversiones/{conversion}', [InventarioController::class, 'destroyUnitConversion'])->middleware('permission:inventario.delete')->name('inventario.conversions.destroy')->whereNumber('id');
         Route::get('/inventario/{id}', [InventarioController::class, 'show'])->middleware('permission:inventario.view')->name('inventario.show')->whereNumber('id');
@@ -417,9 +460,21 @@ Route::middleware(['auth'])->group(function () {
         });
         Route::delete('/reparaciones/gastos-operativos/{operationalExpense}', [OperationalExpenseController::class, 'destroy'])
             ->middleware('permission:reparaciones.delete_expenses')->name('reparaciones.gastos.destroy');
+        // Alias generales: gastos pertenecen a la administración del ERP, aunque
+        // sus pantallas históricas sigan viviendo bajo el módulo de taller.
+        Route::get('/gastos', [OperationalExpenseController::class, 'index'])->middleware('permission:reparaciones.view_expenses')->name('gastos.index');
+        Route::get('/gastos/nuevo', [OperationalExpenseController::class, 'create'])->middleware('permission:reparaciones.create_expenses')->name('gastos.create');
+        Route::post('/gastos', [OperationalExpenseController::class, 'store'])->middleware('permission:reparaciones.create_expenses')->name('gastos.store');
+        Route::get('/gastos/{operationalExpense}', [OperationalExpenseController::class, 'show'])->middleware('permission:reparaciones.view_expenses')->name('gastos.show');
+        Route::get('/gastos/{operationalExpense}/edit', [OperationalExpenseController::class, 'edit'])->middleware('permission:reparaciones.edit_expenses')->name('gastos.edit');
+        Route::match(['put', 'patch'], '/gastos/{operationalExpense}', [OperationalExpenseController::class, 'update'])->middleware('permission:reparaciones.edit_expenses')->name('gastos.update');
+        Route::delete('/gastos/{operationalExpense}', [OperationalExpenseController::class, 'destroy'])->middleware('permission:reparaciones.delete_expenses')->name('gastos.destroy');
         Route::middleware('permission:reparaciones.view')->group(function () {
             Route::get('/reparaciones', [ReparacionController::class, 'index'])->name('reparaciones.index');
+            Route::get('/reparaciones/informe-semanal', [ReparacionController::class, 'weeklyReport'])->name('reparaciones.informe-semanal');
             Route::get('/reparaciones/{id}', [ReparacionController::class, 'show'])->whereNumber('id')->name('reparaciones.show');
+            Route::get('/reparaciones/{id}/foto', [ReparacionController::class, 'photo'])->whereNumber('id')->name('reparaciones.photo');
+            Route::get('/reparaciones/{id}/fotos/{photo}', [ReparacionController::class, 'orderPhoto'])->whereNumber(['id', 'photo'])->name('reparaciones.photos.show');
             Route::get('/reparaciones/{id}/ticket', [ReparacionController::class, 'ticket'])->whereNumber('id')->name('reparaciones.ticket');
             Route::get('/reparaciones/{id}/pdf', [ReparacionController::class, 'pdf'])->whereNumber('id')->name('reparaciones.pdf');
         });
@@ -431,8 +486,41 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/reparaciones/{id}/edit', [ReparacionController::class, 'edit'])->whereNumber('id')->name('reparaciones.edit');
             Route::put('/reparaciones/{id}', [ReparacionController::class, 'update'])->whereNumber('id')->name('reparaciones.update');
             Route::patch('/reparaciones/{id}/status', [ReparacionController::class, 'updateStatus'])->whereNumber('id')->name('reparaciones.status');
+            Route::post('/reparaciones/{id}/cobrar', [ReparacionController::class, 'collect'])->whereNumber('id')->name('reparaciones.collect');
+            Route::post('/reparaciones/{id}/abonos', [ReparacionController::class, 'storeCreditPayment'])->whereNumber('id')->middleware('permission:creditos.create')->name('reparaciones.credit-payments.store');
+            Route::post('/reparaciones/{id}/facturar', [ReparacionController::class, 'bill'])->whereNumber('id')->name('reparaciones.bill');
         });
+        Route::get('/reparaciones/{id}/factura/ticket', [ReparacionController::class, 'invoiceReceipt'])->whereNumber('id')->middleware('permission:reparaciones.view')->name('reparaciones.invoice-receipt');
+        Route::get('/reparaciones/{id}/factura/pdf', [ReparacionController::class, 'invoicePdf'])->whereNumber('id')->middleware('permission:reparaciones.view')->name('reparaciones.invoice-pdf');
         Route::delete('/reparaciones/{id}', [ReparacionController::class, 'destroy'])->whereNumber('id')->middleware('permission:reparaciones.delete')->name('reparaciones.destroy');
+    });
+
+    // Joyería: taller independiente que comparte inventario, clientes, caja y contabilidad.
+    Route::middleware('module:joyeria')->prefix('joyeria')->name('joyeria.')->group(function () {
+        Route::middleware('permission:joyeria.view')->group(function () {
+            Route::get('/catalogos/tipos', [JoyeriaCatalogController::class, 'types'])->name('catalogs.types.index');
+            Route::get('/', [JoyeriaController::class, 'index'])->name('index');
+            Route::get('/{id}', [JoyeriaController::class, 'show'])->whereNumber('id')->name('show');
+            Route::get('/{id}/ticket', [JoyeriaController::class, 'ticket'])->whereNumber('id')->name('ticket');
+            Route::get('/{id}/pdf', [JoyeriaController::class, 'pdf'])->whereNumber('id')->name('pdf');
+            Route::get('/{id}/factura/ticket', [JoyeriaController::class, 'invoiceReceipt'])->whereNumber('id')->name('invoice-receipt');
+            Route::get('/{id}/factura/pdf', [JoyeriaController::class, 'invoicePdf'])->whereNumber('id')->name('invoice-pdf');
+            Route::get('/fotos/{photo}', [JoyeriaController::class, 'showPhoto'])->name('photos.show');
+        });
+        Route::middleware('permission:joyeria.create')->group(function () {
+            Route::post('/catalogos/tipos', [JoyeriaCatalogController::class, 'storeType'])->name('catalogs.types.store');
+            Route::post('/catalogos/servicios', [JoyeriaCatalogController::class, 'storeService'])->name('catalogs.services.store');
+            Route::get('/nueva', [JoyeriaController::class, 'create'])->name('create');
+            Route::post('/', [JoyeriaController::class, 'store'])->name('store');
+        });
+        Route::middleware('permission:joyeria.edit')->group(function () {
+            Route::get('/{id}/edit', [JoyeriaController::class, 'edit'])->whereNumber('id')->name('edit');
+            Route::put('/{id}', [JoyeriaController::class, 'update'])->whereNumber('id')->name('update');
+            Route::patch('/{id}/status', [JoyeriaController::class, 'updateStatus'])->whereNumber('id')->name('status');
+            Route::post('/{id}/facturar', [JoyeriaController::class, 'bill'])->whereNumber('id')->name('bill');
+            Route::delete('/fotos/{photo}', [JoyeriaController::class, 'destroyPhoto'])->name('photos.destroy');
+        });
+        Route::delete('/{id}', [JoyeriaController::class, 'destroy'])->whereNumber('id')->middleware('permission:joyeria.delete')->name('destroy');
     });
 
     // Reportes solo para admin
@@ -517,7 +605,7 @@ Route::middleware(['auth'])->group(function () {
         Route::middleware('permission:configuracion.reset_system')->group(function () {
             Route::get('/system-reset', [SystemResetController::class, 'create'])->name('system-reset.create');
             Route::post('/system-reset', [SystemResetController::class, 'store'])
-                ->middleware('throttle:2,10')
+                ->middleware('throttle:system-reset')
                 ->name('system-reset.store');
         });
     });

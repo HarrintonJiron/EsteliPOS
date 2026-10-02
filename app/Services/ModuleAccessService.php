@@ -16,6 +16,10 @@ class ModuleAccessService
             return false;
         }
 
+        if (in_array($slug, config('northlink.disabled_modules', []), true)) {
+            return false;
+        }
+
         $query = Module::query()->where('slug', $slug);
         if (Schema::hasTable('module_role')) {
             $query->with('roles:id');
@@ -48,7 +52,8 @@ class ModuleAccessService
             return collect();
         }
 
-        $modules = Module::getActiveModules();
+        $modules = Module::getActiveModules()
+            ->reject(fn (Module $module) => in_array($module->slug, config('northlink.disabled_modules', []), true));
         if (! Schema::hasTable('module_role')) {
             return $modules->pluck('slug');
         }

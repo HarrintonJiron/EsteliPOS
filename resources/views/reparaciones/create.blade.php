@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('hide_back', true)
 
-@section('title', 'Nueva Orden de Reparación')
+@section('title', 'Nueva Orden de ' . $workshopName)
 
 @section('content')
 <style>
@@ -118,12 +118,12 @@
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
             </div>
             <div class="min-w-0">
-                <h1 class="text-lg sm:text-xl font-bold text-slate-900 truncate">Nueva Orden de Reparación</h1>
-                <p class="text-xs text-slate-500">Ingreso rápido de equipo al taller</p>
+                <h1 class="text-lg sm:text-xl font-bold text-slate-900 truncate">Nueva Orden de {{ $workshopName }}</h1>
+                <p class="text-xs text-slate-500">Ingreso rápido de {{ $itemName }} al taller</p>
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <a href="{{ route('reparaciones.index') }}" class="btn-outline text-xs py-1.5 px-3">← Volver</a>
+            <a href="{{ route($routePrefix.'.index') }}" class="btn-outline text-xs py-1.5 px-3">← Volver</a>
             <button type="submit" form="repairForm" class="btn-primary text-xs py-1.5 px-4 lg:hidden">Guardar</button>
         </div>
     </div>
@@ -134,7 +134,7 @@
     </div>
     @endif
 
-    <form action="{{ route('reparaciones.store') }}" method="POST" id="repairForm">
+    <form action="{{ route($routePrefix.'.store') }}" method="POST" id="repairForm" enctype="multipart/form-data">
         @csrf
 
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_18.5rem] xl:grid-cols-[minmax(0,1fr)_20rem] gap-3">
@@ -146,7 +146,7 @@
                 <div class="repair-section">
                     <div class="repair-section-head">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                        Cliente y Equipo
+                        Cliente y {{ $isJewelry ? 'Pieza' : 'Equipo' }}
                     </div>
                     <div class="repair-section-body space-y-3">
                         <div>
@@ -183,11 +183,11 @@
                         <div class="border-t border-slate-100 pt-3">
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 <div>
-                                    <label class="repair-label">Marca *</label>
+                                    <label class="repair-label">{{ $isJewelry ? 'Tipo de joya' : 'Marca' }} *</label>
                                     <div class="flex gap-1">
                                         <input type="text" name="device_brand" value="{{ old('device_brand') }}" required
-                                            list="brands_list" class="input-field flex-1 min-w-0" placeholder="Samsung..." autocomplete="off">
-                                        <button type="button" onclick="showAddBrandModal()" class="shrink-0 h-[34px] w-[34px] rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-bold" title="Nueva marca">+</button>
+                                            list="brands_list" class="input-field flex-1 min-w-0" placeholder="{{ $isJewelry ? 'Anillo, cadena, pulsera...' : 'Samsung...' }}" autocomplete="off">
+                                        <button type="button" onclick="showAddBrandModal()" class="shrink-0 h-[34px] w-[34px] rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-bold" title="{{ $isJewelry ? 'Nuevo tipo de joya' : 'Nueva marca' }}">+</button>
                                     </div>
                                     <datalist id="brands_list">
                                         @foreach($brands as $brand)
@@ -196,18 +196,28 @@
                                     </datalist>
                                 </div>
                                 <div>
-                                    <label class="repair-label">Modelo *</label>
-                                    <input type="text" name="device_model" value="{{ old('device_model') }}" required class="input-field w-full" placeholder="Galaxy A54">
+                                    <label class="repair-label">{{ $isJewelry ? 'Material / ley' : 'Modelo' }} *</label>
+                                    <input type="text" name="device_model" value="{{ old('device_model') }}" required list="{{ $isJewelry ? 'jewelry_materials' : '' }}" class="input-field w-full" placeholder="{{ $isJewelry ? 'Oro amarillo 14K, Plata 925...' : 'Galaxy A54' }}">
+                                    @if($isJewelry)
+                                        <datalist id="jewelry_materials">
+                                            @foreach(['Oro amarillo 10K', 'Oro amarillo 14K', 'Oro amarillo 18K', 'Oro blanco', 'Oro rosa', 'Plata 925', 'Acero', 'Platino', 'Bisutería', 'Por confirmar'] as $material)<option value="{{ $material }}">@endforeach
+                                        </datalist>
+                                    @endif
                                 </div>
                                 <div>
-                                    <label class="repair-label">Color</label>
-                                    <input type="text" name="device_color" value="{{ old('device_color') }}" class="input-field w-full" placeholder="Negro">
+                                    <label class="repair-label">{{ $isJewelry ? 'Color / acabado' : 'Color' }}</label>
+                                    <input type="text" name="device_color" value="{{ old('device_color') }}" list="{{ $isJewelry ? 'jewelry_finishes' : '' }}" class="input-field w-full" placeholder="{{ $isJewelry ? 'Pulido brillante, rodiado...' : 'Negro' }}">
+                                    @if($isJewelry)
+                                        <datalist id="jewelry_finishes">
+                                            @foreach(['Pulido brillante', 'Mate', 'Satinado', 'Rodiado', 'Baño oro amarillo', 'Baño oro rosa', 'Envejecido', 'Bicolor'] as $finish)<option value="{{ $finish }}">@endforeach
+                                        </datalist>
+                                    @endif
                                 </div>
                                 <div>
-                                    <label class="repair-label">IMEI / Serie</label>
-                                    <input type="text" name="device_imei" value="{{ old('device_imei') }}" class="input-field w-full" placeholder="15 dígitos">
+                                    <label class="repair-label">{{ $isJewelry ? 'Peso / identificación' : 'IMEI / Serie' }}</label>
+                                    <input type="text" name="device_imei" value="{{ old('device_imei') }}" class="input-field w-full" placeholder="{{ $isJewelry ? 'Ej. 8.5 g / sello 925' : '15 dígitos' }}">
                                 </div>
-                                <div>
+                                <div @class(['hidden' => $isJewelry])>
                                     <label class="repair-label">Bloqueo</label>
                                     <select id="lockTypeSelect" name="lock_type" class="select-field w-full" onchange="toggleLockFields()">
                                         <option value="password" {{ old('lock_type') === 'password' ? 'selected' : '' }}>PIN / Clave</option>
@@ -216,8 +226,8 @@
                                     </select>
                                 </div>
                                 <div class="col-span-2 sm:col-span-3">
-                                    <label class="repair-label">Accesorios</label>
-                                    <input type="text" name="accessories" value="{{ old('accessories') }}" class="input-field w-full" placeholder="Cargador, funda, caja...">
+                                    <label class="repair-label">{{ $isJewelry ? 'Piedras, grabados y piezas recibidas' : 'Accesorios' }}</label>
+                                    <input type="text" name="accessories" value="{{ old('accessories') }}" class="input-field w-full" placeholder="{{ $isJewelry ? 'Piedras, dijes, broches, grabado existente...' : 'Cargador, funda, caja...' }}">
                                 </div>
                             </div>
 
@@ -240,7 +250,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <input type="hidden" name="device_password" id="devicePasswordHidden" value="{{ old('device_password') }}">
+                            <input type="hidden" name="device_password" id="devicePasswordHidden" value="{{ $isJewelry ? '' : old('device_password') }}">
                         </div>
                     </div>
                 </div>
@@ -250,46 +260,58 @@
                     <div class="repair-section-head justify-between">
                         <span class="flex items-center gap-2">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                            Diagnóstico
+                            {{ $isJewelry ? 'Evaluación del taller' : 'Diagnóstico' }}
                         </span>
                         <span class="flex gap-1">
-                            <button type="button" class="repair-toggle-btn" onclick="toggleOptionalField('diagnosis')">+ Técnico</button>
+                            <button type="button" class="repair-toggle-btn" onclick="toggleOptionalField('diagnosis')">+ {{ $isJewelry ? 'Evaluación' : 'Técnico' }}</button>
                             <button type="button" class="repair-toggle-btn" onclick="toggleOptionalField('repair_notes')">+ Notas</button>
                         </span>
                     </div>
                     <div class="repair-section-body space-y-2">
                         <div>
-                            <label class="repair-label">Falla reportada *</label>
+                            <label class="repair-label">{{ $isJewelry ? 'Trabajo solicitado y estado recibido' : 'Falla reportada' }} *</label>
                             <textarea name="problem_description" rows="2" required class="input-field w-full resize-none"
-                                placeholder="Ej: Pantalla rota, no enciende, no carga...">{{ old('problem_description') }}</textarea>
+                                placeholder="{{ $isJewelry ? 'Ej: ajustar talla, soldar unión; se recibe con piedra floja...' : 'Ej: Pantalla rota, no enciende, no carga...' }}">{{ old('problem_description') }}</textarea>
                         </div>
                         <div class="hidden" id="diagnosisWrapper">
                             <input type="checkbox" id="diagnosisToggle" class="sr-only" {{ old('diagnosis') ? 'checked' : '' }}>
-                            <label class="repair-label">Diagnóstico técnico</label>
+                            <label class="repair-label">{{ $isJewelry ? 'Evaluación del joyero' : 'Diagnóstico técnico' }}</label>
                             <textarea id="diagnosisField" name="diagnosis" rows="2" class="input-field w-full resize-none {{ old('diagnosis') ? '' : 'hidden' }}"
-                                placeholder="Hallazgos al revisar el equipo..." {{ old('diagnosis') ? '' : 'disabled' }}>{{ old('diagnosis') }}</textarea>
+                                placeholder="{{ $isJewelry ? 'Material confirmado, estado de piedras, medidas y trabajo recomendado...' : 'Hallazgos al revisar el equipo...' }}" {{ old('diagnosis') ? '' : 'disabled' }}>{{ old('diagnosis') }}</textarea>
                         </div>
                         <div class="hidden" id="repairNotesWrapper">
                             <input type="checkbox" id="repairNotesToggle" class="sr-only" {{ old('repair_notes') ? 'checked' : '' }}>
                             <label class="repair-label">Notas internas</label>
                             <textarea id="repair_notesField" name="repair_notes" rows="2" class="input-field w-full resize-none {{ old('repair_notes') ? '' : 'hidden' }}"
-                                placeholder="Observaciones del técnico..." {{ old('repair_notes') ? '' : 'disabled' }}>{{ old('repair_notes') }}</textarea>
+                                placeholder="{{ $isJewelry ? 'Observaciones internas del taller...' : 'Observaciones del técnico...' }}" {{ old('repair_notes') ? '' : 'disabled' }}>{{ old('repair_notes') }}</textarea>
                         </div>
                     </div>
                 </div>
 
                 {{-- Repuestos --}}
                 <div class="repair-section">
+                    <div class="repair-section-head">Foto de {{ $isJewelry ? 'la joya' : 'el equipo o artículo' }}</div>
+                    <div class="repair-section-body">
+                        <label class="repair-label" for="photos">Estado al recibir{{ $isJewelry ? 'la' : ' el equipo' }}</label>
+                        <input id="photos" name="photos[]" type="file" accept="image/jpeg,image/png,image/webp" multiple class="input-field w-full" data-photo-input data-max-photos="5">
+                        <button type="button" class="btn-outline mt-2 w-full sm:w-auto" data-add-photo>+ Agregar otra foto</button>
+                        <p class="mt-1 text-xs text-slate-500">Hasta 5 fotografías. JPG, PNG o WebP, máximo 8 MB cada una. Se optimizan automáticamente.</p>
+                        <div data-photo-preview class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"></div>
+                    </div>
+                </div>
+
+                {{-- Materiales y servicios --}}
+                <div class="repair-section">
                     <div class="repair-section-head justify-between">
                         <span class="flex items-center gap-2">
                             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-                            Repuestos / Servicios
+                            {{ $isJewelry ? 'Materiales / Servicios' : 'Repuestos / Servicios' }}
                         </span>
                         <button type="button" onclick="addItem()" class="repair-toggle-btn bg-indigo-600 text-white hover:bg-indigo-700">+ Agregar</button>
                     </div>
                     <div class="repair-section-body">
                         <div id="itemsContainer" class="space-y-2"></div>
-                        <p id="noItemsMsg" class="text-xs text-slate-400 text-center py-3">Sin repuestos. Usa «+ Agregar» si aplica.</p>
+                        <p id="noItemsMsg" class="text-xs text-slate-400 text-center py-3">Sin {{ $isJewelry ? 'materiales o servicios' : 'repuestos' }}. Usa «+ Agregar» si aplica.</p>
                     </div>
                 </div>
             </div>
@@ -305,7 +327,7 @@
                         <div>
                             <label class="repair-label">Estado</label>
                             <select name="status" class="select-field w-full">
-                                @foreach(['received' => 'Recibido', 'diagnosing' => 'En Diagnóstico', 'waiting_parts' => 'Esperando Repuestos', 'in_repair' => 'En Reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
+                                @foreach($isJewelry ? ['received' => 'Recibida', 'diagnosing' => 'En evaluación', 'waiting_parts' => 'Esperando materiales', 'in_repair' => 'En taller', 'ready' => 'Lista para entregar', 'delivered' => 'Entregada', 'cancelled' => 'Cancelada'] : ['received' => 'Recibido', 'diagnosing' => 'En Diagnóstico', 'waiting_parts' => 'Esperando Repuestos', 'in_repair' => 'En Reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
                                     <option value="{{ $val }}" {{ old('status', 'received') === $val ? 'selected' : '' }}>{{ $label }}</option>
                                 @endforeach
                             </select>
@@ -324,7 +346,7 @@
                             </select>
                         </div>
                         <div>
-                            <label class="repair-label">Técnico</label>
+                            <label class="repair-label">{{ $isJewelry ? 'Joyero asignado' : 'Técnico' }}</label>
                             <select name="technician_id" class="select-field w-full">
                                 <option value="">Sin asignar</option>
                                 @foreach($technicians as $t)
@@ -369,17 +391,24 @@
                                 <input type="number" step="0.01" min="0" name="advance_payment" value="{{ old('advance_payment', 0) }}" class="input-field w-full" id="advanceInput" oninput="updateTotal()">
                             </div>
                             <div>
-                                <label class="repair-label">Desc. %</label>
-                                <input type="number" step="0.01" min="0" max="100" name="discount_percentage" value="{{ old('discount_percentage', 0) }}" class="input-field w-full" id="discountPercentageInput" oninput="updateTotal()">
+                                <label class="repair-label">Tipo de descuento</label>
+                                <select name="discount_type" id="discountTypeSelect" class="select-field w-full" onchange="syncDiscountInputs(); updateTotal()">
+                                    <option value="percentage" @selected(old('discount_type', (float) old('discount_amount', 0) > 0 ? 'fixed' : 'percentage') === 'percentage')>Porcentaje (%)</option>
+                                    <option value="fixed" @selected(old('discount_type', (float) old('discount_amount', 0) > 0 ? 'fixed' : 'percentage') === 'fixed')>Monto fijo (C$)</option>
+                                </select>
                             </div>
                             <div>
-                                <label class="repair-label">Desc. C$</label>
-                                <input type="number" step="0.01" min="0" name="discount_amount" value="{{ old('discount_amount', 0) }}" class="input-field w-full" id="discountFixedInput" oninput="updateTotal()">
+                                <label class="repair-label" id="discountValueLabel">Valor del descuento</label>
+                                <input type="number" step="0.01" min="0" id="discountValueInput"
+                                    value="{{ old('discount_type', (float) old('discount_amount', 0) > 0 ? 'fixed' : 'percentage') === 'fixed' ? old('discount_amount', 0) : old('discount_percentage', 0) }}"
+                                    class="input-field w-full" oninput="syncDiscountInputs(); updateTotal()">
+                                <input type="hidden" name="discount_percentage" value="{{ old('discount_percentage', 0) }}" id="discountPercentageInput">
+                                <input type="hidden" name="discount_amount" value="{{ old('discount_amount', 0) }}" id="discountFixedInput">
                             </div>
                         </div>
 
                         <div class="repair-total-box text-xs space-y-1">
-                            <div class="flex justify-between opacity-90"><span>Repuestos</span><span id="partsCostDisplay">C$ 0.00</span></div>
+                            <div class="flex justify-between opacity-90"><span>{{ $isJewelry ? 'Materiales y servicios' : 'Repuestos' }}</span><span id="partsCostDisplay">C$ 0.00</span></div>
                             <div class="flex justify-between opacity-90"><span>M. de obra</span><span id="laborDisplay">C$ 0.00</span></div>
                             <div class="flex justify-between text-red-200 hidden" id="discountRow"><span>Descuento</span><span id="discountDisplay">C$ 0.00</span></div>
                             <div class="flex justify-between font-bold text-sm border-t border-white/20 pt-1 mt-1"><span>Total</span><span id="totalDisplay">C$ 0.00</span></div>
@@ -388,12 +417,14 @@
 
                         <div>
                             <label class="repair-label">Método de pago</label>
-                            <select name="payment_type" class="select-field w-full">
+                            <select name="payment_type" id="repairPaymentType" class="select-field w-full" onchange="toggleRepairCredit()">
                                 <option value="cash">Efectivo</option>
                                 <option value="card">Tarjeta</option>
                                 <option value="transfer">Transferencia</option>
+                                <option value="credit" @selected(old('payment_type') === 'credit')>Crédito</option>
                             </select>
                         </div>
+                        <div id="repairCreditTerms" class="hidden rounded-xl border border-amber-200 bg-amber-50 p-3"><label class="repair-label text-amber-900">Fecha límite de pago</label><input id="repairDueDate" type="date" name="due_date" value="{{ old('due_date') }}" min="{{ today()->toDateString() }}" class="input-field w-full"><div class="mt-2 flex gap-2">@foreach([15,30,45] as $days)<button type="button" onclick="setRepairCreditDays({{ $days }})" class="rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs font-semibold text-amber-800">{{ $days }} días</button>@endforeach</div><p class="mt-2 text-xs text-amber-800">Requiere seleccionar un cliente con crédito habilitado. El anticipo reduce el saldo y luego podrás registrar abonos.</p></div>
                     </div>
                 </div>
 
@@ -415,7 +446,7 @@
                     <div class="repair-section-body space-y-1">
                         <textarea id="warrantyTextField" name="warranty_text" rows="2"
                             class="input-field w-full resize-none text-xs"
-                            placeholder="Texto de garantía en ticket...">{{ old('warranty_text', $companyProfile['repair_warranty_text'] ?? '') }}</textarea>
+                            placeholder="Texto de garantía en ticket...">{{ old('warranty_text', $isJewelry ? 'Garantía aplicable únicamente al trabajo realizado por el taller. No cubre golpes, pérdida de piedras, desgaste, alteraciones ni trabajos posteriores de terceros.' : ($companyProfile['repair_warranty_text'] ?? '')) }}</textarea>
                         <button type="button" onclick="loadDefaultWarranty()" class="text-[10px] text-indigo-600 hover:text-indigo-800">Usar texto predeterminado</button>
                     </div>
                 </div>
@@ -431,13 +462,13 @@
     <div id="addBrandModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full">
             <div class="px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-                <h2 class="text-sm font-bold text-slate-900">Nueva Marca</h2>
+                <h2 class="text-sm font-bold text-slate-900">{{ $isJewelry ? 'Nuevo tipo de joya' : 'Nueva marca' }}</h2>
                 <button type="button" onclick="closeAddBrandModal()" class="text-slate-400 hover:text-slate-600">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
             <div class="p-4">
-                <input type="text" id="newBrandInput" class="input-field w-full" placeholder="Vivo, Alcatel, HTC...">
+                <input type="text" id="newBrandInput" class="input-field w-full" placeholder="{{ $isJewelry ? 'Ej. Prendedor' : 'Vivo, Alcatel, HTC...' }}">
                 <input type="hidden" id="customBrands" value="{{ old('custom_brands', '') }}">
             </div>
             <div class="px-4 py-3 border-t border-slate-200 flex gap-2">
@@ -479,7 +510,8 @@
             'stock' => (float) $p->stock,
         ];
     })->values()->toJson();
-    $defaultRepairWarrantyJson = json_encode($companyProfile['repair_warranty_text'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+    $defaultRepairWarrantyJson = json_encode($isJewelry ? 'Garantía aplicable únicamente al trabajo realizado por el taller. No cubre golpes, pérdida de piedras, desgaste, alteraciones ni trabajos posteriores de terceros.' : ($companyProfile['repair_warranty_text'] ?? ''), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+    $fallbackBrandsJson = json_encode($isJewelry ? ['Anillo', 'Argolla', 'Aretes', 'Brazalete', 'Cadena', 'Dije', 'Pulsera', 'Reloj'] : ['Samsung', 'Apple', 'Xiaomi', 'Huawei', 'Motorola', 'LG', 'Sony', 'Nokia', 'OPPO', 'Realme', 'OnePlus', 'Tecno', 'ZTE']);
 @endphp
 <script>
 const productsData = {!! $productsJson !!};
@@ -489,6 +521,51 @@ let itemIndex = 0;
 let partsCost = 0;
 let patternPoints = [];
 let isDrawingPattern = false;
+
+document.querySelectorAll('[data-photo-input]').forEach((input) => {
+    let selectedFiles = [];
+    const addButton = document.querySelector('[data-add-photo]');
+    const maxPhotos = Number(input.dataset.maxPhotos || 5);
+
+    const renderPhotos = () => {
+        const transfer = new DataTransfer();
+        selectedFiles.forEach(file => transfer.items.add(file));
+        input.files = transfer.files;
+
+        const preview = document.querySelector('[data-photo-preview]');
+        preview.innerHTML = '';
+        selectedFiles.forEach((file, index) => {
+            const card = document.createElement('div');
+            card.className = 'relative aspect-square overflow-hidden rounded-lg ring-1 ring-slate-200';
+            const image = document.createElement('img');
+            image.src = URL.createObjectURL(file);
+            image.alt = 'Vista previa del equipo o artículo';
+            image.className = 'h-full w-full object-cover';
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.textContent = 'Quitar';
+            remove.className = 'absolute inset-x-0 bottom-0 bg-white/95 px-2 py-1 text-xs font-semibold text-red-700';
+            remove.addEventListener('click', () => {
+                selectedFiles.splice(index, 1);
+                renderPhotos();
+            });
+            card.append(image, remove);
+            preview.appendChild(card);
+        });
+
+        if (addButton) addButton.disabled = selectedFiles.length >= maxPhotos;
+    };
+
+    input.addEventListener('change', () => {
+        Array.from(input.files).forEach(file => {
+            const duplicate = selectedFiles.some(selected => selected.name === file.name && selected.size === file.size);
+            if (!duplicate && selectedFiles.length < maxPhotos) selectedFiles.push(file);
+        });
+        renderPhotos();
+    });
+
+    addButton?.addEventListener('click', () => input.click());
+});
 
 function toggleLockFields() {
     const type = document.getElementById('lockTypeSelect').value;
@@ -876,7 +953,7 @@ async function addNewService(buttonEl = null) {
     }
 
     try {
-        const response = await fetch('{{ route('repair-services.store') }}', {
+        const response = await fetch('{{ route($catalogServiceStoreRoute) }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -956,6 +1033,20 @@ function updateTotal() {
     }
 }
 
+function syncDiscountInputs() {
+    const type = document.getElementById('discountTypeSelect')?.value || 'percentage';
+    const valueInput = document.getElementById('discountValueInput');
+    const value = Math.max(0, parseFloat(valueInput?.value || 0));
+    const percentageInput = document.getElementById('discountPercentageInput');
+    const fixedInput = document.getElementById('discountFixedInput');
+    const label = document.getElementById('discountValueLabel');
+
+    percentageInput.value = type === 'percentage' ? Math.min(value, 100) : 0;
+    fixedInput.value = type === 'fixed' ? value : 0;
+    if (valueInput) valueInput.max = type === 'percentage' ? '100' : '';
+    if (label) label.textContent = type === 'percentage' ? 'Descuento (%)' : 'Descuento fijo (C$)';
+}
+
 function showAddBrandModal() {
     document.getElementById('addBrandModal').classList.remove('hidden');
     document.getElementById('newBrandInput').value = '';
@@ -987,7 +1078,7 @@ async function addNewBrand(buttonEl = null) {
             button.textContent = 'Agregando...';
         }
 
-        const response = await fetch('{{ route('device-brands.store') }}', {
+        const response = await fetch('{{ route($catalogTypeStoreRoute) }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1021,7 +1112,7 @@ async function addNewBrand(buttonEl = null) {
 
         const successMsg = document.createElement('div');
         successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 text-sm';
-        successMsg.textContent = 'Marca agregada';
+        successMsg.textContent = @json($isJewelry ? 'Tipo de joya agregado' : 'Marca agregada');
         document.body.appendChild(successMsg);
         setTimeout(() => successMsg.remove(), 2500);
     } catch (error) {
@@ -1091,8 +1182,9 @@ function loadDefaultWarranty() {
 }
 
 async function loadBrands() {
-    const cachedBrands = localStorage.getItem('device_brands');
-    const cacheTime = localStorage.getItem('device_brands_timestamp');
+    const catalogCacheKey = @json($isJewelry ? 'jewelry_types' : 'device_brands');
+    const cachedBrands = localStorage.getItem(catalogCacheKey);
+    const cacheTime = localStorage.getItem(`${catalogCacheKey}_timestamp`);
     const cacheDuration = 30 * 60 * 1000;
 
     if (cachedBrands && cacheTime && (Date.now() - parseInt(cacheTime)) < cacheDuration) {
@@ -1110,7 +1202,7 @@ async function loadBrands() {
     }
 
     try {
-        const response = await fetch('{{ route('device-brands.index') }}');
+        const response = await fetch('{{ route($catalogTypeIndexRoute) }}');
         if (response.ok) {
             const brands = await response.json();
             const brandsList = document.getElementById('brands_list');
@@ -1121,14 +1213,14 @@ async function loadBrands() {
                     option.value = brand.name;
                     brandsList.appendChild(option);
                 });
-                localStorage.setItem('device_brands', JSON.stringify(brands));
-                localStorage.setItem('device_brands_timestamp', Date.now().toString());
+                localStorage.setItem(catalogCacheKey, JSON.stringify(brands));
+                localStorage.setItem(`${catalogCacheKey}_timestamp`, Date.now().toString());
             }
         }
     } catch (error) {
         const brandsList = document.getElementById('brands_list');
         if (brandsList && brandsList.options.length === 0) {
-            ['Samsung', 'Apple', 'Xiaomi', 'Huawei', 'Motorola', 'LG', 'Sony', 'Nokia', 'OPPO', 'Realme', 'OnePlus', 'Tecno', 'ZTE'].forEach(brand => {
+            {!! $fallbackBrandsJson !!}.forEach(brand => {
                 const option = document.createElement('option');
                 option.value = brand;
                 brandsList.appendChild(option);
@@ -1178,7 +1270,23 @@ window.addEventListener('DOMContentLoaded', () => {
     toggleWarrantyText();
     loadBrands();
     initRepairItems();
+    syncDiscountInputs();
     updateTotal();
+    toggleRepairCredit();
 });
+
+function toggleRepairCredit() {
+    const credit = document.getElementById('repairPaymentType')?.value === 'credit';
+    const terms = document.getElementById('repairCreditTerms');
+    const dueDate = document.getElementById('repairDueDate');
+    terms?.classList.toggle('hidden', !credit);
+    if (dueDate) dueDate.required = credit;
+}
+
+function setRepairCreditDays(days) {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    document.getElementById('repairDueDate').value = date.toISOString().slice(0, 10);
+}
 </script>
 @endsection

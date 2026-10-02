@@ -10,9 +10,9 @@
             <p class="page-subtitle">Egresos de caja y banco vinculados al taller de reparaciones</p>
         </div>
         <div class="flex gap-2">
-            <a href="{{ route('reparaciones.index') }}" class="btn-outline">← Reparaciones</a>
+            <a href="{{ route('dashboard.general') }}" class="btn-outline">← Inicio</a>
             @if(auth()->user()?->isAdmin() || auth()->user()?->hasPermission('reparaciones.create_expenses'))
-                <a href="{{ route('reparaciones.gastos.create') }}" class="btn-primary">+ Nuevo Gasto</a>
+                <a href="{{ route('gastos.create') }}" class="btn-primary">+ Nuevo Gasto</a>
             @endif
         </div>
     </div>
@@ -70,7 +70,7 @@
             </div>
             <div class="flex gap-2">
                 <button type="submit" class="btn-secondary">Filtrar</button>
-                <a href="{{ route('reparaciones.gastos.index') }}" class="btn-outline">Limpiar</a>
+                <a href="{{ route('gastos.index') }}" class="btn-outline">Limpiar</a>
             </div>
         </form>
     </div>
@@ -113,12 +113,12 @@
                         <td class="text-right font-semibold">C$ {{ number_format($expense->amount, 2) }}</td>
                         <td>
                             <div class="flex items-center justify-center gap-1.5">
-                                <a href="{{ route('reparaciones.gastos.show', $expense) }}" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Ver">Ver</a>
+                                <a href="{{ route('gastos.show', $expense) }}" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Ver">Ver</a>
                                 @if($expense->status !== \App\Models\OperationalExpense::STATUS_CANCELLED && (auth()->user()?->isAdmin() || auth()->user()?->hasPermission('reparaciones.edit_expenses')))
-                                    <a href="{{ route('reparaciones.gastos.edit', $expense) }}" class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title="Editar">Editar</a>
+                                    <a href="{{ route('gastos.edit', $expense) }}" class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title="Editar">Editar</a>
                                 @endif
                                 @if($expense->status !== \App\Models\OperationalExpense::STATUS_CANCELLED && (auth()->user()?->isAdmin() || auth()->user()?->hasPermission('reparaciones.delete_expenses')))
-                                    <form method="POST" action="{{ route('reparaciones.gastos.destroy', $expense) }}" onsubmit="return confirm('¿Anular este gasto operativo?')">
+                                    <form method="POST" action="{{ route('gastos.destroy', $expense) }}" onsubmit="return confirm('¿Anular este gasto operativo?')">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Anular">Anular</button>

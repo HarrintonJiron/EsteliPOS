@@ -18,29 +18,47 @@
 
     {{-- Header --}}
     <div class="flex justify-between items-start mb-6">
-        <div>
-            <h1 class="text-xl font-black text-slate-900">AGROSERVICIO S.A.</h1>
-            <p class="text-xs text-slate-600">SUMINISTROS AGRÍCOLAS · TALLER TÉCNICO</p>
-            <div class="text-xs text-slate-600 mt-1 space-y-0.5">
-                <p>RUC: J10240330417 · Tel: +505 2772-0000</p>
-                <p>Carretera Norte Km 4.5, Managua, NI</p>
+        @php
+            $pdfLogoUrl = $companyProfile['company_logo_url'] ?: $companyProfile['ticket_logo_url'];
+            $contactLine = collect([
+                $companyProfile['company_ruc'] ? 'RUC: '.$companyProfile['company_ruc'] : null,
+                $companyProfile['company_phone'] ? 'Tel: '.$companyProfile['company_phone'] : null,
+                $companyProfile['company_email'] ?: null,
+            ])->filter()->implode(' · ');
+            $addressLine = collect([
+                $companyProfile['company_address'],
+                $companyProfile['company_city'],
+                $companyProfile['company_country'],
+            ])->filter()->implode(', ');
+        @endphp
+        <div class="flex items-start gap-3">
+            @if($pdfLogoUrl)
+                <img src="{{ $pdfLogoUrl }}" alt="Logo de {{ $companyProfile['company_name'] }}" class="h-16 w-auto max-w-[8rem] object-contain" onerror="this.remove()">
+            @endif
+            <div>
+                <h1 class="text-xl font-black text-slate-900">{{ $companyProfile['company_name'] }}</h1>
+                @if($companyProfile['company_legal_name'])<p class="text-xs text-slate-600">{{ $companyProfile['company_legal_name'] }}</p>@endif
+                <div class="text-xs text-slate-600 mt-1 space-y-0.5">
+                    @if($contactLine)<p>{{ $contactLine }}</p>@endif
+                    @if($addressLine)<p>{{ $addressLine }}</p>@endif
+                </div>
             </div>
         </div>
         <div class="text-center bg-slate-800 text-white px-6 py-4 rounded-xl">
             <p class="text-xs font-medium uppercase tracking-widest opacity-70 mb-1">ORDEN DE REPARACIÓN</p>
             <p class="text-2xl font-black">{{ $order->order_number }}</p>
             <div class="text-xs mt-1 space-y-0.5 opacity-90">
-                <p>Recibido: {{ $order->received_date->format('d/m/Y') }} @if($order->formattedReceivedTime())· {{ $order->formattedReceivedTime() }}@endif</p>
+                <p>Recibido: {{ $order->received_date->format($companyProfile['date_format']) }} @if($order->formattedReceivedTime())· {{ $order->formattedReceivedTime() }}@endif</p>
                 @if($order->estimated_date || $order->estimated_delivery_time)
                 <p>Entrega est.:
-                    @if($order->estimated_date){{ $order->estimated_date->format('d/m/Y') }}@endif
+                    @if($order->estimated_date){{ $order->estimated_date->format($companyProfile['date_format']) }}@endif
                     @if($order->estimated_date && $order->formattedEstimatedDeliveryTime()) · @endif
                     @if($order->formattedEstimatedDeliveryTime()){{ $order->formattedEstimatedDeliveryTime() }}@endif
                 </p>
                 @endif
                 @if($order->delivered_date || $order->delivered_time)
                 <p>Entregado:
-                    @if($order->delivered_date){{ $order->delivered_date->format('d/m/Y') }}@endif
+                    @if($order->delivered_date){{ $order->delivered_date->format($companyProfile['date_format']) }}@endif
                     @if($order->delivered_date && $order->formattedDeliveredTime()) · @endif
                     @if($order->formattedDeliveredTime()){{ $order->formattedDeliveredTime() }}@endif
                 </p>
@@ -52,6 +70,7 @@
     {{-- Status bar --}}
     <div class="flex gap-2 mb-5">
         <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold {{ $order->statusColor() }}">{{ $order->statusLabel() }}</span>
+        <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold {{ $order->paymentStateColor() }}">{{ $order->isDeliveredWithBalance() ? 'Entregado · pago pendiente' : $order->paymentStateLabel() }}</span>
         <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold {{ $order->priorityColor() }}">Prioridad: {{ $order->priorityLabel() }}</span>
         @if($order->technician)
         <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">Técnico: {{ $order->technician->name }}</span>
@@ -71,6 +90,7 @@
             <p class="font-bold text-slate-900">{{ $order->device_brand }} {{ $order->device_model }}</p>
             @if($order->device_color)<p class="text-xs text-slate-600">Color: {{ $order->device_color }}</p>@endif
             @if($order->device_imei)<p class="text-xs text-slate-600">IMEI: <span class="font-mono">{{ $order->device_imei }}</span></p>@endif
+            @if($order->device_battery !== null)<p class="text-xs text-slate-600">Batería: {{ $order->device_battery }}%</p>@endif
             @if($order->accessories)<p class="text-xs text-slate-600">Accesorios: {{ $order->accessories }}</p>@endif
         </div>
     </div>
@@ -96,6 +116,14 @@
     </div>
     @endif
 
+    {{-- Detalles del equipo al entregar --}}
+    @if($order->delivery_notes)
+    <div class="mb-5 bg-sky-50 border border-sky-200 rounded-xl p-4">
+        <p class="text-xs font-semibold text-sky-800 uppercase mb-2">Detalles del equipo al entregar</p>
+        <p class="text-xs text-sky-950 leading-relaxed whitespace-pre-line">{{ $order->delivery_notes }}</p>
+    </div>
+    @endif
+
     {{-- Parts table --}}
     @if($order->items->count())
     <table class="w-full text-xs mb-4">
@@ -112,8 +140,8 @@
             <tr class="{{ $i % 2 === 0 ? 'bg-white' : 'bg-slate-50' }}">
                 <td class="px-3 py-2 font-medium">{{ $item->description }}</td>
                 <td class="px-3 py-2 text-center">{{ number_format($item->quantity,2) }}</td>
-                <td class="px-3 py-2 text-right">C$ {{ number_format($item->price,2) }}</td>
-                <td class="px-3 py-2 text-right font-semibold">C$ {{ number_format($item->subtotal,2) }}</td>
+                <td class="px-3 py-2 text-right">@money($item->price,2)</td>
+                <td class="px-3 py-2 text-right font-semibold">@money($item->subtotal,2)</td>
             </tr>
             @endforeach
         </tbody>
@@ -130,17 +158,25 @@
         </div>
         <div class="w-52 space-y-1">
             @if($order->parts_cost > 0)
-            <div class="flex justify-between text-xs text-slate-600"><span>Repuestos</span><span>C$ {{ number_format($order->parts_cost,2) }}</span></div>
+            <div class="flex justify-between text-xs text-slate-600"><span>Repuestos</span><span>@money($order->parts_cost,2)</span></div>
             @endif
-            <div class="flex justify-between text-xs text-slate-600"><span>Mano de obra</span><span>C$ {{ number_format($order->labor_cost,2) }}</span></div>
+            <div class="flex justify-between text-xs text-slate-600"><span>Mano de obra</span><span>@money($order->labor_cost,2)</span></div>
             <div class="flex justify-between font-bold text-sm border-t border-slate-300 pt-1 text-slate-900">
-                <span>TOTAL</span><span>C$ {{ number_format($order->total,2) }}</span>
+                <span>TOTAL</span><span>@money($order->total,2)</span>
             </div>
             @if($order->advance_payment > 0)
-            <div class="flex justify-between text-xs text-slate-600"><span>Anticipo</span><span>-C$ {{ number_format($order->advance_payment,2) }}</span></div>
-            <div class="flex justify-between font-bold text-sm text-red-700">
-                <span>SALDO</span><span>C$ {{ number_format($order->balance(),2) }}</span>
+            <div class="flex justify-between text-xs text-slate-600"><span>Anticipo</span><span>-@money($order->advance_payment,2)</span></div>
+            @endif
+            @foreach($order->creditPayments as $payment)
+            <div class="flex justify-between text-xs text-slate-600"><span>Pago {{ $payment->payment_date->format($companyProfile['date_format']) }}</span><span>-@money($payment->amount,2)</span></div>
+            @endforeach
+            @if($order->total > 0)
+            <div class="flex justify-between font-bold text-sm {{ $order->balance() > 0 ? 'text-red-700' : 'text-emerald-700' }}">
+                <span>{{ $order->balance() > 0 ? 'SALDO PENDIENTE' : 'SALDO' }}</span><span>{{ $currencySymbol }} {{ number_format($order->balance(),2) }}</span>
             </div>
+            @if($order->payment_type === 'credit' && $order->balance() > 0)
+            <div class="flex justify-between text-xs text-violet-700"><span>A crédito · vence</span><span>{{ $order->due_date?->format($companyProfile['date_format']) ?? '—' }}</span></div>
+            @endif
             @endif
         </div>
     </div>
@@ -162,7 +198,7 @@
     </div>
 
     <p class="text-center text-xs text-slate-400 mt-4 border-t border-slate-200 pt-3">
-        Conserve este documento para retirar su equipo. Agroservicio S.A. no se hace responsable de equipos no retirados después de 30 días.
+        Conserve este documento para retirar su equipo. {{ $companyProfile['company_name'] }} no se hace responsable de equipos no retirados después de 30 días.
     </p>
 
     </div>

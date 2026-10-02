@@ -30,7 +30,7 @@
         </div>
         <div class="card p-4">
             <p class="text-xs uppercase tracking-wide text-slate-500">Valor estimado</p>
-            <p class="mt-1 text-2xl font-bold text-emerald-700">C$ {{ number_format($stats['estimated_value'], 2) }}</p>
+            <p class="mt-1 text-2xl font-bold text-emerald-700">@money($stats['estimated_value'], 2)</p>
         </div>
     </div>
 
@@ -65,7 +65,7 @@
                 </div>
                 <div class="rounded-lg bg-slate-50 p-2">
                     <p class="text-[11px] text-slate-500">Valor est.</p>
-                    <p class="font-semibold text-slate-800">C$ {{ number_format($wh->estimated_value, 0) }}</p>
+                    <p class="font-semibold text-slate-800">@money($wh->estimated_value, 0)</p>
                 </div>
             </div>
             <div class="flex flex-wrap gap-2 mt-auto">

@@ -130,28 +130,32 @@ class CompraController extends Controller
                 'unitConversions.unit',
                 'suppliers' => fn ($query) => $query->where('suppliers.id', $supplierId),
             ])
+            ->withExists([
+                'suppliers as is_supplier_product' => fn ($query) => $query->where('suppliers.id', $supplierId),
+                'purchaseDetails as was_purchased_from_supplier' => fn ($query) => $query
+                    ->whereHas('purchase', fn ($purchaseQuery) => $purchaseQuery
+                        ->where('supplier_id', $supplierId)
+                        ->where('status', '!=', 'canceled')),
+            ])
             ->where('status', 'active')
-            ->where(function ($query) use ($supplierId) {
-                $query->whereHas('suppliers', fn ($supplierQuery) => $supplierQuery->where('suppliers.id', $supplierId))
-                    ->orWhereHas('purchaseDetails.purchase', function ($purchaseQuery) use ($supplierId) {
-                        $purchaseQuery->where('supplier_id', $supplierId)
-                            ->where('status', '!=', 'canceled');
-                    });
-            })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($searchQuery) use ($search) {
                     $searchQuery->where('name', 'like', "%{$search}%")
                         ->orWhere('code', 'like', "%{$search}%");
                 });
             })
+            ->orderByDesc('is_supplier_product')
+            ->orderByDesc('was_purchased_from_supplier')
             ->orderBy('name')
-            ->limit(15)
+            ->limit(30)
             ->get()
             ->map(function (Product $product) {
                 $pivot = $product->suppliers->first()?->pivot;
                 $supplierPrice = $pivot?->purchase_price !== null
                     ? (float) $pivot->purchase_price
                     : (float) ($product->purchase_price ?? 0);
+                $isSupplierProduct = (bool) $product->is_supplier_product
+                    || (bool) $product->was_purchased_from_supplier;
 
                 $units = $this->purchaseCosting->purchaseUnitsFor($product);
 
@@ -161,6 +165,7 @@ class CompraController extends Controller
                     'code' => $product->code,
                     'price' => $supplierPrice,
                     'has_supplier_price' => $pivot?->purchase_price !== null,
+                    'is_supplier_product' => $isSupplierProduct,
                     'base_unit_id' => $product->base_unit_id,
                     'base_unit' => $product->baseUnit?->abbreviation ?? $product->unit,
                     'units' => $units,
@@ -332,10 +337,11 @@ class CompraController extends Controller
         return back()->with('success', 'Producto eliminado de la proforma.');
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        // Un solo formulario para compras: ?modo=pedido lo abre ya marcado como pedido (proforma).
         return view('compras.create', array_merge($this->purchaseFormData(), [
-            'purchaseMode' => 'immediate',
+            'purchaseMode' => $request->query('modo') === 'pedido' ? 'proforma' : 'immediate',
         ]));
     }
 
@@ -360,7 +366,7 @@ class CompraController extends Controller
                 $this->assertPurchaseAmountsFitStorage($data['items'], $exchangeRate);
 
                 $settlement = $this->resolveSettlement($data);
-                $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash'
+                $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash' && $data['funding_source'] === 'sales_cash'
                     ? $this->requireOpenCashSessionId($request->user()?->id)
                     : null;
                 $cashSession = $cashSessionId ? CajaSession::query()->find($cashSessionId) : null;
@@ -378,6 +384,7 @@ class CompraController extends Controller
                     'total' => 0,
                     'status' => $settlement['status'],
                     'payment_type' => $settlement['payment_type'],
+                    'funding_source' => $data['funding_source'],
                     'currency' => $data['currency'],
                     'exchange_rate' => $exchangeRate,
                     'foreign_subtotal' => 0,
@@ -520,7 +527,7 @@ class CompraController extends Controller
                 PurchaseDetail::where('purchase_id', $purchase->id)->delete();
 
                 $settlement = $this->resolveSettlement($data, $purchase);
-                $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash'
+                $cashSessionId = $settlement['status'] === 'completed' && $settlement['payment_type'] === 'cash' && $data['funding_source'] === 'sales_cash'
                     ? $this->requireOpenCashSessionId(auth()->id())
                     : null;
                 $cashSession = $cashSessionId ? CajaSession::query()->find($cashSessionId) : null;
@@ -531,6 +538,7 @@ class CompraController extends Controller
                     'date' => $data['date'],
                     'status' => $settlement['status'],
                     'payment_type' => $settlement['payment_type'],
+                    'funding_source' => $data['funding_source'],
                     'caja_session_id' => $cashSessionId,
                     'branch_id' => $branch?->id,
                     'currency' => $data['currency'],

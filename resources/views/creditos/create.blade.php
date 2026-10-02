@@ -21,15 +21,15 @@
     <div class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div class="rounded border-l-4 border-blue-900 bg-blue-50 p-4 shadow sm:p-6">
             <p class="text-gray-600 text-sm mb-1">Deuda Total</p>
-            <p class="text-2xl font-bold text-blue-900">C$ {{ number_format($totalDebt, 2) }}</p>
+            <p class="text-2xl font-bold text-blue-900">@money($totalDebt, 2)</p>
         </div>
         <div class="rounded border-l-4 border-green-700 bg-green-50 p-4 shadow sm:p-6">
             <p class="text-gray-600 text-sm mb-1">Abonos Anteriores</p>
-            <p class="text-2xl font-bold text-green-700">C$ {{ number_format($totalDebt - $balance, 2) }}</p>
+            <p class="text-2xl font-bold text-green-700">@money($totalDebt - $balance, 2)</p>
         </div>
         <div class="rounded border-l-4 border-red-700 bg-red-50 p-4 shadow sm:p-6">
             <p class="text-gray-600 text-sm mb-1">Saldo Pendiente</p>
-            <p class="text-2xl font-bold text-red-700">C$ {{ number_format($balance, 2) }}</p>
+            <p class="text-2xl font-bold text-red-700">@money($balance, 2)</p>
         </div>
     </div>
 
@@ -52,18 +52,37 @@
             </div>
         @endif
 
+        {{-- A qué se aplica --}}
+        @if($repairRows->isNotEmpty())
+            <div class="mb-6">
+                <label class="mb-2 block text-sm font-semibold text-gray-700" for="apply_to">Aplicar el abono a</label>
+                <select id="apply_to" name="apply_to" class="w-full rounded border-2 border-gray-300 px-4 py-3 focus:border-blue-900 focus:outline-none">
+                    <option value="auto" data-max="{{ number_format($balance, 2, '.', '') }}" @selected(old('apply_to', $applyTo) === 'auto')>Automático: facturas primero, luego reparaciones</option>
+                    <option value="repairs" data-max="{{ number_format($repairRows->sum('balance'), 2, '.', '') }}" @selected(old('apply_to', $applyTo) === 'repairs')>Solo reparaciones a crédito (las más antiguas primero)</option>
+                    @foreach($repairRows as $row)
+                        <option value="repair:{{ $row['order']->id }}" data-max="{{ number_format($row['balance'], 2, '.', '') }}" @selected(old('apply_to', $applyTo) === 'repair:'.$row['order']->id)>
+                            {{ $row['order']->order_number }} · {{ $row['order']->device_brand }} {{ $row['order']->device_model }} · saldo {{ $currencySymbol }} {{ number_format($row['balance'], 2) }}
+                        </option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-slate-500">Reparaciones a crédito pendientes: {{ $repairRows->count() }} por {{ $currencySymbol }} {{ number_format($repairRows->sum('balance'), 2) }}.</p>
+                @error('apply_to')<p class="mt-1 text-sm text-red-700">{{ $message }}</p>@enderror
+            </div>
+        @endif
+
         {{-- Monto del abono --}}
         <div class="mb-6">
             <label class="block text-sm font-semibold text-gray-700 mb-2">
                 Monto del Abono *
             </label>
             <div class="relative">
-                <span class="absolute left-4 top-3 text-gray-600 font-semibold">C$</span>
+                <span class="absolute left-4 top-3 text-gray-600 font-semibold">{{ $currencySymbol }}</span>
                 <input 
                     type="number" 
                     name="amount" 
                     step="0.01"
                     min="0.01"
+                    id="abono_amount"
                     max="{{ $balance }}"
                     placeholder="0.00"
                     required
@@ -73,7 +92,7 @@
             @error('amount')
                 <p class="text-red-700 text-sm mt-1">{{ $message }}</p>
             @enderror
-            <p class="text-xs text-gray-600 mt-1">Máximo disponible: C$ {{ number_format($balance, 2) }}</p>
+            <p class="text-xs text-gray-600 mt-1">Máximo disponible: <span id="abono_max_text">@money($balance, 2)</span></p>
         </div>
 
         {{-- Tipo de pago --}}
@@ -145,5 +164,27 @@
     </form>
 
 </div>
+
+@if($repairRows->isNotEmpty())
+<script>
+    (function () {
+        const select = document.getElementById('apply_to');
+        const amount = document.getElementById('abono_amount');
+        const text = document.getElementById('abono_max_text');
+        const symbol = @json($currencySymbol);
+        if (!select || !amount || !text) return;
+
+        function refreshMax() {
+            const max = parseFloat(select.selectedOptions[0].dataset.max);
+            if (isNaN(max)) return;
+            amount.max = max.toFixed(2);
+            text.textContent = symbol + ' ' + max.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        select.addEventListener('change', refreshMax);
+        refreshMax();
+    })();
+</script>
+@endif
 
 @endsection

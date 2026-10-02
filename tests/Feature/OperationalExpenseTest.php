@@ -1,13 +1,15 @@
 <?php
 
+use App\Models\Account;
 use App\Models\Arqueo;
 use App\Models\CajaSession;
+use App\Models\Client;
 use App\Models\JournalEntry;
 use App\Models\OperationalExpense;
-use App\Models\Client;
 use App\Models\Role;
 use App\Models\Sale;
 use App\Models\User;
+use App\Services\AccountingService;
 use Database\Seeders\AccountingSeeder;
 use Database\Seeders\ConfigurationSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,6 +42,7 @@ test('it registers an operational expense and posts the accounting entry', funct
         'amount' => 150.75,
         'expense_date' => now()->toDateString(),
         'payment_method' => 'cash',
+        'funding_source' => 'sales_cash',
         'notes' => 'Prueba automatizada',
         'status' => OperationalExpense::STATUS_REGISTERED,
     ]);
@@ -99,6 +102,7 @@ test('cash operational expenses are deducted from arqueo system cash total', fun
         'amount' => 25,
         'expense_date' => now()->toDateString(),
         'payment_method' => 'cash',
+        'funding_source' => 'sales_cash',
         'status' => OperationalExpense::STATUS_REGISTERED,
     ]);
 
@@ -118,6 +122,37 @@ test('cash operational expenses are deducted from arqueo system cash total', fun
     expect((float) $arqueo->cash_total)->toBe(75.0);
 });
 
+test('external cash expenses do not reduce the sales cash closing', function () {
+    $admin = adminForOperationalExpenses();
+    $session = CajaSession::create([
+        'date' => now()->toDateString(), 'opened_at' => now(), 'opened_by' => $admin->id,
+        'opening_amount' => 100, 'status' => 'open',
+    ]);
+
+    OperationalExpense::create([
+        'user_id' => $admin->id, 'description' => 'Flete pagado por administración',
+        'amount' => 40, 'expense_date' => now()->toDateString(), 'payment_method' => 'cash',
+        'funding_source' => 'external', 'status' => OperationalExpense::STATUS_REGISTERED,
+    ]);
+
+    $this->actingAs($admin)->post(route('arqueo.run'), [
+        'date' => now()->toDateString(), 'caja_session_id' => $session->id,
+        'physical_counts' => [['amount' => 100, 'qty' => 1]],
+    ])->assertOk();
+
+    $arqueo = Arqueo::latest('id')->firstOrFail();
+    expect((float) $arqueo->cash_total)->toBe(100.0)
+        ->and((float) $arqueo->details['totals']['cash_expenses'])->toBe(0.0)
+        ->and(strlen($arqueo->snapshot_hash))->toBe(64);
+
+    $pdf = $this->actingAs($admin)->get(route('arqueo.pdf', $arqueo));
+    $pdf->assertOk()->assertHeader('content-type', 'application/pdf');
+    expect($pdf->getContent())->toStartWith('%PDF');
+
+    expect(fn () => $arqueo->update(['cash_total' => 0]))
+        ->toThrow(LogicException::class);
+});
+
 test('it cancels an operational expense and voids its journal entry', function () {
     $admin = adminForOperationalExpenses();
     $session = CajaSession::create([
@@ -134,15 +169,16 @@ test('it cancels an operational expense and voids its journal entry', function (
         'amount' => 80,
         'expense_date' => now()->toDateString(),
         'payment_method' => 'cash',
+        'funding_source' => 'sales_cash',
         'status' => OperationalExpense::STATUS_REGISTERED,
-        'account_id' => \App\Models\Account::where('code', '6.1.99')->value('id'),
+        'account_id' => Account::where('code', '6.1.99')->value('id'),
     ]);
 
-    app(\App\Services\AccountingService::class)->recordOperationalExpense($expense);
+    app(AccountingService::class)->recordOperationalExpense($expense);
 
     $this->actingAs($admin)
         ->delete(route('reparaciones.gastos.destroy', $expense))
-        ->assertRedirect(route('reparaciones.gastos.index'));
+        ->assertRedirect(route('gastos.index'));
 
     expect($expense->fresh()->status)->toBe(OperationalExpense::STATUS_CANCELLED);
 
@@ -152,4 +188,21 @@ test('it cancels an operational expense and voids its journal entry', function (
         ->firstOrFail();
 
     expect($entry->status)->toBe(JournalEntry::STATUS_VOIDED);
+});
+
+test('cash closing history remains paginated with operational volume', function () {
+    $admin = adminForOperationalExpenses();
+    $now = now();
+    Arqueo::query()->insert(collect(range(1, 500))->map(fn (int $id) => [
+        'date' => $now->toDateString(), 'user_id' => $admin->id, 'currency' => 'NIO',
+        'closed_at' => $now->copy()->subSeconds($id), 'total_sales_count' => 1,
+        'total_sales_amount' => 10, 'cash_total' => 10, 'credit_payments_total' => 0,
+        'physical_total' => 10, 'difference' => 0, 'details' => json_encode(['schema_version' => 2]),
+        'snapshot_hash' => hash('sha256', (string) $id), 'created_at' => $now, 'updated_at' => $now,
+    ])->all());
+
+    $this->actingAs($admin)->get(route('arqueo.history'))
+        ->assertOk()->assertSee('Historial de cierres');
+
+    expect(Arqueo::query()->count())->toBe(500);
 });

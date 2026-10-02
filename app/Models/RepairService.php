@@ -8,6 +8,7 @@ class RepairService extends Model
 {
     protected $fillable = [
         'name',
+        'workshop_type',
         'description',
         'price',
         'is_active',
@@ -21,5 +22,10 @@ class RepairService extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeForWorkshop($query, string $type)
+    {
+        return $query->where('workshop_type', $type);
     }
 }

@@ -15,6 +15,7 @@ use App\Models\Tax;
 use App\Models\Warehouse;
 use App\Services\AccountingService;
 use App\Services\BranchContextService;
+use App\Services\CompanySettingsService;
 use App\Services\CreditService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
@@ -348,7 +349,9 @@ class ProformaController extends Controller
             return $this->missingProformaResponse();
         }
 
-        return view('proformas.ticket', compact('proforma'));
+        $companyProfile = app(CompanySettingsService::class)->get();
+
+        return view('proformas.ticket', compact('proforma', 'companyProfile'));
     }
 
     /**

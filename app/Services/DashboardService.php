@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -27,13 +28,20 @@ class DashboardService
         $hasInventario = $modules->contains('inventario');
         $hasCompras = $modules->contains('compras');
         $hasClientes = $modules->contains('clientes');
+        $hasReparaciones = $modules->contains('reparaciones');
+        $todayRepairPayments = $hasReparaciones ? $this->repairPaymentsBetween($today->copy()->startOfDay(), $today->copy()->endOfDay()) : 0;
+        $monthRepairPayments = $hasReparaciones ? $this->repairPaymentsBetween($startOfMonth, $endOfMonth) : 0;
+        $monthRepairPaymentCount = $hasReparaciones ? $this->repairPaymentsCountBetween($startOfMonth, $endOfMonth) : 0;
 
         $salesStats = [
-            'today' => $hasVentas ? (float) Sale::whereDate('date', $today)->where('status', 'completed')->sum('total') : 0,
-            'month' => $hasVentas ? (float) Sale::whereBetween('date', [$startOfMonth, $endOfMonth])->where('status', 'completed')->sum('total') : 0,
+            'today' => ($hasVentas ? (float) Sale::retail()->whereDate('date', $today)->where('status', 'completed')->sum('total') : 0) + $todayRepairPayments,
+            'month' => ($hasVentas ? (float) Sale::retail()->whereBetween('date', [$startOfMonth, $endOfMonth])->where('status', 'completed')->sum('total') : 0) + $monthRepairPayments,
             'pending' => $hasVentas ? Sale::where('status', 'pending')->count() : 0,
-            'count_today' => $hasVentas ? Sale::whereDate('date', $today)->where('status', 'completed')->count() : 0,
-            'count_month' => $hasVentas ? Sale::whereBetween('date', [$startOfMonth, $endOfMonth])->where('status', 'completed')->count() : 0,
+            'count_today' => ($hasVentas ? Sale::retail()->whereDate('date', $today)->where('status', 'completed')->count() : 0) + ($hasReparaciones ? $this->repairPaymentsCountBetween($today->copy()->startOfDay(), $today->copy()->endOfDay()) : 0),
+            'count_month' => ($hasVentas ? Sale::retail()->whereBetween('date', [$startOfMonth, $endOfMonth])->where('status', 'completed')->count() : 0) + $monthRepairPaymentCount,
+            'workshop_income_today' => $todayRepairPayments,
+            'workshop_income_month' => $monthRepairPayments,
+            'workshop_payment_count_month' => $monthRepairPaymentCount,
             'average_ticket' => 0,
         ];
 
@@ -84,11 +92,11 @@ class DashboardService
         $alerts = $this->buildAlerts($inventoryStats, $salesStats, $hasInventario, $hasVentas);
 
         $charts = [
-            'sales_trend' => $hasVentas ? $this->monthlyTrend(12, 'sales') : [],
+            'sales_trend' => ($hasVentas || $hasReparaciones) ? $this->monthlyTrend(12, 'sales') : [],
             'purchases_trend' => $hasCompras ? $this->monthlyTrend(12, 'purchases') : [],
-            'combined_trend' => ($hasVentas || $hasCompras) ? $this->combinedTrend(12, $hasVentas, $hasCompras) : [],
-            'daily_sales' => $hasVentas ? $this->dailySalesCurrentMonth() : [],
-            'payment_methods' => $hasVentas ? $this->salesByPaymentType($startOfMonth, $endOfMonth) : [],
+            'combined_trend' => ($hasVentas || $hasReparaciones || $hasCompras) ? $this->combinedTrend(12, $hasVentas || $hasReparaciones, $hasCompras) : [],
+            'daily_sales' => ($hasVentas || $hasReparaciones) ? $this->dailySalesCurrentMonth() : [],
+            'payment_methods' => ($hasVentas || $hasReparaciones) ? $this->salesByPaymentType($startOfMonth, $endOfMonth) : [],
             'top_products' => ($hasVentas && $hasInventario) ? $this->topProducts() : [],
             'top_clients' => $hasClientes ? $this->topClientsChart($customerStats['top_clients']) : [],
             'inventory_health' => $hasInventario ? [
@@ -129,7 +137,7 @@ class DashboardService
             $end = $month->copy()->endOfMonth();
 
             $total = match ($type) {
-                'sales' => (float) Sale::whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total'),
+                'sales' => (float) Sale::retail()->whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total') + $this->repairPaymentsBetween($start, $end),
                 'purchases' => (float) Purchase::whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total'),
                 default => 0,
             };
@@ -153,7 +161,7 @@ class DashboardService
             $end = $month->copy()->endOfMonth();
 
             $sales = $hasVentas
-                ? (float) Sale::whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total')
+                ? (float) Sale::retail()->whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total') + $this->repairPaymentsBetween($start, $end)
                 : 0;
             $purchases = $hasCompras
                 ? (float) Purchase::whereBetween('date', [$start, $end])->where('status', 'completed')->sum('total')
@@ -180,7 +188,7 @@ class DashboardService
             ->selectRaw('SUM(COALESCE(sale_details.base_quantity, sale_details.quantity) * products.purchase_price) as cost')
             ->first();
 
-        return round((float) ($row->revenue ?? 0) - (float) ($row->cost ?? 0), 2);
+        return round((float) ($row->revenue ?? 0) + $this->repairPaymentsBetween($start, $end) - (float) ($row->cost ?? 0), 2);
     }
 
     /**
@@ -191,30 +199,40 @@ class DashboardService
         $start = Carbon::now()->startOfMonth();
         $end = Carbon::now()->endOfMonth();
 
-        $salesByDay = Sale::query()
+        $salesByDay = Sale::query()->retail()
             ->whereBetween('date', [$start, $end])
             ->where('status', 'completed')
             ->selectRaw('DATE(date) as day, SUM(total) as total, COUNT(*) as count')
             ->groupBy('day')
             ->pluck('total', 'day');
 
-        $countsByDay = Sale::query()
+        $countsByDay = Sale::query()->retail()
             ->whereBetween('date', [$start, $end])
             ->where('status', 'completed')
             ->selectRaw('DATE(date) as day, COUNT(*) as count')
             ->groupBy('day')
             ->pluck('count', 'day');
+        $repairPaymentsByDay = RepairOrder::supportsPaymentTracking()
+            ? RepairOrder::query()
+                ->whereBetween('payment_received_at', [$start, $end])
+                ->where('status', '!=', 'cancelled')
+                ->selectRaw('DATE(payment_received_at) as day, SUM(advance_payment) as total, COUNT(*) as count')
+                ->groupBy('day')
+                ->get()
+                ->keyBy('day')
+            : collect();
 
         return collect(range(0, $start->diffInDays($end)))
-            ->map(function (int $offset) use ($start, $salesByDay, $countsByDay) {
+            ->map(function (int $offset) use ($start, $salesByDay, $countsByDay, $repairPaymentsByDay) {
                 $day = $start->copy()->addDays($offset);
                 $key = $day->format('Y-m-d');
+                $repair = $repairPaymentsByDay->get($key);
 
                 return [
                     'label' => $day->format('d'),
                     'day' => $key,
-                    'total' => round((float) ($salesByDay[$key] ?? 0), 2),
-                    'count' => (int) ($countsByDay[$key] ?? 0),
+                    'total' => round((float) ($salesByDay[$key] ?? 0) + (float) ($repair->total ?? 0), 2),
+                    'count' => (int) ($countsByDay[$key] ?? 0) + (int) ($repair->count ?? 0),
                 ];
             })
             ->values()
@@ -228,27 +246,62 @@ class DashboardService
     {
         $labels = [
             'cash' => 'Efectivo',
+            'card' => 'Tarjeta',
             'transfer' => 'Transferencia',
             'credit' => 'Crédito',
         ];
 
-        $rows = Sale::query()
+        $rows = Sale::query()->retail()
             ->whereBetween('date', [$start, $end])
             ->where('status', 'completed')
             ->selectRaw('payment_type, SUM(total) as total, COUNT(*) as count')
             ->groupBy('payment_type')
             ->get()
             ->keyBy('payment_type');
+        $repairRows = RepairOrder::supportsPaymentTracking()
+            ? RepairOrder::query()
+                ->whereBetween('payment_received_at', [$start, $end])
+                ->where('status', '!=', 'cancelled')
+                ->selectRaw('payment_type, SUM(advance_payment) as total, COUNT(*) as count')
+                ->groupBy('payment_type')
+                ->get()
+                ->keyBy('payment_type')
+            : collect();
 
-        return collect($labels)->map(function (string $label, string $type) use ($rows) {
+        return collect($labels)->map(function (string $label, string $type) use ($rows, $repairRows) {
             $row = $rows->get($type);
+            $repairRow = $repairRows->get($type);
 
             return [
                 'label' => $label,
-                'value' => round((float) ($row->total ?? 0), 2),
-                'count' => (int) ($row->count ?? 0),
+                'value' => round((float) ($row->total ?? 0) + (float) ($repairRow->total ?? 0), 2),
+                'count' => (int) ($row->count ?? 0) + (int) ($repairRow->count ?? 0),
             ];
         })->values()->all();
+    }
+
+    private function repairPaymentsBetween(Carbon $start, Carbon $end): float
+    {
+        if (! RepairOrder::supportsPaymentTracking()) {
+            return 0;
+        }
+
+        return (float) RepairOrder::query()
+            ->whereBetween('payment_received_at', [$start, $end])
+            ->where('status', '!=', 'cancelled')
+            ->sum('advance_payment');
+    }
+
+    private function repairPaymentsCountBetween(Carbon $start, Carbon $end): int
+    {
+        if (! RepairOrder::supportsPaymentTracking()) {
+            return 0;
+        }
+
+        return RepairOrder::query()
+            ->whereBetween('payment_received_at', [$start, $end])
+            ->where('status', '!=', 'cancelled')
+            ->count();
     }
 
     /**

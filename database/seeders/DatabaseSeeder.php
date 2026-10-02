@@ -15,8 +15,9 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(ProductionSeeder::class);
+        $this->call(JoyeriaModuleSeeder::class);
 
-        if (! config('app.seed_demo_data')) {
+        if (! (bool) config('app.seed_demo_data', false)) {
             return;
         }
 

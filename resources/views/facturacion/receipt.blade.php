@@ -142,15 +142,21 @@
             }
         }
     </style>
-    <x-mobile-ticket-paper selector=".receipt" />
 </head>
 <body>
     <div class="print-hint screen-only">
-        En móvil se prepara papel <strong>50 mm</strong>; en computadora conserva <strong>80 mm</strong>. Márgenes ninguno y escala 100%.
+        Impresora térmica 80 mm: papel <strong>80 mm</strong>, márgenes <strong>ninguno</strong>, escala <strong>100%</strong>.
         No uses Word; imprime directo desde el navegador (Chrome o Edge).
     </div>
     <div class="screen-actions screen-only">
-        <button type="button" onclick="window.print()">Imprimir ticket</button>
+        @if(($companyProfile['printing_mode'] ?? 'local') === 'central' && ! request()->boolean('central'))
+            <form method="POST" action="{{ route('printing.sales.enqueue', $sale) }}" style="display:inline">
+                @csrf
+                <button type="submit">Enviar a impresora central</button>
+            </form>
+        @else
+            <button type="button" onclick="window.print()">Imprimir ticket 80 mm</button>
+        @endif
         <button type="button" onclick="window.close()">Cerrar</button>
     </div>
 
@@ -184,6 +190,7 @@
 
         <section class="info" aria-label="Datos de la venta">
             <div class="info-row"><strong>FACTURA</strong><span>#{{ str_pad($sale->invoice_number, 6, '0', STR_PAD_LEFT) }}</span></div>
+            @if($sale->repair_order_id)<div class="info-row"><strong>ORIGEN</strong><span>TALLER DE REPARACIÓN · {{ $sale->repairOrder?->order_number }}</span></div>@endif
             <div class="info-row"><strong>FECHA</strong><span>{{ $sale->date->format($companyProfile['date_format'].' H:i') }}</span></div>
             <div class="info-row"><strong>CAJERO</strong><span>{{ $sale->user?->name ?? 'Sistema' }}</span></div>
         </section>
@@ -221,16 +228,19 @@
                         @endif
                         @if($invoiceTaxDisplay->showsLineTax((float) $detail->tax_rate)) · IVA {{ number_format($detail->tax_rate * 100, 2) }}%@endif
                     </div>
+                    @foreach($detail->product?->invoiceSpecs() ?? [] as $label => $spec)
+                        <div class="item-meta">{{ $label }}: {{ $spec }}</div>
+                    @endforeach
                 </article>
             @endforeach
 
-            <div class="items-footer" style="margin-top: 1mm; padding-top: 1mm; border-top: 1px dashed #777; font-size: 9pt; font-weight: 400;">
+            <div class="items-footer" style="margin-top: 1mm; padding-top: 1mm; border-top: 1px dashed #000; font-size: 9pt; font-weight: 700;">
                 <span>SUBTOTAL</span>
                 <span class="item-qty"></span>
                 <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($hasDiscount ? $grossSubtotal : (float) $sale->subtotal, 2) }}</span>
             </div>
             @if($hasDiscount)
-                <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 400;">
+                <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 700;">
                     <span>
                         DESCUENTO
                         @if((float) $sale->discount_percentage > 0)
@@ -242,7 +252,7 @@
                 </div>
             @endif
             @if($invoiceTaxDisplay->showsTaxInTotals((float) $sale->tax_total))
-                <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 400;">
+                <div class="items-footer" style="margin-top: 0; padding-top: 0.5mm; border-top: 0; font-size: 9pt; font-weight: 700;">
                     <span>{{ strtoupper($invoiceTaxDisplay->taxLabel((float) $sale->tax_rate)) }}</span>
                     <span class="item-qty"></span>
                     <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($invoiceTaxDisplay->displayTaxAmount((float) $sale->tax_total), 2) }}</span>
@@ -253,6 +263,10 @@
                 <span class="item-qty">{{ $totalQuantityFormatted }}</span>
                 <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($sale->total, 2) }}</span>
             </div>
+            @if($sale->repairOrder && (float) $sale->repairOrder->advance_payment > 0)
+                <div class="items-footer"><span>ANTICIPO</span><span></span><span class="item-amount">-{{ $companyProfile['currency_symbol'] }}{{ number_format($sale->repairOrder->advance_payment, 2) }}</span></div>
+                <div class="items-footer"><span>PAGO FINAL</span><span></span><span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format(max(0, $sale->total - $sale->repairOrder->advance_payment), 2) }}</span></div>
+            @endif
             @if($hasDiscount)
                 <div class="center" style="margin-top: 2mm; font-size: 9pt; font-weight: 700;">
                     ¡Ahorraste {{ $companyProfile['currency_symbol'] }}{{ number_format($discountAmount, 2) }}!
@@ -289,4 +303,16 @@
         </footer>
     </main>
 </body>
+@if(request()->boolean('autoprint'))
+<script>
+    window.addEventListener('load', () => window.print());
+    window.addEventListener('afterprint', () => {
+        @if(request()->boolean('central'))
+            window.parent.postMessage({type: 'estelipos-print-complete'}, window.location.origin);
+        @else
+            window.close();
+        @endif
+    });
+</script>
+@endif
 </html>

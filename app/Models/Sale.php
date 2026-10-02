@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CompanySettingsService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -16,6 +17,7 @@ class Sale extends Model
         'user_id',
         'branch_id',
         'caja_session_id',
+        'repair_order_id',
         'warehouse_id',
         'price_list_id',
         'price_list_name',
@@ -32,8 +34,11 @@ class Sale extends Model
         'tax_total',
         'discount_amount',
         'discount_percentage',
+        'trade_in_value',
         'total',
         'payment_type',
+        'currency',
+        'exchange_rate',
         'amount_paid',
         'change_amount',
         'tax_included',
@@ -47,7 +52,16 @@ class Sale extends Model
         'due_date' => 'date',
         'tax_included' => 'boolean',
         'tax_rate' => 'decimal:4',
+        'exchange_rate' => 'decimal:6',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Sale $sale): void {
+            $sale->currency ??= app(CompanySettingsService::class)->get()['currency'];
+            $sale->exchange_rate ??= 1;
+        });
+    }
 
     public function client()
     {
@@ -69,6 +83,16 @@ class Sale extends Model
         return $this->belongsTo(CajaSession::class);
     }
 
+    public function repairOrder()
+    {
+        return $this->belongsTo(RepairOrder::class);
+    }
+
+    public function scopeRetail($query)
+    {
+        return $query->whereNull('repair_order_id');
+    }
+
     public function warehouse()
     {
         return $this->belongsTo(Warehouse::class);
@@ -82,6 +106,16 @@ class Sale extends Model
     public function details()
     {
         return $this->hasMany(SaleDetail::class);
+    }
+
+    public function shipment()
+    {
+        return $this->hasOne(Shipment::class);
+    }
+
+    public function tradeIns()
+    {
+        return $this->hasMany(PhoneTradeIn::class);
     }
 
     public function getBillingDocumentLabelAttribute(): string

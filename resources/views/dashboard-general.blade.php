@@ -8,6 +8,7 @@
     $hasInventario = $dashboardModules->contains('inventario');
     $hasCompras = $dashboardModules->contains('compras');
     $hasClientes = $dashboardModules->contains('clientes');
+    $hasReparaciones = $dashboardModules->contains('reparaciones');
     $hasReportes = $dashboardModules->contains('reportes');
     $heroMetricLabel = $hasVentas ? 'Ventas del mes' : ($hasInventario ? 'Inventario' : 'Operación');
     $heroMetricValue = $hasVentas
@@ -67,6 +68,9 @@
         @if($hasVentas)
         <x-ui.command-kpi label="Ventas hoy" :value="'C$ ' . number_format($salesStats['today'], 0)" :meta="$salesStats['count_today'] . ' facturas'" />
         <x-ui.command-kpi label="Ventas del mes" :value="'C$ ' . number_format($salesStats['month'], 0)" :meta="'Ticket C$ ' . number_format($salesStats['average_ticket'], 0)" />
+        @endif
+        @if($hasReparaciones)
+        <x-ui.command-kpi label="Ingresos de taller" :value="'C$ ' . number_format($salesStats['workshop_income_month'], 0)" :meta="$salesStats['workshop_payment_count_month'] . ' cobros este mes'" />
         @endif
         @if($hasCompras)
         <x-ui.command-kpi label="Compras del mes" :value="'C$ ' . number_format($purchaseStats['month'], 0)" :meta="$purchaseStats['count_month'] . ' órdenes'" />

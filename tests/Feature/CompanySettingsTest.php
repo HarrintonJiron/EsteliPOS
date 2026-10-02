@@ -30,6 +30,7 @@ function validCompanySettings(array $overrides = []): array
         'invoice_footer' => 'Conserve este documento para cualquier reclamo.',
         'receipt_message' => 'Gracias por preferirnos.',
         'repair_warranty_text' => 'Garantía de 60 días por mano de obra en taller.',
+        'printing_mode' => 'local',
         'system_name' => 'EsteliPOS',
     ], $overrides);
 }
@@ -239,4 +240,59 @@ test('system timezone and language are applied on subsequent web requests', func
 
     expect(config('app.timezone'))->toBe('America/Costa_Rica')
         ->and(app()->getLocale())->toBe('en');
+});
+
+test('a logo that is too many megapixels explains the real reason and keeps the current logo', function () {
+    Storage::fake('public');
+    $admin = companyAdmin();
+    Storage::disk('public')->put('company/actual.png', 'logo-actual');
+    Setting::set('company_logo', 'company/actual.png', 'string', 'general');
+
+    $this->actingAs($admin)->from(route('settings.general'))->post(route('settings.general.update'), validCompanySettings([
+        'company_logo' => UploadedFile::fake()->image('foto.png', 6000, 4500),
+    ]))->assertSessionHasErrors(['company_logo' => 'La resolución de la imagen es demasiado alta (27 megapíxeles). Use una de hasta 20 megapíxeles o reduzca su tamaño.']);
+
+    expect(Setting::get('company_logo'))->toBe('company/actual.png');
+    Storage::disk('public')->assertExists('company/actual.png');
+});
+
+test('a processing failure with an unknown cause falls back to the general logo message', function () {
+    Storage::fake('public');
+    $admin = companyAdmin();
+    $processor = Mockery::mock(ImageProcessingService::class);
+    $processor->shouldReceive('storePublicImage')->once()->andThrow(new LogicException('detalle interno'));
+    app()->instance(ImageProcessingService::class, $processor);
+
+    $this->actingAs($admin)->post(route('settings.general.update'), validCompanySettings([
+        'company_logo' => UploadedFile::fake()->image('empresa.png', 600, 300),
+    ]))->assertSessionHasErrors(['company_logo' => 'No se pudo procesar el logo. Use una imagen JPG, PNG, WebP o GIF de hasta 8 MB y 20 megapíxeles.']);
+});
+
+test('the logo form has no empty image source and reduces big photos in the browser', function () {
+    $admin = companyAdmin();
+
+    $html = $this->actingAs($admin)->get(route('settings.general'))->assertOk()->getContent();
+
+    expect($html)->not->toContain('src=""')
+        ->and($html)->toContain('data-image-input')
+        ->and($html)->toContain('MAX_SIDE')
+        ->and($html)->toContain('guardDrop');
+});
+
+test('the logo form warns that selected files are not kept after a validation error', function () {
+    $admin = companyAdmin();
+
+    $this->actingAs($admin)->from(route('settings.general'))->followingRedirects()
+        ->post(route('settings.general.update'), validCompanySettings(['company_name' => '']))
+        ->assertSee('vuelve a seleccionarlo', false);
+});
+
+test('the hidden file inputs sit inside a positioned card so opening the picker cannot scroll the whole app', function () {
+    $admin = companyAdmin();
+
+    $html = $this->actingAs($admin)->get(route('settings.general'))->assertOk()->getContent();
+
+    // El input de archivo es "sr-only" (absoluto): su tarjeta debe ser relative.
+    expect($html)->toContain('class="group relative overflow-hidden')
+        ->and($html)->toContain('document.scrollingElement');
 });

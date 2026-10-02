@@ -33,9 +33,8 @@ class PosCatalogService
             ? $product->stockInWarehouse($displayWarehouseId)
             : $totalStock;
 
-        $sellableStock = $warehouseId !== null
-            ? max(0.0, $warehouseStock)
-            : max(0.0, $totalStock);
+        $reservedStock = $product->reservedQuantity($warehouseId);
+        $sellableStock = max(0.0, ($warehouseId !== null ? $warehouseStock : $totalStock) - $reservedStock);
 
         $saleUnits = [];
         $defaultUnitId = null;
@@ -57,6 +56,19 @@ class PosCatalogService
                 'price_breaks' => $this->pricing->priceBreaks($product, $priceListId, $unit->id, $branchId),
                 'stock' => round($unitStock, 4),
                 'is_default' => false,
+            ];
+        }
+
+        if ($saleUnits === [] && ! $product->baseUnit) {
+            $saleUnits[] = [
+                'id' => null,
+                'abbreviation' => $product->baseUnitLabel(),
+                'name' => $product->baseUnitLabel(),
+                'factor_to_base' => 1.0,
+                'price' => $this->pricing->resolveUnitPrice($product, $priceListId, null, 1, $branchId),
+                'price_breaks' => $this->pricing->priceBreaks($product, $priceListId, null, $branchId),
+                'stock' => round($sellableStock, 4),
+                'is_default' => true,
             ];
         }
 
@@ -96,6 +108,7 @@ class PosCatalogService
             'stock' => round($sellableStock, 4),
             'total_stock' => round($totalStock, 4),
             'warehouse_stock' => round($warehouseStock, 4),
+            'reserved_stock' => round($reservedStock, 4),
             'preferred_warehouse_id' => $preferredWarehouseId,
             'preferred_warehouse_name' => $preferredWarehouseName,
             'stocks_by_warehouse' => $stocksByWarehouse,

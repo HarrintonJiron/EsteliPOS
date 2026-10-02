@@ -9,7 +9,7 @@
 
 @php($inputId = 'upload-'.$name)
 
-<div class="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-indigo-300 hover:shadow-md" data-image-upload>
+<div class="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-indigo-300 hover:shadow-md" data-image-upload>
     <div class="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
         <div>
             <label for="{{ $inputId }}" class="text-sm font-semibold text-slate-900">{{ $label }}</label>
@@ -83,6 +83,7 @@
             const remove = wrapper.querySelector('[data-image-remove]');
             const savedPreviewSrc = preview?.getAttribute('src') || '';
             const maxBytes = 8 * 1024 * 1024;
+            const MAX_SIDE = 2400;
             const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
             let previewObjectUrl = null;
 
@@ -117,7 +118,7 @@
                 filename.classList.add('text-red-600');
             };
 
-            const showFile = file => {
+            const showFile = async file => {
                 // Al cancelar el selector no cambia la vista ni el archivo actual.
                 if (!file) return;
 
@@ -128,6 +129,13 @@
                 if (file.size > maxBytes) {
                     showError('La imagen supera el máximo de 8 MB.');
                     return;
+                }
+
+                if (file.type !== 'image/gif') {
+                    file = await resizeImage(file, MAX_SIDE);
+                    const transfer = new DataTransfer();
+                    transfer.items.add(file);
+                    input.files = transfer.files;
                 }
 
                 releasePreviewObjectUrl();
@@ -142,7 +150,32 @@
                 if (remove) remove.checked = false;
             };
 
+            const resizeImage = (file, maxSide) => new Promise(resolve => {
+                const image = new Image();
+                const url = URL.createObjectURL(file);
+                image.onload = () => {
+                    URL.revokeObjectURL(url);
+                    if (Math.max(image.width, image.height) <= maxSide) return resolve(file);
+                    const scale = maxSide / Math.max(image.width, image.height);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.round(image.width * scale);
+                    canvas.height = Math.round(image.height * scale);
+                    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob(blob => resolve(blob
+                        ? new File([blob], file.name, { type: file.type, lastModified: file.lastModified })
+                        : file), file.type, 0.9);
+                };
+                image.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+                image.src = url;
+            });
+
+            const guardDrop = event => event.preventDefault();
             input?.addEventListener('change', () => showFile(input.files?.[0]));
+            input?.addEventListener('click', () => {
+                const root = document.scrollingElement;
+                const top = root?.scrollTop;
+                requestAnimationFrame(() => { if (root && top !== undefined) root.scrollTop = top; });
+            });
 
             preview?.addEventListener('load', () => releasePreviewObjectUrl());
             preview?.addEventListener('error', () => {
@@ -155,14 +188,14 @@
 
             ['dragenter', 'dragover'].forEach(eventName => {
                 dropzone?.addEventListener(eventName, event => {
-                    event.preventDefault();
+                    guardDrop(event);
                     dropzone.classList.add('border-indigo-500', 'bg-indigo-50');
                 });
             });
 
             ['dragleave', 'drop'].forEach(eventName => {
                 dropzone?.addEventListener(eventName, event => {
-                    event.preventDefault();
+                    guardDrop(event);
                     dropzone.classList.remove('border-indigo-500', 'bg-indigo-50');
                 });
             });

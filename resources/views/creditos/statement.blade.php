@@ -35,11 +35,11 @@
     <table class="small">
         <tr>
             <td>Deuda total</td>
-            <td class="right">C$ {{ number_format($creditSummary['balance'], 2) }}</td>
+            <td class="right">@money($creditSummary['balance'], 2)</td>
         </tr>
         <tr>
             <td>Disponible</td>
-            <td class="right">{{ $creditSummary['available_credit'] === null ? 'Ilimitado' : 'C$ '.number_format($creditSummary['available_credit'], 2) }}</td>
+            <td class="right">{{ $creditSummary['available_credit'] === null ? 'Ilimitado' : app(\App\Services\MoneyDisplayService::class)->format($creditSummary['available_credit'], 2) }}</td>
         </tr>
         <tr>
             <td>Plazo</td>
@@ -63,24 +63,45 @@
                     @endforeach
                     <tr>
                         <td class="bold">Subtotal</td>
-                        <td class="right bold">C$ {{ number_format($sale->total, 2) }}</td>
+                        <td class="right bold">@money($sale->total, 2)</td>
                     </tr>
                 </table>
                 <div class="line"></div>
             </div>
         @endforeach
-    @else
+    @elseif($repairRows->isEmpty())
         <p class="xs">No hay créditos pendientes.</p>
         <div class="line"></div>
     @endif
 
-    <p class="xs bold">Abonos recientes</p>
-    @if($payments->count() > 0)
+    @if($repairRows->isNotEmpty())
+        <p class="xs bold">Reparaciones a crédito</p>
         <table class="small xs">
-            @foreach($payments->take(5) as $p)
+            @foreach($repairRows as $row)
                 <tr>
-                    <td>{{ $p->payment_date?->format('d/m/Y') }}</td>
-                    <td class="right">C$ {{ number_format($p->amount, 2) }}</td>
+                    <td><strong>{{ $row['order']->order_number }}</strong> · {{ Str::limit(trim($row['order']->device_brand.' '.$row['order']->device_model), 22) }}</td>
+                    <td class="right">@money($row['balance'], 2)</td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="xs">Vence: {{ $row['order']->due_date?->format('d/m/Y') ?? '—' }}</td>
+                </tr>
+            @endforeach
+        </table>
+        <div class="line"></div>
+    @endif
+
+    <p class="xs bold">Abonos recientes</p>
+    @php
+        $allPayments = collect($payments)->map(fn ($p) => ['date' => $p->payment_date, 'amount' => (float) $p->amount, 'ref' => null])
+            ->concat(collect($repairPayments)->map(fn ($p) => ['date' => $p->payment_date, 'amount' => (float) $p->amount, 'ref' => $p->repairOrder?->order_number]))
+            ->sortByDesc('date')->values();
+    @endphp
+    @if($allPayments->count() > 0)
+        <table class="small xs">
+            @foreach($allPayments->take(6) as $p)
+                <tr>
+                    <td>{{ $p['date']?->format('d/m/Y') }}@if($p['ref']) · {{ $p['ref'] }}@endif</td>
+                    <td class="right">@money($p['amount'], 2)</td>
                 </tr>
             @endforeach
         </table>
@@ -93,15 +114,15 @@
     <table class="small">
         <tr>
             <td class="bold">Total deuda</td>
-            <td class="right bold">C$ {{ number_format($creditSummary['balance'], 2) }}</td>
+            <td class="right bold">@money($creditSummary['balance'], 2)</td>
         </tr>
         <tr>
             <td>Pagado</td>
-            <td class="right">C$ {{ number_format(collect($payments)->sum('amount'), 2) }}</td>
+            <td class="right">{{ $currencySymbol }} {{ number_format(collect($payments)->sum('amount') + collect($repairPayments)->sum('amount'), 2) }}</td>
         </tr>
         <tr>
             <td class="bold">Saldo</td>
-            <td class="right bold">C$ {{ number_format($creditSummary['balance'], 2) }}</td>
+            <td class="right bold">@money($creditSummary['balance'], 2)</td>
         </tr>
     </table>
 

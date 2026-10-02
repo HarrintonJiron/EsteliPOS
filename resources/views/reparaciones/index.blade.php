@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Dashboard de Reparaciones')
+@section('title', 'Dashboard de ' . $workshopName)
 
 @section('content')
 @php
@@ -15,7 +15,7 @@
 
     <x-ui.command-hero
         kicker="Taller"
-        title="Reparaciones"
+        :title="$workshopName"
         subtitle="Panel operativo · entregas, estados y seguimiento"
         metric-label="Órdenes activas"
         :metric-value="number_format($stats['in_repair'] + $stats['received'] + $stats['ready'])"
@@ -27,10 +27,10 @@
         ]"
     >
         <x-slot:actions>
-            @if(auth()->user()?->isAdmin() || auth()->user()?->hasPermission('reparaciones.view_expenses'))
+            @if(!$isJewelry && (auth()->user()?->isAdmin() || auth()->user()?->hasPermission('reparaciones.view_expenses')))
                 <a href="{{ route('reparaciones.gastos.index') }}" class="ex-btn">Gastos operativos</a>
             @endif
-            <a href="{{ route('reparaciones.create') }}" class="ex-btn ex-btn--solid">+ Nueva orden</a>
+            <a href="{{ route($routePrefix.'.create') }}" class="ex-btn ex-btn--solid">+ Nueva orden</a>
         </x-slot:actions>
     </x-ui.command-hero>
 
@@ -50,7 +50,7 @@
     </div>
 
     {{-- Filtros --}}
-    <form method="GET" action="{{ route('reparaciones.index') }}" class="filter-panel">
+    <form method="GET" action="{{ route($routePrefix.'.index') }}" class="filter-panel">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
                 <h2 class="font-semibold text-slate-800 text-sm">Filtros del tablero</h2>
@@ -58,7 +58,7 @@
             </div>
             <div class="flex gap-2">
                 @if($activeFilters)
-                    <a href="{{ route('reparaciones.index') }}" class="btn-outline text-xs py-1.5">Limpiar</a>
+                    <a href="{{ route($routePrefix.'.index') }}" class="btn-outline text-xs py-1.5">Limpiar</a>
                 @endif
                 <button type="submit" class="btn-primary text-xs py-1.5">Aplicar filtros</button>
             </div>
@@ -68,14 +68,14 @@
             <div class="sm:col-span-2">
                 <label class="form-label" for="search">Búsqueda</label>
                 <input type="search" id="search" name="search" value="{{ request('search') }}"
-                    placeholder="Orden, cliente, teléfono, equipo, IMEI, falla..."
+                    placeholder="{{ $isJewelry ? 'Orden, cliente, teléfono, joya, material, trabajo...' : 'Orden, cliente, teléfono, equipo, IMEI, falla...' }}"
                     class="input-field">
             </div>
             <div>
                 <label class="form-label" for="status">Estado</label>
                 <select id="status" name="status" class="select-field">
                     <option value="">Todos</option>
-                    @foreach(['received' => 'Recibido', 'diagnosing' => 'Diagnóstico', 'waiting_parts' => 'Esp. repuestos', 'in_repair' => 'En reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
+                    @foreach($isJewelry ? ['received' => 'Recibida', 'diagnosing' => 'En evaluación', 'waiting_parts' => 'Esperando materiales', 'in_repair' => 'En taller', 'ready' => 'Lista para entregar', 'delivered' => 'Entregada', 'cancelled' => 'Cancelada'] : ['received' => 'Recibido', 'diagnosing' => 'Diagnóstico', 'waiting_parts' => 'Esp. repuestos', 'in_repair' => 'En reparación', 'ready' => 'Listo', 'delivered' => 'Entregado', 'cancelled' => 'Cancelado'] as $val => $label)
                         <option value="{{ $val }}" @selected(request('status') === $val)>{{ $label }}</option>
                     @endforeach
                 </select>
@@ -90,7 +90,7 @@
                 </select>
             </div>
             <div>
-                <label class="form-label" for="technician_id">Técnico</label>
+                <label class="form-label" for="technician_id">{{ $isJewelry ? 'Joyero' : 'Técnico' }}</label>
                 <select id="technician_id" name="technician_id" class="select-field">
                     <option value="">Todos</option>
                     @foreach($technicians as $technician)
@@ -99,7 +99,7 @@
                 </select>
             </div>
             <div>
-                <label class="form-label" for="device_brand">Marca</label>
+                <label class="form-label" for="device_brand">{{ $isJewelry ? 'Tipo de joya' : 'Marca' }}</label>
                 <select id="device_brand" name="device_brand" class="select-field">
                     <option value="">Todas</option>
                     @foreach($deviceBrands as $brand)
@@ -141,11 +141,11 @@
                 Solo entregas atrasadas
             </label>
             <div class="flex flex-wrap gap-2 text-xs">
-                <a href="{{ route('reparaciones.index', ['delivery_from' => now()->toDateString(), 'delivery_to' => now()->toDateString()]) }}"
+                <a href="{{ route($routePrefix.'.index', ['delivery_from' => now()->toDateString(), 'delivery_to' => now()->toDateString()]) }}"
                    class="rounded-full bg-amber-50 px-3 py-1 font-semibold text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100">Entregan hoy</a>
-                <a href="{{ route('reparaciones.index', ['status' => 'ready']) }}"
+                <a href="{{ route($routePrefix.'.index', ['status' => 'ready']) }}"
                    class="rounded-full bg-green-50 px-3 py-1 font-semibold text-green-700 ring-1 ring-green-200 hover:bg-green-100">Listos para entregar</a>
-                <a href="{{ route('reparaciones.index', ['overdue_only' => 1]) }}"
+                <a href="{{ route($routePrefix.'.index', ['overdue_only' => 1]) }}"
                    class="rounded-full bg-red-50 px-3 py-1 font-semibold text-red-700 ring-1 ring-red-200 hover:bg-red-100">Atrasadas</a>
             </div>
         </div>
@@ -159,10 +159,10 @@
                     <tr>
                         <th>Orden</th>
                         <th>Cliente</th>
-                        <th>Equipo</th>
-                        <th>Falla</th>
+                        <th>{{ $isJewelry ? 'Pieza' : 'Equipo' }}</th>
+                        <th>{{ $isJewelry ? 'Trabajo solicitado' : 'Falla' }}</th>
                         <th>Recepción</th>
-                        <th>Entrega est.</th>
+                        <th>Entrega estimada</th>
                         <th class="text-center">Prioridad</th>
                         <th class="text-center">Estado</th>
                         <th class="text-center">Pago</th>
@@ -207,11 +207,16 @@
                                     'text-red-700' => $order->isEstimatedDeliveryOverdue(),
                                     'text-amber-700' => ! $order->isEstimatedDeliveryOverdue() && $order->isEstimatedDeliveryToday(),
                                     'text-slate-800' => ! $order->isEstimatedDeliveryOverdue() && ! $order->isEstimatedDeliveryToday(),
-                                ])>{{ $order->estimatedDeliveryDisplay() }}</p>
+                                ])>
+                                    @if($order->estimated_date){{ $order->estimated_date->format('d/m/Y') }}@endif
+                                    @if($order->estimated_delivery_time)<span class="block text-xs">Hora: {{ substr((string) $order->estimated_delivery_time, 0, 5) }}</span>@endif
+                                </p>
                                 @if($order->isEstimatedDeliveryOverdue())
                                     <span class="inline-block mt-0.5 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">Atrasada</span>
                                 @elseif($order->isEstimatedDeliveryToday())
                                     <span class="inline-block mt-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Hoy</span>
+                                @else
+                                    <span class="inline-block mt-0.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">A tiempo</span>
                                 @endif
                             @else
                                 <span class="text-slate-400">—</span>
@@ -233,9 +238,9 @@
                         <td class="text-right font-semibold text-slate-900 whitespace-nowrap">C$ {{ number_format($order->total, 2) }}</td>
                         <td>
                             <div class="flex items-center justify-center gap-1">
-                                <a href="{{ route('reparaciones.show', $order->id) }}" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Ver">Ver</a>
-                                <a href="{{ route('reparaciones.ticket', $order->id) }}" target="_blank" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Ticket">Ticket</a>
-                                <a href="{{ route('reparaciones.edit', $order->id) }}" class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title="Editar">Editar</a>
+                                <a href="{{ route($routePrefix.'.show', $order->id) }}" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Ver">Ver</a>
+                                <a href="{{ route($routePrefix.'.ticket', $order->id) }}" target="_blank" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Ticket">Ticket</a>
+                                <a href="{{ route($routePrefix.'.edit', $order->id) }}" class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title="Editar">Editar</a>
                             </div>
                         </td>
                     </tr>

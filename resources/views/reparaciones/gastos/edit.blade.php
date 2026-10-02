@@ -10,10 +10,10 @@
             <h1 class="page-title">Editar Gasto Operativo</h1>
             <p class="page-subtitle">Actualizar información y reflejo contable del egreso</p>
         </div>
-        <a href="{{ route('reparaciones.gastos.show', $expense) }}" class="btn-outline text-sm">← Volver</a>
+        <a href="{{ route('gastos.show', $expense) }}" class="btn-outline text-sm">← Volver</a>
     </div>
 
-    <form method="POST" action="{{ route('reparaciones.gastos.update', $expense) }}" class="space-y-6">
+    <form method="POST" action="{{ route('gastos.update', $expense) }}" class="space-y-6">
         @csrf
         @method('PUT')
         @include('reparaciones.gastos._form', ['expense' => $expense])

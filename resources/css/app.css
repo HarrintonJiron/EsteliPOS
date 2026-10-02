@@ -11,7 +11,6 @@
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
 @source '../**/*.js';
-
 @source inline("bg-slate-50 bg-slate-100 bg-slate-600 bg-slate-700 bg-slate-800 bg-slate-900 bg-slate-950");
 @source inline("bg-blue-50 bg-blue-100 bg-blue-700 bg-indigo-50 bg-indigo-100 bg-indigo-400 bg-indigo-600 bg-indigo-700");
 @source inline("bg-green-50 bg-green-100 bg-green-600 bg-green-700 bg-green-800 bg-emerald-50 bg-emerald-100 bg-emerald-600 bg-emerald-700");

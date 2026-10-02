@@ -29,7 +29,7 @@ test('it creates a device brand from repair forms endpoint', function () {
         ->assertCreated()
         ->assertJsonPath('name', 'Marca QA');
 
-    $this->assertDatabaseHas('device_brands', ['name' => 'Marca QA']);
+    $this->assertDatabaseHas('device_brands', ['name' => 'Marca QA', 'workshop_type' => 'repair']);
 });
 
 test('it creates a repair service from repair forms endpoint', function () {
@@ -44,7 +44,7 @@ test('it creates a repair service from repair forms endpoint', function () {
         ->assertCreated()
         ->assertJsonPath('name', 'Servicio QA');
 
-    $this->assertDatabaseHas('repair_services', ['name' => 'Servicio QA']);
+    $this->assertDatabaseHas('repair_services', ['name' => 'Servicio QA', 'workshop_type' => 'repair']);
 });
 
 test('it creates an inventory category from inventory forms endpoint', function () {

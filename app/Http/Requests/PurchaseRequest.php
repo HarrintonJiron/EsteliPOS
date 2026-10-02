@@ -24,6 +24,7 @@ class PurchaseRequest extends FormRequest
             'purchase_mode' => ['nullable', 'in:immediate,proforma'],
             'status' => ['nullable', 'in:ordered,pending,completed,canceled'],
             'payment_type' => ['nullable', 'in:cash,transfer,credit'],
+            'funding_source' => ['nullable', 'in:external,sales_cash'],
             'currency' => ['required', Rule::in(['NIO', 'USD', 'EUR'])],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.000001'],
             'items' => ['required', 'array', 'min:1', 'max:250'],
@@ -86,6 +87,7 @@ class PurchaseRequest extends FormRequest
             'purchase_mode' => $purchaseMode ?: 'immediate',
             'status' => $status,
             'payment_type' => $paymentType,
+            'funding_source' => $this->input('funding_source') === 'sales_cash' ? 'sales_cash' : 'external',
         ]);
     }
 }

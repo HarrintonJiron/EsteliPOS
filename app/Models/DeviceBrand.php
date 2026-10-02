@@ -8,6 +8,7 @@ class DeviceBrand extends Model
 {
     protected $fillable = [
         'name',
+        'workshop_type',
         'is_active',
     ];
 
@@ -18,5 +19,10 @@ class DeviceBrand extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeForWorkshop($query, string $type)
+    {
+        return $query->where('workshop_type', $type);
     }
 }

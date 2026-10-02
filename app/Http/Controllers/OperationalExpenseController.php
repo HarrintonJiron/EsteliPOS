@@ -73,7 +73,7 @@ class OperationalExpenseController extends Controller
             return back()->withInput()->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('reparaciones.gastos.show', $expense)->with('success', 'Gasto operativo registrado correctamente.');
+        return redirect()->route('gastos.show', $expense)->with('success', 'Gasto operativo registrado correctamente.');
     }
 
     public function show(OperationalExpense $operationalExpense): View
@@ -101,14 +101,14 @@ class OperationalExpenseController extends Controller
             return back()->withInput()->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('reparaciones.gastos.show', $expense)->with('success', 'Gasto operativo actualizado correctamente.');
+        return redirect()->route('gastos.show', $expense)->with('success', 'Gasto operativo actualizado correctamente.');
     }
 
     public function destroy(OperationalExpense $operationalExpense): RedirectResponse
     {
         $this->service->cancel($operationalExpense);
 
-        return redirect()->route('reparaciones.gastos.index')->with('success', 'Gasto operativo anulado correctamente.');
+        return redirect()->route('gastos.index')->with('success', 'Gasto operativo anulado correctamente.');
     }
 
     private function formData(): array

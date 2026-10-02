@@ -13,7 +13,7 @@
         title="Dashboard de inventario"
         :subtitle="'Análisis · últimos ' . $periodDays . ' días'"
         metric-label="Valor inventario"
-        :metric-value="'C$ ' . number_format($stats['total_inventory_value'], 0)"
+        :metric-value="app(\App\Services\MoneyDisplayService::class)->format($stats['total_inventory_value'], 0)"
         :stats="[
             ['label' => 'Entradas', 'value' => '+' . number_format($movementStats['entries'])],
             ['label' => 'Salidas', 'value' => '−' . number_format($movementStats['exits'])],
@@ -34,7 +34,7 @@
 
     @php $net = $movementStats['entries'] - $movementStats['exits']; @endphp
     <div class="ex-kpis ex-kpis--4">
-        <x-ui.command-kpi label="Valor inventario" :value="'C$ ' . number_format($stats['total_inventory_value'], 0)" />
+        <x-ui.command-kpi label="Valor inventario" :value="app(\App\Services\MoneyDisplayService::class)->format($stats['total_inventory_value'], 0)" />
         <x-ui.command-kpi label="Entradas" :value="'+' . number_format($movementStats['entries'])" />
         <x-ui.command-kpi label="Salidas" :value="'−' . number_format($movementStats['exits'])" />
         <x-ui.command-kpi label="Balance neto" :value="($net >= 0 ? '+' : '') . number_format($net)" />
@@ -82,7 +82,7 @@
                     </div>
                     <div class="text-right">
                         <p class="font-bold text-indigo-700">{{ number_format($row['quantity'], 1) }}</p>
-                        <p class="text-[10px] text-slate-400">C$ {{ number_format($row['value'], 0) }}</p>
+                        <p class="text-[10px] text-slate-400">@money($row['value'], 0)</p>
                     </div>
                 </div>
                 @empty

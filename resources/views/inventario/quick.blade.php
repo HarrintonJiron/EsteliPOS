@@ -28,9 +28,9 @@
 
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1.4fr]">
             <div>
-                <label class="mb-1 block text-xs font-medium text-slate-500">Código · Enter busca</label>
-                <input type="text" name="code" id="barcodeInput" value="{{ old('code') }}" required autofocus
-                    placeholder="Escanear..."
+                <label class="mb-1 block text-xs font-medium text-slate-500">Código o IMEI · Enter busca · vacío = automático</label>
+                <input type="text" name="code" id="barcodeInput" value="{{ old('code') }}" autofocus
+                    placeholder="Escanear o dejar vacío..."
                     class="input-field py-2 font-mono text-center tracking-wide">
             </div>
             <div>
@@ -44,13 +44,18 @@
         <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
             <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div>
+                <input type="hidden" name="price_currency" value="USD">
+                <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Moneda</label>
+                <p class="input-field py-1.5 text-sm">USD ($)</p>
+            </div>
+            <div>
                 <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Costo</label>
-                <input type="number" name="purchase_price" id="quick_purchase_price" step="0.01" min="0"
+                <input type="text" inputmode="decimal" name="purchase_price" id="quick_purchase_price"
                     value="{{ old('purchase_price') }}" placeholder="0.00" class="input-field py-1.5 text-sm">
             </div>
             <div>
                 <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Público *</label>
-                <input type="number" name="sale_price" id="quick_sale_price" step="0.01" min="0" required
+                <input type="text" inputmode="decimal" name="sale_price" id="quick_sale_price" required
                     value="{{ old('sale_price') }}" placeholder="0.00"
                     class="input-field py-1.5 text-sm font-bold text-indigo-700">
             </div>
@@ -61,7 +66,7 @@
                         <button type="button" id="applyWholesalePct" class="normal-case text-[10px] text-emerald-600 hover:underline">−10%</button>
                     @endif
                 </label>
-                <input type="number" name="wholesale_price" id="quick_wholesale_price" step="0.01" min="0"
+                <input type="text" inputmode="decimal" name="wholesale_price" id="quick_wholesale_price"
                     value="{{ old('wholesale_price') }}" placeholder="Opcional"
                     class="input-field py-1.5 text-sm font-semibold text-emerald-700">
             </div>
@@ -117,6 +122,15 @@
                     <p id="newCategoryErrorQuick" class="mt-1 text-xs text-red-600 hidden"></p>
                 </div>
             </div>
+            <div class="sm:col-span-3">
+                <label class="mb-1 block text-xs text-slate-500">Proveedor <span class="text-slate-400">(opcional)</span></label>
+                <select name="supplier_id" class="select-field py-1.5 text-sm">
+                    <option value="">Sin proveedor</option>
+                    @foreach($suppliers as $supplier)
+                        <option value="{{ $supplier->id }}" @selected(old('supplier_id') == $supplier->id)>{{ $supplier->name }}</option>
+                    @endforeach
+                </select>
+            </div>
         </div>
 
         @include('inventario._inline_location_creator', [
@@ -163,7 +177,7 @@
                 <div class="grid gap-2 sm:grid-cols-2">
                     <div>
                         <label for="quickPresentationPrice" class="mb-1 block text-xs text-slate-500">Precio de venta (opcional)</label>
-                        <input id="quickPresentationPrice" name="presentation_sale_price" type="number" min="0" step="0.01" value="{{ old('presentation_sale_price') }}" placeholder="Automático" class="input-field py-1.5 text-sm">
+                        <input id="quickPresentationPrice" name="presentation_sale_price" type="text" inputmode="decimal" value="{{ old('presentation_sale_price') }}" placeholder="Automático" class="input-field py-1.5 text-sm">
                     </div>
                     <div>
                         <label for="quickPresentationBarcode" class="mb-1 block text-xs text-slate-500">Código de barras (opcional)</label>
@@ -189,8 +203,13 @@
                 <div id="quickImagePlaceholder" class="text-center text-slate-400 text-lg">📷</div>
                 <img id="quickImagePreview" class="hidden h-full w-full object-contain" alt="">
             </div>
-            <input id="quick_product_image" type="file" name="image" accept="image/jpeg,image/png,image/webp"
-                class="text-xs text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-slate-800 file:px-2 file:py-1 file:text-xs file:text-white">
+            <div>
+                <label for="quick_product_image" class="block text-xs font-medium text-slate-600">Foto del producto</label>
+                <input id="quick_product_image" type="file" name="image" accept="image/jpeg,image/png,image/webp" capture="environment"
+                    class="mt-1 block w-full text-xs text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-slate-800 file:px-2 file:py-1 file:text-xs file:text-white">
+                <p class="mt-1 text-[11px] text-slate-500">JPG, PNG o WebP hasta 8 MB. Se optimiza al guardar.</p>
+                @error('image')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            </div>
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
@@ -278,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.exists) {
                 existsAlert.classList.remove('hidden');
                 document.getElementById('existsInfo').textContent =
-                    `${data.product.name} · Stock ${data.product.stock} · C$ ${parseFloat(data.product.sale_price).toFixed(2)}`;
+                    `${data.product.name} · Stock ${data.product.stock} · {{ $currencySymbol }} ${parseFloat(data.product.sale_price).toFixed(2)}`;
                 document.getElementById('existsLink').href = data.product.url;
                 barcode.classList.add('border-amber-400');
             } else {

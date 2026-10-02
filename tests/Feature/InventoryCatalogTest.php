@@ -61,6 +61,29 @@ test('admin can browse inventory hub pages', function () {
     $this->actingAs($admin)->get(route('inventario.units.index'))->assertOk()->assertSee('Unidades de medida');
 });
 
+test('POS preserves the price of legacy products without a base unit', function () {
+    $category = Category::firstOrCreate(['name' => 'Legado']);
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto sin unidad configurada',
+        'code' => 'LEGACY-NO-UNIT',
+        'purchase_price' => 75,
+        'sale_price' => 100,
+        'stock' => 5,
+        'unit' => 'unidad',
+        'base_unit_id' => null,
+        'status' => 'active',
+    ]);
+
+    $serialized = app(PosCatalogService::class)->serializeProduct($product);
+
+    expect($serialized['sale_price'])->toBe(100.0)
+        ->and($serialized['sale_units'])->toHaveCount(1)
+        ->and($serialized['sale_units'][0]['id'])->toBeNull()
+        ->and($serialized['sale_units'][0]['price'])->toBe(100.0)
+        ->and($serialized['sale_units'][0]['is_default'])->toBeTrue();
+});
+
 test('quick product registration can set wholesale price on mayor list', function () {
     $this->seed(InventoryCatalogSeeder::class);
     $admin = inventoryAdmin();
@@ -71,7 +94,13 @@ test('quick product registration can set wholesale price on mayor list', functio
         'name' => 'Clavo 2 pulgadas',
         'sale_price' => 100,
         'wholesale_price' => 85,
+        'special_price' => 80,
         'purchase_price' => 70,
+        'condition' => 'open_box',
+        'brand' => 'Samsung',
+        'model' => 'A55',
+        'color' => 'Azul',
+        'description' => 'Caja abierta, equipo completo',
         'stock' => 50,
         'category_id' => $category->id,
         'unit' => 'unidad',
@@ -79,11 +108,16 @@ test('quick product registration can set wholesale price on mayor list', functio
 
     $product = Product::query()->where('code', 'CLAVO-001')->firstOrFail();
     $mayorList = PriceList::query()->where('code', 'MAYOR')->firstOrFail();
+    $specialList = PriceList::query()->where('code', 'ESPECIAL')->firstOrFail();
 
     expect(PriceListItem::query()
         ->where('price_list_id', $mayorList->id)
         ->where('product_id', $product->id)
-        ->value('unit_price'))->toEqual(85.0);
+        ->value('unit_price'))->toEqual(85.0)
+        ->and(PriceListItem::query()->where('price_list_id', $specialList->id)->where('product_id', $product->id)->value('unit_price'))->toEqual(80.0)
+        ->and($product->condition)->toBe('open_box')
+        ->and($product->model)->toBe('A55')
+        ->and($product->color)->toBe('Azul');
 });
 
 test('quick product registration can create its first presentation', function () {
@@ -160,6 +194,103 @@ test('catalog search updates results while typing', function () {
         ->assertDontSee('Destornillador plano');
 });
 
+test('inventory can list inactive products and rows open with double click', function () {
+    $admin = inventoryAdmin();
+    $category = Category::firstOrCreate(['name' => 'Archivados']);
+
+    $inactive = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto temporalmente inactivo',
+        'code' => 'INACTIVO-001',
+        'purchase_price' => 10,
+        'sale_price' => 15,
+        'stock' => 0,
+        'unit' => 'unidad',
+        'status' => 'inactive',
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('inventario.index'))
+        ->assertOk()
+        ->assertDontSee($inactive->name);
+
+    $this->actingAs($admin)
+        ->get(route('inventario.index', ['status' => 'inactive']))
+        ->assertOk()
+        ->assertSee($inactive->name)
+        ->assertSee('Doble clic para abrir el producto')
+        ->assertSee("window.location.href='".route('inventario.show', $inactive->id)."'", false)
+        ->assertSee('w-max min-w-full table-auto', false);
+});
+
+test('deleting a product without movements releases its code for reuse', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+    $category = Category::firstOrCreate(['name' => 'Codigos reutilizables']);
+    $baseUnit = Unit::query()->where('abbreviation', 'und')->firstOrFail();
+    $boxUnit = Unit::query()->where('abbreviation', 'caja')->firstOrFail();
+
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto que se retirara',
+        'code' => 'REUTILIZABLE-001',
+        'purchase_price' => 10,
+        'sale_price' => 15,
+        'stock' => 0,
+        'unit' => 'unidad',
+        'base_unit_id' => $baseUnit->id,
+        'status' => 'active',
+    ]);
+    ProductUnitConversion::query()->create([
+        'product_id' => $product->id,
+        'unit_id' => $boxUnit->id,
+        'equals_unit_id' => $baseUnit->id,
+        'equals_quantity' => 12,
+        'factor_to_base' => 12,
+        'barcode' => '7441000999999',
+        'use_for_purchase' => true,
+        'use_for_sale' => true,
+    ]);
+
+    $this->actingAs($admin)
+        ->delete(route('inventario.destroy', $product->id))
+        ->assertRedirect(route('inventario.index'))
+        ->assertSessionHas('success');
+
+    $archived = Product::withTrashed()->findOrFail($product->id);
+
+    expect($archived->trashed())->toBeTrue()
+        ->and($archived->code)->toStartWith('ARCH-'.$product->id.'-')
+        ->and($archived->observations)->toContain('REUTILIZABLE-001');
+
+    $replacement = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto ingresado nuevamente',
+        'code' => 'REUTILIZABLE-001',
+        'purchase_price' => 12,
+        'sale_price' => 18,
+        'stock' => 0,
+        'unit' => 'unidad',
+        'base_unit_id' => $baseUnit->id,
+        'status' => 'active',
+    ]);
+
+    expect($replacement->exists)->toBeTrue();
+
+    $replacementConversion = ProductUnitConversion::query()->create([
+        'product_id' => $replacement->id,
+        'unit_id' => $boxUnit->id,
+        'equals_unit_id' => $baseUnit->id,
+        'equals_quantity' => 12,
+        'factor_to_base' => 12,
+        'barcode' => '7441000999999',
+        'use_for_purchase' => true,
+        'use_for_sale' => true,
+    ]);
+
+    expect($replacementConversion->exists)->toBeTrue();
+});
+
 test('product conversion can express one carga equals two quintales', function () {
     $this->seed(InventoryCatalogSeeder::class);
     $admin = inventoryAdmin();
@@ -211,6 +342,45 @@ test('product conversion can express one carga equals two quintales', function (
         ->assertSee('Opcional')
         ->assertSee('1 carga')
         ->assertSee('2 qq');
+});
+
+test('conversion sale price can be edited without changing its factor', function () {
+    $this->seed(InventoryCatalogSeeder::class);
+    $admin = inventoryAdmin();
+    $baseUnit = Unit::query()->where('abbreviation', 'und')->firstOrFail();
+    $boxUnit = Unit::query()->where('abbreviation', 'caja')->firstOrFail();
+    $category = Category::firstOrCreate(['name' => 'Conversion editable']);
+    $product = Product::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Producto por caja',
+        'code' => 'CONV-EDIT-001',
+        'purchase_price' => 5,
+        'sale_price' => 8,
+        'stock' => 24,
+        'unit' => 'und',
+        'base_unit_id' => $baseUnit->id,
+        'status' => 'active',
+    ]);
+    $conversion = ProductUnitConversion::query()->create([
+        'product_id' => $product->id,
+        'unit_id' => $boxUnit->id,
+        'equals_unit_id' => $baseUnit->id,
+        'equals_quantity' => 12,
+        'factor_to_base' => 12,
+        'sale_price' => 90,
+        'use_for_sale' => true,
+        'use_for_purchase' => true,
+    ]);
+
+    $this->actingAs($admin)
+        ->patch(route('inventario.conversions.update', [$product->id, $conversion->id]), [
+            'sale_price' => '87.50',
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect((float) $conversion->fresh()->sale_price)->toBe(87.5)
+        ->and((float) $conversion->fresh()->factor_to_base)->toBe(12.0);
 });
 
 test('soap can be bought in boxes and sold as ristras without duplicating the product', function () {

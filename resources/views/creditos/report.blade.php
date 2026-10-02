@@ -37,21 +37,21 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="card p-5 bg-gradient-to-br from-indigo-600 to-indigo-700 text-white">
             <p class="text-indigo-200 text-xs">Créditos del período</p>
-            <p class="text-2xl font-bold">C$ {{ number_format($totalCredits, 2) }}</p>
-            <p class="text-xs text-indigo-200">{{ $creditsSold->count() }} facturas</p>
+            <p class="text-2xl font-bold">@money($totalCredits, 2)</p>
+            <p class="text-xs text-indigo-200">{{ $creditsSold->count() }} facturas · {{ $repairCreditsIssued->count() }} reparaciones</p>
         </div>
         <div class="card p-5 bg-gradient-to-br from-emerald-600 to-emerald-700 text-white">
             <p class="text-emerald-200 text-xs">Abonos del período</p>
-            <p class="text-2xl font-bold">C$ {{ number_format($totalPayments, 2) }}</p>
-            <p class="text-xs text-emerald-200">{{ $paymentsReceived->count() }} abonos</p>
+            <p class="text-2xl font-bold">@money($totalPayments, 2)</p>
+            <p class="text-xs text-emerald-200">{{ $paymentsReceived->count() + $repairPaymentsReceived->count() }} abonos ({{ $repairPaymentsReceived->count() }} de reparaciones)</p>
         </div>
         <div class="card p-5 border-l-4 border-amber-500">
             <p class="text-xs text-slate-500">Cartera total</p>
-            <p class="text-2xl font-bold text-amber-600">C$ {{ number_format($portfolio['balance_total'], 2) }}</p>
+            <p class="text-2xl font-bold text-amber-600">@money($portfolio['balance_total'], 2)</p>
         </div>
         <div class="card p-5 border-l-4 border-red-500">
             <p class="text-xs text-slate-500">Cartera vencida</p>
-            <p class="text-2xl font-bold text-red-600">C$ {{ number_format($portfolio['overdue_total'], 2) }}</p>
+            <p class="text-2xl font-bold text-red-600">@money($portfolio['overdue_total'], 2)</p>
         </div>
     </div>
 
@@ -71,7 +71,7 @@
             @foreach($agingStyles as $key => $style)
             <div class="p-4 bg-slate-50 rounded-xl">
                 <p class="text-xs text-slate-500">{{ $style['label'] }}</p>
-                <p class="text-xl font-bold {{ $style['text'] }}">C$ {{ number_format($aging[$key], 2) }}</p>
+                <p class="text-xl font-bold {{ $style['text'] }}">@money($aging[$key], 2)</p>
                 <div class="h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden">
                     <div class="h-full {{ $style['bar'] }}" style="width: {{ ($aging[$key] / $agingMax) * 100 }}%"></div>
                 </div>
@@ -90,9 +90,9 @@
                     <div>
                         <p class="font-medium text-slate-800">{{ $row['client']->legal_name }}</p>
                         <p class="text-xs text-slate-500">{{ $row['client']->document_label }}: {{ $row['client']->document_number ?? '—' }}</p>
-                        <p class="text-xs text-slate-500">Límite: C$ {{ number_format($row['client']->credit_limit, 0) }}</p>
+                        <p class="text-xs text-slate-500">Límite: @money($row['client']->credit_limit, 0)</p>
                     </div>
-                    <p class="font-bold text-red-600">C$ {{ number_format($row['balance'], 2) }}</p>
+                    <p class="font-bold text-red-600">@money($row['balance'], 2)</p>
                 </div>
                 @empty
                 <p class="p-6 text-center text-slate-500">Sin deudores</p>
@@ -109,10 +109,10 @@
                     <div>
                         <p class="font-medium text-slate-800">{{ $row['client']->legal_name }}</p>
                         <p class="text-xs text-slate-500">{{ $row['client']->document_label }}: {{ $row['client']->document_number ?? '—' }}</p>
-                        <p class="text-xs text-slate-500">Límite: C$ {{ number_format($row['credit_limit'], 2) }}</p>
+                        <p class="text-xs text-slate-500">Límite: @money($row['credit_limit'], 2)</p>
                     </div>
                     <div class="text-right">
-                        <p class="font-bold text-red-600">C$ {{ number_format($row['balance'], 2) }}</p>
+                        <p class="font-bold text-red-600">@money($row['balance'], 2)</p>
                         <span class="badge-danger text-xs">+{{ number_format($row['balance'] - $row['credit_limit'], 2) }}</span>
                     </div>
                 </div>
@@ -137,7 +137,7 @@
                     <td class="font-mono text-indigo-600">#{{ $sale->invoice_number }}</td>
                     <td>{{ $sale->date->format('d/m/Y') }}</td>
                     <td>{{ $sale->due_date?->format('d/m/Y') ?? '—' }}</td>
-                    <td class="text-right font-semibold">C$ {{ number_format($sale->total, 2) }}</td>
+                    <td class="text-right font-semibold">@money($sale->total, 2)</td>
                 </tr>
                 @endforeach
             </tbody>
@@ -159,7 +159,7 @@
                     <td>{{ $payment->client?->document_number ?? 'N/A' }}</td>
                     <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
                     <td><span class="badge-info">{{ $payment->payment_type }}</span></td>
-                    <td class="text-right font-semibold text-emerald-600">C$ {{ number_format($payment->amount, 2) }}</td>
+                    <td class="text-right font-semibold text-emerald-600">@money($payment->amount, 2)</td>
                     <td class="text-sm text-slate-500">{{ $payment->reference_number ?? '—' }}</td>
                 </tr>
                 @endforeach
@@ -167,6 +167,53 @@
         </table>
         @else
         <p class="p-6 text-center text-slate-500">Sin abonos en el período</p>
+        @endif
+    </div>
+
+    <div class="card overflow-hidden">
+        <div class="card-header"><h3 class="font-semibold text-slate-800">Créditos de Reparaciones Otorgados (período)</h3></div>
+        @if($repairCreditsIssued->count())
+        <table class="table-agro">
+            <thead><tr><th>Cliente</th><th>Orden</th><th>Equipo</th><th>Fecha</th><th>Vence</th><th class="text-right">Total</th><th class="text-right">Saldo</th></tr></thead>
+            <tbody>
+                @foreach($repairCreditsIssued as $repair)
+                <tr>
+                    <td>{{ $repair->client?->legal_name ?? $repair->client_name }}</td>
+                    <td><a class="font-mono text-indigo-600" href="{{ route('reparaciones.show', $repair->id) }}">{{ $repair->order_number }}</a></td>
+                    <td>{{ $repair->device_brand }} {{ $repair->device_model }}</td>
+                    <td>{{ $repair->received_date->format('d/m/Y') }}</td>
+                    <td>{{ $repair->due_date?->format('d/m/Y') ?? '—' }}</td>
+                    <td class="text-right font-semibold">@money($repair->total, 2)</td>
+                    <td class="text-right font-semibold text-red-600">@money($repair->balance(), 2)</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+        @else
+        <p class="p-6 text-center text-slate-500">Sin créditos de reparaciones en el período</p>
+        @endif
+    </div>
+
+    <div class="card overflow-hidden">
+        <div class="card-header"><h3 class="font-semibold text-slate-800">Abonos a Reparaciones (período)</h3></div>
+        @if($repairPaymentsReceived->count())
+        <table class="table-agro">
+            <thead><tr><th>Cliente</th><th>Orden</th><th>Fecha</th><th>Tipo</th><th class="text-right">Monto</th><th>Referencia</th></tr></thead>
+            <tbody>
+                @foreach($repairPaymentsReceived as $payment)
+                <tr>
+                    <td>{{ $payment->repairOrder?->client?->legal_name ?? $payment->repairOrder?->client_name }}</td>
+                    <td class="font-mono">{{ $payment->repairOrder?->order_number }}</td>
+                    <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
+                    <td><span class="badge-info">{{ $payment->payment_type }}</span></td>
+                    <td class="text-right font-semibold text-emerald-600">@money($payment->amount, 2)</td>
+                    <td class="text-sm text-slate-500">{{ $payment->reference_number ?? '—' }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+        @else
+        <p class="p-6 text-center text-slate-500">Sin abonos a reparaciones en el período</p>
         @endif
     </div>
 

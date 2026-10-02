@@ -25,7 +25,7 @@ class SaleRequest extends FormRequest
             ],
             'date' => 'required|date',
             'due_date' => 'nullable|date|after_or_equal:date',
-            'payment_type' => 'required|in:cash,transfer,credit',
+            'payment_type' => 'required|in:cash,card,transfer,credit',
             'tax_included' => 'required|boolean',
             'billing_name' => 'required|string|max:255',
             'billing_business_name' => 'nullable|string|max:255',

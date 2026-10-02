@@ -70,6 +70,25 @@
                     <p class="text-xs text-gray-500 mt-1">Así se cuenta el inventario. Las presentaciones (ristra, caja) se agregan en la ficha, en <strong>Cómo se vende</strong>.</p>
                 </div>
 
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Proveedor <span class="font-normal text-gray-400">(opcional)</span></label>
+                    <select name="supplier_id" aria-label="Proveedor" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <option value="">Sin proveedor</option>
+                        @foreach($suppliers as $supplier)
+                            <option value="{{ $supplier->id }}" {{ old('supplier_id', $currentSupplier?->id) == $supplier->id ? 'selected' : '' }}>
+                                {{ $supplier->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Código del proveedor <span class="font-normal text-gray-400">(opcional)</span></label>
+                    <input type="text" name="supplier_code" value="{{ old('supplier_code', $currentSupplier?->pivot?->supplier_code) }}"
+                           placeholder="Referencia del proveedor para este producto"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700">Descripción</label>
                     <textarea name="description" rows="2"
@@ -78,37 +97,10 @@
             </div>
         </div>
 
-        {{-- Imagen del producto --}}
-        <div class="bg-white p-4 rounded-xl shadow">
-            <h2 class="text-lg font-semibold text-gray-700 mb-1">Imagen del Producto</h2>
-            <p class="text-sm text-gray-500 mb-4">Puedes reemplazar la imagen actual o eliminarla sin afectar los datos del producto.</p>
+        @include('inventario._cellphone_fields', ['product' => $product])
 
-            <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-5 items-center">
-                <div class="h-40 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden">
-                    <div id="editImagePlaceholder" class="{{ $product->image_url ? 'hidden' : '' }} text-center text-gray-400 px-4">
-                        <div class="text-4xl mb-1">📷</div>
-                        <span class="text-xs">Sin imagen</span>
-                    </div>
-                    <img id="editImagePreview" src="{{ $product->image_url }}"
-                         class="{{ $product->image_url ? '' : 'hidden' }} w-full h-full object-contain"
-                         alt="Imagen de {{ $product->name }}">
-                </div>
-                <div>
-                    <label for="product_image" class="block text-sm font-medium text-gray-700">Reemplazar imagen</label>
-                    <input id="product_image" type="file" name="image" accept="image/jpeg,image/png,image/webp"
-                           class="mt-2 block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-700">
-                    <p class="mt-2 text-xs text-gray-500">Formatos JPG, PNG o WebP. Máximo 3 MB y 3000 × 3000 px.</p>
+        @include('inventario.partials._gallery_field', ['product' => $product])
 
-                    @if($product->image_url)
-                        <label class="mt-3 inline-flex items-center gap-2 text-sm text-red-700 cursor-pointer">
-                            <input id="remove_product_image" type="checkbox" name="remove_image" value="1"
-                                   class="rounded border-gray-300 text-red-600 focus:ring-red-500">
-                            Eliminar imagen actual
-                        </label>
-                    @endif
-                </div>
-            </div>
-        </div>
 
         {{-- Precios y Stock --}}
         <div class="bg-white p-4 rounded-xl shadow">
@@ -116,16 +108,22 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Precio de Compra (C$) *</label>
-                    <input type="number" name="purchase_price" id="edit_purchase_price"
+                    <label class="block text-sm font-medium text-gray-700">Precio de Compra ({{ $currencySymbol }}) *</label>
+                    <input type="text" inputmode="decimal" name="purchase_price" id="edit_purchase_price"
                            value="{{ old('purchase_price', $product->purchase_price) }}" step="0.01" min="0" required
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Precio de Venta (C$) *</label>
-                    <input type="number" name="sale_price" id="edit_sale_price"
-                           value="{{ old('sale_price', $product->sale_price) }}" step="0.01" min="0" required
+                    <input type="hidden" name="price_currency" value="USD">
+                    <label class="block text-sm font-medium text-gray-700">Moneda del precio</label>
+                    <p class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 shadow-sm">USD ($)</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Precio de Venta (moneda registrada) *</label>
+                    <input type="text" inputmode="decimal" name="sale_price" id="edit_sale_price"
+                           value="{{ old('sale_price', $product->source_sale_price ?? $product->sale_price) }}" step="0.01" min="0" required
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
@@ -201,7 +199,7 @@
                     <div class="p-3 bg-amber-50 rounded-xl w-full text-center">
                         <p class="text-xs text-gray-500">Precio con descuento</p>
                         <p class="font-bold text-amber-700 text-lg" id="discountPreview">
-                            C$ {{ number_format($product->effectivePrice(), 2) }}
+                            {{ $currencySymbol }} {{ number_format($product->effectivePrice(), 2) }}
                         </p>
                     </div>
                 </div>
@@ -276,19 +274,5 @@
     </form>
 </div>
 
-<script>
-    document.getElementById('product_image')?.addEventListener('change', function () {
-        const file = this.files?.[0];
-        if (!file) return;
-
-        const preview = document.getElementById('editImagePreview');
-        preview.src = URL.createObjectURL(file);
-        preview.classList.remove('hidden');
-        document.getElementById('editImagePlaceholder').classList.add('hidden');
-
-        const remove = document.getElementById('remove_product_image');
-        if (remove) remove.checked = false;
-    });
-</script>
 
 @endsection

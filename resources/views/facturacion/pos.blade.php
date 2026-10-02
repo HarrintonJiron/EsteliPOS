@@ -18,37 +18,34 @@
      data-product-search-url="{{ route('facturacion.pos-products') }}"
      data-credit-override-url="{{ route('facturacion.credit-override') }}"
      data-product-image-url="{{ url('/facturacion/pos/products') }}"
+     data-trade-in-lookup-url="{{ url('/facturacion/pos/trade-in/imei') }}"
+    data-pos-exchange-rate-url="{{ route('facturacion.pos-exchange-rates.store') }}"
+    data-pos-exchange-rate-id="{{ $posExchangeRate?->id }}"
+    data-pos-exchange-rate="{{ $posExchangeRate?->rate }}"
      data-daily-report-url="{{ route('facturacion.pos-daily-report') }}"
-     data-company-currency="{{ $posReferenceFx['company_currency'] }}"
-     data-company-symbol="{{ $posReferenceFx['company_symbol'] }}"
-     data-reference-currency="{{ $posReferenceFx['reference_currency'] }}"
-     data-reference-symbol="{{ $posReferenceFx['reference_symbol'] }}"
-     data-reference-rate="{{ $posReferenceFx['reference_rate'] ?? '' }}">
+    data-company-currency="{{ $companyCurrency }}"
+    data-company-symbol="{{ $currencySymbol }}"
+    data-reference-currency="{{ $posReferenceFx['reference_currency'] }}"
+    data-reference-symbol="{{ $posReferenceFx['reference_symbol'] }}"
+    data-reference-rate="{{ $posReferenceFx['reference_rate'] ?? '' }}">
+
+    <nav class="pos-mobile-tabs" aria-label="Vista del punto de venta">
+        <button type="button" class="pos-mobile-tab is-active" data-pos-mobile-view="catalog">Productos</button>
+        <button type="button" class="pos-mobile-tab" data-pos-mobile-view="ticket">Ticket · <span id="mobileTicketTotal">{{ $currencySymbol }} 0.00</span></button>
+    </nav>
 
     <input type="file" id="posProductImageInput" class="hidden" accept="image/jpeg,image/png,image/webp" capture="environment">
-
-    <div class="pos-mobile-tabs" role="tablist" aria-label="Vista del punto de venta">
-        <button type="button" class="pos-mobile-tab is-active" data-pos-mobile-view="catalog" role="tab" aria-selected="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M5 7l1 13h12l1-13M9 11v5m6-5v5M8 4h8"/></svg>
-            <span>Productos</span>
-        </button>
-        <button type="button" class="pos-mobile-tab" data-pos-mobile-view="ticket" role="tab" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6"/></svg>
-            <span>Ticket <b id="mobileTicketCount">0</b></span>
-            <small id="mobileTicketTotal">C$ 0.00</small>
-        </button>
-    </div>
 
     {{-- COLUMNA IZQUIERDA: TICKET --}}
     <div class="pos-ticket-col min-h-0 w-full flex-[1.05] overflow-hidden border-b border-slate-200 bg-white md:h-full md:max-h-none md:min-w-[280px] md:max-w-[480px] md:w-[38%] md:flex-none md:border-b-0 md:border-r">
 
         {{-- Barra de acciones rápidas --}}
-        <div class="px-4 py-2 bg-slate-800 text-white flex items-center justify-between text-xs shrink-0">
-            <span class="font-semibold">Ticket #<span id="ticketNumber">1</span></span>
+        <div class="flex shrink-0 items-center justify-between gap-2 bg-slate-800 px-4 py-2 text-xs text-white">
+            <span class="shrink-0 font-semibold">Ticket #<span id="ticketNumber">1</span></span>
             <div class="flex gap-2">
-                <button type="button" onclick="holdTicket()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg" title="F4 - Apartar">Apartar · F4</button>
-                <button type="button" onclick="showHeldTickets()" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg" title="F6 - Recuperar ticket">
-                    Recuperar <span id="heldCount" class="bg-white/20 px-1 rounded">0</span>
+                <button type="button" id="holdTicketBtn" onclick="holdTicket()" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg" title="F4 · Deja esta factura en espera para atender a otro cliente y retomarla después">Dejar en espera · F4</button>
+                <button type="button" id="heldTicketsBtn" onclick="showHeldTickets()" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg transition" title="F6 · Ver las facturas en espera para retomar una y cobrarla">
+                    En espera <span id="heldCount" class="bg-white/20 px-1 rounded">0</span>
                 </button>
             </div>
         </div>
@@ -60,7 +57,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                 </svg>
                 <p class="text-base font-medium text-slate-500">Ticket vacío</p>
-                <p class="text-xs text-slate-400 mt-1">F2 buscar · F9 cobrar · F4 apartar</p>
+                <p class="text-xs text-slate-400 mt-1">F2 buscar · F9 cobrar · F4 dejar en espera</p>
             </div>
         </div>
 
@@ -68,22 +65,31 @@
             <div class="space-y-1">
                 <div class="flex justify-between text-xs text-slate-600">
                     <span>Subtotal</span>
-                    <span id="subtotalDisplay" class="font-medium">C$ 0.00</span>
+                    <span id="subtotalDisplay" class="font-medium">{{ $currencySymbol }} 0.00</span>
                 </div>
                 <div class="flex justify-between text-xs text-slate-600">
                     <span id="orderDiscountLabel" class="hidden">Descuento</span>
-                    <span id="discountDisplay" class="font-medium text-red-600 hidden">-C$ 0.00</span>
+                    <span id="discountDisplay" class="font-medium text-red-600 hidden">-{{ $currencySymbol }} 0.00</span>
                 </div>
                 <div class="flex justify-between text-xs text-slate-600">
                     <span id="taxLabel">IVA ({{ number_format($defaultTaxRate * 100, 2) }}%)</span>
-                    <span id="taxDisplay" class="font-medium">C$ 0.00</span>
+                    <span id="taxDisplay" class="font-medium">{{ $currencySymbol }} 0.00</span>
                 </div>
                 <div class="flex items-end justify-between gap-2 border-t border-slate-300 pt-1.5">
                     <span class="text-xs font-semibold text-slate-700">Total</span>
                     <div class="text-right">
-                        <span id="totalDisplay" class="block text-2xl font-bold leading-none text-slate-900">C$ 0.00</span>
+                        <span id="totalDisplay" class="block text-2xl font-bold leading-none text-slate-900">{{ $currencySymbol }} 0.00</span>
+                        <span id="totalCordobaDisplay" class="hidden text-xs font-semibold text-emerald-700"></span>
                         <span id="totalReferenceDisplay" class="hidden text-[11px] font-semibold text-slate-500"></span>
                     </div>
+                </div>
+                <div id="tradeInSummaryRow" class="hidden flex justify-between text-xs text-amber-700">
+                    <span>Equipo recibido</span>
+                    <span id="tradeInDisplay" class="font-medium">-{{ $currencySymbol }} 0.00</span>
+                </div>
+                <div id="amountDueRow" class="hidden flex items-center justify-between gap-2 border-t border-dashed border-slate-300 pt-1.5">
+                    <span class="text-xs font-bold text-slate-700">Saldo a pagar</span>
+                    <span id="amountDueDisplay" class="text-lg font-extrabold text-emerald-700">{{ $currencySymbol }} 0.00</span>
                 </div>
             </div>
         </div>
@@ -103,20 +109,37 @@
                 </button>
             </div>
 
+            <button type="button" onclick="openTradeInModal()"
+                class="flex w-full items-center justify-center gap-1.5 rounded-xl bg-amber-600 px-2.5 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-amber-700 sm:text-sm">
+                <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                <span class="truncate">Recibir equipo a cambio</span>
+                <span id="tradeInCount" class="hidden rounded-full bg-white/25 px-1.5 text-[10px] font-bold">0</span>
+            </button>
+
+            @if(auth()->user()->isAdmin() || auth()->user()->hasPermission('apartados.create'))
+            <button type="button" onclick="createReservationFromPOS()" class="flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2v-9a2 2 0 012-2zm3 0V6a4 4 0 018 0v2"/></svg>
+                Convertir ticket en apartado
+            </button>
+            @endif
+
             @include('facturacion._numpad')
         </div>
     </div>
 
     {{-- COLUMNA DERECHA: PRODUCTOS Y PAGO --}}
-    <div id="posCatalogCol" class="pos-catalog-col flex min-h-0 min-w-0 flex-1 flex-col bg-white">
+    <div class="pos-catalog-col flex min-h-0 min-w-0 flex-1 flex-col bg-white">
 
-        <div class="pos-catalog-toolbar shrink-0 space-y-2 border-b border-slate-200 bg-white p-2.5 sm:p-3">
+        <div class="shrink-0 space-y-2 border-b border-slate-200 bg-white p-2.5 sm:p-3">
             <div class="flex items-center gap-2 overflow-x-auto text-[11px] text-slate-500" aria-label="Atajos de teclado del punto de venta">
                 <button type="button" onclick="showShortcutHelp()" class="shrink-0 rounded-md bg-slate-800 px-2 py-1 font-semibold text-white" title="Ver todos los atajos">F1 Atajos</button>
+                @if(auth()->user()->isAdmin())
+                    <button type="button" onclick="openPosExchangeRateModal()" class="shrink-0 rounded-md bg-teal-600 px-2 py-1 font-semibold text-white hover:bg-teal-700" title="Actualizar tasa C$ por USD">+ Tasa<span id="posExchangeRateDisplay">{{ $posExchangeRate ? ': C$ '.number_format((float) $posExchangeRate->rate, 4) : '' }}</span></button>
+                @endif
                 <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 lg:inline"><b>F2</b> Buscar</span>
                 <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 lg:inline"><b>F3</b> Cliente</span>
-                <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 2xl:inline"><b>F4</b> Apartar</span>
-                <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 2xl:inline"><b>F6</b> Recuperar</span>
+                <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 2xl:inline"><b>F4</b> Dejar en espera</span>
+                <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 2xl:inline"><b>F6</b> Facturas en espera</span>
                 <span class="hidden shrink-0 rounded-md bg-indigo-50 px-2 py-1 font-semibold text-indigo-700 lg:inline"><b>F9</b> Cobrar</span>
                 <span class="hidden shrink-0 rounded-md bg-slate-100 px-2 py-1 2xl:inline"><b>F10</b> Corte</span>
                 <div class="ml-auto hidden shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-gradient-to-r from-white to-teal-50 px-3 py-1 shadow-sm lg:flex"
@@ -142,11 +165,11 @@
                         class="input-with-leading-icon w-full rounded-xl border border-slate-300 py-2 pr-4 text-sm focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 sm:py-2.5" autocomplete="off">
                 </div>
             </div>
-            <div class="pos-catalog-filters flex min-w-0 flex-col gap-2 sm:flex-row">
+            <div class="flex min-w-0 flex-col gap-2 sm:flex-row">
                 <select id="warehouseSelect" class="select-field min-w-0 text-sm sm:max-w-xs" title="Bodega de salida (opcional)">
-                    <option value="">Automática (según stock)</option>
+                    <option value="" @selected(! $defaultWarehouseId)>Automática (según stock)</option>
                     @foreach($warehouses as $wh)
-                        <option value="{{ $wh->id }}" @selected((int) $defaultWarehouseId === (int) $wh->id)>{{ $wh->name }}{{ $wh->is_default ? ' · Principal' : '' }}</option>
+                        <option value="{{ $wh->id }}"{!! (int) $defaultWarehouseId === (int) $wh->id ? ' selected' : '' !!}>{{ $wh->name }}{{ $wh->is_default ? ' · Principal' : '' }}</option>
                     @endforeach
                 </select>
                 <button type="button" onclick="applyOrderDiscount()" class="shrink-0 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100" title="Descuento global">% Descuento</button>
@@ -159,27 +182,47 @@
             <div class="grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"></div>
         </div>
 
-        <div id="posPayDockHome" aria-hidden="true"></div>
-        <div id="posPayDock" class="pos-pay-dock shrink-0 space-y-2 border-t border-slate-200 bg-white p-3">
-            <label class="block text-xs font-semibold text-slate-700 sm:text-sm">Método de Pago</label>
-            <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
-                @foreach([
-                    ['cash', 'Efectivo', 'Pago en efectivo', 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z'],
-                    ['card', 'Tarjeta', 'Crédito / débito', 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z'],
-                    ['transfer', 'Transferencia', 'Bancaria', 'M8 7h12m0 0l-4-4m4 4l-4 4m0-6H4m6 4v12a3 3 0 003 3h6a3 3 0 003-3V11a3 3 0 00-3-3H7a3 3 0 00-3 3v6a3 3 0 003 3z'],
-                    ['credit', 'Crédito', 'Cuenta cliente', 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'],
-                ] as [$method, $title, $sub, $icon])
-                <button type="button" class="payment-method flex items-center gap-2 px-3 py-2 border-2 border-slate-200 rounded-xl text-left hover:border-slate-300 text-sm {{ $method === 'cash' ? 'border-indigo-600 bg-indigo-50' : '' }}"
-                    data-method="{{ $method }}" @if($method === 'credit') id="creditMethodBtn" disabled @endif>
-                    <div class="w-8 h-8 {{ $method === 'cash' ? 'bg-indigo-600' : 'bg-slate-200' }} rounded-lg flex items-center justify-center shrink-0">
-                        <svg class="w-4 h-4 {{ $method === 'cash' ? 'text-white' : 'text-slate-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $icon }}"></path></svg>
-                    </div>
-                    <div class="min-w-0">
-                        <p class="font-semibold text-slate-800 truncate">{{ $title }}</p>
-                        <p class="pos-pay-sub text-xs text-slate-500 truncate">{{ $sub }}</p>
-                    </div>
+        <div class="pos-pay-dock shrink-0 space-y-2 border-t border-slate-200 bg-white p-3">
+            <div id="posPaymentPad" class="pos-pad">
+                <button type="button" id="posPaymentToggle" class="pos-pad__toggle" onclick="togglePaymentPad()" aria-expanded="false" aria-controls="posPaymentKeys">
+                    <span class="pos-pad__icon" aria-hidden="true">
+                        <svg id="paymentMethodIcon" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                    </span>
+                    <span class="pos-pad__toggle-copy">
+                        <strong>Método de pago</strong>
+                        <small id="paymentMethodSummary">Efectivo</small>
+                    </span>
+                    <svg class="pos-pad-chevron" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/>
+                    </svg>
                 </button>
-                @endforeach
+
+                <div class="pos-pad__collapse">
+                <div id="posPaymentKeys" class="pos-pad__body">
+                <div class="pos-pay-grid">
+                @foreach([
+                        ['cash', 'Efectivo', 'Pago en efectivo', 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z'],
+                        ['card', 'Tarjeta', 'Crédito / débito', 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z'],
+                        ['transfer', 'Transferencia', 'Bancaria', 'M8 7h12m0 0l-4-4m4 4l-4 4m0-6H4m6 4v12a3 3 0 003 3h6a3 3 0 003-3V11a3 3 0 00-3-3H7a3 3 0 00-3 3v6a3 3 0 003 3z'],
+                        ['credit', 'Crédito', 'Cuenta cliente', 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'],
+                    ] as [$method, $title, $sub, $icon])
+                    <button type="button" class="pos-pay-option {{ $method === 'cash' ? 'pos-pay-option--active' : '' }}"
+                        data-method="{{ $method }}" onclick="selectPaymentMethod('{{ $method }}')"
+                        @if($method === 'credit') id="creditMethodOption" disabled @endif>
+                        <span class="pos-pay-option__icon" aria-hidden="true">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $icon }}"/></svg>
+                        </span>
+                        <span class="min-w-0">
+                            <span class="block truncate text-sm font-semibold text-slate-800">{{ $title }}</span>
+                            <span class="block truncate text-xs text-slate-500">{{ $sub }}</span>
+                        </span>
+                    </button>
+                    @endforeach
+                </div>
+            </div>
+            </div>
             </div>
 
             <div id="creditLimitAlert" class="hidden rounded-xl border border-red-300 bg-red-50 p-3 text-red-900 shadow-sm" role="alert" aria-live="assertive">
@@ -187,7 +230,7 @@
                     <svg class="mt-0.5 h-5 w-5 shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
                     <div>
                         <p class="text-sm font-bold">Límite de crédito sobrepasado</p>
-                        <p class="mt-1 text-xs leading-5">Disponible: <strong id="creditAvailableAmount">C$ 0.00</strong> · Este ticket: <strong id="creditTicketAmount">C$ 0.00</strong> · Exceso: <strong id="creditExceededAmount">C$ 0.00</strong>.</p>
+                        <p class="mt-1 text-xs leading-5">Disponible: <strong id="creditAvailableAmount">{{ $currencySymbol }} 0.00</strong> · Este ticket: <strong id="creditTicketAmount">{{ $currencySymbol }} 0.00</strong> · Exceso: <strong id="creditExceededAmount">{{ $currencySymbol }} 0.00</strong>.</p>
                         <p class="mt-1 text-xs">Reduce el ticket, registra un abono o selecciona otro método de pago.</p>
                         <button type="button" onclick="openCreditOverrideModal()" class="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700">Solicitar autorización</button>
                     </div>
@@ -203,7 +246,7 @@
                 class="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 font-bold text-white shadow-lg transition-all hover:bg-indigo-700">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 <span>PAGAR (F9)</span>
-                <span id="payBtnAmount">C$ 0.00</span>
+                <span id="payBtnAmount">{{ $currencySymbol }} 0.00</span>
             </button>
 
             <div class="grid grid-cols-2 gap-2">
@@ -332,7 +375,7 @@
                     </button>
                     <button type="button" onclick="setDiscountType('fixed')" id="discountTypeFixed"
                         class="flex-1 rounded-xl border-2 border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:border-slate-300">
-                        Monto Fijo C$
+                        Monto Fijo {{ $currencySymbol }}
                     </button>
                 </div>
                 <div>
@@ -343,15 +386,15 @@
                 <div class="bg-slate-50 rounded-xl p-4">
                     <div class="flex justify-between text-sm text-slate-600 mb-2">
                         <span>Subtotal actual:</span>
-                        <span id="discountSubtotal" class="font-semibold">C$ 0.00</span>
+                        <span id="discountSubtotal" class="font-semibold">{{ $currencySymbol }} 0.00</span>
                     </div>
                     <div class="flex justify-between text-sm text-slate-600 mb-2">
                         <span>Descuento:</span>
-                        <span id="discountAmount" class="font-semibold text-red-600">-C$ 0.00</span>
+                        <span id="discountAmount" class="font-semibold text-red-600">-{{ $currencySymbol }} 0.00</span>
                     </div>
                     <div class="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-200 pt-2">
                         <span>Total con descuento:</span>
-                        <span id="discountTotal">C$ 0.00</span>
+                        <span id="discountTotal">{{ $currencySymbol }} 0.00</span>
                     </div>
                 </div>
             </div>
@@ -363,6 +406,79 @@
                 <button type="button" onclick="document.getElementById('discountModal').classList.add('hidden')"
                     class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl">Cancelar</button>
             </div>
+        </div>
+    </div>
+
+    {{-- MODAL: Recibir equipo a cambio (trade-in) --}}
+    <div id="tradeInModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-5 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">Recibir equipo a cambio</h2>
+                    <p class="text-xs text-slate-500 mt-1">Se descuenta del total de esta venta como parte de pago.</p>
+                </div>
+                <button type="button" onclick="document.getElementById('tradeInModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-4 space-y-3">
+                <div>
+                    <label class="mb-1 block text-sm font-semibold text-slate-700">IMEI del equipo recibido</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="tradeInImei" placeholder="Ej: 356938035643809" class="input-field flex-1" autocomplete="off">
+                        <button type="button" onclick="lookupTradeInImei()" class="rounded-xl bg-slate-700 px-3 text-sm font-semibold text-white hover:bg-slate-800">Buscar</button>
+                    </div>
+                </div>
+                <div id="tradeInNotice" class="hidden rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"></div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="col-span-2">
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Nombre del equipo</label>
+                        <input type="text" id="tradeInName" placeholder="Ej: iPhone 11 64GB" class="input-field w-full">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Marca</label>
+                        <input type="text" id="tradeInBrand" class="input-field w-full">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Modelo</label>
+                        <input type="text" id="tradeInModel" class="input-field w-full">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Color</label>
+                        <input type="text" id="tradeInColor" class="input-field w-full">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Batería (%)</label>
+                        <input type="number" id="tradeInBattery" min="0" max="100" class="input-field w-full">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Categoría</label>
+                        <select id="tradeInCategorySelect" class="select-field w-full">
+                            <option value="">Selecciona categoría</option>
+                            @foreach($categories as $cat)
+                                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Valor recibido a cambio</label>
+                        <input type="number" id="tradeInValue" step="0.01" min="0.01" placeholder="0.00" class="input-field w-full">
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700">Precio de reventa</label>
+                        <input type="number" id="tradeInSalePrice" step="0.01" min="0" placeholder="0.00" class="input-field w-full">
+                    </div>
+                </div>
+                <p id="tradeInError" class="hidden text-sm font-medium text-red-600" role="alert"></p>
+            </div>
+            <div class="p-4 border-t border-slate-200 space-y-2">
+                <button type="button" onclick="addTradeIn()"
+                    class="w-full rounded-xl bg-amber-600 py-2 font-semibold text-white hover:bg-amber-700">Agregar equipo a la venta</button>
+                <button type="button" onclick="document.getElementById('tradeInModal').classList.add('hidden')"
+                    class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl">Cancelar</button>
+            </div>
+            <div id="tradeInList" class="border-t border-slate-200 divide-y divide-slate-100"></div>
         </div>
     </div>
 
@@ -379,8 +495,8 @@
             <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 p-5 text-sm">
                 <dt class="font-bold text-indigo-700">F2</dt><dd>Buscar producto o código de barras</dd>
                 <dt class="font-bold text-indigo-700">F3</dt><dd>Seleccionar cliente</dd>
-                <dt class="font-bold text-indigo-700">F4</dt><dd>Apartar el ticket actual</dd>
-                <dt class="font-bold text-indigo-700">F6</dt><dd>Recuperar un ticket apartado</dd>
+                <dt class="font-bold text-indigo-700">F4</dt><dd>Dejar la factura actual en espera para atender a otro cliente</dd>
+                <dt class="font-bold text-indigo-700">F6</dt><dd>Ver las facturas en espera y retomar una para cobrarla</dd>
                 <dt class="font-bold text-indigo-700">F8</dt><dd>Colocar monto exacto durante el cobro</dd>
                 <dt class="font-bold text-indigo-700">F9</dt><dd>Abrir el cobro; pulsar nuevamente para confirmar</dd>
                 <dt class="font-bold text-indigo-700">F10</dt><dd>Abrir el corte del día</dd>
@@ -426,6 +542,27 @@
         </div>
     </div>
 
+    <div id="exchangeRateModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4" aria-hidden="true">
+        <div class="w-full max-w-sm rounded-lg bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="exchangeRateModalTitle">
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <h2 id="exchangeRateModalTitle" class="text-lg font-bold text-slate-900">Tasa de cambio POS</h2>
+                <button type="button" onclick="closePosExchangeRateModal()" class="rounded p-2 text-slate-500 hover:bg-slate-100" aria-label="Cerrar">×</button>
+            </div>
+            <form id="posExchangeRateForm" class="space-y-4 p-5">
+                <div>
+                    <label for="posExchangeRateValue" class="mb-1 block text-sm font-semibold text-slate-700">Córdobas por US$ 1</label>
+                    <input id="posExchangeRateValue" type="number" min="0.000001" max="999999.999999" step="0.000001" required inputmode="decimal" class="input-field" placeholder="Ej.: 36.500000">
+                    <p class="mt-1 text-xs text-slate-500">Se aplica solo como referencia C$ en este Punto de Venta.</p>
+                </div>
+                <p id="posExchangeRateError" class="hidden text-sm font-medium text-red-600" role="alert"></p>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closePosExchangeRateModal()" class="btn-outline">Cancelar</button>
+                    <button type="submit" class="btn-primary">Guardar tasa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     {{-- MODAL: Descuento por producto --}}
     <div id="lineDiscountModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div class="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl mx-4">
@@ -457,17 +594,17 @@
                 <div class="p-5 space-y-4">
                     <div class="text-center">
                         <p class="text-sm text-slate-600">Total a cobrar</p>
-                        <p class="text-4xl font-bold text-indigo-600" id="paymentTotalDisplay">C$ 0.00</p>
+                        <p class="text-4xl font-bold text-indigo-600" id="paymentTotalDisplay">{{ $currencySymbol }} 0.00</p>
                     </div>
 
                     <div id="cashSection" class="space-y-3">
                         <label class="text-sm font-semibold text-slate-700">Monto recibido</label>
                         <input type="number" id="amountReceived" step="0.01" placeholder="0.00"
                             class="w-full px-4 py-3 text-2xl font-bold border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:outline-none text-center bg-slate-50">
-                        <p class="text-sm text-slate-600 text-center">Cambio: <span id="changeDisplay" class="font-bold text-slate-900">C$ 0.00</span></p>
+                        <p class="text-sm text-slate-600 text-center">Cambio: <span id="changeDisplay" class="font-bold text-slate-900">{{ $currencySymbol }} 0.00</span></p>
                         <div class="grid grid-cols-4 gap-2">
-                            @foreach([10, 20, 50, 100, 200, 500, 1000] as $bill)
-                            <button type="button" onclick="addBill({{ $bill }})" class="py-2 bg-slate-100 rounded-xl text-xs font-bold hover:bg-indigo-100 hover:text-indigo-700">C$ {{ $bill }}</button>
+                            @foreach([1, 2, 5, 10, 20, 50, 100] as $bill)
+                            <button type="button" onclick="addBill({{ $bill }})" class="py-2 bg-slate-100 rounded-xl text-xs font-bold hover:bg-indigo-100 hover:text-indigo-700">{{ $currencySymbol }} {{ $bill }}</button>
                             @endforeach
                             <button type="button" onclick="setExactAmount()" class="py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700">Exacto</button>
                         </div>
@@ -488,8 +625,10 @@
                 <input type="hidden" name="payment_type" id="paymentTypeInput">
                 <input type="hidden" name="client_id" id="clientIdInput">
                 <input type="hidden" name="items" id="itemsInput" value="[]">
+                <input type="hidden" name="trade_ins" id="tradeInsInput" value="[]">
                 <input type="hidden" name="notes" id="notesInput">
                 <input type="hidden" name="amount_received" id="amountReceivedInput">
+                <input type="hidden" name="exchange_rate_id" id="exchangeRateIdInput">
                 <input type="hidden" name="reference_number" id="referenceNumberInput">
                 <input type="hidden" name="order_discount_pct" id="orderDiscountPctInput" value="0">
                 <input type="hidden" name="credit_override_token" id="creditOverrideTokenInput">
@@ -504,12 +643,15 @@
         </div>
     </div>
 
-    {{-- MODAL: Tickets apartados --}}
+    {{-- MODAL: Facturas en espera --}}
     <div id="heldModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
         <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4">
-            <div class="p-5 border-b border-slate-200 flex justify-between items-center">
-                <h2 class="text-lg font-bold text-slate-900">Tickets Apartados</h2>
-                <button type="button" onclick="document.getElementById('heldModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">✕</button>
+            <div class="p-5 border-b border-slate-200 flex justify-between items-start gap-3">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">Facturas en espera</h2>
+                    <p class="mt-0.5 text-xs text-slate-500">Facturas que dejaste a medias para atender a otro cliente. Retoma una para seguir agregando productos y cobrarla.</p>
+                </div>
+                <button type="button" onclick="document.getElementById('heldModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600" aria-label="Cerrar">✕</button>
             </div>
             <div id="heldTicketsList" class="p-4 space-y-2 max-h-80 overflow-y-auto"></div>
         </div>
@@ -545,7 +687,11 @@ document.addEventListener('DOMContentLoaded', function() {
         id: p.id,
         code: p.code ?? '',
         name: p.name,
+        condition: p.condition ?? null,
+        condition_label: p.condition_label ?? null,
         price: parseFloat(defaultUnit?.price ?? p.sale_price ?? 0),
+        source_sale_price: parseFloat(p.source_sale_price ?? p.sale_price ?? 0),
+        price_currency: p.price_currency ?? app.dataset.companyCurrency,
         discount_pct: parseFloat(p.discount_pct ?? 0),
         discount_label: p.discount_label ?? '',
         stock: totalStock,
@@ -607,11 +753,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const dailyReportUrl = app.dataset.dailyReportUrl;
 
     let ticket = [];
+    let tradeIns = [];
+    let tradeInLookupProduct = null;
     let currentClient = null;
     let selectedItemIndex = -1;
     let padBuffer = '';
     let quantityEditorOpen = false;
-    let replaceQuantityOnNextInput = true;
+    let replaceQuantityOnNextInput = false;
     let currentCategory = 'all';
     let orderDiscountPct = 0;
     let ticketCounter = parseInt(localStorage.getItem('pos_ticket_counter') || '1');
@@ -621,40 +769,31 @@ document.addEventListener('DOMContentLoaded', function() {
     let creditOverrideClientId = null;
     const HELD_KEY = 'pos_held_tickets';
     const modalIds = ['presentationModal', 'shortcutModal', 'clientModal', 'paymentModal', 'creditOverrideModal', 'heldModal', 'dailyReportModal'];
-    const mobilePosMedia = window.matchMedia('(max-width: 767px)');
-    const ticketColumn = document.querySelector('.pos-ticket-col');
-    const payDock = document.getElementById('posPayDock');
-    const payDockHome = document.getElementById('posPayDockHome');
-
-    function setMobilePosView(view) {
-        const showTicket = view === 'ticket';
-        app.classList.toggle('pos-mobile-ticket', showTicket);
-        document.querySelectorAll('[data-pos-mobile-view]').forEach(button => {
-            const active = button.dataset.posMobileView === (showTicket ? 'ticket' : 'catalog');
-            button.classList.toggle('is-active', active);
-            button.setAttribute('aria-selected', active ? 'true' : 'false');
-        });
-        if (!showTicket) {
-            window.setTimeout(() => document.getElementById('productSearch')?.focus({ preventScroll: true }), 0);
-        }
-    }
-
-    function syncMobilePosLayout() {
-        if (mobilePosMedia.matches) {
-            if (payDock && ticketColumn && payDock.parentElement !== ticketColumn) ticketColumn.appendChild(payDock);
-        } else {
-            if (payDock && payDockHome && payDock.previousElementSibling !== payDockHome) payDockHome.after(payDock);
-            setMobilePosView('catalog');
-        }
-    }
-
-    document.querySelectorAll('[data-pos-mobile-view]').forEach(button => {
-        button.addEventListener('click', () => setMobilePosView(button.dataset.posMobileView));
-    });
-    mobilePosMedia.addEventListener?.('change', syncMobilePosLayout);
-    syncMobilePosLayout();
 
     document.getElementById('ticketNumber').textContent = ticketCounter;
+
+    const mobilePosMedia = window.matchMedia('(max-width: 767px)');
+    let mobilePosView = 'catalog';
+    function syncMobilePosLayout() {
+        if (!mobilePosMedia.matches) {
+            app.classList.remove('pos-mobile-ticket');
+            return;
+        }
+        const selected = mobilePosView;
+        app.classList.toggle('pos-mobile-ticket', selected === 'ticket');
+        document.querySelectorAll('[data-pos-mobile-view]').forEach(button => {
+            button.classList.toggle('is-active', button.dataset.posMobileView === selected);
+        });
+        const ticketColumn = document.querySelector('.pos-ticket-col');
+        const payDock = document.querySelector('.pos-ticket-actions');
+        if (selected === 'ticket' && ticketColumn && payDock) ticketColumn.appendChild(payDock);
+    }
+    document.querySelectorAll('[data-pos-mobile-view]').forEach(button => button.addEventListener('click', () => {
+        mobilePosView = button.dataset.posMobileView;
+        syncMobilePosLayout();
+    }));
+    mobilePosMedia.addEventListener?.('change', () => syncMobilePosLayout());
+    syncMobilePosLayout();
 
     function ticketLineKey(productId, unitId) {
         return `${productId}:${unitId ?? 'base'}`;
@@ -699,6 +838,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const priceEl = document.querySelector(`[data-product-price="${productId}"]`);
         if (priceEl) {
             priceEl.innerHTML = `${formatMoney(unit.price)} <span class="text-[10px] font-semibold text-slate-500">/ ${unit.abbreviation}</span>`;
+        }
+        const cordobaPriceEl = document.querySelector(`[data-product-cordoba-price="${productId}"]`);
+        if (cordobaPriceEl) {
+            cordobaPriceEl.textContent = formatCordobas(unit.price);
         }
     };
 
@@ -891,7 +1034,7 @@ document.addEventListener('DOMContentLoaded', function() {
             fixedBtn.classList.remove('border-slate-200', 'text-slate-600');
             percentageBtn.classList.remove('border-teal-600', 'bg-teal-50', 'text-teal-800');
             percentageBtn.classList.add('border-slate-200', 'text-slate-600');
-            label.textContent = 'Monto de descuento (C$)';
+            label.textContent = 'Monto de descuento ({{ $currencySymbol }})';
         }
         
         updateDiscountPreview();
@@ -953,6 +1096,135 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('discountModal').classList.add('hidden');
         alert('Descuento eliminado');
     };
+
+    function resetTradeInForm() {
+        tradeInLookupProduct = null;
+        document.getElementById('tradeInImei').value = '';
+        document.getElementById('tradeInName').value = '';
+        document.getElementById('tradeInBrand').value = '';
+        document.getElementById('tradeInModel').value = '';
+        document.getElementById('tradeInColor').value = '';
+        document.getElementById('tradeInBattery').value = '';
+        document.getElementById('tradeInCategorySelect').value = '';
+        document.getElementById('tradeInValue').value = '';
+        document.getElementById('tradeInSalePrice').value = '';
+        document.getElementById('tradeInNotice').classList.add('hidden');
+        document.getElementById('tradeInError').classList.add('hidden');
+    }
+
+    window.openTradeInModal = function() {
+        resetTradeInForm();
+        renderTradeInList();
+        document.getElementById('tradeInModal').classList.remove('hidden');
+        document.getElementById('tradeInImei').focus();
+    };
+
+    window.lookupTradeInImei = async function() {
+        const imei = document.getElementById('tradeInImei').value.trim();
+        const notice = document.getElementById('tradeInNotice');
+        tradeInLookupProduct = null;
+        if (!imei) { notice.classList.add('hidden'); return; }
+
+        if (tradeIns.some(t => t.imei === imei)) {
+            notice.textContent = 'Este IMEI ya fue agregado a esta venta.';
+            notice.classList.remove('hidden');
+            return;
+        }
+
+        try {
+            const res = await fetch(`${app.dataset.tradeInLookupUrl}/${encodeURIComponent(imei)}`, {
+                headers: { 'Accept': 'application/json' },
+            });
+            const data = await res.json();
+            if (data.exists) {
+                tradeInLookupProduct = data.product;
+                const p = data.product;
+                let msg = `Este equipo ya estuvo registrado: <strong>${escapeHeldText(p.name)}</strong>`;
+                if (p.lastSale) {
+                    msg += ` · Vendido en factura ${escapeHeldText(p.lastSale.invoice_number)} (${escapeHeldText(p.lastSale.date)})`;
+                }
+                msg += p.trashed ? ' · Actualmente dado de baja, se reactivará.' : '';
+                msg += '. Se reconocerá como el mismo producto en lugar de crear uno nuevo.';
+                notice.innerHTML = msg;
+                notice.classList.remove('hidden');
+
+                document.getElementById('tradeInName').value = p.name || '';
+                document.getElementById('tradeInBrand').value = p.brand || '';
+                document.getElementById('tradeInModel').value = p.model || '';
+                document.getElementById('tradeInColor').value = p.color || '';
+                if (p.battery_percentage !== null && p.battery_percentage !== undefined) {
+                    document.getElementById('tradeInBattery').value = p.battery_percentage;
+                }
+            } else {
+                notice.classList.add('hidden');
+            }
+        } catch (e) {
+            notice.classList.add('hidden');
+        }
+    };
+
+    document.getElementById('tradeInImei').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); lookupTradeInImei(); }
+    });
+
+    window.addTradeIn = function() {
+        const errorEl = document.getElementById('tradeInError');
+        errorEl.classList.add('hidden');
+
+        const imei = document.getElementById('tradeInImei').value.trim();
+        const name = document.getElementById('tradeInName').value.trim();
+        const categoryId = document.getElementById('tradeInCategorySelect').value;
+        const tradeInValue = parseFloat(document.getElementById('tradeInValue').value) || 0;
+        const salePrice = parseFloat(document.getElementById('tradeInSalePrice').value) || 0;
+        const battery = document.getElementById('tradeInBattery').value;
+
+        if (!imei) { errorEl.textContent = 'Ingresa el IMEI del equipo.'; errorEl.classList.remove('hidden'); return; }
+        if (!name) { errorEl.textContent = 'Ingresa el nombre del equipo.'; errorEl.classList.remove('hidden'); return; }
+        if (!categoryId) { errorEl.textContent = 'Selecciona una categoría.'; errorEl.classList.remove('hidden'); return; }
+        if (tradeInValue <= 0) { errorEl.textContent = 'El valor recibido debe ser mayor que cero.'; errorEl.classList.remove('hidden'); return; }
+        if (tradeIns.some(t => t.imei === imei)) { errorEl.textContent = 'Ese IMEI ya fue agregado a esta venta.'; errorEl.classList.remove('hidden'); return; }
+        if (tradeIns.length >= 10) { errorEl.textContent = 'Máximo 10 equipos recibidos por venta.'; errorEl.classList.remove('hidden'); return; }
+
+        tradeIns.push({
+            imei,
+            name,
+            brand: document.getElementById('tradeInBrand').value.trim() || null,
+            model: document.getElementById('tradeInModel').value.trim() || null,
+            color: document.getElementById('tradeInColor').value.trim() || null,
+            battery_percentage: battery !== '' ? parseInt(battery, 10) : null,
+            category_id: parseInt(categoryId, 10),
+            trade_in_value: roundMoney(tradeInValue),
+            sale_price: roundMoney(salePrice),
+            was_returning_phone: !!tradeInLookupProduct,
+        });
+
+        resetTradeInForm();
+        renderTradeInList();
+        updateTotals();
+    };
+
+    window.removeTradeIn = function(idx) {
+        tradeIns.splice(idx, 1);
+        renderTradeInList();
+        updateTotals();
+    };
+
+    function renderTradeInList() {
+        const list = document.getElementById('tradeInList');
+        if (tradeIns.length === 0) { list.innerHTML = ''; return; }
+        list.innerHTML = tradeIns.map((t, idx) => `
+            <div class="flex items-center justify-between p-3 text-sm">
+                <div class="min-w-0">
+                    <p class="truncate font-semibold text-slate-800">${escapeHeldText(t.name)}</p>
+                    <p class="truncate text-xs text-slate-500">IMEI: ${escapeHeldText(t.imei)}${t.was_returning_phone ? ' · Reconocido' : ''}</p>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                    <span class="font-bold text-amber-700">-${formatMoney(t.trade_in_value)}</span>
+                    <button type="button" onclick="removeTradeIn(${idx})" class="text-red-500 hover:text-red-700" aria-label="Quitar equipo">✕</button>
+                </div>
+            </div>
+        `).join('');
+    }
 
     // Manejar cambio de tipo de cliente en modal rápido
     document.querySelector('#quickClientForm select[name="client_type"]')?.addEventListener('change', function(e) {
@@ -1029,10 +1301,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    const companySymbol = app.dataset.companySymbol || 'C$';
-    const referenceSymbol = app.dataset.referenceSymbol || 'US$';
-    const referenceCurrency = app.dataset.referenceCurrency || 'USD';
-    const referenceRate = parseFloat(app.dataset.referenceRate || '0');
+    const companyCurrency = app.dataset.companyCurrency || 'USD';
+    const companySymbol = app.dataset.companySymbol || '{{ $currencySymbol }}';
+    const referenceCurrency = app.dataset.referenceCurrency || '';
+    const referenceSymbol = app.dataset.referenceSymbol || '';
+    const referenceRate = parseFloat(app.dataset.referenceRate || '');
+    const posExchangeRateUrl = app.dataset.posExchangeRateUrl;
+    const posExchangeRateDisplay = document.getElementById('posExchangeRateDisplay');
+    let posExchangeRate = {
+        id: app.dataset.posExchangeRateId || null,
+        rate: parseFloat(app.dataset.posExchangeRate || ''),
+    };
 
     function roundMoney(v) {
         const amount = parseFloat(v || 0);
@@ -1044,30 +1323,85 @@ document.addEventListener('DOMContentLoaded', function() {
         return companySymbol + ' ' + roundMoney(v).toFixed(2);
     }
 
-    function toReferenceAmount(v) {
-        if (!(referenceRate > 0)) {
-            return null;
-        }
-
-        return Math.round((parseFloat(v || 0) * referenceRate) * 100) / 100;
-    }
-
     function formatReference(v) {
-        const amount = toReferenceAmount(v);
-        if (amount === null) {
-            return '';
-        }
-
-        return referenceSymbol + ' ' + amount.toFixed(2);
+        return referenceCurrency && referenceSymbol && Number.isFinite(referenceRate) && referenceRate > 0
+            ? `${referenceSymbol} ${roundMoney(v * referenceRate).toFixed(2)} ${referenceCurrency} ref.`
+            : '';
     }
 
-    function referenceLineHtml(v, className = 'text-[10px] font-medium text-slate-500') {
-        const label = formatReference(v);
-        if (!label) {
-            return '';
-        }
+    function selectedCordobaRate() {
+        return Number.isFinite(posExchangeRate.rate) && posExchangeRate.rate > 0 ? posExchangeRate.rate : null;
+    }
 
-        return `<p class="${className}">${label} <span class="font-normal text-slate-400">${referenceCurrency}</span></p>`;
+    function formatCordobas(v) {
+        const rate = selectedCordobaRate();
+        return rate === null ? '' : `C$ ${roundMoney(v * rate).toFixed(2)}`;
+    }
+
+    window.openPosExchangeRateModal = function() {
+        document.getElementById('posExchangeRateValue').value = selectedCordobaRate() || '';
+        document.getElementById('exchangeRateModal').classList.remove('hidden');
+        document.getElementById('posExchangeRateValue').focus();
+    };
+
+    window.closePosExchangeRateModal = function() {
+        document.getElementById('exchangeRateModal').classList.add('hidden');
+        document.getElementById('posExchangeRateError').classList.add('hidden');
+    };
+
+    document.getElementById('posExchangeRateForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const input = document.getElementById('posExchangeRateValue');
+        const error = document.getElementById('posExchangeRateError');
+        const button = event.target.querySelector('button[type="submit"]');
+        button.disabled = true;
+
+        try {
+            const response = await fetch(posExchangeRateUrl, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                },
+                body: new URLSearchParams({ rate: input.value }),
+            });
+            const data = await response.json();
+
+            if (!response.ok) {
+                error.textContent = data.errors?.rate?.[0] || data.message || 'No se pudo guardar la tasa.';
+                error.classList.remove('hidden');
+                return;
+            }
+
+            posExchangeRate = { id: String(data.id), rate: Number(data.rate) };
+            posExchangeRateDisplay.textContent = `: C$ ${posExchangeRate.rate.toFixed(4)}`;
+            renderTicket();
+            renderProducts(document.getElementById('productSearch').value);
+            closePosExchangeRateModal();
+            showToast('Tasa C$/USD actualizada para el POS.', 'success');
+        } catch {
+            error.textContent = 'No se pudo conectar para guardar la tasa.';
+            error.classList.remove('hidden');
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    function conditionBadgeHtml(condition, label, compact = false) {
+        const styles = {
+            new: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+            used: 'border-amber-200 bg-amber-50 text-amber-700',
+            open_box: 'border-sky-200 bg-sky-50 text-sky-700',
+        };
+        const labels = {
+            new: 'Nuevo',
+            used: 'Seminuevo',
+            open_box: 'Open box',
+        };
+
+        if (!styles[condition]) return '';
+
+        return `<span class="inline-flex items-center rounded-full border px-1.5 py-0.5 font-bold ${compact ? 'text-[8px]' : 'text-[10px]'} ${styles[condition]}">Estado: ${labels[condition] || label}</span>`;
     }
 
     function lineSubtotal(item) {
@@ -1081,35 +1415,68 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function getTotal() {
-        const subtotal = ticket.reduce((sum, item) => sum + lineSubtotal(item), 0);
-        const orderDiscount = subtotal * (orderDiscountPct / 100);
-        const discountedLines = ticket.map(item => lineSubtotal(item) * (1 - orderDiscountPct / 100));
-        const taxable = discountedLines.reduce((sum, value) => sum + value, 0);
-        const tax = ticket.reduce((sum, item, index) => sum + discountedLines[index] * itemTaxRate(item), 0);
-        return { subtotal, orderDiscount, tax, total: taxable + tax };
+        const lines = ticket.map(item => {
+            const gross = item.price * item.quantity;
+            const afterItemDiscount = gross * (1 - item.discount / 100);
+            const orderDiscount = afterItemDiscount * (orderDiscountPct / 100);
+            const net = roundMoney(afterItemDiscount - orderDiscount);
+            const tax = roundMoney(net * itemTaxRate(item));
+
+            return {
+                discount: roundMoney((gross - afterItemDiscount) + orderDiscount),
+                net,
+                tax,
+            };
+        });
+        const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.net, 0));
+        const orderDiscount = roundMoney(lines.reduce((sum, line) => sum + line.discount, 0));
+        const tax = roundMoney(lines.reduce((sum, line) => sum + line.tax, 0));
+
+        return { subtotal, orderDiscount, tax, total: roundMoney(subtotal + tax) };
+    }
+
+    function tradeInsTotal() {
+        return roundMoney(tradeIns.reduce((sum, t) => sum + t.trade_in_value, 0));
+    }
+
+    function getAmountDue() {
+        return Math.max(0, roundMoney(getTotal().total - tradeInsTotal()));
     }
 
     function updateTotals() {
         const { subtotal, orderDiscount, tax, total } = getTotal();
+        const tradeInTotal = tradeInsTotal();
+        const amountDue = getAmountDue();
         document.getElementById('subtotalDisplay').textContent = formatMoney(subtotal);
         document.getElementById('taxDisplay').textContent = formatMoney(tax);
         document.getElementById('totalDisplay').textContent = formatMoney(total);
-        document.getElementById('paymentTotalDisplay').textContent = formatMoney(total);
-        document.getElementById('payBtnAmount').textContent = formatMoney(total);
-        document.getElementById('mobileTicketCount').textContent = ticket.length;
-        document.getElementById('mobileTicketTotal').textContent = formatMoney(total);
-
-        const totalReference = document.getElementById('totalReferenceDisplay');
+        document.getElementById('paymentTotalDisplay').textContent = formatMoney(amountDue);
+        document.getElementById('payBtnAmount').textContent = formatMoney(amountDue);
+        document.getElementById('mobileTicketTotal').textContent = formatMoney(amountDue);
+        const cordobaTotal = document.getElementById('totalCordobaDisplay');
+        const cordobaLabel = formatCordobas(total);
+        cordobaTotal.textContent = cordobaLabel;
+        cordobaTotal.classList.toggle('hidden', cordobaLabel === '');
+        const referenceTotal = document.getElementById('totalReferenceDisplay');
         const referenceLabel = formatReference(total);
-        if (totalReference) {
-            if (referenceLabel) {
-                totalReference.textContent = referenceLabel + ' ref.';
-                totalReference.classList.remove('hidden');
-            } else {
-                totalReference.textContent = '';
-                totalReference.classList.add('hidden');
-            }
+        referenceTotal.textContent = referenceLabel;
+        referenceTotal.classList.toggle('hidden', referenceLabel === '');
+
+        const tradeInRow = document.getElementById('tradeInSummaryRow');
+        const amountDueRow = document.getElementById('amountDueRow');
+        if (tradeIns.length > 0) {
+            tradeInRow.classList.remove('hidden');
+            amountDueRow.classList.remove('hidden');
+            document.getElementById('tradeInDisplay').textContent = '-' + formatMoney(tradeInTotal);
+            document.getElementById('amountDueDisplay').textContent = formatMoney(amountDue);
+        } else {
+            tradeInRow.classList.add('hidden');
+            amountDueRow.classList.add('hidden');
         }
+
+        const tradeInCount = document.getElementById('tradeInCount');
+        tradeInCount.textContent = tradeIns.length;
+        tradeInCount.classList.toggle('hidden', tradeIns.length === 0);
 
         const rates = [...new Set(ticket.map(item => itemTaxRate(item).toFixed(4)))];
         const labelRate = rates.length === 1 ? `${(parseFloat(rates[0]) * 100).toFixed(2)}%` : (rates.length > 1 ? 'mixto' : `${(parseFloat(app.dataset.defaultTaxRate || 0) * 100).toFixed(2)}%`);
@@ -1133,7 +1500,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const alertBox = document.getElementById('creditLimitAlert');
         const payButton = document.getElementById('payBtn');
         const client = currentClient ? clientsData.find(c => c.id == currentClient) : null;
-        const total = getTotal().total;
+        const total = getAmountDue();
         const hasFiniteLimit = client && client.credit_enabled && client.credit_limit > 0;
         const available = hasFiniteLimit ? Math.max(0, parseFloat(client.available_credit ?? 0)) : null;
         const exceeded = currentPaymentMethod === 'credit' && available !== null && total > available + 0.0001;
@@ -1257,8 +1624,7 @@ document.addEventListener('DOMContentLoaded', function() {
             container.innerHTML = '';
             emptyMsg.classList.remove('hidden');
             selectedItemIndex = -1;
-            quantityEditorOpen = false;
-            syncQuantityEditor();
+            document.getElementById('selectedItemBar').classList.add('hidden');
             updateTotals();
             return;
         }
@@ -1269,7 +1635,10 @@ document.addEventListener('DOMContentLoaded', function() {
             <div onclick="selectTicketItem(${idx})" data-ticket-idx="${idx}" class="p-3 cursor-pointer transition-colors group border-b border-slate-100 ${selectedItemIndex === idx ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : 'hover:bg-slate-50'}">
                 <div class="flex justify-between items-start gap-2">
                     <div class="flex-1 min-w-0">
-                        <p class="font-semibold text-slate-900 text-sm truncate">${item.name}</p>
+                        <div class="flex items-center gap-1.5">
+                            <p class="min-w-0 truncate text-sm font-semibold text-slate-900">${item.name}</p>
+                            ${conditionBadgeHtml(item.condition, item.condition_label, true)}
+                        </div>
                         <div class="flex gap-2 text-xs text-slate-600 mt-1 flex-wrap">
                             <span>Cant: <b>${item.quantity}</b></span>
                             ${(() => {
@@ -1281,6 +1650,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </select>`;
                             })()}
                             <span>${formatMoney(item.price)}</span>
+                            ${formatCordobas(item.price) ? `<span class="font-semibold text-emerald-700">${formatCordobas(item.price)}</span>` : ''}
                             ${item.discount > 0 ? `<span class="text-red-600">-${item.discount}%</span>` : ''}
                             ${item.source_warehouse_name ? `<span class="text-indigo-600">${item.source_warehouse_name}</span>` : ''}
                         </div>
@@ -1292,7 +1662,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div class="text-right shrink-0">
                         <p class="font-bold text-slate-900 text-sm">${formatMoney(lineSubtotal(item))}</p>
-                        ${referenceLineHtml(lineSubtotal(item), 'text-[10px] font-medium text-slate-500')}
+                        ${formatCordobas(lineSubtotal(item)) ? `<p class="text-[10px] font-semibold text-emerald-700">${formatCordobas(lineSubtotal(item))}</p>` : ''}
                         <div class="flex gap-2 mt-1 justify-end">
                             <button type="button" onclick="event.stopPropagation(); applyDiscount(${idx})" class="text-xs text-indigo-600 hover:text-indigo-800">Dto.</button>
                             <button type="button" onclick="event.stopPropagation(); removeTicketItem(${idx})" class="text-xs text-red-600 hover:text-red-800">Quitar</button>
@@ -1302,26 +1672,28 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `).join('');
 
-        syncQuantityEditor();
+        if (selectedItemIndex >= 0 && ticket[selectedItemIndex]) {
+            document.getElementById('posQuantityTools').classList.toggle('hidden', !quantityEditorOpen);
+            document.getElementById('selectedItemName').textContent = ticket[selectedItemIndex].name;
+            document.getElementById('selectedItemQty').value = padBuffer || ticket[selectedItemIndex].quantity;
+        }
         updateTotals();
     }
 
     window.selectTicketItem = function(idx) {
-        if (!ticket[idx]) return;
         selectedItemIndex = idx;
         padBuffer = String(ticket[idx].quantity);
         quantityEditorOpen = true;
         replaceQuantityOnNextInput = true;
         renderTicket();
-        setPosPadOpen(false);
-        revealTicketLine(idx);
+        expandPosPad();
         focusQuantityInput();
     };
 
     window.addProductToTicket = function(productId, qty = 1, unitId = null, openQuantityEditor = false) {
+        const shouldOpenQuantityEditor = openQuantityEditor && !mobilePosMedia.matches;
         const product = products.find(p => p.id == productId);
         if (!product) return;
-        const shouldOpenQuantityEditor = openQuantityEditor && !mobilePosMedia.matches;
 
         const unit = productUnit(product, unitId ?? product.unit_id);
         const resolvedUnitId = unit?.id ?? product.unit_id;
@@ -1357,11 +1729,9 @@ document.addEventListener('DOMContentLoaded', function() {
             existing.max_stock = maxQty;
             existing.source_warehouse_id = product.preferred_warehouse_id || selectedWarehouseId;
             existing.source_warehouse_name = product.preferred_warehouse_name || null;
+            renderTicket();
+            revealTicketLine(existingIdx);
             if (shouldOpenQuantityEditor) selectTicketItem(existingIdx);
-            else {
-                renderTicket();
-                revealTicketLine(existingIdx);
-            }
             return;
         }
 
@@ -1370,6 +1740,8 @@ document.addEventListener('DOMContentLoaded', function() {
             unit_id: resolvedUnitId,
             unit_label: unit?.abbreviation ?? product.unit_label,
             name: product.name,
+            condition: product.condition,
+            condition_label: product.condition_label,
             price: tierPrice(unit, qty, unitPrice),
             quantity: qty,
             discount: product.discount_pct || 0,
@@ -1378,12 +1750,9 @@ document.addEventListener('DOMContentLoaded', function() {
             source_warehouse_id: product.preferred_warehouse_id || selectedWarehouseId,
             source_warehouse_name: product.preferred_warehouse_name || null,
         });
-        const newIndex = ticket.length - 1;
-        if (shouldOpenQuantityEditor) selectTicketItem(newIndex);
-        else {
-            renderTicket();
-            revealTicketLine(newIndex);
-        }
+        renderTicket();
+        revealTicketLine(ticket.length - 1);
+        if (shouldOpenQuantityEditor) selectTicketItem(ticket.length - 1);
     };
 
     window.changeTicketUnit = function(idx, unitId) {
@@ -1403,7 +1772,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const mergedIdx = otherIdx > idx ? otherIdx - 1 : otherIdx;
             const merged = ticket[mergedIdx];
             const maxQty = maxPresentationQty(product, unit, mergedIdx);
-            merged.price = tierPrice(unit, merged.quantity, product.price);
+            merged.price = tierPrice(unit, merged.quantity);
             merged.unit_id = unit.id;
             merged.unit_label = unit.abbreviation;
             merged.max_stock = maxQty;
@@ -1416,7 +1785,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const maxQty = maxPresentationQty(product, unit, idx);
         item.unit_id = unit.id;
         item.unit_label = unit.abbreviation;
-        item.price = tierPrice(unit, item.quantity, product.price);
+        item.price = tierPrice(unit, item.quantity);
         item.max_stock = maxQty;
         if (item.quantity > maxQty) item.quantity = maxQty;
         renderTicket();
@@ -1462,80 +1831,16 @@ document.addEventListener('DOMContentLoaded', function() {
         ticket.splice(idx, 1);
         selectedItemIndex = -1;
         padBuffer = '';
-        quantityEditorOpen = false;
-        replaceQuantityOnNextInput = true;
-        renderTicket();
-    };
-
-    function syncQuantityEditor() {
-        const tools = document.getElementById('posQuantityTools');
-        const pad = document.getElementById('posNumpad');
-        const item = selectedItemIndex >= 0 ? ticket[selectedItemIndex] : null;
-        const canOpen = quantityEditorOpen && !!item;
-
-        tools?.classList.toggle('hidden', !canOpen);
-        pad?.classList.toggle('hidden', !canOpen);
-
-        if (!canOpen) {
-            pad?.classList.remove('pos-pad--open');
-            document.getElementById('posPadToggle')?.setAttribute('aria-expanded', 'false');
-            return;
-        }
-
-        document.getElementById('selectedItemName').textContent = item.name;
-        const quantityInput = document.getElementById('selectedItemQty');
-        if (quantityInput) quantityInput.value = padBuffer || String(item.quantity);
-    }
-
-    function focusQuantityInput() {
-        const quantityInput = document.getElementById('selectedItemQty');
-        if (!quantityEditorOpen || !quantityInput) return;
-
-        window.setTimeout(() => {
-            const posShell = document.getElementById('posApp');
-            const shellScrollTop = posShell?.scrollTop ?? 0;
-            if (window.matchMedia('(max-width: 767px)').matches) {
-                const ticketColumn = document.querySelector('.pos-ticket-col');
-                const editor = document.getElementById('selectedItemBar');
-                if (ticketColumn && editor) {
-                    const columnBox = ticketColumn.getBoundingClientRect();
-                    const editorBox = editor.getBoundingClientRect();
-                    const margin = 8;
-
-                    if (editorBox.bottom > columnBox.bottom - margin) {
-                        ticketColumn.scrollTop += editorBox.bottom - columnBox.bottom + margin;
-                    } else if (editorBox.top < columnBox.top + margin) {
-                        ticketColumn.scrollTop -= columnBox.top - editorBox.top + margin;
-                    }
-                }
-            }
-            quantityInput.focus({ preventScroll: true });
-            quantityInput.setSelectionRange(0, quantityInput.value.length);
-            if (posShell) posShell.scrollTop = shellScrollTop;
-        }, 0);
-    }
-
-    window.hideQuantityEditor = function() {
-        quantityEditorOpen = false;
-        selectedItemIndex = -1;
-        padBuffer = '';
-        replaceQuantityOnNextInput = true;
-        setPosPadOpen(false);
         renderTicket();
     };
 
     function setPosPadOpen(open) {
         const pad = document.getElementById('posNumpad');
         const toggle = document.getElementById('posPadToggle');
-        const label = document.getElementById('posPadToggleLabel');
-        const canOpen = quantityEditorOpen && selectedItemIndex >= 0 && !!ticket[selectedItemIndex];
         if (!pad) return;
-
-        pad.classList.toggle('hidden', !canOpen);
-        pad.classList.toggle('pos-pad--open', canOpen && open);
-        if (toggle) toggle.setAttribute('aria-expanded', canOpen && open ? 'true' : 'false');
-        if (label) label.textContent = canOpen && open ? 'Ocultar teclado' : 'Mostrar teclado';
-        if (canOpen && open && selectedItemIndex >= 0) {
+        pad.classList.toggle('pos-pad--open', open);
+        if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open && selectedItemIndex >= 0) {
             window.setTimeout(() => revealTicketLine(selectedItemIndex), 280);
         }
     }
@@ -1546,6 +1851,53 @@ document.addEventListener('DOMContentLoaded', function() {
         setPosPadOpen(!pad.classList.contains('pos-pad--open'));
     };
 
+    function focusQuantityInput() {
+        const quantityInput = document.getElementById('selectedItemQty');
+        if (!quantityEditorOpen || !quantityInput) return;
+        window.setTimeout(() => {
+            quantityInput.focus({ preventScroll: true });
+            quantityInput.setSelectionRange(0, quantityInput.value.length);
+            const ticketColumn = document.querySelector('.pos-ticket-col');
+            const editorBox = document.getElementById('posQuantityTools')?.getBoundingClientRect();
+            const columnBox = ticketColumn?.getBoundingClientRect();
+            const margin = 12;
+            if (ticketColumn && editorBox && columnBox && editorBox.bottom > columnBox.bottom) {
+                ticketColumn.scrollTop += editorBox.bottom - columnBox.bottom + margin;
+            }
+        }, 0);
+    }
+
+    window.hideQuantityEditor = function() {
+        quantityEditorOpen = false;
+        document.getElementById('posQuantityTools')?.classList.add('hidden');
+        const pad = document.getElementById('posNumpad');
+        const canOpen = quantityEditorOpen && selectedItemIndex >= 0 && !!ticket[selectedItemIndex];
+        if (pad) pad.classList.toggle('hidden', !canOpen);
+    };
+
+    function applyTicketQuantity(idx, rawQuantity) {
+        const item = ticket[idx];
+        if (!item) return false;
+        const qty = parseFloat(String(rawQuantity).replace(',', '.'));
+        const product = products.find(p => p.id == item.product_id);
+        const unit = productUnit(product, item.unit_id);
+        const maxStock = maxPresentationQty(product, unit, idx);
+        if (!Number.isFinite(qty) || qty <= 0) {
+            focusQuantityInput();
+            return false;
+        }
+        if (qty > maxStock) {
+            alert(`Stock máximo: ${formatQty(maxStock)} ${item.unit_label || ''}`);
+            focusQuantityInput();
+            return false;
+        }
+        item.quantity = qty;
+        item.price = tierPrice(unit, item.quantity, product?.price);
+        padBuffer = String(qty);
+        renderTicket();
+        return true;
+    }
+
     window.expandPosPad = function() {
         setPosPadOpen(true);
     };
@@ -1553,95 +1905,51 @@ document.addEventListener('DOMContentLoaded', function() {
     window.padInput = function(key) {
         if (selectedItemIndex < 0) {
             alert('Selecciona un producto del ticket para editar cantidad');
-            return false;
+            return;
         }
-        if (key === '.' && padBuffer.includes('.') && !replaceQuantityOnNextInput) return false;
-
-        if (replaceQuantityOnNextInput) {
-            padBuffer = key === '.' ? '0.' : key;
-            replaceQuantityOnNextInput = false;
-        } else if (padBuffer === '0' && key !== '.') {
-            padBuffer = key;
-        } else {
-            padBuffer += key;
-        }
-
-        const quantityInput = document.getElementById('selectedItemQty');
-        if (quantityInput) quantityInput.value = padBuffer || '0';
-
-        return true;
+        expandPosPad();
+        if (padBuffer === '0' && key !== '.') padBuffer = key;
+        else padBuffer += key;
+        document.getElementById('selectedItemQty').value = padBuffer || '0';
     };
 
     window.padBackspace = function() {
-        replaceQuantityOnNextInput = false;
         padBuffer = padBuffer.slice(0, -1);
         if (selectedItemIndex >= 0) {
             document.getElementById('selectedItemQty').value = padBuffer || '0';
         }
     };
 
-    function applyTicketQuantity(idx, rawQuantity) {
-        const item = ticket[idx];
-        if (!item) return false;
-
-        const normalized = String(rawQuantity).trim().replace(',', '.');
-        const qty = Number.parseFloat(normalized);
-        const product = products.find(p => p.id == item.product_id);
-        const unit = productUnit(product, item.unit_id);
-        const maxStock = maxPresentationQty(product, unit, idx);
-
-        if (!Number.isFinite(qty) || qty <= 0) {
-            alert('Ingresa una cantidad mayor que cero.');
-            focusQuantityInput();
-            return false;
-        }
-        if (qty > maxStock) {
-            alert(`Stock máximo: ${formatQty(maxStock)} ${item.unit_label || ''} (hay ${formatQty(product?.total_stock ?? 0)} ${product?.base_unit_label || 'und'})`);
-            focusQuantityInput();
-            return false;
-        }
-
-        item.quantity = Math.round(qty * 10000) / 10000;
-        item.price = tierPrice(unit, item.quantity, product?.price);
-        item.max_stock = maxStock;
-        padBuffer = String(item.quantity);
-        replaceQuantityOnNextInput = true;
-        renderTicket();
-
-        return true;
-    }
-
     window.padAdjust = function(delta) {
-        if (selectedItemIndex < 0) return false;
+        if (selectedItemIndex < 0) return;
         const item = ticket[selectedItemIndex];
+        const product = products.find(p => p.id == item.product_id);
+        const maxStock = maxPresentationQty(product, productUnit(product, item.unit_id), selectedItemIndex);
         const current = parseFloat(padBuffer || item.quantity) || 1;
         const next = Math.round((current + delta) * 100) / 100;
-        if (next < 0.01) return false;
-
+        if (next < 0.01) return;
+        if (next > maxStock) {
+            alert(`Stock máximo: ${formatQty(maxStock)} ${item.unit_label || ''} (hay ${formatQty(product?.total_stock ?? 0)} ${product?.base_unit_label || 'und'})`);
+            return;
+        }
         return applyTicketQuantity(selectedItemIndex, next);
     };
 
     window.padConfirm = function() {
         if (selectedItemIndex < 0) return false;
-
         return applyTicketQuantity(selectedItemIndex, padBuffer);
     };
 
     const quantityInput = document.getElementById('selectedItemQty');
     quantityInput?.addEventListener('input', (event) => {
-        const normalized = event.target.value.replace(',', '.');
-        const cleaned = normalized.replace(/[^0-9.]/g, '');
-        const parts = cleaned.split('.');
-        padBuffer = parts.length > 1 ? `${parts.shift()}.${parts.join('')}` : cleaned;
-        event.target.value = padBuffer;
+        padBuffer = String(event.target.value).replace(',', '.');
         replaceQuantityOnNextInput = false;
     });
     quantityInput?.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
             if (padConfirm()) hideQuantityEditor();
-        }
-        if (event.key === 'Escape') {
+        } else if (event.key === 'Escape') {
             event.preventDefault();
             hideQuantityEditor();
         }
@@ -1693,9 +2001,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return `
             <div class="group relative overflow-hidden rounded-lg border bg-white transition-all ${outStock ? 'border-slate-100 opacity-60' : 'border-slate-200 hover:border-indigo-500 hover:shadow-sm'}">
                 <button type="button" onclick="event.stopPropagation(); pickProductImage(${p.id})"
-                    class="absolute right-1 top-1 z-10 rounded border border-slate-200 bg-white/95 p-0.5 text-slate-600 shadow-sm transition hover:border-indigo-600 hover:bg-indigo-600 hover:text-white"
-                    title="${p.image_url ? 'Cambiar imagen' : 'Cargar imagen'}">
+                    class="absolute right-1 top-1 z-10 inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white/95 px-1.5 py-1 text-[9px] font-bold text-slate-700 shadow-sm transition hover:border-indigo-600 hover:bg-indigo-600 hover:text-white"
+                    title="${p.image_url ? 'Cambiar imagen' : 'Agregar imagen'}" aria-label="${p.image_url ? 'Cambiar imagen de' : 'Agregar imagen a'} ${safeName}">
                     <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <span>Foto</span>
                 </button>
                 <button type="button" onclick="addProductToTicket(${p.id}, 1, cardUnitId(${p.id}), true)" ${outStock ? 'disabled' : ''}
                     class="w-full text-left ${outStock ? 'cursor-not-allowed' : ''}">
@@ -1705,9 +2014,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="px-1.5 py-1.5">
                         <p class="line-clamp-2 min-h-[1.65rem] text-[11px] font-semibold leading-tight text-slate-800">${p.name}</p>
                         <p class="truncate text-[9px] text-slate-400">${p.code || '—'}</p>
+                        ${p.condition ? `<div class="mt-1">${conditionBadgeHtml(p.condition, p.condition_label, true)}</div>` : ''}
                         <p data-product-price="${p.id}" class="mt-0.5 text-xs font-bold leading-tight text-indigo-600">${formatMoney(p.price)} <span class="text-[9px] font-semibold text-slate-500">/${p.unit_label || 'und'}</span></p>
-                        ${referenceLineHtml(p.price, 'text-[9px] font-semibold text-emerald-700')}
-                        ${p.discount_pct > 0 ? `<p class="text-[9px] font-bold text-amber-600">${p.discount_label || p.discount_pct + '% OFF'} → ${formatMoney(p.price * (1 - p.discount_pct/100))}${formatReference(p.price * (1 - p.discount_pct/100)) ? ` · ${formatReference(p.price * (1 - p.discount_pct/100))}` : ''}</p>` : ''}
+                        <p data-product-cordoba-price="${p.id}" class="text-[10px] font-semibold text-emerald-700">${formatCordobas(p.price)}</p>
+                        ${p.discount_pct > 0 ? `<p class="text-[9px] font-bold text-amber-600">${p.discount_label || p.discount_pct + '% OFF'} → ${formatMoney(p.price * (1 - p.discount_pct/100))}</p>` : ''}
                         <p class="mt-0.5 text-[9px] leading-tight ${outStock ? 'text-red-600 font-bold' : lowStock ? 'text-amber-600' : 'text-slate-500'}">
                             ${outStock
                                 ? 'Sin stock'
@@ -1759,8 +2069,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!file || !productId) return;
 
-        if (file.size > 3 * 1024 * 1024) {
-            alert('La imagen no puede superar 3 MB.');
+        if (file.size > 8 * 1024 * 1024) {
+            alert('La imagen no puede superar 8 MB.');
             return;
         }
 
@@ -1797,6 +2107,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             renderProducts(document.getElementById('productSearch').value);
+            showToast(data.message || 'Imagen guardada correctamente.', 'success');
         } catch (error) {
             alert('Error de red al subir la imagen.');
         } finally {
@@ -1854,14 +2165,13 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('clientIdInput').value = clientId || '';
 
         const client = clientId ? clientsData.find(c => c.id == clientId) : null;
-        const creditBtn = document.getElementById('creditMethodBtn');
-        if (creditBtn) {
+        const creditOption = document.getElementById('creditMethodOption');
+        if (creditOption) {
             const canCredit = client && client.credit_enabled;
-            creditBtn.disabled = !canCredit;
-            creditBtn.classList.toggle('opacity-50', !canCredit);
+            creditOption.disabled = !canCredit;
             if (canCredit && client.credit_limit > 0) {
                 const avail = client.available_credit ?? 0;
-                creditBtn.title = `Disponible: C$ ${parseFloat(avail).toFixed(2)} · Plazo: ${client.credit_days} días`;
+                creditOption.title = `Disponible: {{ $currencySymbol }} ${parseFloat(avail).toFixed(2)} · Plazo: ${client.credit_days} días`;
             }
         }
 
@@ -1890,7 +2200,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     ${c.credit_enabled ? '<span class="badge-info text-xs">Crédito</span>' : ''}
                 </div>
                 <p class="text-xs text-slate-500 mt-1">${c.document_label}: ${c.document_number || '—'}</p>
-                ${c.credit_enabled ? `<p class="text-xs text-slate-500 mt-1">Límite: ${c.credit_limit > 0 ? `C$ ${parseFloat(c.credit_limit).toFixed(2)}` : 'Ilimitado'} · Saldo: C$ ${parseFloat(c.balance || 0).toFixed(2)} · Disponible: ${c.available_credit === null ? 'Ilimitado' : `C$ ${parseFloat(c.available_credit || 0).toFixed(2)}`} · ${c.credit_days}d</p>` : '<p class="text-xs text-slate-400">Solo contado</p>'}
+                ${c.credit_enabled ? `<p class="text-xs text-slate-500 mt-1">Límite: ${c.credit_limit > 0 ? `{{ $currencySymbol }} ${parseFloat(c.credit_limit).toFixed(2)}` : 'Ilimitado'} · Saldo: {{ $currencySymbol }} ${parseFloat(c.balance || 0).toFixed(2)} · Disponible: ${c.available_credit === null ? 'Ilimitado' : `{{ $currencySymbol }} ${parseFloat(c.available_credit || 0).toFixed(2)}`} · ${c.credit_days}d</p>` : '<p class="text-xs text-slate-400">Solo contado</p>'}
                 ${c.price_list_name ? `<p class="text-xs text-indigo-600 mt-1">Lista: ${c.price_list_name}</p>` : ''}
             </button>
         `).join('');
@@ -1898,33 +2208,47 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('clientSearch')?.addEventListener('input', (e) => renderClientsList(e.target.value));
 
+    const paymentMethodIcons = {
+        cash: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
+        card: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
+        transfer: 'M8 7h12m0 0l-4-4m4 4l-4 4m0-6H4m6 4v12a3 3 0 003 3h6a3 3 0 003-3V11a3 3 0 00-3-3H7a3 3 0 00-3 3v6a3 3 0 003 3z',
+        credit: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+    };
+
+    const paymentMethodNames = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', credit: 'Crédito' };
+
     function updatePaymentMethodSelection() {
-        document.querySelectorAll('.payment-method').forEach(btn => {
-            const active = btn.dataset.method === currentPaymentMethod;
-            btn.classList.toggle('border-indigo-600', active);
-            btn.classList.toggle('bg-indigo-50', active);
-            btn.classList.toggle('border-slate-200', !active);
-            const icon = btn.querySelector('div');
-            if (icon) {
-                icon.classList.toggle('bg-indigo-600', active);
-                icon.classList.toggle('bg-slate-200', !active);
-                const svg = icon.querySelector('svg');
-                if (svg) {
-                    svg.classList.toggle('text-white', active);
-                    svg.classList.toggle('text-slate-600', !active);
-                }
-            }
+        document.querySelectorAll('.pos-pay-option').forEach(btn => {
+            btn.classList.toggle('pos-pay-option--active', btn.dataset.method === currentPaymentMethod);
         });
+        const summary = document.getElementById('paymentMethodSummary');
+        if (summary) summary.textContent = paymentMethodNames[currentPaymentMethod] || currentPaymentMethod;
+        const icon = document.getElementById('paymentMethodIcon');
+        if (icon) icon.querySelector('path')?.setAttribute('d', paymentMethodIcons[currentPaymentMethod] || paymentMethodIcons.cash);
     }
 
-    document.querySelectorAll('.payment-method').forEach(btn => {
-        btn.addEventListener('click', () => {
-            if (btn.disabled) return;
-            currentPaymentMethod = btn.dataset.method;
-            updatePaymentMethodSelection();
-            updateCreditLimitAlert();
-        });
-    });
+    function setPaymentPadOpen(open) {
+        const pad = document.getElementById('posPaymentPad');
+        const toggle = document.getElementById('posPaymentToggle');
+        if (!pad) return;
+        pad.classList.toggle('pos-pad--open', open);
+        if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    window.togglePaymentPad = function() {
+        const pad = document.getElementById('posPaymentPad');
+        if (!pad) return;
+        setPaymentPadOpen(!pad.classList.contains('pos-pad--open'));
+    };
+
+    window.selectPaymentMethod = function(method) {
+        const option = document.querySelector(`.pos-pay-option[data-method="${method}"]`);
+        if (option?.disabled) return;
+        currentPaymentMethod = method;
+        updatePaymentMethodSelection();
+        updateCreditLimitAlert();
+        setPaymentPadOpen(false);
+    };
 
     window.initiatePayment = function() {
         const { total } = getTotal();
@@ -1952,20 +2276,20 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     window.setExactAmount = function() {
-        document.getElementById('amountReceived').value = getTotal().total.toFixed(2);
+        document.getElementById('amountReceived').value = getAmountDue().toFixed(2);
         document.getElementById('amountReceived').dispatchEvent(new Event('input'));
     };
 
     document.getElementById('amountReceived').addEventListener('input', (e) => {
         const amount = parseFloat(e.target.value) || 0;
-        const change = amount - getTotal().total;
+        const change = amount - getAmountDue();
         document.getElementById('changeDisplay').textContent = formatMoney(change);
         document.getElementById('amountReceivedInput').value = amount;
     });
 
     document.getElementById('paymentForm').addEventListener('submit', (e) => {
         e.preventDefault();
-        const { total } = getTotal();
+        const amountDue = getAmountDue();
         const type = document.getElementById('paymentTypeInput').value;
 
         if (ticket.length === 0) {
@@ -1975,7 +2299,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (type === 'cash') {
             const amount = parseFloat(document.getElementById('amountReceived').value) || 0;
-            if (amount < total) { alert('Monto recibido insuficiente'); return; }
+            if (amount < amountDue) { alert('Monto recibido insuficiente'); return; }
         }
         if (['transfer', 'card'].includes(type)) {
             const ref = document.getElementById('referenceNumber').value.trim();
@@ -1993,9 +2317,11 @@ document.addEventListener('DOMContentLoaded', function() {
             price: item.price,
             discount: item.discount || 0,
         })));
+        document.getElementById('tradeInsInput').value = JSON.stringify(tradeIns);
         document.getElementById('warehouseIdInput').value = selectedWarehouseId;
         document.getElementById('notesInput').value = notes;
         document.getElementById('orderDiscountPctInput').value = orderDiscountPct;
+        document.getElementById('exchangeRateIdInput').value = posExchangeRate.id || '';
         const submitButton = e.target.querySelector('button[type="submit"]');
         submitButton.disabled = true;
         submitButton.textContent = 'Procesando venta…';
@@ -2005,6 +2331,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.clearTicket = function() {
         if (ticket.length > 0 && !confirm('¿Descartar ticket actual?')) return;
         ticket = [];
+        tradeIns = [];
         orderDiscountPct = 0;
         selectedItemIndex = -1;
         padBuffer = '';
@@ -2012,6 +2339,20 @@ document.addEventListener('DOMContentLoaded', function() {
         searchInput.value = '';
         renderTicket();
         renderProducts();
+    };
+
+    window.createReservationFromPOS = function() {
+        if (ticket.length === 0) { showToast('Agrega productos antes de crear el apartado.', 'warning'); return; }
+        if (!currentClient) { showToast('Selecciona el cliente que realizará el apartado.', 'warning'); openClientModal(); return; }
+        const items = ticket.map(item => {
+            const product = products.find(candidate => candidate.id == item.product_id);
+            const unit = productUnit(product, item.unit_id);
+            return { product_id: item.product_id, quantity: item.quantity * Number(unit?.factor_to_base || 1), price_type: 'retail' };
+        });
+        sessionStorage.setItem('estelipos.reservationDraft', JSON.stringify({items}));
+        const params = new URLSearchParams({client_id: currentClient});
+        if (selectedWarehouseId) params.set('warehouse_id', selectedWarehouseId);
+        window.location.href = `{{ route('apartados.create') }}?${params.toString()}`;
     };
 
     function getHeldTickets() {
@@ -2022,13 +2363,29 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('heldCount').textContent = getHeldTickets().length;
     }
 
+    // Aviso breve y no bloqueante (reemplaza a los alert() en las facturas en espera).
+    function posNotice(message, tone = 'ok') {
+        const notice = document.createElement('div');
+        notice.setAttribute('role', 'status');
+        notice.className = 'fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg '
+            + (tone === 'warn' ? 'bg-amber-600' : 'bg-emerald-600');
+        notice.textContent = message;
+        document.body.appendChild(notice);
+        setTimeout(() => notice.remove(), 3500);
+    }
+
+    function escapeHeldText(value) {
+        return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
     window.holdTicket = function() {
-        if (ticket.length === 0) { alert('No hay productos en el ticket'); return; }
+        if (ticket.length === 0) { posNotice('No hay productos en la factura para dejar en espera.', 'warn'); return; }
         const held = getHeldTickets();
         held.push({
             id: Date.now(),
-            label: `Ticket ${held.length + 1} - ${document.getElementById('clientDisplay').textContent}`,
+            label: `Factura en espera ${held.length + 1} · ${document.getElementById('clientDisplay').textContent}`,
             items: ticket,
+            tradeIns,
             client: currentClient,
             clientName: document.getElementById('clientDisplay').textContent,
             orderDiscountPct,
@@ -2036,6 +2393,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         localStorage.setItem(HELD_KEY, JSON.stringify(held));
         ticket = [];
+        tradeIns = [];
         orderDiscountPct = 0;
         currentClient = null;
         document.getElementById('clientDisplay').textContent = 'Cliente General';
@@ -2044,23 +2402,29 @@ document.addEventListener('DOMContentLoaded', function() {
         ticketCounter++;
         localStorage.setItem('pos_ticket_counter', ticketCounter);
         document.getElementById('ticketNumber').textContent = ticketCounter;
+
+        posNotice('Factura dejada en espera. Retómala en «En espera» (F6) cuando quieras cobrarla.');
+        const heldButton = document.getElementById('heldTicketsBtn');
+        heldButton?.classList.add('ring-2', 'ring-white');
+        setTimeout(() => heldButton?.classList.remove('ring-2', 'ring-white'), 1800);
     };
 
     window.showHeldTickets = function() {
         const held = getHeldTickets();
         const list = document.getElementById('heldTicketsList');
         if (held.length === 0) {
-            list.innerHTML = '<p class="text-slate-500 text-center py-4">No hay tickets apartados</p>';
+            list.innerHTML = '<p class="text-slate-500 text-center py-4 text-sm">No hay facturas en espera.<br><span class="text-xs text-slate-400">Usa «Dejar en espera» (F4) para guardar la factura actual y atender a otro cliente.</span></p>';
         } else {
             list.innerHTML = held.map((h, idx) => `
                 <div class="flex items-center justify-between p-3 border border-slate-200 rounded-xl hover:bg-slate-50">
-                    <div>
-                        <p class="font-semibold text-slate-800 text-sm">${h.label}</p>
-                        <p class="text-xs text-slate-500">${h.items.length} productos · ${h.savedAt}</p>
+                    <div class="min-w-0">
+                        <p class="font-semibold text-slate-800 text-sm truncate">${escapeHeldText(h.label)}</p>
+                        <p class="text-xs text-slate-600 truncate">${escapeHeldText(h.items.slice(0, 2).map(item => item.name).join(', '))}${h.items.length > 2 ? ` +${h.items.length - 2} más` : ''}</p>
+                        <p class="text-xs text-slate-400">${h.items.length} producto(s) · dejada ${escapeHeldText(h.savedAt)}</p>
                     </div>
-                    <div class="flex gap-2">
-                        <button type="button" onclick="resumeHeldTicket(${idx})" class="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs">Recuperar</button>
-                        <button type="button" onclick="deleteHeldTicket(${idx})" class="px-3 py-1 bg-red-500 text-white rounded-lg text-xs">Eliminar</button>
+                    <div class="flex shrink-0 gap-2">
+                        <button type="button" onclick="resumeHeldTicket(${idx})" class="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-semibold" title="Volver a esta factura para seguir agregando productos y cobrarla">Retomar</button>
+                        <button type="button" onclick="deleteHeldTicket(${idx})" class="px-3 py-1 bg-red-500 text-white rounded-lg text-xs" title="Descartar esta factura en espera">Descartar</button>
                     </div>
                 </div>
             `).join('');
@@ -2072,9 +2436,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const held = getHeldTickets();
         const saved = held[idx];
         if (!saved) return;
-        if (ticket.length > 0 && !confirm('¿Reemplazar ticket actual?')) return;
+        if (ticket.length > 0 && !confirm('Ya tienes una factura en curso. Si retomas esta, la factura actual se reemplaza y se pierde. ¿Continuar?\n\nTip: primero usa «Dejar en espera» (F4) para guardarla.')) return;
 
         ticket = saved.items;
+        tradeIns = saved.tradeIns || [];
         currentClient = saved.client;
         orderDiscountPct = saved.orderDiscountPct || 0;
         document.getElementById('clientDisplay').textContent = saved.clientName;
@@ -2086,6 +2451,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     window.deleteHeldTicket = function(idx) {
+        if (!confirm('¿Descartar esta factura en espera? Se perderán sus productos.')) return;
         const held = getHeldTickets();
         held.splice(idx, 1);
         localStorage.setItem(HELD_KEY, JSON.stringify(held));
@@ -2130,19 +2496,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const openModal = visibleModal();
 
         if (!openModal && quantityEditorOpen && selectedItemIndex >= 0 && !editingText) {
-            if (/^[0-9]$/.test(e.key) || e.key === '.' || e.key === ',') {
+            if (/^[0-9.,]$/.test(e.key)) {
                 e.preventDefault();
+                if (replaceQuantityOnNextInput) {
+                    padBuffer = '';
+                    replaceQuantityOnNextInput = false;
+                }
                 padInput(e.key === ',' ? '.' : e.key);
-                return;
-            }
-            if (e.key === 'Backspace') {
-                e.preventDefault();
-                padBackspace();
                 return;
             }
             if (e.key === 'Enter') {
                 e.preventDefault();
                 if (padConfirm()) hideQuantityEditor();
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                hideQuantityEditor();
                 return;
             }
         }
@@ -2203,7 +2573,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Escape') {
             e.preventDefault();
             if (openModal) openModal.classList.add('hidden');
-            else if (quantityEditorOpen) hideQuantityEditor();
             else if (editingText) e.target.blur();
             return;
         }
@@ -2220,6 +2589,7 @@ document.addEventListener('DOMContentLoaded', function() {
     renderTicket();
     updateHeldCount();
     updatePaymentMethodSelection();
+    refreshCatalogPrices();
 });
 </script>
 @endpush

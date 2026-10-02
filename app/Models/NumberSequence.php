@@ -48,9 +48,12 @@ class NumberSequence extends Model
                 'cotizacion' => ['prefix' => 'COT-', 'padding' => 6],
                 'proforma' => ['prefix' => 'PRO-', 'padding' => 6],
                 'reparacion' => ['prefix' => 'REP-', 'padding' => 6],
+                'joyeria' => ['prefix' => 'JOY-', 'padding' => 6],
                 'recibo' => ['prefix' => 'REC-', 'padding' => 6],
                 'ajuste' => ['prefix' => 'AJU-', 'padding' => 6],
                 'asiento' => ['prefix' => 'POL-', 'padding' => 6],
+                'apartado' => ['prefix' => 'APT-', 'padding' => 6],
+                'envio' => ['prefix' => 'ENV-', 'padding' => 6],
             ];
 
             if (isset($defaults[$type])) {
@@ -75,6 +78,7 @@ class NumberSequence extends Model
             $defaults = match ($type) {
                 'proforma' => ['prefix' => 'PRO-', 'padding' => 6],
                 'reparacion' => ['prefix' => 'REP-', 'padding' => 6],
+                'joyeria' => ['prefix' => 'JOY-', 'padding' => 6],
                 default => throw new \InvalidArgumentException("Secuencia sin valores predeterminados: {$type}"),
             };
             static::firstOrCreate(['type' => $type], $defaults + [

@@ -27,7 +27,7 @@
             <a href="{{ route('clientes.edit', $client->id) }}" class="btn-outline text-sm">Editar cliente</a>
             @if($client->credit_enabled)
                 <a href="{{ route('creditos.show', $client->id) }}" class="btn-secondary text-sm">Ver créditos</a>
-                <a href="{{ route('creditos.statement', $client->id) }}" target="_blank" class="btn-primary text-sm">Imprimir estado de cuenta</a>
+                <a href="{{ route('creditos.statement', $client->id) }}" target="print-window" class="btn-primary text-sm">Imprimir estado de cuenta</a>
             @endif
         </div>
     </div>

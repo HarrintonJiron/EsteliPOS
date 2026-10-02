@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\RepairService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class RepairServiceController extends Controller
@@ -11,7 +12,7 @@ class RepairServiceController extends Controller
     public function index()
     {
         return response()->json(
-            RepairService::active()->orderBy('name')->get(['id', 'name', 'description', 'price'])
+            RepairService::forWorkshop('repair')->active()->orderBy('name')->get(['id', 'name', 'description', 'price'])
         );
     }
 
@@ -19,7 +20,7 @@ class RepairServiceController extends Controller
     {
         try {
             $validated = $request->validate([
-                'name' => 'required|string|max:200|unique:repair_services,name',
+                'name' => ['required', 'string', 'max:200', Rule::unique('repair_services', 'name')->where('workshop_type', 'repair')],
                 'description' => 'nullable|string',
                 'price' => 'required|numeric|min:0',
             ]);
@@ -33,6 +34,7 @@ class RepairServiceController extends Controller
         try {
             $service = RepairService::create([
                 'name' => $validated['name'],
+                'workshop_type' => 'repair',
                 'description' => $validated['description'] ?? null,
                 'price' => $validated['price'],
                 'is_active' => true,
@@ -53,7 +55,7 @@ class RepairServiceController extends Controller
         $service = RepairService::findOrFail($id);
 
         $validated = $request->validate([
-            'name' => 'required|string|max:200|unique:repair_services,name,'.$id,
+            'name' => ['required', 'string', 'max:200', Rule::unique('repair_services', 'name')->where('workshop_type', 'repair')->ignore($id)],
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
             'is_active' => 'nullable|boolean',

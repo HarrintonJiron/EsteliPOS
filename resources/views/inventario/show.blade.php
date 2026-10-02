@@ -48,7 +48,32 @@
         </span>
     </div>
 
+    @include('inventario.partials._gallery_view')
+
     @include('inventario._product_conversions')
+
+    @if($product->condition || $product->brand || $product->model || $product->color || $product->imei)
+        <section class="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm">
+            <div class="border-b border-indigo-100 bg-indigo-50 px-5 py-4">
+                <h2 class="font-bold text-indigo-950">Ficha comercial del equipo</h2>
+                <p class="mt-1 text-xs text-indigo-700">Datos guardados al registrar el producto en modo Pro.</p>
+            </div>
+            <dl class="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-5">
+                <div>
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado del artículo</dt>
+                    <dd class="mt-2">
+                        <span class="inline-flex rounded-full border px-3 py-1 text-sm font-bold {{ $product->condition_color_classes }}">
+                            {{ $product->condition_label }}
+                        </span>
+                    </dd>
+                </div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Marca</dt><dd class="mt-2 font-semibold text-slate-900">{{ $product->brand ?: '—' }}</dd></div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Modelo</dt><dd class="mt-2 font-semibold text-slate-900">{{ $product->model ?: '—' }}</dd></div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Color</dt><dd class="mt-2 font-semibold text-slate-900">{{ $product->color ?: '—' }}</dd></div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">IMEI o serial</dt><dd class="mt-2 break-all font-mono text-sm font-semibold text-slate-900">{{ $product->imei ?: '—' }}</dd></div>
+            </dl>
+        </section>
+    @endif
 
 
     {{-- Información Principal --}}
@@ -64,6 +89,7 @@
                         {{ number_format((float)$product->stock, 2) }}
                     </p>
                     <p class="text-sm text-gray-500">{{ $product->baseUnitLabel() }}</p>
+                    <p class="mt-1 text-sm text-indigo-700">Disponible: <strong>{{ number_format($product->availableStock(), 2) }}</strong>@if($product->reservedQuantity() > 0) · Reservado: <strong>{{ number_format($product->reservedQuantity(), 2) }}</strong>@endif</p>
                     @if($product->unitConversions->isNotEmpty())
                         <button type="button" data-open-presentations class="mt-2 text-xs font-semibold text-indigo-600 hover:underline">
                             {{ $product->unitConversions->map(function ($conv) use ($product) {
@@ -78,17 +104,17 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div class="text-center p-3 bg-gray-50 rounded-lg">
                         <p class="text-xs text-gray-500">Precio Compra</p>
-                        <p class="text-lg font-semibold">C$ {{ number_format($product->purchase_price, 2) }}</p>
+                        <p class="text-lg font-semibold">@money($product->purchase_price, 2)</p>
                     </div>
                     <div class="text-center p-3 bg-gray-50 rounded-lg">
                         <p class="text-xs text-gray-500">Precio Venta</p>
-                        <p class="text-lg font-semibold">C$ {{ number_format($product->sale_price, 2) }}</p>
+                        <p class="text-lg font-semibold">@money($product->sale_price, 2)</p>
                     </div>
                 </div>
 
                 <div class="p-3 bg-gray-50 rounded-lg">
                     <p class="text-xs text-gray-500">Valor en Inventario</p>
-                    <p class="text-lg font-semibold">C$ {{ number_format($product->stock * $product->purchase_price, 2) }}</p>
+                    <p class="text-lg font-semibold">@money($product->stock * $product->purchase_price, 2)</p>
                 </div>
 
                 <div class="p-3 bg-gray-50 rounded-lg">
@@ -148,7 +174,7 @@
                 </div>
                 <div class="p-3 bg-slate-50 rounded-xl">
                     <p class="text-xs text-slate-500">Ingresos por ventas</p>
-                    <p class="text-lg font-semibold">C$ {{ number_format($productStats['sold_revenue'], 2) }}</p>
+                    <p class="text-lg font-semibold">@money($productStats['sold_revenue'], 2)</p>
                     <p class="text-xs text-slate-400">{{ $productStats['sale_count'] }} facturas</p>
                 </div>
             </div>

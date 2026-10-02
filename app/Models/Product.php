@@ -23,8 +23,16 @@ class Product extends Model
         'name',
         'code',
         'description',
+        'condition',
+        'brand',
+        'model',
+        'color',
+        'battery_percentage',
+        'imei',
         'purchase_price',
         'sale_price',
+        'source_sale_price',
+        'price_currency',
         'stock',
         'unit',
         'lot',
@@ -90,6 +98,11 @@ class Product extends Model
         return $this->belongsTo(Category::class);
     }
 
+    public function images()
+    {
+        return $this->hasMany(ProductImage::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     public function purchaseDetails()
     {
         return $this->hasMany(PurchaseDetail::class);
@@ -98,6 +111,25 @@ class Product extends Model
     public function saleDetails()
     {
         return $this->hasMany(SaleDetail::class);
+    }
+
+    public function reservationItems()
+    {
+        return $this->hasMany(ReservationItem::class);
+    }
+
+    public function reservedQuantity(?int $warehouseId = null): float
+    {
+        return (float) $this->reservationItems()
+            ->whereHas('reservation', fn ($query) => $query->active()->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId)))
+            ->sum('quantity');
+    }
+
+    public function availableStock(?int $warehouseId = null): float
+    {
+        $stock = $warehouseId ? $this->stockInWarehouse($warehouseId) : (float) $this->stock;
+
+        return max(0, round($stock - $this->reservedQuantity($warehouseId), 4));
     }
 
     public function inventoryMovements()
@@ -173,6 +205,60 @@ class Product extends Model
         };
     }
 
+    public function getConditionLabelAttribute(): string
+    {
+        return match ($this->condition) {
+            'new' => 'Nuevo',
+            'used' => 'Seminuevo',
+            'open_box' => 'Open box',
+            default => 'No aplica',
+        };
+    }
+
+    /**
+     * Datos del producto que se imprimen en tickets y facturas (solo los que tienen valor).
+     *
+     * @return array<string, string>
+     */
+    public function invoiceSpecs(): array
+    {
+        $specs = [];
+
+        if (filled($this->brand)) {
+            $specs['Marca'] = trim($this->brand);
+        }
+        if (filled($this->model)) {
+            $specs['Modelo'] = trim($this->model);
+        }
+        if (filled($this->color)) {
+            $specs['Color'] = trim($this->color);
+        }
+        if (filled($this->imei)) {
+            $specs['IMEI'] = trim($this->imei);
+        }
+        if ($this->battery_percentage !== null) {
+            $specs['Batería'] = rtrim(rtrim(number_format((float) $this->battery_percentage, 2, '.', ''), '0'), '.').'%';
+        }
+        if ($this->condition) {
+            $specs['Estado'] = $this->condition_label;
+        }
+        if (filled($this->description)) {
+            $specs['Descripción'] = trim(preg_replace('/\s+/', ' ', $this->description));
+        }
+
+        return $specs;
+    }
+
+    public function getConditionColorClassesAttribute(): string
+    {
+        return match ($this->condition) {
+            'new' => 'border-emerald-300 bg-emerald-100 text-emerald-800',
+            'used' => 'border-amber-300 bg-amber-100 text-amber-800',
+            'open_box' => 'border-sky-300 bg-sky-100 text-sky-800',
+            default => 'border-slate-300 bg-slate-100 text-slate-700',
+        };
+    }
+
     public function getInventoryStatusAttribute(): string
     {
         if ($this->isExpired()) {
@@ -238,9 +324,19 @@ class Product extends Model
             return (float) $this->stock;
         }
 
-        return (float) ($this->warehouseStocks()
+        $warehouseQuantity = $this->warehouseStocks()
             ->where('warehouse_id', $warehouseId)
-            ->value('quantity') ?? 0);
+            ->value('quantity');
+
+        if ($warehouseQuantity !== null) {
+            return (float) $warehouseQuantity;
+        }
+
+        if (! $this->warehouseStocks()->exists() && Warehouse::query()->whereKey($warehouseId)->where('is_default', true)->exists()) {
+            return (float) $this->stock;
+        }
+
+        return 0.0;
     }
 
     public function getInventoryStatusLabelAttribute(): string

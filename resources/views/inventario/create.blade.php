@@ -37,9 +37,9 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Código *</label>
-                    <input type="text" name="code" value="{{ old('code') }}" required
-                           placeholder="Ej: FERT-001"
+                    <label class="block text-sm font-medium text-gray-700">Código <span class="font-normal text-gray-400">(o IMEI — déjalo vacío para generarlo automático)</span></label>
+                    <input type="text" name="code" value="{{ old('code') }}"
+                           placeholder="Ej: FERT-001 o IMEI del equipo"
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
@@ -75,6 +75,25 @@
                     <p class="text-xs text-gray-500 mt-1">Así se cuenta el inventario. Ejemplo: jabón en <strong>unidades</strong>. Después, en la ficha, puedes venderlo en ristra o caja sin crear otro producto.</p>
                 </div>
 
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Proveedor <span class="font-normal text-gray-400">(opcional)</span></label>
+                    <select name="supplier_id" aria-label="Proveedor" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                        <option value="">Sin proveedor</option>
+                        @foreach($suppliers as $supplier)
+                            <option value="{{ $supplier->id }}" {{ old('supplier_id') == $supplier->id ? 'selected' : '' }}>
+                                {{ $supplier->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Código del proveedor <span class="font-normal text-gray-400">(opcional)</span></label>
+                    <input type="text" name="supplier_code" value="{{ old('supplier_code') }}"
+                           placeholder="Referencia del proveedor para este producto"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700">Descripción</label>
                     <textarea name="description" rows="2"
@@ -84,27 +103,10 @@
             </div>
         </div>
 
-        {{-- Imagen del producto --}}
-        <div class="bg-white p-4 rounded-xl shadow">
-            <h2 class="text-lg font-semibold text-gray-700 mb-1">Imagen del Producto</h2>
-            <p class="text-sm text-gray-500 mb-4">Se mostrará en el catálogo y en el punto de venta para identificar el producto rápidamente.</p>
+        @include('inventario._cellphone_fields')
 
-            <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-5 items-center">
-                <div class="h-40 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden">
-                    <div id="createImagePlaceholder" class="text-center text-gray-400 px-4">
-                        <div class="text-4xl mb-1">📷</div>
-                        <span class="text-xs">Vista previa</span>
-                    </div>
-                    <img id="createImagePreview" class="hidden w-full h-full object-contain" alt="Vista previa del producto">
-                </div>
-                <div>
-                    <label for="product_image" class="block text-sm font-medium text-gray-700">Seleccionar imagen</label>
-                    <input id="product_image" type="file" name="image" accept="image/jpeg,image/png,image/webp"
-                           class="mt-2 block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-700">
-                    <p class="mt-2 text-xs text-gray-500">Formatos JPG, PNG o WebP. Máximo 3 MB y 3000 × 3000 px.</p>
-                </div>
-            </div>
-        </div>
+        @include('inventario.partials._gallery_field')
+
 
         {{-- Precios y Stock --}}
         <div class="bg-white p-4 rounded-xl shadow">
@@ -112,16 +114,22 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Precio de Compra (C$) *</label>
-                    <input type="number" name="purchase_price" id="create_purchase_price"
+                    <label class="block text-sm font-medium text-gray-700">Precio de Compra ({{ $currencySymbol }}) *</label>
+                    <input type="text" inputmode="decimal" name="purchase_price" id="create_purchase_price"
                            aria-label="Precio de compra"
                            value="{{ old('purchase_price') }}" step="0.01" min="0" required
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Precio de Venta (C$) *</label>
-                    <input type="number" name="sale_price" id="create_sale_price"
+                    <input type="hidden" name="price_currency" value="USD">
+                    <label class="block text-sm font-medium text-gray-700">Moneda del precio</label>
+                    <p class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 shadow-sm">USD ($)</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Precio de Venta (moneda registrada) *</label>
+                    <input type="text" inputmode="decimal" name="sale_price" id="create_sale_price"
                            aria-label="Precio de venta"
                            value="{{ old('sale_price') }}" step="0.01" min="0" required
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
@@ -202,7 +210,7 @@
                 <div class="flex items-end">
                     <div class="p-3 bg-amber-50 rounded-xl w-full text-center">
                         <p class="text-xs text-gray-500">Precio con descuento</p>
-                        <p class="font-bold text-amber-700 text-lg" id="discountPreview">C$ —</p>
+                        <p class="font-bold text-amber-700 text-lg" id="discountPreview">{{ $currencySymbol }} —</p>
                     </div>
                 </div>
             </div>
@@ -301,21 +309,6 @@
     createWarehouse?.addEventListener('change', filterCreateShelves);
     filterCreateShelves();
 
-    document.getElementById('product_image')?.addEventListener('change', function () {
-        const file = this.files?.[0];
-        const preview = document.getElementById('createImagePreview');
-        const placeholder = document.getElementById('createImagePlaceholder');
-
-        if (!file) {
-            preview.classList.add('hidden');
-            placeholder.classList.remove('hidden');
-            return;
-        }
-
-        preview.src = URL.createObjectURL(file);
-        preview.classList.remove('hidden');
-        placeholder.classList.add('hidden');
-    });
 </script>
 
 @endsection

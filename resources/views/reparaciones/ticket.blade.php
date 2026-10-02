@@ -120,6 +120,7 @@
         <div>{{ $order->device_brand }} {{ $order->device_model }}</div>
         @if($order->device_color)<div>Color: {{ $order->device_color }}</div>@endif
         @if($order->device_imei)<div>IMEI: {{ $order->device_imei }}</div>@endif
+        @if($order->device_battery !== null)<div>Batería: {{ $order->device_battery }}%</div>@endif
         @if($order->accessories)<div>Accesorios: {{ $order->accessories }}</div>@endif
     </div>
 
@@ -155,11 +156,11 @@
             @endif
         </span>
         <span class="item-qty">{{ number_format($item->quantity, 0) }}</span>
-        <span class="item-amount">{{ $companyProfile['currency_symbol'] }} {{ number_format($item->subtotal, 2) }}</span>
+        <span class="item-amount">@money($item->subtotal, 2)</span>
         @if(isset($item->item_type) && $item->item_type === 'service' && $item->device_brand)
         <span class="item-meta">Marca: {{ $item->device_brand }}</span>
         @else
-        <span class="item-meta">{{ number_format($item->quantity, 0) }} x {{ $companyProfile['currency_symbol'] }} {{ number_format($item->price, 2) }}</span>
+        <span class="item-meta">{{ number_format($item->quantity, 0) }} x @money($item->price, 2)</span>
         @endif
     </div>
     @endforeach
@@ -168,33 +169,54 @@
     <div class="divider"></div>
 
     @if($order->parts_cost > 0)
-    <div class="row"><span>Repuestos</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($order->parts_cost,2) }}</span></div>
+    <div class="row"><span>Repuestos</span><span>@money($order->parts_cost,2)</span></div>
     @endif
-    <div class="row"><span>Mano de obra</span><span>{{ $companyProfile['currency_symbol'] }} {{ number_format($order->labor_cost,2) }}</span></div>
+    <div class="row"><span>Mano de obra</span><span>@money($order->labor_cost,2)</span></div>
     <div class="items-footer">
         <span>TOTAL</span>
         <span class="item-qty">{{ $order->items->count() ? $totalItemQuantityFormatted : '' }}</span>
-        <span class="item-amount">{{ $companyProfile['currency_symbol'] }} {{ number_format($order->total,2) }}</span>
+        <span class="item-amount">@money($order->total,2)</span>
     </div>
     @if($order->advance_payment > 0)
-    <div class="row" style="margin-top:3px;"><span>Anticipo</span><span>-{{ $companyProfile['currency_symbol'] }} {{ number_format($order->advance_payment,2) }}</span></div>
-    <div class="row"><span class="bold">SALDO</span><span class="bold">{{ $companyProfile['currency_symbol'] }} {{ number_format($order->balance(),2) }}</span></div>
+    <div class="row" style="margin-top:3px;"><span>Anticipo</span><span>-@money($order->advance_payment,2)</span></div>
+    @endif
+    @foreach($order->creditPayments as $payment)
+    <div class="row"><span>Pago {{ $payment->payment_date->format($companyProfile['date_format']) }}</span><span>-@money($payment->amount,2)</span></div>
+    @endforeach
+    @if($order->total > 0)
+    <div class="row" style="margin-top:3px;"><span class="bold">{{ $order->balance() > 0 ? 'SALDO PENDIENTE' : 'SALDO' }}</span><span class="bold">{{ $companyProfile['currency_symbol'] }} {{ number_format($order->balance(),2) }}</span></div>
+    @if($order->payment_type === 'credit' && $order->balance() > 0)
+    <div class="row"><span>A CRÉDITO · vence</span><span>{{ $order->due_date?->format($companyProfile['date_format']) ?? '—' }}</span></div>
+    @endif
     @endif
 
     <div class="divider"></div>
 
     <div class="center">
         <div class="status-box">{{ strtoupper($order->statusLabel()) }}</div>
+        @if($order->isDeliveredWithBalance())
+        <div class="bold" style="margin-top:3px; font-size:10px;">ENTREGADO · PAGO PENDIENTE</div>
+        @elseif($order->paymentState() === 'paid')
+        <div class="bold" style="margin-top:3px; font-size:10px;">PAGADO</div>
+        @endif
     </div>
 
     @if($order->technician)
     <div class="row" style="margin-top:4px;"><span>Técnico:</span><span>{{ $order->technician->name }}</span></div>
     @endif
 
+    @if($order->delivery_notes)
+    <div class="divider"></div>
+    <div style="font-size:9px; line-height:1.45; margin-top:2px;">
+        <div class="bold" style="font-size:10px; margin-bottom:2px;">DETALLES DEL EQUIPO AL ENTREGAR</div>
+        <div style="white-space:pre-line; overflow-wrap:anywhere;">{{ $order->delivery_notes }}</div>
+    </div>
+    @endif
+
     @if($order->warranty_enabled)
     <div class="divider"></div>
     <div style="font-size:9px; line-height:1.45; margin-top:2px;">
-        <div class="bold" style="font-size:10px; margin-bottom:2px;">✓ GARANTÍA</div>
+        <div class="bold" style="font-size:10px; margin-bottom:2px;">✓ GARANTÍA{{ $order->warranty_days ? ': '.$order->warranty_days.' DÍAS' : '' }}</div>
         <div>{{ $order->effectiveWarrantyText() }}</div>
     </div>
     @endif

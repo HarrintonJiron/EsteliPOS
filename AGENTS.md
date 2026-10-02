@@ -8,9 +8,8 @@
 - `resources/views`: Blade; tickets térmicos en `facturacion/receipt.blade.php`, `reparaciones/ticket.blade.php` y `proformas/ticket.blade.php`.
 - `database/migrations`, `database/seeders`: esquema y catálogos. Las pruebas usan SQLite en memoria (`phpunit.xml`); desarrollo Docker usa MySQL 8.4.
 - `tests/Feature`, `tests/Unit`: Pest 4.
-- `deployment/windows`: instalación, actualización, respaldo y diagnóstico en Windows.
-- `deployment/build-release.sh`: genera `deployment/parche1.0.zip`.
-- `deployment/build-ticket-patch.sh`: genera el parche aislado `deployment/parcheticket.zip` sin tocar datos.
+- `deployment/installer`: instalador oficial Windows con Apache, PHP y MySQL.
+- `deployment/installer/scripts/Build-EsteliPOSInstaller.ps1`: prepara, verifica y compila el instalador NSIS.
 - `scripts`: verificaciones locales concisas. Flujo de release: [`.agents/skills/estelipos-windows-release/SKILL.md`](.agents/skills/estelipos-windows-release/SKILL.md).
 
 ## Comandos reales
@@ -35,8 +34,7 @@ composer test
 
 # frontend y revisión de un paquete ya construido
 npm run build
-./scripts/check-release.sh [deployment/parche1.0.zip]
-./scripts/check-ticket-patch.sh [deployment/parcheticket.zip]
+./scripts/check-release.sh [deployment/installer/dist/EsteliPOS-Setup-VERSION.exe]
 ```
 
 No hay PHPStan/Psalm, TypeScript ni ESLint configurados. `verify-changes.sh` usa `php -l`, Pint, pruebas Pest relacionadas y `npm run build` cuando corresponda; no instala dependencias.
@@ -49,7 +47,7 @@ No hay PHPStan/Psalm, TypeScript ni ESLint configurados. `verify-changes.sh` usa
 - Usa `NumberSequence` para documentos; no generes consecutivos con `max(id) + 1`.
 - Los tickets son HTML/CSS de 80 mm y deben funcionar sin CDN ni Internet.
 - No ejecutes migraciones/seeders sobre datos persistentes, builds de release, instalaciones ni descargas sin autorización.
-- No modifiques `.env`, `database/database.sqlite`, `storage/app`, `backups/`, binarios de `deployment/windows/assets/` ni ZIP de entrega salvo que la tarea los incluya expresamente.
+- No modifiques `.env`, `database/database.sqlite`, `storage/app`, `backups/`, binarios de `deployment/installer/payload/` ni instaladores de entrega salvo que la tarea los incluya expresamente.
 - Preserva el árbol Git sucio; no reviertas, stages, commits ni pushes ajenos.
 
 ## Terminado
