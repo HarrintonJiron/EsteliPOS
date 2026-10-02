@@ -137,11 +137,20 @@ class ArqueoController extends Controller
         }
 
         $branchId = request()->user()?->branch_id;
+        $recentClosures = $user?->isAdmin()
+            ? Arqueo::query()
+                ->with(['user:id,name', 'branch:id,name'])
+                ->orderByDesc('closed_at')
+                ->orderByDesc('id')
+                ->limit(6)
+                ->get()
+            : collect();
 
         return view('arqueo.wait', [
             'now' => $now,
             'openSession' => $openSession,
             'openSessions' => $openSessions,
+            'recentClosures' => $recentClosures,
             'closingSummary' => $closingSummary,
             'denominations' => [1000, 500, 200, 100, 50, 20, 10, 5, 1],
             'branches' => Branch::query()
@@ -232,15 +241,21 @@ class ArqueoController extends Controller
                 ]);
             }
 
-            if (! $cajaSession->date->isSameDay($date)) {
+            $isAdministrator = (bool) $request->user()?->isAdmin();
+
+            if (! $isAdministrator && ! $cajaSession->date->isSameDay($date)) {
                 throw ValidationException::withMessages([
                     'date' => 'La fecha del arqueo debe coincidir con la fecha de apertura de la caja.',
                 ]);
             }
 
+            // Las operaciones antiguas que no guardaron caja_session_id pertenecen
+            // al día de apertura, aunque un administrador cierre la caja después.
+            $legacySessionDate = $cajaSession->date->toDateString();
+
             $sales = Sale::query()->retail()
                 ->where(fn ($query) => $query->where('caja_session_id', $cajaSession->id)
-                    ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $cajaSession->opened_by)->whereDate('date', $date->toDateString())))
+                    ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $cajaSession->opened_by)->whereDate('date', $legacySessionDate)))
                 ->where('status', 'completed')
                 ->with('client', 'details')
                 ->get();
@@ -258,7 +273,7 @@ class ArqueoController extends Controller
 
             $creditPayments = CreditPayment::query()
                 ->where(fn ($query) => $query->where('caja_session_id', $cajaSession->id)
-                    ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $cajaSession->opened_by)->whereDate('payment_date', $date->toDateString())))
+                    ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $cajaSession->opened_by)->whereDate('payment_date', $legacySessionDate)))
                 ->with('client')->get();
             $creditPaymentsTotal = $creditPayments->sum('amount');
             $cashCreditPaymentsTotal = $creditPayments->where('payment_type', 'cash')->sum('amount');
@@ -266,7 +281,7 @@ class ArqueoController extends Controller
             $repairPayments = RepairOrder::supportsPaymentTracking()
                 ? RepairOrder::query()
                     ->where(fn ($query) => $query->where('caja_session_id', $cajaSession->id)
-                        ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $cajaSession->opened_by)->whereDate('payment_received_at', $date->toDateString())))
+                        ->orWhere(fn ($legacy) => $legacy->whereNull('caja_session_id')->where('user_id', $cajaSession->opened_by)->whereDate('payment_received_at', $legacySessionDate)))
                     ->where('status', '!=', 'cancelled')
                     ->get()
                 : collect();

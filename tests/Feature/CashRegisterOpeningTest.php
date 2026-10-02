@@ -83,6 +83,38 @@ test('open cash screen shows compact closing summary when session is active', fu
         ->assertSee('denom-row', false);
 });
 
+test('administrator sees recent closed cash registers from the cash screen', function () {
+    $admin = cashRegisterAdmin();
+    $session = CajaSession::query()->create([
+        'date' => now()->subDay()->toDateString(),
+        'opened_at' => now()->subDay(),
+        'opened_by' => $admin->id,
+        'opening_amount' => 100,
+        'status' => 'closed',
+        'closed_at' => now(),
+        'closed_by' => $admin->id,
+    ]);
+    Arqueo::query()->create([
+        'date' => now()->toDateString(),
+        'user_id' => $admin->id,
+        'caja_session_id' => $session->id,
+        'closed_at' => now(),
+        'currency' => 'NIO',
+        'cash_total' => 100,
+        'physical_total' => 100,
+        'difference' => 0,
+        'details' => [],
+        'snapshot_hash' => hash('sha256', 'test-closed-register'),
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('arqueo.index'))
+        ->assertOk()
+        ->assertSee('Últimas cajas cerradas')
+        ->assertSee('CERRADA')
+        ->assertSee(route('arqueo.history'));
+});
+
 test('administrator can open a register in one branch and close another branch register', function () {
     $admin = cashRegisterAdmin();
     $primary = Branch::query()->create([
@@ -140,6 +172,31 @@ test('administrator can open a register in one branch and close another branch r
     expect($adminSession)->not->toBeNull()
         ->and($adminSession->branch_id)->toBe($primary->id)
         ->and((float) $adminSession->opening_amount)->toBe(500.0);
+});
+
+test('administrator can close a cash register opened on a prior date', function () {
+    $admin = cashRegisterAdmin();
+    $openedDate = now()->subDay()->startOfDay();
+    $session = CajaSession::query()->create([
+        'date' => $openedDate->toDateString(),
+        'opened_at' => $openedDate->copy()->setTime(9, 0),
+        'opened_by' => $admin->id,
+        'opening_amount' => 250,
+        'status' => 'open',
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('arqueo.run'), [
+            'date' => now()->toDateString(),
+            'caja_session_id' => $session->id,
+            'physical_counts' => [['amount' => 250, 'qty' => 1]],
+        ])
+        ->assertOk();
+
+    $closedArqueo = Arqueo::query()->where('caja_session_id', $session->id)->firstOrFail();
+
+    expect($session->fresh()->status)->toBe('closed')
+        ->and($closedArqueo->date->toDateString())->toBe(now()->toDateString());
 });
 
 test('opening amount is included in expected cash at closing', function () {

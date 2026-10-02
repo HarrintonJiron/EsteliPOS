@@ -40,6 +40,32 @@
             </section>
         @endif
 
+        @if(auth()->user()?->isAdmin() && ($recentClosures ?? collect())->isNotEmpty())
+            <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-labelledby="closed-registers-title">
+                <div class="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
+                    <div>
+                        <h2 id="closed-registers-title" class="text-sm font-bold text-slate-900">Últimas cajas cerradas</h2>
+                        <p class="mt-0.5 text-xs text-slate-500">Consulta el cierre y comprobante de cada sucursal.</p>
+                    </div>
+                    <a href="{{ route('arqueo.history') }}" class="btn-outline shrink-0 text-xs">Ver historial</a>
+                </div>
+                <div class="divide-y divide-slate-100">
+                    @foreach($recentClosures as $arqueo)
+                        <a href="{{ route('arqueo.show', $arqueo) }}" class="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-slate-50">
+                            <div class="min-w-0">
+                                <p class="truncate text-sm font-semibold text-slate-900">{{ $arqueo->branch?->name ?? 'Sin sucursal' }}</p>
+                                <p class="truncate text-xs text-slate-500">{{ $arqueo->user?->name ?? 'Usuario eliminado' }} · {{ $arqueo->closed_at?->format('d/m/Y H:i') ?? $arqueo->date?->format('d/m/Y') }}</p>
+                            </div>
+                            <div class="shrink-0 text-right">
+                                <p class="text-sm font-bold tabular-nums {{ (float) $arqueo->difference < 0 ? 'text-red-600' : 'text-emerald-600' }}">{{ $arqueo->currency }} {{ number_format((float) $arqueo->physical_total, 2) }}</p>
+                                <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">CERRADA</p>
+                            </div>
+                        </a>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
         @if(empty($openSession))
             {{-- Apertura compacta: primer paso del día --}}
             <form id="openForm" method="POST" action="{{ route('arqueo.open') }}" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

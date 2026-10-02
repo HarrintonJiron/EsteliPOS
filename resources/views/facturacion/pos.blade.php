@@ -939,7 +939,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!product) return;
                 const unit = productUnit(product, item.unit_id);
                 if (unit) {
-                    item.price = unit.price;
+                    item.price = tierPrice(unit, parseFloat(item.quantity) || 1, product.price);
                     item.max_stock = maxPresentationQty(product, unit, ticket.indexOf(item));
                     item.unit_label = unit.abbreviation;
                 }

@@ -697,6 +697,13 @@ test('pos applies client price list and warehouse stock', function () {
         'unit_price' => 250,
         'min_quantity' => 1,
     ]);
+    PriceListItem::query()->create([
+        'price_list_id' => $mayorList->id,
+        'product_id' => $product->id,
+        'unit_id' => null,
+        'unit_price' => 230,
+        'min_quantity' => 3,
+    ]);
 
     $accounting = Mockery::mock(AccountingService::class);
     $accounting->shouldReceive('recordSale')->once();
@@ -708,10 +715,10 @@ test('pos applies client price list and warehouse stock', function () {
         'warehouse_id' => $warehouse->id,
         'items' => json_encode([[
             'product_id' => $product->id,
-            'quantity' => 2,
+            'quantity' => 3,
             'discount' => 0,
         ]]),
-        'amount_received' => 600,
+        'amount_received' => 700,
         'order_discount_pct' => 0,
     ]);
 
@@ -720,11 +727,11 @@ test('pos applies client price list and warehouse stock', function () {
 
     $sale = Sale::query()->with('details')->latest('id')->firstOrFail();
     expect($sale->warehouse_id)->toBe($warehouse->id)
-        ->and((float) $sale->details->first()->price)->toBe(250.0)
+        ->and((float) $sale->details->first()->price)->toBe(230.0)
         ->and($sale->price_list_id)->toBe($mayorList->id)
         ->and($sale->price_list_name)->toBe($mayorList->name)
         ->and($sale->details->first()->price_list_item_id)->not->toBeNull()
-        ->and((float) $sale->details->first()->price_min_quantity)->toBe(1.0);
+        ->and((float) $sale->details->first()->price_min_quantity)->toBe(3.0);
 });
 
 test('price lists apply the highest eligible quantity tier', function () {

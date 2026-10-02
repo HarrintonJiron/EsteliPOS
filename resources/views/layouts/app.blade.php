@@ -786,6 +786,16 @@
     @include('partials.lightbox')
 
     <script>
+        // Se entrega inline para proteger también formularios que generan campos numéricos
+        // dinámicamente, aunque el paquete Vite local todavía no se haya recompilado.
+        document.addEventListener('wheel', (event) => {
+            const field = event.target;
+
+            if (field instanceof HTMLInputElement && field.type === 'number' && document.activeElement === field) {
+                field.blur();
+            }
+        }, { capture: true, passive: true });
+
         // La app se desplaza dentro de <main>; el documento nunca debe moverse. Si un campo oculto
         // (p. ej. un input de archivo) recibe el foco, el navegador puede desplazar el <html> y dejar
         // la pantalla en blanco. Aquí se devuelve siempre a su sitio.
