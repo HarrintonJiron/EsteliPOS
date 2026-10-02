@@ -39,6 +39,7 @@ class RepairOrder extends Model
         'estimated_date',
         'due_date',
         'estimated_delivery_time',
+        'estimated_time',
         'delivered_date',
         'delivered_time',
         'delivery_notes',
@@ -53,6 +54,11 @@ class RepairOrder extends Model
         'payment_received_at',
         'warranty_enabled',
         'warranty_text',
+        'include_warranty_policy',
+        'warranty_days',
+        'warranty_policy',
+        'sale_id',
+        'invoiced_at',
     ];
 
     protected $casts = [
@@ -62,6 +68,8 @@ class RepairOrder extends Model
         'delivered_date' => 'date',
         'payment_received_at' => 'datetime',
         'warranty_enabled' => 'boolean',
+        'include_warranty_policy' => 'boolean',
+        'invoiced_at' => 'datetime',
     ];
 
     public function getDevicePasswordAttribute(?string $value): ?string
@@ -124,6 +132,11 @@ class RepairOrder extends Model
         return $this->hasOne(Sale::class);
     }
 
+    public function sale()
+    {
+        return $this->belongsTo(Sale::class);
+    }
+
     public static function supportsPaymentTracking(): bool
     {
         return Schema::hasColumns('repair_orders', ['caja_session_id', 'payment_received_at']);
@@ -174,7 +187,7 @@ class RepairOrder extends Model
 
     public function syncPaymentStatus(): void
     {
-        $this->forceFill(['payment_status' => self::paymentStatusFor((float) $this->total, $this->paidAmount())])->save();
+        $this->forceFill(['payment_status' => self::paymentStatusFor($this->netTotal(), $this->paidAmount())])->save();
     }
 
     /**
@@ -295,7 +308,21 @@ class RepairOrder extends Model
 
     public function balance(): float
     {
-        return max(0, round((float) $this->total - $this->paidAmount(), 2));
+        return max(0, round($this->netTotal() - $this->paidAmount(), 2));
+    }
+
+    /** Total histórico de facturación; las órdenes nuevas ya guardan el total neto. */
+    public function netTotal(): float
+    {
+        $storedTotal = (float) $this->total;
+        $gross = round((float) $this->labor_cost + (float) $this->parts_cost, 2);
+        if (abs($storedTotal - $gross) > 0.00001) {
+            return max(0, round($storedTotal, 2));
+        }
+
+        $percentageDiscount = $storedTotal * ((float) ($this->discount_percentage ?? 0) / 100);
+
+        return max(0, round($storedTotal - $percentageDiscount - (float) ($this->discount_amount ?? 0), 2));
     }
 
     public function formattedReceivedTime(): ?string

@@ -16,7 +16,11 @@ use App\Services\BackNavigationService;
 use App\Services\CompanySettingsService;
 use App\Services\InvoiceTaxDisplayService;
 use App\Services\ModuleAccessService;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -36,6 +40,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RateLimiter::for('system-reset', function (Request $request): Limit {
+            $administrator = $request->user()?->getAuthIdentifier() ?? 'guest';
+
+            return Limit::perMinute(5)->by($administrator.'|'.$request->ip());
+        });
+
+        Blade::directive('money', fn (string $expression): string => "<?php echo app(\\App\\Services\\MoneyDisplayService::class)->format({$expression}); ?>");
+
         Gate::policy(JournalEntry::class, JournalEntryPolicy::class);
         Gate::policy(FiscalPeriod::class, FiscalPeriodPolicy::class);
         Gate::policy(Role::class, RolePolicy::class);

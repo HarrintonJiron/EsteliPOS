@@ -1,32 +1,42 @@
 <?php
 
-test('the windows deployment package is self contained and production safe', function () {
-    $deployScript = file_get_contents(base_path('deployment/windows/Deploy-EsteliPOS.ps1'));
-    $buildScript = file_get_contents(base_path('deployment/build-release.sh'));
+test('the only windows installer targets apache and mysql', function () {
+    $installScript = file_get_contents(base_path('deployment/installer/scripts/Install-EsteliPOS.ps1'));
+    $buildScript = file_get_contents(base_path('deployment/installer/scripts/Build-EsteliPOSInstaller.ps1'));
+    $backupScript = file_get_contents(base_path('deployment/installer/scripts/Backup-EsteliPOS.ps1'));
 
-    expect($deployScript)
-        ->toContain('APP_ENV" "production"')
-        ->toContain('APP_DEBUG" "false"')
-        ->toContain('DB_CONNECTION" "sqlite"')
-        ->toContain('[version]"8.4.1"')
-        ->toContain('app:install-production')
-        ->toContain('Register-ScheduledTask')
-        ->toContain('ExternalBackupPath')
-        ->toContain('HostAddress 0.0.0.0')
-        ->toContain('RemoteAddress LocalSubnet')
-        ->toContain('--kiosk-printing')
-        ->not->toContain('composer install')
-        ->not->toContain('npm install')
+    expect($installScript)
+        ->toContain('APP_ENV=production')
+        ->toContain('APP_DEBUG=false')
+        ->toContain('DB_CONNECTION=mysql')
+        ->toContain('DB_HOST=127.0.0.1')
+        ->toContain('EsteliPOSApache_')
+        ->toContain('EsteliPOSMySQL_')
+        ->toContain('migrate --force --no-interaction')
+        ->toContain('Validando Apache')
+        ->toContain('Invoke-WebRequest -Uri $healthUrl')
+        ->toContain('$globalStatePath')
+        ->toContain('Test-PortAvailable')
+        ->toContain('Wait-ForMySQL')
+        ->toContain('Assert-PHPDependencies')
+        ->toContain('Backup-MySQLDatabase')
+        ->toContain('Restore-MySQLDatabase')
+        ->toContain('Register-DailyBackup')
+        ->toContain("Set-EnvValue \$envFile 'DB_PORT'")
         ->and($buildScript)
-        ->toContain('composer install')
-        ->toContain('--no-dev')
-        ->toContain('npm --prefix "$stage_dir" run build')
-        ->toContain('git -C "$project_root" archive')
-        ->and(is_executable(base_path('deployment/build-release.sh')))->toBeTrue()
-        ->and(file_exists(base_path('deployment/windows/Start-EsteliPOS.ps1')))->toBeTrue()
-        ->and(file_exists(base_path('deployment/windows/Stop-EsteliPOS.ps1')))->toBeTrue()
-        ->and(file_exists(base_path('deployment/windows/Backup-EsteliPOS.ps1')))->toBeTrue()
-        ->and(file_exists(base_path('deployment/windows/Diagnose-EsteliPOS.ps1')))->toBeTrue();
+        ->toContain("'Apache HTTP Server'")
+        ->toContain("'MySQL 8.0.21'")
+        ->toContain("'PHP 8.5.10 Thread Safe'")
+        ->toContain("'.env'")
+        ->toContain("'database\\database.sqlite'")
+        ->and($backupScript)
+        ->toContain('mysqldump')
+        ->toContain('Compress-Archive')
+        ->toContain('RetentionDays = 30')
+        ->and(file_exists(base_path('deployment/installer/EsteliPOS.nsi')))->toBeTrue()
+        ->and(file_exists(base_path('deployment/installer/scripts/Diagnose-EsteliPOS.ps1')))->toBeTrue()
+        ->and(file_exists(base_path('deployment/windows')))->toBeFalse()
+        ->and(file_exists(base_path('deployment/INSTALAR.bat')))->toBeFalse();
 });
 
 test('production views do not depend on internet CDNs', function () {
@@ -57,12 +67,14 @@ test('the receipt button uses the silent print flow', function () {
         ->and($receiptView)
         ->toContain("request()->boolean('autoprint')")
         ->toContain("window.addEventListener('load', () => window.print())")
-        ->toContain("window.addEventListener('afterprint', () => window.close())");
+        ->toContain("window.addEventListener('afterprint'")
+        ->toContain("window.parent.postMessage({type: 'estelipos-print-complete'}")
+        ->toContain('window.close();');
 });
 
-test('sqlite is tuned for light lan concurrency', function () {
-    expect(config('database.connections.sqlite.busy_timeout'))->toBe(5000)
-        ->and(config('database.connections.sqlite.journal_mode'))->toBe('WAL')
-        ->and(config('database.connections.sqlite.synchronous'))->toBe('NORMAL')
-        ->and(config('database.connections.sqlite.transaction_mode'))->toBe('IMMEDIATE');
+test('legacy sqlite installer artifacts are not distributed', function () {
+    expect(file_exists(base_path('deployment/ticket-patch')))->toBeFalse()
+        ->and(file_exists(base_path('deployment/client-inventory')))->toBeFalse()
+        ->and(glob(base_path('deployment/EsteliPOS-Consola-*.zip')) ?: [])->toBeEmpty()
+        ->and(glob(base_path('deployment/produccion*.zip')) ?: [])->toBeEmpty();
 });

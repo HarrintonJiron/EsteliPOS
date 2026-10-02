@@ -13,7 +13,7 @@
         <div class="md:col-span-4"><label class="form-label">1. Producto</label><select id="priceProduct" name="product_id" class="select-field" required>@foreach($products as $p)<option value="{{ $p->id }}">{{ $p->name }} ({{ $p->code }})</option>@endforeach</select></div>
         <div class="md:col-span-2"><label class="form-label">2. Presentación</label><select id="priceUnit" name="unit_id" class="select-field" required></select></div>
         <div class="md:col-span-2"><label class="form-label">3. Desde cantidad</label><input type="number" step="0.0001" min="0.0001" value="{{ old('min_quantity', 1) }}" name="min_quantity" class="input-field" required><p class="mt-1 text-[11px] text-slate-500">Ej.: 1, 6 o 12</p></div>
-        <div class="md:col-span-2"><label class="form-label">4. Precio {{ $currencySymbol }}</label><input id="priceAmount" type="number" step="0.01" min="0" name="unit_price" class="input-field" required></div>
+        <div class="md:col-span-2"><label class="form-label">4. Precio {{ $currencySymbol }}</label><input id="priceAmount" type="text" inputmode="decimal" name="unit_price" class="input-field" required></div>
         <div class="md:col-span-2"><button class="btn-primary w-full">Guardar escala</button></div>
         <div class="md:col-span-12 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs">
             <span id="priceReference" class="font-semibold text-slate-600"></span>

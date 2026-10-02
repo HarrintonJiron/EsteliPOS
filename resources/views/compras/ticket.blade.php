@@ -91,7 +91,7 @@
 </div>
 <div class="actions no-print">
     <p style="margin-bottom:8px;color:#9a3412;font-size:10px;">Móvil: papel 50 mm · PC: papel 80 mm · márgenes ninguno · escala 100%</p>
-    <button type="button" onclick="window.print()">Imprimir ticket</button>
+    <button type="button" onclick="window.print()">Imprimir ticket 80 mm</button>
     <a href="{{ route('compras.show', $purchase->id) }}">Volver</a>
 </div>
 </body>

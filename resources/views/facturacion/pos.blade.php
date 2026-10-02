@@ -24,7 +24,15 @@
     data-pos-exchange-rate="{{ $posExchangeRate?->rate }}"
      data-daily-report-url="{{ route('facturacion.pos-daily-report') }}"
     data-company-currency="{{ $companyCurrency }}"
-    data-company-symbol="{{ $currencySymbol }}">
+    data-company-symbol="{{ $currencySymbol }}"
+    data-reference-currency="{{ $posReferenceFx['reference_currency'] }}"
+    data-reference-symbol="{{ $posReferenceFx['reference_symbol'] }}"
+    data-reference-rate="{{ $posReferenceFx['reference_rate'] ?? '' }}">
+
+    <nav class="pos-mobile-tabs" aria-label="Vista del punto de venta">
+        <button type="button" class="pos-mobile-tab is-active" data-pos-mobile-view="catalog">Productos</button>
+        <button type="button" class="pos-mobile-tab" data-pos-mobile-view="ticket">Ticket · <span id="mobileTicketTotal">{{ $currencySymbol }} 0.00</span></button>
+    </nav>
 
     <input type="file" id="posProductImageInput" class="hidden" accept="image/jpeg,image/png,image/webp" capture="environment">
 
@@ -72,6 +80,7 @@
                     <div class="text-right">
                         <span id="totalDisplay" class="block text-2xl font-bold leading-none text-slate-900">{{ $currencySymbol }} 0.00</span>
                         <span id="totalCordobaDisplay" class="hidden text-xs font-semibold text-emerald-700"></span>
+                        <span id="totalReferenceDisplay" class="hidden text-[11px] font-semibold text-slate-500"></span>
                     </div>
                 </div>
                 <div id="tradeInSummaryRow" class="hidden flex justify-between text-xs text-amber-700">
@@ -119,7 +128,7 @@
     </div>
 
     {{-- COLUMNA DERECHA: PRODUCTOS Y PAGO --}}
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
+    <div class="pos-catalog-col flex min-h-0 min-w-0 flex-1 flex-col bg-white">
 
         <div class="shrink-0 space-y-2 border-b border-slate-200 bg-white p-2.5 sm:p-3">
             <div class="flex items-center gap-2 overflow-x-auto text-[11px] text-slate-500" aria-label="Atajos de teclado del punto de venta">
@@ -158,9 +167,9 @@
             </div>
             <div class="flex min-w-0 flex-col gap-2 sm:flex-row">
                 <select id="warehouseSelect" class="select-field min-w-0 text-sm sm:max-w-xs" title="Bodega de salida (opcional)">
-                    <option value="" selected>Automática (según stock)</option>
+                    <option value="" @selected(! $defaultWarehouseId)>Automática (según stock)</option>
                     @foreach($warehouses as $wh)
-                        <option value="{{ $wh->id }}">{{ $wh->name }}{{ $wh->is_default ? ' · Principal' : '' }}</option>
+                        <option value="{{ $wh->id }}"{!! (int) $defaultWarehouseId === (int) $wh->id ? ' selected' : '' !!}>{{ $wh->name }}{{ $wh->is_default ? ' · Principal' : '' }}</option>
                     @endforeach
                 </select>
                 <button type="button" onclick="applyOrderDiscount()" class="shrink-0 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100" title="Descuento global">% Descuento</button>
@@ -749,6 +758,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentClient = null;
     let selectedItemIndex = -1;
     let padBuffer = '';
+    let quantityEditorOpen = false;
+    let replaceQuantityOnNextInput = false;
     let currentCategory = 'all';
     let orderDiscountPct = 0;
     let ticketCounter = parseInt(localStorage.getItem('pos_ticket_counter') || '1');
@@ -761,6 +772,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('ticketNumber').textContent = ticketCounter;
 
+    const mobilePosMedia = window.matchMedia('(max-width: 767px)');
+    let mobilePosView = 'catalog';
+    function syncMobilePosLayout() {
+        if (!mobilePosMedia.matches) {
+            app.classList.remove('pos-mobile-ticket');
+            return;
+        }
+        const selected = mobilePosView;
+        app.classList.toggle('pos-mobile-ticket', selected === 'ticket');
+        document.querySelectorAll('[data-pos-mobile-view]').forEach(button => {
+            button.classList.toggle('is-active', button.dataset.posMobileView === selected);
+        });
+        const ticketColumn = document.querySelector('.pos-ticket-col');
+        const payDock = document.querySelector('.pos-ticket-actions');
+        if (selected === 'ticket' && ticketColumn && payDock) ticketColumn.appendChild(payDock);
+    }
+    document.querySelectorAll('[data-pos-mobile-view]').forEach(button => button.addEventListener('click', () => {
+        mobilePosView = button.dataset.posMobileView;
+        syncMobilePosLayout();
+    }));
+    mobilePosMedia.addEventListener?.('change', () => syncMobilePosLayout());
+    syncMobilePosLayout();
+
     function ticketLineKey(productId, unitId) {
         return `${productId}:${unitId ?? 'base'}`;
     }
@@ -769,11 +803,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return (product.sale_units || []).find(u => u.id == unitId) || product.sale_units?.[0];
     }
 
-    function tierPrice(unit, quantity) {
+    function tierPrice(unit, quantity, fallbackPrice = 0) {
         const eligible = (unit?.price_breaks || [])
             .filter(tier => tier.min_quantity <= quantity)
             .sort((a, b) => b.min_quantity - a.min_quantity)[0];
-        return eligible ? eligible.price : parseFloat(unit?.price ?? 0);
+        return eligible ? eligible.price : parseFloat(unit?.price ?? fallbackPrice ?? 0);
     }
 
     function nextTierHint(unit, quantity) {
@@ -788,7 +822,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ticket.forEach(item => {
             const product = products.find(candidate => candidate.id == item.product_id);
             const unit = product ? productUnit(product, item.unit_id) : null;
-            if (unit) item.price = tierPrice(unit, parseFloat(item.quantity) || 1);
+            if (product) item.price = tierPrice(unit, parseFloat(item.quantity) || 1, product.price);
         });
     }
 
@@ -1269,6 +1303,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const companyCurrency = app.dataset.companyCurrency || 'USD';
     const companySymbol = app.dataset.companySymbol || '{{ $currencySymbol }}';
+    const referenceCurrency = app.dataset.referenceCurrency || '';
+    const referenceSymbol = app.dataset.referenceSymbol || '';
+    const referenceRate = parseFloat(app.dataset.referenceRate || '');
     const posExchangeRateUrl = app.dataset.posExchangeRateUrl;
     const posExchangeRateDisplay = document.getElementById('posExchangeRateDisplay');
     let posExchangeRate = {
@@ -1284,6 +1321,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function formatMoney(v) {
         return companySymbol + ' ' + roundMoney(v).toFixed(2);
+    }
+
+    function formatReference(v) {
+        return referenceCurrency && referenceSymbol && Number.isFinite(referenceRate) && referenceRate > 0
+            ? `${referenceSymbol} ${roundMoney(v * referenceRate).toFixed(2)} ${referenceCurrency} ref.`
+            : '';
     }
 
     function selectedCordobaRate() {
@@ -1409,10 +1452,15 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('totalDisplay').textContent = formatMoney(total);
         document.getElementById('paymentTotalDisplay').textContent = formatMoney(amountDue);
         document.getElementById('payBtnAmount').textContent = formatMoney(amountDue);
+        document.getElementById('mobileTicketTotal').textContent = formatMoney(amountDue);
         const cordobaTotal = document.getElementById('totalCordobaDisplay');
         const cordobaLabel = formatCordobas(total);
         cordobaTotal.textContent = cordobaLabel;
         cordobaTotal.classList.toggle('hidden', cordobaLabel === '');
+        const referenceTotal = document.getElementById('totalReferenceDisplay');
+        const referenceLabel = formatReference(total);
+        referenceTotal.textContent = referenceLabel;
+        referenceTotal.classList.toggle('hidden', referenceLabel === '');
 
         const tradeInRow = document.getElementById('tradeInSummaryRow');
         const amountDueRow = document.getElementById('amountDueRow');
@@ -1625,9 +1673,9 @@ document.addEventListener('DOMContentLoaded', function() {
         `).join('');
 
         if (selectedItemIndex >= 0 && ticket[selectedItemIndex]) {
-            document.getElementById('selectedItemBar').classList.remove('hidden');
+            document.getElementById('posQuantityTools').classList.toggle('hidden', !quantityEditorOpen);
             document.getElementById('selectedItemName').textContent = ticket[selectedItemIndex].name;
-            document.getElementById('selectedItemQty').textContent = ticket[selectedItemIndex].quantity;
+            document.getElementById('selectedItemQty').value = padBuffer || ticket[selectedItemIndex].quantity;
         }
         updateTotals();
     }
@@ -1635,11 +1683,15 @@ document.addEventListener('DOMContentLoaded', function() {
     window.selectTicketItem = function(idx) {
         selectedItemIndex = idx;
         padBuffer = String(ticket[idx].quantity);
+        quantityEditorOpen = true;
+        replaceQuantityOnNextInput = true;
         renderTicket();
         expandPosPad();
+        focusQuantityInput();
     };
 
-    window.addProductToTicket = function(productId, qty = 1, unitId = null) {
+    window.addProductToTicket = function(productId, qty = 1, unitId = null, openQuantityEditor = false) {
+        const shouldOpenQuantityEditor = openQuantityEditor && !mobilePosMedia.matches;
         const product = products.find(p => p.id == productId);
         if (!product) return;
 
@@ -1673,12 +1725,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (existing) {
             existing.quantity = newQty;
-            existing.price = tierPrice(unit, newQty);
+            existing.price = tierPrice(unit, newQty, unitPrice);
             existing.max_stock = maxQty;
             existing.source_warehouse_id = product.preferred_warehouse_id || selectedWarehouseId;
             existing.source_warehouse_name = product.preferred_warehouse_name || null;
             renderTicket();
             revealTicketLine(existingIdx);
+            if (shouldOpenQuantityEditor) selectTicketItem(existingIdx);
             return;
         }
 
@@ -1689,7 +1742,7 @@ document.addEventListener('DOMContentLoaded', function() {
             name: product.name,
             condition: product.condition,
             condition_label: product.condition_label,
-            price: tierPrice(unit, qty),
+            price: tierPrice(unit, qty, unitPrice),
             quantity: qty,
             discount: product.discount_pct || 0,
             tax_rate: product.tax_rate,
@@ -1699,6 +1752,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         renderTicket();
         revealTicketLine(ticket.length - 1);
+        if (shouldOpenQuantityEditor) selectTicketItem(ticket.length - 1);
     };
 
     window.changeTicketUnit = function(idx, unitId) {
@@ -1797,6 +1851,53 @@ document.addEventListener('DOMContentLoaded', function() {
         setPosPadOpen(!pad.classList.contains('pos-pad--open'));
     };
 
+    function focusQuantityInput() {
+        const quantityInput = document.getElementById('selectedItemQty');
+        if (!quantityEditorOpen || !quantityInput) return;
+        window.setTimeout(() => {
+            quantityInput.focus({ preventScroll: true });
+            quantityInput.setSelectionRange(0, quantityInput.value.length);
+            const ticketColumn = document.querySelector('.pos-ticket-col');
+            const editorBox = document.getElementById('posQuantityTools')?.getBoundingClientRect();
+            const columnBox = ticketColumn?.getBoundingClientRect();
+            const margin = 12;
+            if (ticketColumn && editorBox && columnBox && editorBox.bottom > columnBox.bottom) {
+                ticketColumn.scrollTop += editorBox.bottom - columnBox.bottom + margin;
+            }
+        }, 0);
+    }
+
+    window.hideQuantityEditor = function() {
+        quantityEditorOpen = false;
+        document.getElementById('posQuantityTools')?.classList.add('hidden');
+        const pad = document.getElementById('posNumpad');
+        const canOpen = quantityEditorOpen && selectedItemIndex >= 0 && !!ticket[selectedItemIndex];
+        if (pad) pad.classList.toggle('hidden', !canOpen);
+    };
+
+    function applyTicketQuantity(idx, rawQuantity) {
+        const item = ticket[idx];
+        if (!item) return false;
+        const qty = parseFloat(String(rawQuantity).replace(',', '.'));
+        const product = products.find(p => p.id == item.product_id);
+        const unit = productUnit(product, item.unit_id);
+        const maxStock = maxPresentationQty(product, unit, idx);
+        if (!Number.isFinite(qty) || qty <= 0) {
+            focusQuantityInput();
+            return false;
+        }
+        if (qty > maxStock) {
+            alert(`Stock máximo: ${formatQty(maxStock)} ${item.unit_label || ''}`);
+            focusQuantityInput();
+            return false;
+        }
+        item.quantity = qty;
+        item.price = tierPrice(unit, item.quantity, product?.price);
+        padBuffer = String(qty);
+        renderTicket();
+        return true;
+    }
+
     window.expandPosPad = function() {
         setPosPadOpen(true);
     };
@@ -1809,13 +1910,13 @@ document.addEventListener('DOMContentLoaded', function() {
         expandPosPad();
         if (padBuffer === '0' && key !== '.') padBuffer = key;
         else padBuffer += key;
-        document.getElementById('selectedItemQty').textContent = padBuffer || '0';
+        document.getElementById('selectedItemQty').value = padBuffer || '0';
     };
 
     window.padBackspace = function() {
         padBuffer = padBuffer.slice(0, -1);
         if (selectedItemIndex >= 0) {
-            document.getElementById('selectedItemQty').textContent = padBuffer || '0';
+            document.getElementById('selectedItemQty').value = padBuffer || '0';
         }
     };
 
@@ -1831,28 +1932,28 @@ document.addEventListener('DOMContentLoaded', function() {
             alert(`Stock máximo: ${formatQty(maxStock)} ${item.unit_label || ''} (hay ${formatQty(product?.total_stock ?? 0)} ${product?.base_unit_label || 'und'})`);
             return;
         }
-        item.quantity = next;
-        padBuffer = String(next);
-        renderTicket();
+        return applyTicketQuantity(selectedItemIndex, next);
     };
 
     window.padConfirm = function() {
-        if (selectedItemIndex < 0) return;
-        const qty = parseFloat(padBuffer) || 1;
-        const item = ticket[selectedItemIndex];
-        const product = products.find(p => p.id == item.product_id);
-        const maxStock = maxPresentationQty(product, productUnit(product, item.unit_id), selectedItemIndex);
-
-        if (qty <= 0) { alert('Cantidad inválida'); return; }
-        if (qty > maxStock) {
-            alert(`Stock máximo: ${formatQty(maxStock)} ${item.unit_label || ''} (hay ${formatQty(product?.total_stock ?? 0)} ${product?.base_unit_label || 'und'})`);
-            return;
-        }
-
-        item.quantity = qty;
-        padBuffer = '';
-        renderTicket();
+        if (selectedItemIndex < 0) return false;
+        return applyTicketQuantity(selectedItemIndex, padBuffer);
     };
+
+    const quantityInput = document.getElementById('selectedItemQty');
+    quantityInput?.addEventListener('input', (event) => {
+        padBuffer = String(event.target.value).replace(',', '.');
+        replaceQuantityOnNextInput = false;
+    });
+    quantityInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            if (padConfirm()) hideQuantityEditor();
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            hideQuantityEditor();
+        }
+    });
 
     function renderProducts(filter = '') {
         const grid = document.querySelector('#productsGrid > div');
@@ -1905,7 +2006,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                     <span>Foto</span>
                 </button>
-                <button type="button" onclick="addProductToTicket(${p.id}, 1, cardUnitId(${p.id}))" ${outStock ? 'disabled' : ''}
+                <button type="button" onclick="addProductToTicket(${p.id}, 1, cardUnitId(${p.id}), true)" ${outStock ? 'disabled' : ''}
                     class="w-full text-left ${outStock ? 'cursor-not-allowed' : ''}">
                     <div class="flex h-14 w-full items-center justify-center overflow-hidden border-b border-slate-100 bg-slate-100">
                         ${imageBlock}
@@ -2393,6 +2494,28 @@ document.addEventListener('DOMContentLoaded', function() {
         const supportedFunctionKeys = ['F1', 'F2', 'F3', 'F4', 'F6', 'F8', 'F9', 'F10'];
         const editingText = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable;
         const openModal = visibleModal();
+
+        if (!openModal && quantityEditorOpen && selectedItemIndex >= 0 && !editingText) {
+            if (/^[0-9.,]$/.test(e.key)) {
+                e.preventDefault();
+                if (replaceQuantityOnNextInput) {
+                    padBuffer = '';
+                    replaceQuantityOnNextInput = false;
+                }
+                padInput(e.key === ',' ? '.' : e.key);
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (padConfirm()) hideQuantityEditor();
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                hideQuantityEditor();
+                return;
+            }
+        }
 
         if (supportedFunctionKeys.includes(e.key)) {
             e.preventDefault();

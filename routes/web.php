@@ -43,6 +43,7 @@ use App\Http\Controllers\PasswordChangeController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PlanillaController;
 use App\Http\Controllers\PriceListController;
+use App\Http\Controllers\PrintQueueController;
 use App\Http\Controllers\ProformaController;
 use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\PublicImageController;
@@ -96,6 +97,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/envios', [ShipmentController::class, 'store'])->middleware('permission:envios.create')->name('envios.store');
         Route::get('/envios/{shipment}', [ShipmentController::class, 'show'])->middleware('permission:envios.view')->name('envios.show');
         Route::get('/envios/{shipment}/etiqueta', [ShipmentController::class, 'label'])->middleware('permission:envios.view')->name('envios.label');
+        Route::get('/envios/{shipment}/ticket', [ShipmentController::class, 'ticket'])->middleware('permission:envios.view')->name('envios.ticket');
         Route::get('/envios/{shipment}/editar', [ShipmentController::class, 'edit'])->middleware('permission:envios.edit')->name('envios.edit');
         Route::put('/envios/{shipment}', [ShipmentController::class, 'update'])->middleware('permission:envios.edit')->name('envios.update');
         Route::patch('/envios/{shipment}/estado', [ShipmentController::class, 'updateStatus'])->middleware('permission:envios.edit')->name('envios.status');
@@ -132,6 +134,13 @@ Route::middleware(['auth'])->group(function () {
         });
         Route::delete('/facturacion/{id}', [FacturacionController::class, 'destroy'])
             ->middleware('permission:ventas.delete')->name('facturacion.destroy');
+    });
+
+    Route::middleware(['module:ventas', 'permission:ventas.view'])->prefix('impresion')->name('printing.')->group(function () {
+        Route::get('/estacion', [PrintQueueController::class, 'station'])->name('station');
+        Route::post('/siguiente', [PrintQueueController::class, 'next'])->name('next');
+        Route::post('/trabajos/{printJob}/completar', [PrintQueueController::class, 'complete'])->name('complete');
+        Route::post('/ventas/{sale}', [PrintQueueController::class, 'enqueueSale'])->middleware('permission:ventas.create')->name('sales.enqueue');
     });
 
     // Rutas de Crédito y Abonos
@@ -217,6 +226,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/categorias', [InventarioController::class, 'storeCategory'])->middleware('permission:inventario.create')->name('categorias.store');
         Route::get('/inventario/export', [InventarioController::class, 'export'])->middleware('permission:inventario.export')->name('inventario.export');
         Route::post('/inventario/{id}/conversiones', [InventarioController::class, 'storeUnitConversion'])->middleware('permission:inventario.edit')->name('inventario.conversions.store')->whereNumber('id');
+        Route::patch('/inventario/{id}/conversiones/{conversion}', [InventarioController::class, 'updateUnitConversion'])->middleware('permission:inventario.edit')->name('inventario.conversions.update')->whereNumber('id');
         Route::post('/inventario/{id}/conversiones/predeterminada', [InventarioController::class, 'setDefaultSaleUnit'])->middleware('permission:inventario.edit')->name('inventario.conversions.default')->whereNumber('id');
         Route::delete('/inventario/{id}/conversiones/{conversion}', [InventarioController::class, 'destroyUnitConversion'])->middleware('permission:inventario.delete')->name('inventario.conversions.destroy')->whereNumber('id');
         Route::get('/inventario/{id}', [InventarioController::class, 'show'])->middleware('permission:inventario.view')->name('inventario.show')->whereNumber('id');

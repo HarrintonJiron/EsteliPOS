@@ -138,6 +138,9 @@
                             @if($detail->product?->code)
                                 <p class="text-xs text-gray-500">Código: {{ $detail->product->code }}</p>
                             @endif
+                            @foreach($detail->product?->invoiceSpecs() ?? [] as $label => $spec)
+                                <p class="text-xs text-gray-500">{{ $label }}: {{ $spec }}</p>
+                            @endforeach
                         </td>
                         <td class="px-3 py-2.5 text-center font-medium">{{ $detail->quantity }}</td>
                         <td class="px-3 py-2.5 text-right">C$ {{ number_format($detail->price, 2) }}</td>

@@ -36,6 +36,7 @@ class CompanySettingsService
         'invoice_footer',
         'receipt_message',
         'repair_warranty_text',
+        'printing_mode',
     ];
 
     private const DEFAULTS = [
@@ -57,6 +58,7 @@ class CompanySettingsService
         'invoice_footer' => '',
         'receipt_message' => '¡Gracias por su compra!',
         'repair_warranty_text' => self::DEFAULT_REPAIR_WARRANTY,
+        'printing_mode' => 'local',
         'system_name' => 'EsteliPOS',
     ];
 

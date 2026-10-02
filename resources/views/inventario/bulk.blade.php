@@ -196,8 +196,8 @@ document.addEventListener('DOMContentLoaded', function() {
             <td class="px-3 py-2"><input type="text" class="input-field code-input text-xs font-mono" value="${data.code || ''}" placeholder="auto"></td>
             <td class="px-3 py-2"><input type="text" class="input-field name-input" value="${data.name || ''}" placeholder="Nombre del producto" required></td>
             <td class="px-3 py-2"><select class="select-field cat-input text-xs">${categoryOptions(data.category_id || defaultCat)}</select></td>
-            <td class="px-3 py-2"><input type="number" step="0.01" min="0" class="input-field purchase-input text-right" value="${data.purchase_price || ''}" placeholder="0.00"></td>
-            <td class="px-3 py-2"><input type="number" step="0.01" min="0" class="input-field sale-input text-right" value="${data.sale_price || ''}" placeholder="0.00"></td>
+            <td class="px-3 py-2"><input type="text" inputmode="decimal" class="input-field purchase-input text-right" value="${data.purchase_price || ''}" placeholder="0.00"></td>
+            <td class="px-3 py-2"><input type="text" inputmode="decimal" class="input-field sale-input text-right" value="${data.sale_price || ''}" placeholder="0.00"></td>
             <td class="px-3 py-2"><input type="number" min="0" class="input-field stock-input text-right" value="${data.stock ?? ''}" placeholder="0"></td>
             <td class="px-3 py-2"><input type="text" class="input-field location-input text-xs" value="${data.location || ''}" placeholder="Estante A-1"></td>
             <td class="px-3 py-2"><button type="button" onclick="this.closest('tr').remove(); renumber(); updateCount();" class="text-red-500 hover:text-red-700 text-lg">×</button></td>

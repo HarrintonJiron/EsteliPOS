@@ -43,6 +43,7 @@ class UpdateCompanySettingsRequest extends FormRequest
             'invoice_footer' => ['nullable', 'string', 'max:1000'],
             'receipt_message' => ['nullable', 'string', 'max:500'],
             'repair_warranty_text' => ['nullable', 'string', 'max:2000'],
+            'printing_mode' => ['required', Rule::in(['local', 'central'])],
             'system_name' => ['required', 'string', 'max:100'],
         ];
     }

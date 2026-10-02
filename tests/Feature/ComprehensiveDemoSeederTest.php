@@ -52,7 +52,7 @@ test('the comprehensive demo dataset covers the main system areas without duplic
         ->and(Setting::where('key', 'demo.comprehensive.loaded_at')->exists())->toBeTrue();
 
     $discrepancies = Product::all()
-        ->filter(fn (Product $product) => app(InventoryService::class)->calculatedStock($product) !== (int) $product->stock);
+        ->filter(fn (Product $product) => abs(app(InventoryService::class)->calculatedStock($product) - (float) $product->stock) > 0.00001);
 
     expect($discrepancies)->toBeEmpty()
         ->and(JournalEntry::with('lines')->get()->every->isBalanced())->toBeTrue();

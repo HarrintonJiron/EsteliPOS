@@ -109,7 +109,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Precio de Compra ({{ $currencySymbol }}) *</label>
-                    <input type="number" name="purchase_price" id="edit_purchase_price"
+                    <input type="text" inputmode="decimal" name="purchase_price" id="edit_purchase_price"
                            value="{{ old('purchase_price', $product->purchase_price) }}" step="0.01" min="0" required
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>
@@ -122,7 +122,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Precio de Venta (moneda registrada) *</label>
-                    <input type="number" name="sale_price" id="edit_sale_price"
+                    <input type="text" inputmode="decimal" name="sale_price" id="edit_sale_price"
                            value="{{ old('sale_price', $product->source_sale_price ?? $product->sale_price) }}" step="0.01" min="0" required
                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
                 </div>

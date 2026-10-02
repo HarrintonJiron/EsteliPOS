@@ -294,6 +294,7 @@
                     <div class="repair-section-body">
                         <label class="repair-label" for="photos">Estado al recibir{{ $isJewelry ? 'la' : ' el equipo' }}</label>
                         <input id="photos" name="photos[]" type="file" accept="image/jpeg,image/png,image/webp" multiple class="input-field w-full" data-photo-input data-max-photos="5">
+                        <button type="button" class="btn-outline mt-2 w-full sm:w-auto" data-add-photo>+ Agregar otra foto</button>
                         <p class="mt-1 text-xs text-slate-500">Hasta 5 fotografías. JPG, PNG o WebP, máximo 8 MB cada una. Se optimizan automáticamente.</p>
                         <div data-photo-preview class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"></div>
                     </div>
@@ -390,12 +391,19 @@
                                 <input type="number" step="0.01" min="0" name="advance_payment" value="{{ old('advance_payment', 0) }}" class="input-field w-full" id="advanceInput" oninput="updateTotal()">
                             </div>
                             <div>
-                                <label class="repair-label">Desc. %</label>
-                                <input type="number" step="0.01" min="0" max="100" name="discount_percentage" value="{{ old('discount_percentage', 0) }}" class="input-field w-full" id="discountPercentageInput" oninput="updateTotal()">
+                                <label class="repair-label">Tipo de descuento</label>
+                                <select name="discount_type" id="discountTypeSelect" class="select-field w-full" onchange="syncDiscountInputs(); updateTotal()">
+                                    <option value="percentage" @selected(old('discount_type', (float) old('discount_amount', 0) > 0 ? 'fixed' : 'percentage') === 'percentage')>Porcentaje (%)</option>
+                                    <option value="fixed" @selected(old('discount_type', (float) old('discount_amount', 0) > 0 ? 'fixed' : 'percentage') === 'fixed')>Monto fijo (C$)</option>
+                                </select>
                             </div>
                             <div>
-                                <label class="repair-label">Desc. C$</label>
-                                <input type="number" step="0.01" min="0" name="discount_amount" value="{{ old('discount_amount', 0) }}" class="input-field w-full" id="discountFixedInput" oninput="updateTotal()">
+                                <label class="repair-label" id="discountValueLabel">Valor del descuento</label>
+                                <input type="number" step="0.01" min="0" id="discountValueInput"
+                                    value="{{ old('discount_type', (float) old('discount_amount', 0) > 0 ? 'fixed' : 'percentage') === 'fixed' ? old('discount_amount', 0) : old('discount_percentage', 0) }}"
+                                    class="input-field w-full" oninput="syncDiscountInputs(); updateTotal()">
+                                <input type="hidden" name="discount_percentage" value="{{ old('discount_percentage', 0) }}" id="discountPercentageInput">
+                                <input type="hidden" name="discount_amount" value="{{ old('discount_amount', 0) }}" id="discountFixedInput">
                             </div>
                         </div>
 
@@ -515,18 +523,48 @@ let patternPoints = [];
 let isDrawingPattern = false;
 
 document.querySelectorAll('[data-photo-input]').forEach((input) => {
-    input.addEventListener('change', () => {
+    let selectedFiles = [];
+    const addButton = document.querySelector('[data-add-photo]');
+    const maxPhotos = Number(input.dataset.maxPhotos || 5);
+
+    const renderPhotos = () => {
+        const transfer = new DataTransfer();
+        selectedFiles.forEach(file => transfer.items.add(file));
+        input.files = transfer.files;
+
         const preview = document.querySelector('[data-photo-preview]');
-        const files = Array.from(input.files).slice(0, Number(input.dataset.maxPhotos || 5));
         preview.innerHTML = '';
-        files.forEach((file) => {
+        selectedFiles.forEach((file, index) => {
+            const card = document.createElement('div');
+            card.className = 'relative aspect-square overflow-hidden rounded-lg ring-1 ring-slate-200';
             const image = document.createElement('img');
             image.src = URL.createObjectURL(file);
             image.alt = 'Vista previa del equipo o artículo';
-            image.className = 'aspect-square w-full rounded-lg object-cover ring-1 ring-slate-200';
-            preview.appendChild(image);
+            image.className = 'h-full w-full object-cover';
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.textContent = 'Quitar';
+            remove.className = 'absolute inset-x-0 bottom-0 bg-white/95 px-2 py-1 text-xs font-semibold text-red-700';
+            remove.addEventListener('click', () => {
+                selectedFiles.splice(index, 1);
+                renderPhotos();
+            });
+            card.append(image, remove);
+            preview.appendChild(card);
         });
+
+        if (addButton) addButton.disabled = selectedFiles.length >= maxPhotos;
+    };
+
+    input.addEventListener('change', () => {
+        Array.from(input.files).forEach(file => {
+            const duplicate = selectedFiles.some(selected => selected.name === file.name && selected.size === file.size);
+            if (!duplicate && selectedFiles.length < maxPhotos) selectedFiles.push(file);
+        });
+        renderPhotos();
     });
+
+    addButton?.addEventListener('click', () => input.click());
 });
 
 function toggleLockFields() {
@@ -995,6 +1033,20 @@ function updateTotal() {
     }
 }
 
+function syncDiscountInputs() {
+    const type = document.getElementById('discountTypeSelect')?.value || 'percentage';
+    const valueInput = document.getElementById('discountValueInput');
+    const value = Math.max(0, parseFloat(valueInput?.value || 0));
+    const percentageInput = document.getElementById('discountPercentageInput');
+    const fixedInput = document.getElementById('discountFixedInput');
+    const label = document.getElementById('discountValueLabel');
+
+    percentageInput.value = type === 'percentage' ? Math.min(value, 100) : 0;
+    fixedInput.value = type === 'fixed' ? value : 0;
+    if (valueInput) valueInput.max = type === 'percentage' ? '100' : '';
+    if (label) label.textContent = type === 'percentage' ? 'Descuento (%)' : 'Descuento fijo (C$)';
+}
+
 function showAddBrandModal() {
     document.getElementById('addBrandModal').classList.remove('hidden');
     document.getElementById('newBrandInput').value = '';
@@ -1218,6 +1270,7 @@ window.addEventListener('DOMContentLoaded', () => {
     toggleWarrantyText();
     loadBrands();
     initRepairItems();
+    syncDiscountInputs();
     updateTotal();
     toggleRepairCredit();
 });

@@ -8,6 +8,23 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$stateRoot = Join-Path $env:ProgramData 'EsteliPOS'
+$globalStatePath = Join-Path $stateRoot 'installation.json'
+$requestedInstallRoot = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
+
+if (Test-Path -LiteralPath $globalStatePath -PathType Leaf) {
+    try {
+        $discoveredState = Get-Content -LiteralPath $globalStatePath -Raw | ConvertFrom-Json
+        $discoveredRoot = [IO.Path]::GetFullPath([string] $discoveredState.installRoot).TrimEnd('\')
+        if (Test-Path -LiteralPath (Join-Path $discoveredRoot 'application\artisan') -PathType Leaf) {
+            $InstallRoot = $discoveredRoot
+            if ($Mode -eq 'Install') { $Mode = 'Update' }
+        }
+    } catch {
+        throw "El registro de instalacion $globalStatePath esta dañado. Ejecute el diagnostico o restaure el archivo antes de continuar."
+    }
+}
+
 $InstallRoot = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
 $PayloadRoot = [IO.Path]::GetFullPath($PayloadRoot).TrimEnd('\')
 $ApplicationSource = [IO.Path]::GetFullPath($ApplicationSource).TrimEnd('\')
@@ -15,7 +32,6 @@ if ($InstallRoot -eq [IO.Path]::GetPathRoot($InstallRoot).TrimEnd('\')) {
     throw 'La raiz de una unidad no es una ruta de instalacion valida.'
 }
 
-$stateRoot = Join-Path $env:ProgramData 'EsteliPOS'
 $logRoot = Join-Path $stateRoot 'Logs'
 $serviceLogRoot = Join-Path $logRoot 'services'
 $logPath = Join-Path $logRoot ("installer-{0:yyyyMMdd-HHmmss}.log" -f (Get-Date))
@@ -34,6 +50,12 @@ $freshDatabase = $false
 $freshEnvironment = $false
 $removeInstanceOnRollback = $false
 $previousState = $null
+$databaseBackupPath = $null
+$databaseMigrationStarted = $false
+$mysqlClientConfig = $null
+$mysqlExe = $null
+$installMutex = [Threading.Mutex]::new($false, 'Global\EsteliPOSInstaller')
+$installLockAcquired = $false
 
 New-Item -ItemType Directory -Path $logRoot, $serviceLogRoot -Force | Out-Null
 
@@ -76,6 +98,26 @@ function Get-FreePort([int]$Start) {
     Stop-WithError 'E021' 'Puertos' "No hay puerto disponible desde $Start."
 }
 
+function Test-PortAvailable([int]$Port) {
+    $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $Port)
+    try {
+        $listener.Start()
+        return $true
+    } catch {
+        return $false
+    } finally {
+        try { $listener.Stop() } catch {}
+    }
+}
+
+function Assert-FreeDiskSpace([string]$Path, [long]$RequiredBytes = 2147483648) {
+    $root = [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($Path))
+    $drive = [IO.DriveInfo]::new($root)
+    if ($drive.AvailableFreeSpace -lt $RequiredBytes) {
+        Stop-WithError 'E004' 'Prevalidacion' "Espacio insuficiente en $root. Se requieren al menos $([math]::Round($RequiredBytes / 1GB, 1)) GB libres."
+    }
+}
+
 function Invoke-Hidden {
     param(
         [Parameter(Mandatory)][string]$File,
@@ -111,6 +153,23 @@ function New-Secret([int]$Length = 32) {
     }
 }
 
+function Get-EnvValue([string]$Path, [string]$Key) {
+    $line = Get-Content -LiteralPath $Path | Where-Object { $_ -match "^$([regex]::Escape($Key))=" } | Select-Object -First 1
+    if (-not $line) { return $null }
+    return ($line -split '=', 2)[1].Trim().Trim('"')
+}
+
+function Set-EnvValue([string]$Path, [string]$Key, [string]$Value) {
+    $content = Get-Content -LiteralPath $Path -Raw
+    $escapedKey = [regex]::Escape($Key)
+    if ($content -match "(?m)^$escapedKey=") {
+        $content = [regex]::Replace($content, "(?m)^$escapedKey=.*$", "$Key=$Value")
+    } else {
+        $content = $content.TrimEnd() + "`r`n$Key=$Value`r`n"
+    }
+    Set-Content -LiteralPath $Path -Value $content -Encoding ASCII
+}
+
 function Wait-ForService([string]$Name, [int]$TimeoutSeconds = 45) {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
@@ -121,6 +180,68 @@ function Wait-ForService([string]$Name, [int]$TimeoutSeconds = 45) {
         Start-Sleep -Milliseconds 500
     } while ((Get-Date) -lt $deadline)
     Stop-WithError 'E041' 'Servicios' "El servicio $Name no inicio dentro de $TimeoutSeconds segundos."
+}
+
+function Wait-ForMySQL([string]$AdminFile, [string]$MysqlAdmin, [int]$TimeoutSeconds = 60) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $lastError = ''
+    do {
+        $output = & $MysqlAdmin "--defaults-extra-file=$AdminFile" ping 2>&1
+        if ($LASTEXITCODE -eq 0 -and ($output -join ' ') -match 'alive') {
+            Write-InstallLog '[OK] MySQL acepta conexiones'
+            return
+        }
+        $lastError = ($output -join ' ').Trim()
+        Start-Sleep -Seconds 1
+    } while ((Get-Date) -lt $deadline)
+    Stop-WithError 'E043' 'MySQL' "El servicio inicio pero no acepta conexiones. $lastError"
+}
+
+function Assert-PHPDependencies([string]$PhpExecutable) {
+    $versionOutput = & $PhpExecutable -v 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithError 'E014' 'PHP' "php.exe no puede ejecutarse: $($versionOutput -join ' ')"
+    }
+    $modules = @(& $PhpExecutable -m 2>&1 | ForEach-Object { $_.ToString().Trim().ToLowerInvariant() })
+    foreach ($required in @('curl', 'fileinfo', 'gd', 'intl', 'mbstring', 'mysqli', 'openssl', 'pdo_mysql', 'zip')) {
+        if ($modules -notcontains $required) {
+            Stop-WithError 'E015' 'PHP' "Falta la extension obligatoria: $required"
+        }
+    }
+    Write-InstallLog "[OK] PHP y extensiones verificadas: $($versionOutput[0])"
+}
+
+function Backup-MySQLDatabase([string]$DumpExecutable, [string]$ClientFile, [string]$Destination) {
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
+    Invoke-Hidden -File $DumpExecutable -Arguments "--defaults-extra-file=`"$ClientFile`" --single-transaction --routines --events --triggers --result-file=`"$Destination`" estelipos" -Phase 'Respaldando base MySQL antes de actualizar'
+    if (-not (Test-Path -LiteralPath $Destination -PathType Leaf) -or (Get-Item -LiteralPath $Destination).Length -lt 128) {
+        Stop-WithError 'E044' 'Respaldo' 'El respaldo MySQL no fue creado correctamente.'
+    }
+    Write-InstallLog "[OK] Respaldo MySQL verificado: $Destination"
+}
+
+function Restore-MySQLDatabase {
+    if (-not $databaseMigrationStarted -or -not $databaseBackupPath -or -not (Test-Path -LiteralPath $databaseBackupPath -PathType Leaf)) {
+        return
+    }
+    if (-not $mysqlExe -or -not $mysqlClientConfig) {
+        throw 'No estan disponibles las herramientas para restaurar MySQL.'
+    }
+
+    $sourcePath = Convert-ToConfigPath $databaseBackupPath
+    $sql = "DROP DATABASE IF EXISTS estelipos; CREATE DATABASE estelipos CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; USE estelipos; SOURCE $sourcePath;"
+    Invoke-Hidden -File $mysqlExe.FullName -Arguments "--defaults-extra-file=`"$mysqlClientConfig`" --execute=`"$sql`"" -Phase 'Restaurando base MySQL despues del fallo'
+    Write-InstallLog '[OK] Base MySQL restaurada al estado anterior'
+}
+
+function Register-DailyBackup([string]$TaskName, [string]$ScriptPath) {
+    $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -InstallRoot `"$InstallRoot`""
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments
+    $trigger = New-ScheduledTaskTrigger -Daily -At '19:00'
+    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Respaldo diario automatico de EsteliPOS' -Force | Out-Null
+    Write-InstallLog "[OK] Respaldo diario programado: $TaskName"
 }
 
 function Remove-ServiceIfPresent([string]$Name) {
@@ -154,6 +275,17 @@ function Backup-Component([string]$Path) {
 }
 
 function Restore-PreviousInstallation {
+    Restore-MySQLDatabase
+
+    $servicesToStop = @($registeredServices) + @($previousServices)
+    foreach ($serviceName in ($servicesToStop | Select-Object -Unique)) {
+        $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+        if ($service -and $service.Status -ne 'Stopped') {
+            Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
+            $service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20))
+        }
+    }
+
     foreach ($serviceName in $registeredServices) {
         Remove-ServiceIfPresent $serviceName
     }
@@ -182,6 +314,10 @@ function Restore-PreviousInstallation {
 }
 
 try {
+    $installLockAcquired = $installMutex.WaitOne(0)
+    if (-not $installLockAcquired) {
+        Stop-WithError 'E005' 'Prevalidacion' 'Ya hay otra instalacion o actualizacion de EsteliPOS en curso.'
+    }
     Write-InstallLog "[PASO] Inicio $Mode EsteliPOS $Version"
     if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         Stop-WithError 'E001' 'Privilegios' 'Se requieren privilegios de administrador.'
@@ -192,6 +328,7 @@ try {
             Stop-WithError 'E002' 'Prevalidacion' "No existe el directorio requerido: $requiredPath"
         }
     }
+    Assert-FreeDiskSpace $InstallRoot
     foreach ($requiredFile in @('artisan', 'public\index.php', 'vendor\autoload.php', 'public\build\manifest.json')) {
         if (-not (Test-Path -LiteralPath (Join-Path $ApplicationSource $requiredFile) -PathType Leaf)) {
             Stop-WithError 'E003' 'Prevalidacion' "La aplicacion empaquetada no contiene $requiredFile."
@@ -199,7 +336,16 @@ try {
     }
 
     $manifestPath = Join-Path $PayloadRoot 'manifest.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        Stop-WithError 'E009' 'Integridad' 'No existe manifest.json en el paquete de dependencias.'
+    }
     $components = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $requiredPayloadFiles = @('apache-win64.zip', 'php-8.5.10-Win32-vs17-x64.zip', 'mysql-8.0.21-winx64.zip', 'vc_redist.x64.exe')
+    foreach ($requiredPayloadFile in $requiredPayloadFiles) {
+        if (-not (Test-Path -LiteralPath (Join-Path $PayloadRoot $requiredPayloadFile) -PathType Leaf)) {
+            Stop-WithError 'E010' 'Integridad' "Falta la dependencia: $requiredPayloadFile"
+        }
+    }
     foreach ($component in $components.components) {
         $path = Join-Path $PayloadRoot $component.file
         if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $component.sha256) {
@@ -250,6 +396,17 @@ try {
         }
     }
 
+    if (-not (Test-PortAvailable $apachePort)) {
+        $previousPort = $apachePort
+        $apachePort = Get-FreePort 8080
+        Write-InstallLog "[AVISO] El puerto Apache $previousPort pertenece a otro proceso; se usara $apachePort."
+    }
+    if (-not (Test-PortAvailable $mysqlPort)) {
+        $previousPort = $mysqlPort
+        $mysqlPort = Get-FreePort 3307
+        Write-InstallLog "[AVISO] El puerto MySQL $previousPort pertenece a otro proceso; se usara $mysqlPort."
+    }
+
     New-Item -ItemType Directory -Path $InstallRoot, $stateRoot -Force | Out-Null
     foreach ($componentPath in @($appRoot, $apacheContainer, $phpRoot, $mysqlContainer, $installerScriptsRoot)) {
         Backup-Component $componentPath
@@ -263,6 +420,8 @@ try {
     Get-ChildItem -LiteralPath $ApplicationSource -Force | Copy-Item -Destination $appRoot -Recurse -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install-EsteliPOS.ps1') -Destination $installerScriptsRoot -Force
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall-EsteliPOS.ps1') -Destination $installerScriptsRoot -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Backup-EsteliPOS.ps1') -Destination $installerScriptsRoot -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Diagnose-EsteliPOS.ps1') -Destination $installerScriptsRoot -Force
     Write-InstallLog '[OK] Aplicacion copiada con estructura validada'
 
     Expand-Archive -LiteralPath (Join-Path $PayloadRoot 'apache-win64.zip') -DestinationPath $apacheContainer -Force
@@ -272,7 +431,9 @@ try {
     $apacheExe = Get-ChildItem -LiteralPath $apacheContainer -Filter 'httpd.exe' -Recurse -File | Select-Object -First 1
     $mysqlExe = Get-ChildItem -LiteralPath $mysqlContainer -Filter 'mysql.exe' -Recurse -File | Select-Object -First 1
     $mysqldExe = Get-ChildItem -LiteralPath $mysqlContainer -Filter 'mysqld.exe' -Recurse -File | Select-Object -First 1
-    if (-not $apacheExe -or -not $mysqlExe -or -not $mysqldExe) {
+    $mysqlAdminExe = Get-ChildItem -LiteralPath $mysqlContainer -Filter 'mysqladmin.exe' -Recurse -File | Select-Object -First 1
+    $mysqlDumpExe = Get-ChildItem -LiteralPath $mysqlContainer -Filter 'mysqldump.exe' -Recurse -File | Select-Object -First 1
+    if (-not $apacheExe -or -not $mysqlExe -or -not $mysqldExe -or -not $mysqlAdminExe -or -not $mysqlDumpExe) {
         Stop-WithError 'E012' 'Runtime' 'No se encontraron los ejecutables de Apache o MySQL en los archivos distribuidos.'
     }
     $apacheRoot = Split-Path -Parent (Split-Path -Parent $apacheExe.FullName)
@@ -304,6 +465,7 @@ date.timezone=America/Managua
     # PHPIniDir is ignored by some Windows Apache builds during module startup.
     # Apache also searches its own root for php.ini, so keep a synchronized copy there.
     Copy-Item -LiteralPath $phpIni -Destination (Join-Path $apacheRoot 'php.ini') -Force
+    Assert-PHPDependencies $phpExe
 
     $oldEnv = Join-Path $backupRoot 'application\.env'
     $envFile = Join-Path $appRoot '.env'
@@ -343,6 +505,9 @@ CACHE_STORE=file
 MAIL_MAILER=log
 "@ | Set-Content -LiteralPath $envFile -Encoding ASCII
     }
+    Set-EnvValue $envFile 'APP_URL' "http://127.0.0.1:$apachePort"
+    Set-EnvValue $envFile 'DB_HOST' '127.0.0.1'
+    Set-EnvValue $envFile 'DB_PORT' ([string] $mysqlPort)
 
     foreach ($directory in @(
         (Join-Path $appRoot 'bootstrap\cache'),
@@ -390,16 +555,51 @@ default-character-set=utf8mb4
     Start-Service -Name $mysqlService
     Wait-ForService $mysqlService
 
+    $mysqlClientConfig = Join-Path $instanceRoot 'mysql\installer-client.ini'
+    if ($freshDatabase) {
+        @"
+[client]
+host=127.0.0.1
+port=$mysqlPort
+user=root
+"@ | Set-Content -LiteralPath $mysqlClientConfig -Encoding ASCII
+    } else {
+        $databaseUser = Get-EnvValue $envFile 'DB_USERNAME'
+        $databasePassword = Get-EnvValue $envFile 'DB_PASSWORD'
+        if (-not $databaseUser) { Stop-WithError 'E045' 'MySQL' 'El .env existente no contiene DB_USERNAME.' }
+        @"
+[client]
+host=127.0.0.1
+port=$mysqlPort
+user=$databaseUser
+password="$databasePassword"
+"@ | Set-Content -LiteralPath $mysqlClientConfig -Encoding ASCII
+    }
+    Wait-ForMySQL $mysqlClientConfig $mysqlAdminExe.FullName
+
     if ($freshDatabase) {
         $mysqlPasswordLine = Get-Content -LiteralPath $envFile | Where-Object { $_ -like 'DB_PASSWORD=*' } | Select-Object -First 1
         $mysqlPassword = $mysqlPasswordLine.Substring('DB_PASSWORD='.Length)
         $sql = "CREATE DATABASE IF NOT EXISTS estelipos CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS 'estelipos'@'127.0.0.1' IDENTIFIED BY '$mysqlPassword'; ALTER USER 'estelipos'@'127.0.0.1' IDENTIFIED BY '$mysqlPassword'; GRANT ALL PRIVILEGES ON estelipos.* TO 'estelipos'@'127.0.0.1'; FLUSH PRIVILEGES;"
         Invoke-Hidden -File $mysqlExe.FullName -Arguments "--protocol=TCP --host=127.0.0.1 --port=$mysqlPort --user=root --execute=`"$sql`"" -Phase 'Creando base de datos' -WorkingDirectory $mysqlRoot
+        @"
+[client]
+host=127.0.0.1
+port=$mysqlPort
+user=estelipos
+password="$mysqlPassword"
+"@ | Set-Content -LiteralPath $mysqlClientConfig -Encoding ASCII
+    }
+
+    if (-not $freshDatabase) {
+        $databaseBackupPath = Join-Path $backupRoot 'database\estelipos.sql'
+        Backup-MySQLDatabase $mysqlDumpExe.FullName $mysqlClientConfig $databaseBackupPath
     }
 
     if ($freshEnvironment) {
         Invoke-Hidden -File $phpExe -Arguments "`"$appRoot\artisan`" key:generate --force --no-interaction" -Phase 'Generando clave de la aplicacion' -WorkingDirectory $appRoot
     }
+    $databaseMigrationStarted = $true
     Invoke-Hidden -File $phpExe -Arguments "`"$appRoot\artisan`" migrate --force --no-interaction" -Phase 'Aplicando migraciones' -WorkingDirectory $appRoot
     if ($freshDatabase) {
         Invoke-Hidden -File $phpExe -Arguments "`"$appRoot\artisan`" db:seed --class=UserSeeder --force --no-interaction" -Phase 'Creando usuarios iniciales' -WorkingDirectory $appRoot
@@ -407,6 +607,10 @@ default-character-set=utf8mb4
     Invoke-Hidden -File $phpExe -Arguments "`"$appRoot\artisan`" db:seed --force --no-interaction" -Phase 'Sincronizando catalogos' -WorkingDirectory $appRoot
     Invoke-Hidden -File $phpExe -Arguments "`"$appRoot\artisan`" optimize --no-interaction" -Phase 'Optimizando Laravel' -WorkingDirectory $appRoot
     Invoke-Hidden -File $phpExe -Arguments "`"$appRoot\artisan`" storage:link --no-interaction" -Phase 'Enlazando archivos publicos' -WorkingDirectory $appRoot -AllowedExitCodes @(0, 1)
+
+    $backupScript = Join-Path $installerScriptsRoot 'Backup-EsteliPOS.ps1'
+    $backupTaskName = "EsteliPOS Backup $suffix"
+    Register-DailyBackup $backupTaskName $backupScript
 
     $apacheConfig = Join-Path $apacheRoot 'conf\httpd.conf'
     $apacheConfigContent = Get-Content -LiteralPath $apacheConfig -Raw
@@ -497,11 +701,15 @@ URL=http://127.0.0.1:$apachePort/
         mysqlService = $mysqlService
         url = "http://127.0.0.1:$apachePort/"
         installedAt = (Get-Date).ToString('o')
+        requestedInstallRoot = $requestedInstallRoot
+        mode = $Mode
+        backupTask = $backupTaskName
         backupRoot = if (Test-Path -LiteralPath $backupRoot) { $backupRoot } else { $null }
     }
     $stateJson = $state | ConvertTo-Json -Depth 4
     Set-Content -LiteralPath $statePath -Value $stateJson -Encoding UTF8
     Set-Content -LiteralPath (Join-Path $stateRoot 'installation.json') -Value $stateJson -Encoding UTF8
+    Remove-Item -LiteralPath $mysqlClientConfig -Force -ErrorAction SilentlyContinue
     Write-InstallLog "[OK] Instalacion finalizada: $healthUrl"
 } catch {
     $message = $_.Exception.Message
@@ -516,4 +724,8 @@ URL=http://127.0.0.1:$apachePort/
         Write-InstallLog "[ERROR E098] Rollback incompleto - $($_.Exception.Message)"
     }
     throw
+} finally {
+    if ($mysqlClientConfig) { Remove-Item -LiteralPath $mysqlClientConfig -Force -ErrorAction SilentlyContinue }
+    if ($installLockAcquired) { $installMutex.ReleaseMutex() }
+    $installMutex.Dispose()
 }

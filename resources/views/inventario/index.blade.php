@@ -78,7 +78,7 @@
             <span id="catalogSearchStatus" class="inv-catalog-search__status hidden">Buscando…</span>
         </div>
 
-        <details class="group card" @if(request()->hasAny(['category_id','warehouse_id','base_unit_id','stock_status','period']) && !request('q')) open @endif>
+        <details class="group card" @if(request()->hasAny(['category_id','warehouse_id','base_unit_id','stock_status','status','period']) && !request('q')) open @endif>
             <summary class="cursor-pointer px-3 py-2 text-xs font-medium text-slate-600">Más filtros</summary>
             <div class="grid grid-cols-2 gap-2 border-t border-slate-100 p-3 md:grid-cols-5 md:items-end">
                 <select name="category_id" class="catalog-filter select-field py-1.5 text-sm">
@@ -99,6 +99,12 @@
                     <option value="out_of_stock" @selected(request('stock_status') == 'out_of_stock')>Sin stock</option>
                     <option value="expiring_soon" @selected(request('stock_status') == 'expiring_soon')>Por vencer</option>
                     <option value="discrepancy" @selected(request('stock_status') == 'discrepancy')>Discrepancia</option>
+                </select>
+                <select name="status" class="catalog-filter select-field py-1.5 text-sm">
+                    <option value="">Solo activos</option>
+                    <option value="inactive" @selected(request('status') === 'inactive')>Inactivos</option>
+                    <option value="discontinued" @selected(request('status') === 'discontinued')>Descontinuados</option>
+                    <option value="all" @selected(request('status') === 'all')>Todos los estados</option>
                 </select>
                 <select name="period" class="catalog-filter select-field py-1.5 text-sm">
                     @foreach([7, 30, 60, 90] as $d)

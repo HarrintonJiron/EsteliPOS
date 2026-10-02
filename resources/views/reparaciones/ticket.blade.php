@@ -215,7 +215,7 @@
     @if($order->warranty_enabled)
     <div class="divider"></div>
     <div style="font-size:9px; line-height:1.45; margin-top:2px;">
-        <div class="bold" style="font-size:10px; margin-bottom:2px;">✓ GARANTÍA</div>
+        <div class="bold" style="font-size:10px; margin-bottom:2px;">✓ GARANTÍA{{ $order->warranty_days ? ': '.$order->warranty_days.' DÍAS' : '' }}</div>
         <div>{{ $order->effectiveWarrantyText() }}</div>
     </div>
     @endif

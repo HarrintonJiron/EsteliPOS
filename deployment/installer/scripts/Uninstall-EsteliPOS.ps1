@@ -33,6 +33,10 @@ try {
         $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
         if ($state.installRoot -eq $InstallRoot) {
             $serviceNames = @($state.apacheService, $state.mysqlService) | Where-Object { $_ }
+            if ($state.backupTask) {
+                Unregister-ScheduledTask -TaskName ([string] $state.backupTask) -Confirm:$false -ErrorAction SilentlyContinue
+                Write-UninstallLog "[OK] Tarea de respaldo eliminada: $($state.backupTask)"
+            }
         }
     }
 

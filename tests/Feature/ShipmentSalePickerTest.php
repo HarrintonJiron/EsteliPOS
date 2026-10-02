@@ -164,6 +164,40 @@ test('a shipment can still be saved with and without a related sale', function (
         ->and(Shipment::query()->whereNull('sale_id')->count())->toBe(1);
 });
 
+test('an existing shipment route can be edited', function () {
+    $admin = pickerAdmin();
+    $shipment = Shipment::create([
+        'number' => 'ENV-EDIT-001',
+        'user_id' => $admin->id,
+        'recipient_name' => 'Cliente inicial',
+        'department' => 'Estelí',
+        'municipality' => 'Estelí',
+        'address' => 'Dirección inicial',
+        'status' => 'pending',
+    ]);
+
+    $this->actingAs($admin)
+        ->put(route('envios.update', $shipment), [
+            'sale_id' => '',
+            'client_id' => '',
+            'recipient_name' => 'Cliente actualizado',
+            'recipient_phone' => '88887777',
+            'department' => 'Estelí',
+            'municipality' => 'Condega',
+            'address' => 'Nueva dirección de entrega',
+            'is_fragile' => '1',
+            'shipping_cost' => '120.50',
+            'status' => 'prepared',
+        ])
+        ->assertRedirect(route('envios.show', $shipment))
+        ->assertSessionHasNoErrors();
+
+    expect($shipment->fresh()->recipient_name)->toBe('Cliente actualizado')
+        ->and($shipment->fresh()->municipality)->toBe('Condega')
+        ->and((float) $shipment->fresh()->shipping_cost)->toBe(120.5)
+        ->and($shipment->fresh()->status)->toBe('prepared');
+});
+
 test('placeholder phone numbers such as N/A are not copied into the shipment', function () {
     $admin = pickerAdmin();
     $client = Client::create(['name' => 'Cliente Teléfono', 'phone' => '85550000', 'status' => 'active']);

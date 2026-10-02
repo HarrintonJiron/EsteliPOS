@@ -56,6 +56,29 @@
 
         <section class="card overflow-hidden">
             <div class="border-b border-slate-200 px-5 py-4 sm:px-6">
+                <h2 class="font-semibold text-slate-900">Impresión de tickets</h2>
+                <p class="mt-1 text-sm text-slate-500">El modo local imprime en cada caja. La cola central envía todos los tickets a una computadora designada.</p>
+            </div>
+            <div class="grid gap-3 p-5 sm:grid-cols-2 sm:p-6">
+                <label class="cursor-pointer rounded-xl border border-slate-200 p-4 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50">
+                    <input type="radio" name="printing_mode" value="local" class="mr-2" @checked(old('printing_mode', $settings['printing_mode']) === 'local')>
+                    <strong class="text-sm text-slate-900">Impresión local</strong>
+                    <span class="mt-1 block text-xs text-slate-500">Cada caja imprime sus propios tickets. Es el modo predeterminado.</span>
+                </label>
+                <label class="cursor-pointer rounded-xl border border-slate-200 p-4 has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50">
+                    <input type="radio" name="printing_mode" value="central" class="mr-2" @checked(old('printing_mode', $settings['printing_mode']) === 'central')>
+                    <strong class="text-sm text-slate-900">Cola central</strong>
+                    <span class="mt-1 block text-xs text-slate-500">Todas las cajas envían a una estación de impresión abierta permanentemente.</span>
+                </label>
+                <div class="sm:col-span-2 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+                    En modo central, abre <a href="{{ route('printing.station') }}" class="font-semibold underline">Estación de impresión</a> en la caja conectada a la impresora y déjala abierta con Edge/Chrome en impresión silenciosa.
+                </div>
+                @error('printing_mode')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+            </div>
+        </section>
+
+        <section class="card overflow-hidden">
+            <div class="border-b border-slate-200 px-5 py-4 sm:px-6">
                 <h2 class="font-semibold text-slate-900">Contacto y ubicación</h2>
                 <p class="mt-1 text-sm text-slate-500">Datos utilizados en facturas, recibos y reportes.</p>
             </div>

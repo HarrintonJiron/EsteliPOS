@@ -115,10 +115,14 @@
                                         <span class="ml-1 text-[10px] font-semibold uppercase text-indigo-600">Predeterminada</span>
                                     @endif
                                 </div>
-                                <div class="flex items-center gap-3">
-                                    <span class="text-slate-700">
-                                        {{ $currencySymbol }} {{ number_format((float) ($conv->sale_price ?? $product->sale_price * $conv->factor_to_base), 2) }}
-                                    </span>
+                                <div class="flex flex-wrap items-center justify-end gap-2">
+                                    <form method="POST" action="{{ route('inventario.conversions.update', [$product->id, $conv->id]) }}" class="flex items-center gap-1">
+                                        @csrf
+                                        @method('PATCH')
+                                        <span class="text-xs text-slate-500">{{ $currencySymbol }}</span>
+                                        <input type="text" inputmode="decimal" name="sale_price" value="{{ $conv->sale_price }}" class="input-field w-24 py-1 text-right text-xs" placeholder="{{ number_format((float) $product->sale_price * (float) $conv->factor_to_base, 2, '.', '') }}" aria-label="Precio de {{ $conv->unit->name ?? 'presentación' }}">
+                                        <button type="submit" class="text-xs font-semibold text-indigo-600 hover:underline">Guardar precio</button>
+                                    </form>
                                     @if(! $conv->is_default_sale_unit)
                                         <form method="POST" action="{{ route('inventario.conversions.default', $product->id) }}">
                                             @csrf
@@ -177,7 +181,7 @@
                         <div class="grid gap-3 sm:grid-cols-2">
                             <div>
                                 <label for="presentationSalePrice" class="mb-1 block text-xs font-medium text-slate-600">Precio de venta de esta presentación</label>
-                                <input id="presentationSalePrice" type="number" step="0.01" min="0" name="sale_price" value="{{ old('sale_price') }}" class="input-field py-2" placeholder="Automático si se deja vacío" @disabled($alternateUnits->isEmpty())>
+                                <input id="presentationSalePrice" type="text" inputmode="decimal" name="sale_price" value="{{ old('sale_price') }}" class="input-field py-2" placeholder="Automático si se deja vacío" @disabled($alternateUnits->isEmpty())>
                             </div>
                             <label class="inline-flex items-center gap-1.5 text-xs text-slate-600">
                                 <input type="checkbox" name="is_default_sale_unit" value="1" class="rounded border-slate-300" @checked(old('is_default_sale_unit')) @disabled($alternateUnits->isEmpty())>

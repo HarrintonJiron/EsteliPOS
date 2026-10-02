@@ -68,25 +68,25 @@ describe('repair order lock handling', function () {
         $response->assertRedirect();
         $this->assertDatabaseHas('repair_orders', [
             'lock_type' => 'pattern',
-            'device_password' => '1-2-5-8-9',
             'include_warranty_policy' => 1,
             'warranty_days' => 45,
             'warranty_policy' => 'Garantía válida únicamente para el servicio realizado.',
         ]);
+        expect(RepairOrder::latest('id')->firstOrFail()->device_password)->toBe('1-2-5-8-9');
         expect(substr((string) RepairOrder::latest('id')->value('received_time'), 0, 5))->toBe('08:35');
         expect(substr((string) RepairOrder::latest('id')->value('estimated_time'), 0, 5))->toBe('15:30');
         $orderId = RepairOrder::latest('id')->value('id');
         $this->actingAs($user)
             ->get(route('reparaciones.ticket', $orderId))
             ->assertOk()
-            ->assertSee('Hora estimada:')
-            ->assertSee('15:30')
-            ->assertSee('GARANTÍA: 45 DÍAS')
-            ->assertSee('Garantía válida únicamente para el servicio realizado.');
+            ->assertSee('Entrega est.:')
+            ->assertSee('03:30 PM')
+            ->assertSeeText('GARANTÍA: 45 DÍAS')
+            ->assertSeeText('Garantía válida únicamente para el servicio realizado.');
         $this->actingAs($user)->get(route('reparaciones.pdf', $orderId))
             ->assertOk()
-            ->assertSee('Hora estimada:')
-            ->assertSee('15:30');
+            ->assertSee('Entrega est.:')
+            ->assertSee('03:30 PM');
         $this->actingAs($user)->get(route('reparaciones.index'))
             ->assertOk()
             ->assertSee('Entrega estimada')
@@ -152,9 +152,9 @@ describe('repair order lock handling', function () {
 
         $updatedOrder = $order->fresh();
 
-        expect(substr((string) $updatedOrder->received_time, 0, 8))->toBe('09:10:00')
-            ->and(substr((string) $updatedOrder->estimated_time, 0, 8))->toBe('15:30:00')
-            ->and(substr((string) $updatedOrder->delivered_time, 0, 8))->toBe('16:45:00');
+        expect(substr((string) $updatedOrder->received_time, 0, 5))->toBe('09:10')
+            ->and(substr((string) $updatedOrder->estimated_time, 0, 5))->toBe('15:30')
+            ->and(substr((string) $updatedOrder->delivered_time, 0, 5))->toBe('16:45');
     });
 
     it('charges a ready repair once and creates its final invoice', function () {

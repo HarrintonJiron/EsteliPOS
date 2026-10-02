@@ -54,7 +54,7 @@ class ShipmentController extends Controller
         $data = $this->validated($request);
         $shipment = Shipment::create($data + ['number' => NumberSequence::getNext('envio'), 'user_id' => $request->user()->id]);
 
-        return redirect()->route('envios.show', $shipment)->with('success', 'Envío registrado correctamente.');
+        return redirect()->route('envios.ticket', $shipment)->with('success', 'Envío registrado correctamente.');
     }
 
     public function show(Shipment $shipment)
@@ -65,6 +65,11 @@ class ShipmentController extends Controller
     public function label(Shipment $shipment)
     {
         return view('envios.label', compact('shipment'));
+    }
+
+    public function ticket(Shipment $shipment)
+    {
+        return view('envios.ticket', compact('shipment'));
     }
 
     public function edit(Request $request, Shipment $shipment)
@@ -158,6 +163,10 @@ class ShipmentController extends Controller
 
     private function validated(Request $request): array
     {
+        if (! $request->filled('status')) {
+            $request->merge(['status' => 'pending']);
+        }
+
         $data = $request->validate([
             'sale_id' => 'nullable|exists:sales,id', 'client_id' => 'nullable|exists:clients,id',
             'recipient_name' => 'required|string|max:150', 'recipient_phone' => 'nullable|string|max:30',

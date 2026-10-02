@@ -354,11 +354,11 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label for="quickProductPurchasePrice" class="mb-1 block text-xs font-medium text-slate-500">Costo compra *</label>
-                        <input type="number" id="quickProductPurchasePrice" name="purchase_price" min="0" step="0.01" required class="input-field py-2" placeholder="0.00">
+                        <input type="text" inputmode="decimal" id="quickProductPurchasePrice" name="purchase_price" required class="input-field py-2" placeholder="0.00">
                     </div>
                     <div>
                         <label for="quickProductSalePrice" class="mb-1 block text-xs font-medium text-slate-500">Precio venta</label>
-                        <input type="number" id="quickProductSalePrice" name="sale_price" min="0" step="0.01" class="input-field py-2" placeholder="Auto (+18%)">
+                        <input type="text" inputmode="decimal" id="quickProductSalePrice" name="sale_price" class="input-field py-2" placeholder="Auto (+18%)">
                     </div>
                 </div>
 
@@ -856,7 +856,7 @@
                     </div>
                     <div>
                         <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Costo (${currencySelect.value})</p>
-                        <input type="number" min="0" step="0.01" value="${item.price}" data-price="${index}" class="input-field py-1.5 text-sm" />
+                        <input type="text" inputmode="decimal" value="${item.price}" data-price="${index}" class="input-field py-1.5 text-sm" />
                     </div>
                     <div class="text-right">
                         <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Subtotal</p>

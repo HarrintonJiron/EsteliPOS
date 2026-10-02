@@ -77,12 +77,14 @@
             @if(auth()->user()->isAdmin() || auth()->user()->hasPermission('envios.create'))
             <a href="{{ route('envios.create', ['sale_id' => $sale->id]) }}" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl transition-colors block text-center">🚚 Preparar envío de esta venta</a>
             @endif
-            <a 
-                href="{{ route('facturacion.receipt', $sale->id) }}"
-                target="print-window"
-                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors block text-center">
-                Imprimir ticket
-            </a>
+            @if(($companyProfile['printing_mode'] ?? 'local') === 'central')
+                <form method="POST" action="{{ route('printing.sales.enqueue', $sale) }}">
+                    @csrf
+                    <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors">Enviar ticket a impresora central</button>
+                </form>
+            @else
+                <a href="{{ route('facturacion.receipt', $sale->id) }}?autoprint=1" target="print-window" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors block text-center">Imprimir ticket</a>
+            @endif
             
             <a 
                 href="{{ route('facturacion.create') }}"

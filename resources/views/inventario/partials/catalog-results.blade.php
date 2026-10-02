@@ -1,5 +1,5 @@
 <div class="overflow-x-auto">
-    <table class="min-w-full text-xs">
+    <table class="w-max min-w-full table-auto text-xs">
         <thead class="bg-slate-50 text-left text-[10px] uppercase tracking-wide text-slate-500">
             <tr>
                 <th class="px-2 py-2 font-semibold">Producto</th>
@@ -18,10 +18,15 @@
         </thead>
         <tbody class="divide-y divide-slate-100">
             @forelse($products as $product)
-            <tr class="hover:bg-slate-50/80 {{ $product->isExpired() ? 'bg-red-50/60' : ($product->isLowStock() ? 'bg-amber-50/40' : '') }}">
+            <tr class="cursor-pointer hover:bg-slate-50/80 {{ $product->status !== 'active' ? 'bg-slate-100/80 opacity-80' : ($product->isExpired() ? 'bg-red-50/60' : ($product->isLowStock() ? 'bg-amber-50/40' : '')) }}"
+                ondblclick="if (!event.target.closest('a,button,input,select')) window.location.href='{{ route('inventario.show', $product->id) }}'"
+                title="Doble clic para abrir el producto">
                 <td class="px-2 py-1.5">
                     <p class="font-mono font-semibold text-indigo-600">{{ $product->code }}</p>
                     <p class="max-w-[200px] truncate font-medium text-slate-800">{{ $product->name }}</p>
+                    @if($product->status !== 'active')
+                        <span class="mt-1 inline-flex rounded-full bg-slate-200 px-2 py-0.5 text-[9px] font-bold text-slate-700">{{ $product->status_label }}</span>
+                    @endif
                     <span class="mt-1 inline-flex rounded-full border px-2 py-0.5 text-[9px] font-bold md:hidden {{ $product->condition_color_classes }}">
                         Estado: {{ $product->condition_label }}
                     </span>

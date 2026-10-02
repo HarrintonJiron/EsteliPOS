@@ -111,9 +111,14 @@ if ($LASTEXITCODE -ne 0) {
 
 $installer = Join-Path $installerRoot "dist\EsteliPOS-Setup-$version.exe"
 Require-File $installer 'Instalador NSIS compilado'
+$installerHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+$checksumPath = "$installer.sha256"
+Set-Content -LiteralPath $checksumPath -Value "$installerHash  $(Split-Path -Leaf $installer)" -Encoding ASCII
+Write-Host "SHA-256: $installerHash"
 if (-not $SkipPublish) {
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     $publishedInstaller = Join-Path $OutputDirectory (Split-Path -Leaf $installer)
     Copy-Item -LiteralPath $installer -Destination $publishedInstaller -Force
+    Copy-Item -LiteralPath $checksumPath -Destination "$publishedInstaller.sha256" -Force
     Write-Host "Instalador publicado: $publishedInstaller"
 }

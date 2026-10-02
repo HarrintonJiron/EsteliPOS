@@ -39,7 +39,7 @@ function Assert-ZipEntry([string]$Archive, [string]$Pattern, [string]$Label) {
     }
 }
 
-foreach ($script in @('Install-EsteliPOS.ps1', 'Uninstall-EsteliPOS.ps1', 'Build-EsteliPOSInstaller.ps1')) {
+foreach ($script in @('Install-EsteliPOS.ps1', 'Uninstall-EsteliPOS.ps1', 'Backup-EsteliPOS.ps1', 'Diagnose-EsteliPOS.ps1', 'Build-EsteliPOSInstaller.ps1')) {
     $path = Join-Path $scriptRoot $script
     Require-File $path $script
     Assert-PowerShellSyntax $path

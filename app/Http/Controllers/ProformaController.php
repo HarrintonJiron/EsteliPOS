@@ -15,6 +15,7 @@ use App\Models\Tax;
 use App\Models\Warehouse;
 use App\Services\AccountingService;
 use App\Services\BranchContextService;
+use App\Services\CompanySettingsService;
 use App\Services\CreditService;
 use App\Services\InventoryService;
 use App\Services\PosCatalogService;
@@ -342,11 +343,13 @@ class ProformaController extends Controller
 
     public function ticket($id)
     {
-        $proforma = Proforma::with('details.product', 'client', 'user')->findOrFail($id);
-        $companyProfile = [
-            'company_name' => \App\Models\Setting::get('company_name', 'Mi Agroservicio'),
-            'company_phone' => \App\Models\Setting::get('company_phone', ''),
-        ];
+        $proforma = Proforma::with('details.product', 'client', 'user')->find($id);
+
+        if (! $proforma) {
+            return $this->missingProformaResponse();
+        }
+
+        $companyProfile = app(CompanySettingsService::class)->get();
 
         return view('proformas.ticket', compact('proforma', 'companyProfile'));
     }

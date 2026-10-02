@@ -60,7 +60,7 @@ test('collecting the full balance in cash pays the order, records the cash sale 
         'received' => 100,
         'mark_delivered' => 1,
     ])->assertSessionHasNoErrors()
-        ->assertSessionHas('success', fn ($message) => str_contains($message, 'Cambio: $ 20.00') && str_contains($message, 'quedó pagada'));
+        ->assertSessionHas('success', fn ($message) => str_contains($message, 'Cambio: C$ 20.00') && str_contains($message, 'quedó pagada'));
 
     $order->refresh();
     expect($order->status)->toBe('delivered')
@@ -297,7 +297,7 @@ test('delivering from the quick status form with a pending balance warns and kee
     $order = collectOrder($admin);
 
     $this->actingAs($admin)->patch(route('reparaciones.status', $order->id), ['status' => 'delivered'])
-        ->assertSessionHas('success', fn ($message) => str_contains($message, 'saldo pendiente de $ 80.00'));
+        ->assertSessionHas('success', fn ($message) => str_contains($message, 'saldo pendiente de C$ 80.00'));
 
     $order->refresh();
     expect($order->status)->toBe('delivered')

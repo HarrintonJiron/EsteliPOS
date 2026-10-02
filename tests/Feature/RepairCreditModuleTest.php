@@ -103,7 +103,7 @@ test('a repair created on credit shows up in the credit module under repairs and
         ->assertSeeText('Créditos de reparaciones')
         ->assertSeeText('María Taller')
         ->assertSeeText($repair->order_number)
-        ->assertSeeText('Reparaciones $ 80.00');
+        ->assertSeeText('Reparaciones C$ 80.00');
 
     $this->actingAs($admin)->get(route('creditos.index', ['type' => 'sales']))->assertOk()
         ->assertDontSeeText('María Taller');

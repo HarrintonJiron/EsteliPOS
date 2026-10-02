@@ -1,9 +1,13 @@
 <?php
 
+use App\Models\Category;
+use App\Models\Client;
+use App\Models\Product;
 use App\Models\Role;
 use App\Models\Sale;
+use App\Models\SaleDetail;
 use App\Models\Setting;
-use App\Models\Client;
+use App\Models\Unit;
 use App\Models\User;
 use App\Services\InvoiceTaxDisplayService;
 use Database\Seeders\ConfigurationSeeder;

@@ -53,6 +53,19 @@ function repairOrderWithPhotos(User $admin, int $count): RepairOrder
     return RepairOrder::query()->latest('id')->firstOrFail();
 }
 
+test('repair forms expose one discount value and an additive photo control', function () {
+    $admin = repairPhotoAdmin();
+
+    $create = $this->actingAs($admin)->get(route('reparaciones.create'));
+    $create->assertOk()
+        ->assertSee('name="discount_type"', false)
+        ->assertSee('id="discountValueInput"', false)
+        ->assertSee('type="hidden" name="discount_percentage"', false)
+        ->assertSee('type="hidden" name="discount_amount"', false)
+        ->assertSee('data-add-photo', false)
+        ->assertSee('+ Agregar otra foto');
+});
+
 test('several device photos can be uploaded with a repair order and are shown on the detail page', function () {
     Storage::fake('public');
     $admin = repairPhotoAdmin();

@@ -13,11 +13,13 @@ use App\Models\RepairOrderItem;
 use App\Models\RepairOrderPhoto;
 use App\Models\RepairService;
 use App\Models\Sale;
+use App\Models\SaleDetail;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\AccountingService;
 use App\Services\CompanySettingsService;
 use App\Services\CreditService;
+use App\Services\InventoryService;
 use App\Services\MoneyDisplayService;
 use App\Services\RepairPaymentService;
 use Carbon\Carbon;
@@ -31,6 +33,11 @@ use Illuminate\Validation\ValidationException;
 class ReparacionController extends Controller
 {
     private const UNPAID_SQL = 'total - advance_payment - COALESCE((SELECT SUM(amount) FROM repair_credit_payments WHERE repair_credit_payments.repair_order_id = repair_orders.id), 0) > 0.00001';
+
+    public function __construct(
+        private readonly InventoryService $inventoryService,
+        private readonly AccountingService $accountingService,
+    ) {}
 
     protected function workshopType(): string
     {
@@ -294,12 +301,16 @@ class ReparacionController extends Controller
             'estimated_delivery_time' => 'nullable|date_format:H:i',
             'due_date' => 'nullable|required_if:payment_type,credit|date|after_or_equal:received_date',
             'labor_cost' => 'nullable|numeric|min:0',
+            'discount_type' => 'nullable|in:percentage,fixed',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
             'advance_payment' => 'nullable|numeric|min:0',
             'payment_type' => 'required|in:cash,card,transfer,credit',
             'warranty_enabled' => 'nullable|boolean',
             'warranty_text' => 'nullable|string|max:2000',
+            'include_warranty_policy' => 'nullable|boolean',
+            'warranty_days' => 'nullable|integer|min:1|max:3650',
+            'warranty_policy' => 'nullable|string|max:2000',
             'items' => 'nullable|array',
             'items.*.description' => 'required_with:items|string|max:200',
             'items.*.quantity' => 'required_with:items|numeric|min:0.01',
@@ -310,9 +321,18 @@ class ReparacionController extends Controller
             'items.*.device_brand' => 'nullable|string|max:60',
             'photos' => 'nullable|array|max:'.RepairOrder::MAX_PHOTOS,
             'photos.*' => 'image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
+            'device_photos' => 'nullable|array|max:'.RepairOrder::MAX_PHOTOS,
+            'device_photos.*' => 'image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
+            'photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
         ], $this->timeValidationMessages());
 
+        $legacyPhoto = $request->file('photo');
+        if (count($request->file('photos', [])) + count($request->file('device_photos', [])) + ($legacyPhoto ? 1 : 0) > RepairOrder::MAX_PHOTOS) {
+            throw ValidationException::withMessages(['device_photos' => 'Cada orden admite hasta '.RepairOrder::MAX_PHOTOS.' fotografías.']);
+        }
+
         $this->ensureSingleDiscountType($validated);
+        $this->ensureValidWorkshopAmounts($validated);
 
         $lockData = $this->workshopType() === 'jewelry'
             ? ['lock_type' => 'none', 'device_password' => null]
@@ -367,6 +387,7 @@ class ReparacionController extends Controller
                 'received_time' => $validated['received_time'] ?? now()->format('H:i'),
                 'estimated_date' => $validated['estimated_date'] ?? null,
                 'estimated_delivery_time' => $validated['estimated_delivery_time'] ?? null,
+                'estimated_time' => $validated['estimated_delivery_time'] ?? null,
                 'due_date' => $validated['due_date'] ?? null,
                 'delivered_time' => $validated['status'] === 'delivered' ? now()->format('H:i') : null,
                 'labor_cost' => $laborCost,
@@ -379,6 +400,9 @@ class ReparacionController extends Controller
                 'payment_status' => $this->calcPaymentStatus($total, (float) ($validated['advance_payment'] ?? 0)),
                 'warranty_enabled' => $validated['warranty_enabled'] ?? true,
                 'warranty_text' => $validated['warranty_text'] ?? null,
+                'include_warranty_policy' => $validated['warranty_enabled'] ?? false,
+                'warranty_days' => $validated['warranty_days'] ?? null,
+                'warranty_policy' => $validated['warranty_text'] ?? null,
             ];
             if (RepairOrder::supportsPaymentTracking()) {
                 $orderData['caja_session_id'] = $validated['payment_type'] === 'cash'
@@ -403,7 +427,11 @@ class ReparacionController extends Controller
                 ]);
             }
 
-            $this->storePhotos($order, $request->file('photos', []));
+            $photos = [...$request->file('photos', []), ...$request->file('device_photos', [])];
+            if ($request->file('photo')) {
+                $photos[] = $request->file('photo');
+            }
+            $this->storePhotos($order, $photos);
 
             if (RepairOrder::supportsPaymentTracking()) {
                 app(AccountingService::class)->recordRepairPayment($order->fresh());
@@ -479,12 +507,16 @@ class ReparacionController extends Controller
             'due_date' => 'nullable|required_if:payment_type,credit|date|after_or_equal:received_date',
             'delivery_notes' => 'nullable|string|max:2000',
             'labor_cost' => 'nullable|numeric|min:0',
+            'discount_type' => 'nullable|in:percentage,fixed',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
             'advance_payment' => 'nullable|numeric|min:0',
             'payment_type' => 'required|in:cash,card,transfer,credit',
             'warranty_enabled' => 'nullable|boolean',
             'warranty_text' => 'nullable|string|max:2000',
+            'include_warranty_policy' => 'nullable|boolean',
+            'warranty_days' => 'nullable|integer|min:1|max:3650',
+            'warranty_policy' => 'nullable|string|max:2000',
             'items' => 'nullable|array',
             'items.*.description' => 'required_with:items|string|max:200',
             'items.*.quantity' => 'required_with:items|numeric|min:0.01',
@@ -495,13 +527,21 @@ class ReparacionController extends Controller
             'items.*.device_brand' => 'nullable|string|max:60',
             'photos' => 'nullable|array|max:'.RepairOrder::MAX_PHOTOS,
             'photos.*' => 'image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
+            'device_photos' => 'nullable|array|max:'.RepairOrder::MAX_PHOTOS,
+            'device_photos.*' => 'image|mimes:jpg,jpeg,png,webp|max:8192|dimensions:max_width=5000,max_height=5000',
+            'remove_photo_ids' => 'nullable|array',
+            'remove_photo_ids.*' => 'integer',
         ], $this->timeValidationMessages());
 
         $this->ensureSingleDiscountType($validated);
+        $this->ensureValidWorkshopAmounts($validated);
 
-        if ($order->photos()->count() + count($request->file('photos', [])) > RepairOrder::MAX_PHOTOS) {
+        $removePhotoIds = array_map('intval', $validated['remove_photo_ids'] ?? []);
+        $newPhotos = [...$request->file('photos', []), ...$request->file('device_photos', [])];
+        $keptPhotos = $order->photos()->whereNotIn('id', $removePhotoIds)->count();
+        if ($keptPhotos + count($newPhotos) > RepairOrder::MAX_PHOTOS) {
             throw ValidationException::withMessages([
-                'photos' => 'Cada orden admite hasta '.RepairOrder::MAX_PHOTOS.' fotografías. Elimina alguna antes de agregar más.',
+                'device_photos' => 'Cada orden admite hasta '.RepairOrder::MAX_PHOTOS.' fotografías. Elimina alguna antes de agregar más.',
             ]);
         }
 
@@ -514,7 +554,7 @@ class ReparacionController extends Controller
         $validated['lock_type'] = $lockData['lock_type'];
         $validated['device_password'] = $lockData['device_password'];
 
-        DB::transaction(function () use ($validated, $order, $request) {
+        DB::transaction(function () use ($validated, $order, $removePhotoIds, $newPhotos) {
             $items = $validated['items'] ?? [];
             $partsCost = array_sum(array_map(fn ($i) => ($i['quantity'] ?? 0) * ($i['price'] ?? 0), $items));
             $laborCost = (float) ($validated['labor_cost'] ?? 0);
@@ -581,6 +621,7 @@ class ReparacionController extends Controller
                 'received_time' => $validated['received_time'] ?? ($order->received_time ?? now()->format('H:i')),
                 'estimated_date' => $validated['estimated_date'] ?? null,
                 'estimated_delivery_time' => $validated['estimated_delivery_time'] ?? null,
+                'estimated_time' => $validated['estimated_delivery_time'] ?? null,
                 'due_date' => $validated['due_date'] ?? null,
                 'delivery_notes' => filled($validated['delivery_notes'] ?? null) ? trim($validated['delivery_notes']) : null,
                 'delivered_date' => $deliveredDate,
@@ -593,6 +634,9 @@ class ReparacionController extends Controller
                 'payment_status' => $this->calcPaymentStatus($total, $advance),
                 'warranty_enabled' => $validated['warranty_enabled'] ?? false,
                 'warranty_text' => $validated['warranty_text'] ?? null,
+                'include_warranty_policy' => $validated['warranty_enabled'] ?? false,
+                'warranty_days' => $validated['warranty_days'] ?? null,
+                'warranty_policy' => $validated['warranty_text'] ?? null,
             ];
             if ($paymentTrackingEnabled) {
                 $orderData['caja_session_id'] = $validated['payment_type'] === 'cash'
@@ -624,7 +668,11 @@ class ReparacionController extends Controller
                 ]);
             }
 
-            $this->storePhotos($order, $request->file('photos', []));
+            $order->photos()->whereIn('id', $removePhotoIds)->get()->each(function (RepairOrderPhoto $photo): void {
+                Storage::disk('public')->delete($photo->photo_path);
+                $photo->delete();
+            });
+            $this->storePhotos($order, $newPhotos);
 
             if ($financialDataChanged) {
                 app(AccountingService::class)->recordRepairPayment($order->fresh());
@@ -651,11 +699,39 @@ class ReparacionController extends Controller
         }
     }
 
+    /**
+     * Reject inconsistent money before changing the order or storing files.
+     */
+    private function ensureValidWorkshopAmounts(array $validated): void
+    {
+        $itemsTotal = array_sum(array_map(
+            fn (array $item): float => (float) ($item['quantity'] ?? 0) * (float) ($item['price'] ?? 0),
+            $validated['items'] ?? []
+        ));
+        $subtotal = (float) ($validated['labor_cost'] ?? 0) + $itemsTotal;
+        $discount = $subtotal * ((float) ($validated['discount_percentage'] ?? 0) / 100)
+            + (float) ($validated['discount_amount'] ?? 0);
+        $total = round($subtotal - $discount, 2);
+        $advance = round((float) ($validated['advance_payment'] ?? 0), 2);
+
+        if ($total < 0) {
+            throw ValidationException::withMessages([
+                'repair' => 'El descuento total no puede superar el subtotal del trabajo.',
+            ]);
+        }
+
+        if (($validated['status'] ?? null) !== 'delivered' && $advance > $total) {
+            throw ValidationException::withMessages([
+                'repair' => 'El anticipo no puede superar el total del trabajo.',
+            ]);
+        }
+    }
+
     public function destroy($id)
     {
         $order = $this->workshopQuery()->with('photos')->findOrFail($id);
         foreach ($order->photos as $photo) {
-            Storage::disk('public')->delete($photo->path);
+            Storage::disk('public')->delete($photo->photo_path);
         }
         $order->items()->delete();
         $order->delete();
@@ -667,7 +743,7 @@ class ReparacionController extends Controller
     public function destroyPhoto(RepairOrderPhoto $photo)
     {
         abort_unless($photo->repairOrder?->order_type === $this->workshopType(), 404);
-        Storage::disk('public')->delete($photo->path);
+        Storage::disk('public')->delete($photo->photo_path);
         $photo->delete();
 
         return back()->with('success', 'Foto eliminada.');
@@ -676,9 +752,9 @@ class ReparacionController extends Controller
     public function showPhoto(RepairOrderPhoto $photo)
     {
         abort_unless($photo->repairOrder?->order_type === $this->workshopType(), 404);
-        abort_unless(Storage::disk('public')->exists($photo->path), 404);
+        abort_unless(Storage::disk('public')->exists($photo->photo_path), 404);
 
-        return Storage::disk('public')->response($photo->path);
+        return Storage::disk('public')->response($photo->photo_path);
     }
 
     public function photo($id)
@@ -701,7 +777,7 @@ class ReparacionController extends Controller
         $record = $order->photos()->findOrFail($photo);
         $path = $record->photo_path;
 
-        abort_unless($path === 'repair-orders/'.basename($path) && Storage::disk('public')->exists($path), 404);
+        abort_unless(preg_match('#^repair-orders/(?:[0-9]+/)?[^/]+$#', $path) === 1 && Storage::disk('public')->exists($path), 404);
 
         return Storage::disk('public')->response($path, null, [
             'Cache-Control' => 'private, max-age=3600',
@@ -935,6 +1011,7 @@ class ReparacionController extends Controller
 
                 $sale = Sale::create([
                     'invoice_number' => NumberSequence::getNext('factura'),
+                    'repair_order_id' => $order->id,
                     'client_id' => $client->id,
                     'user_id' => $request->user()?->id ?? 1,
                     'billing_name' => $order->client_name,
@@ -1020,6 +1097,16 @@ class ReparacionController extends Controller
 
                 $this->accountingService->recordSale($sale->fresh());
 
+                $order->creditPayments()->create([
+                    'client_id' => $order->client_id,
+                    'user_id' => $request->user()?->id,
+                    'amount' => $balance,
+                    'payment_date' => now(),
+                    'payment_type' => $validated['payment_type'],
+                    'reference_number' => $validated['reference_number'] ?? null,
+                    'notes' => 'Pago final de la factura '.$sale->invoice_number,
+                ]);
+
                 $order->update([
                     'sale_id' => $sale->id,
                     'invoiced_at' => now(),
@@ -1075,12 +1162,35 @@ class ReparacionController extends Controller
 
     private function normalizeTimeInputs(Request $request): void
     {
+        if ($request->filled('estimated_time') && ! $request->filled('estimated_delivery_time')) {
+            $request->merge(['estimated_delivery_time' => $request->input('estimated_time')]);
+        }
+
         foreach (['received_time', 'estimated_delivery_time', 'delivered_time'] as $field) {
             $value = $request->input($field);
 
-            if (is_string($value) && preg_match('/^\d{2}:\d{2}:\d{2}$/', $value)) {
-                $request->merge([$field => substr($value, 0, 5)]);
+            if (! is_string($value) || trim($value) === '') {
+                continue;
             }
+
+            foreach (['H:i:s.u', 'H:i:s', 'H:i', 'g:i:s A', 'g:i A', 'h:i:s A', 'h:i A'] as $format) {
+                try {
+                    $normalized = Carbon::createFromFormat($format, trim($value));
+                    if ($normalized !== false) {
+                        $request->merge([$field => $normalized->format('H:i')]);
+                        break;
+                    }
+                } catch (\Throwable) {
+                    // Try the next supported browser/database representation.
+                }
+            }
+        }
+
+        if ($request->has('include_warranty_policy')) {
+            $request->merge([
+                'warranty_enabled' => $request->boolean('include_warranty_policy'),
+                'warranty_text' => $request->input('warranty_policy'),
+            ]);
         }
     }
 
@@ -1124,7 +1234,7 @@ class ReparacionController extends Controller
         imagedestroy($optimized);
         imagedestroy($source);
 
-        $order->photos()->create(['path' => $path]);
+        $order->photos()->create(['photo_path' => $path]);
     }
 
     private function syncWorkshopInvoice(RepairOrder $order): void
@@ -1146,7 +1256,7 @@ class ReparacionController extends Controller
             [
                 'invoice_number' => Sale::where('repair_order_id', $order->id)->value('invoice_number') ?? NumberSequence::getNext('factura'),
                 'client_id' => $client->id,
-                'user_id' => $order->user_id,
+                'user_id' => $order->user_id ?? auth()->id() ?? User::query()->where('is_active', true)->value('id'),
                 'branch_id' => $cashSession?->branch_id,
                 'caja_session_id' => $cashSession?->id,
                 'billing_name' => $order->client_name,

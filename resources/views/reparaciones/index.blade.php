@@ -162,7 +162,7 @@
                         <th>{{ $isJewelry ? 'Pieza' : 'Equipo' }}</th>
                         <th>{{ $isJewelry ? 'Trabajo solicitado' : 'Falla' }}</th>
                         <th>Recepción</th>
-                        <th>Entrega est.</th>
+                        <th>Entrega estimada</th>
                         <th class="text-center">Prioridad</th>
                         <th class="text-center">Estado</th>
                         <th class="text-center">Pago</th>
@@ -207,11 +207,16 @@
                                     'text-red-700' => $order->isEstimatedDeliveryOverdue(),
                                     'text-amber-700' => ! $order->isEstimatedDeliveryOverdue() && $order->isEstimatedDeliveryToday(),
                                     'text-slate-800' => ! $order->isEstimatedDeliveryOverdue() && ! $order->isEstimatedDeliveryToday(),
-                                ])>{{ $order->estimatedDeliveryDisplay() }}</p>
+                                ])>
+                                    @if($order->estimated_date){{ $order->estimated_date->format('d/m/Y') }}@endif
+                                    @if($order->estimated_delivery_time)<span class="block text-xs">Hora: {{ substr((string) $order->estimated_delivery_time, 0, 5) }}</span>@endif
+                                </p>
                                 @if($order->isEstimatedDeliveryOverdue())
                                     <span class="inline-block mt-0.5 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">Atrasada</span>
                                 @elseif($order->isEstimatedDeliveryToday())
                                     <span class="inline-block mt-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Hoy</span>
+                                @else
+                                    <span class="inline-block mt-0.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">A tiempo</span>
                                 @endif
                             @else
                                 <span class="text-slate-400">—</span>

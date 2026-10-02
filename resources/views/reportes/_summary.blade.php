@@ -22,6 +22,19 @@
         <x-ui.stat-card label="Costos" :value="'C$ ' . number_format($summary['total_cost'] ?? 0, 2)" accent="#dc2626" />
         <x-ui.stat-card label="Ganancia bruta" :value="'C$ ' . number_format($summary['gross_profit'] ?? 0, 2)" :accent="($summary['gross_profit'] ?? 0) >= 0 ? '#059669' : '#dc2626'" />
         <x-ui.stat-card label="Margen" :value="number_format($summary['profit_margin'] ?? 0, 1) . '%'" :accent="($summary['profit_margin'] ?? 0) >= 0 ? '#0d9488' : '#dc2626'" />
+        @if(($summary['by_branch'] ?? collect())->isNotEmpty())
+            <div class="col-span-full rounded-2xl border border-slate-200 bg-white p-4">
+                <h3 class="text-sm font-bold text-slate-900">Rentabilidad por sucursal</h3>
+                <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    @foreach($summary['by_branch'] as $branchResult)
+                        <div class="rounded-xl bg-slate-50 p-3 text-sm">
+                            <p class="font-semibold text-slate-800">{{ $branchResult->branch_name }}</p>
+                            <p class="mt-1 text-slate-500">Ganancia: @money($branchResult->gross_profit, 2)</p>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
     @elseif($reportType === 'abc')
         <x-ui.stat-card label="SKUs con venta" :value="number_format($summary['sku_count'] ?? 0)" accent="#2563eb" />
         <x-ui.stat-card label="Clase A" :value="number_format($summary['class_a'] ?? 0)" :meta="number_format($summary['class_a_share'] ?? 0, 1) . '% de las ventas'" accent="#059669" />

@@ -17,7 +17,7 @@ class DatabaseSeeder extends Seeder
         $this->call(ProductionSeeder::class);
         $this->call(JoyeriaModuleSeeder::class);
 
-        if (! filter_var(env('SEED_DEMO_DATA', false), FILTER_VALIDATE_BOOLEAN)) {
+        if (! (bool) config('app.seed_demo_data', false)) {
             return;
         }
 
@@ -27,6 +27,16 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
-        $this->call(ComprehensiveDemoSeeder::class);
+        $this->call([
+            UserSeeder::class,
+            CategorySeeder::class,
+            SupplierSeeder::class,
+            ClientSeeder::class,
+            EmployeeSeeder::class,
+            ProductSeeder::class,
+            DemoDataSeeder::class,
+            CreditHeavySeeder::class,
+            AgroProductSeeder::class,
+        ]);
     }
 }

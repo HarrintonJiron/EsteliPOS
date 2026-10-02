@@ -30,6 +30,8 @@ Section "Instalar EsteliPOS" SEC01
         MessageBox MB_ICONSTOP "La instalacion fallo. Consulte $%PROGRAMDATA%\EsteliPOS\Logs para soporte."
         Abort
     ${EndIf}
+    SetOutPath "$INSTDIR\installer"
+    File "scripts\Uninstall-EsteliPOS.ps1"
     CreateDirectory "$SMPROGRAMS\EsteliPOS"
     CreateShortCut "$SMPROGRAMS\EsteliPOS\EsteliPOS.lnk" "$INSTDIR\EsteliPOS.url"
     WriteUninstaller "$INSTDIR\Uninstall.exe"

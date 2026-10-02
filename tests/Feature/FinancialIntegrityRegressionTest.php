@@ -175,7 +175,7 @@ test('cash repair payments are posted and included in the cash closing', functio
     expect((float) Arqueo::query()->latest('id')->value('cash_total'))->toBe(40.0);
 });
 
-test('delivering a repair collects its outstanding balance', function () {
+test('delivering a repair does not collect an outstanding balance implicitly', function () {
     $admin = financialIntegrityAdmin();
     Module::query()->where('slug', 'reparaciones')->update(['is_active' => true]);
     $order = RepairOrder::query()->create([
@@ -197,14 +197,10 @@ test('delivering a repair collects its outstanding balance', function () {
     $this->actingAs($admin)->patch(route('reparaciones.status', $order), ['status' => 'delivered'])
         ->assertRedirect();
 
-    expect((float) $order->fresh()->advance_payment)->toBe(600.0)
-        ->and($order->fresh()->payment_status)->toBe('paid')
-        ->and(JournalEntry::query()->where('source_type', RepairOrder::class)->where('source_id', $order->id)->where('status', JournalEntry::STATUS_POSTED)->exists())->toBeTrue();
-
-    $invoice = Sale::query()->where('repair_order_id', $order->id)->firstOrFail();
-    expect($invoice->status)->toBe('completed')
-        ->and((float) $invoice->total)->toBe(600.0)
-        ->and($invoice->notes)->toContain('Taller de reparación');
+    expect((float) $order->fresh()->advance_payment)->toBe(0.0)
+        ->and($order->fresh()->payment_status)->toBe('pending')
+        ->and($order->fresh()->isDeliveredWithBalance())->toBeTrue()
+        ->and(Sale::query()->where('repair_order_id', $order->id)->exists())->toBeFalse();
 });
 
 test('canceling a workshop invoice reverses the repair payment and accounting entry', function () {
@@ -226,8 +222,10 @@ test('canceling a workshop invoice reverses the repair payment and accounting en
         'payment_status' => 'pending',
     ]);
 
-    $this->actingAs($admin)->patch(route('reparaciones.status', $order), ['status' => 'delivered'])
-        ->assertRedirect();
+    $this->actingAs($admin)->post(route('reparaciones.bill', $order), [
+        'payment_type' => 'cash',
+        'amount_received' => 450,
+    ])->assertRedirect(route('reparaciones.show', $order));
     $invoice = Sale::query()->where('repair_order_id', $order->id)->firstOrFail();
 
     $this->actingAs($admin)->delete(route('facturacion.destroy', $invoice))

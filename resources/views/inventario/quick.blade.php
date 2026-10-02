@@ -50,12 +50,12 @@
             </div>
             <div>
                 <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Costo</label>
-                <input type="number" name="purchase_price" id="quick_purchase_price" step="0.01" min="0"
+                <input type="text" inputmode="decimal" name="purchase_price" id="quick_purchase_price"
                     value="{{ old('purchase_price') }}" placeholder="0.00" class="input-field py-1.5 text-sm">
             </div>
             <div>
                 <label class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Público *</label>
-                <input type="number" name="sale_price" id="quick_sale_price" step="0.01" min="0" required
+                <input type="text" inputmode="decimal" name="sale_price" id="quick_sale_price" required
                     value="{{ old('sale_price') }}" placeholder="0.00"
                     class="input-field py-1.5 text-sm font-bold text-indigo-700">
             </div>
@@ -66,7 +66,7 @@
                         <button type="button" id="applyWholesalePct" class="normal-case text-[10px] text-emerald-600 hover:underline">−10%</button>
                     @endif
                 </label>
-                <input type="number" name="wholesale_price" id="quick_wholesale_price" step="0.01" min="0"
+                <input type="text" inputmode="decimal" name="wholesale_price" id="quick_wholesale_price"
                     value="{{ old('wholesale_price') }}" placeholder="Opcional"
                     class="input-field py-1.5 text-sm font-semibold text-emerald-700">
             </div>
@@ -177,7 +177,7 @@
                 <div class="grid gap-2 sm:grid-cols-2">
                     <div>
                         <label for="quickPresentationPrice" class="mb-1 block text-xs text-slate-500">Precio de venta (opcional)</label>
-                        <input id="quickPresentationPrice" name="presentation_sale_price" type="number" min="0" step="0.01" value="{{ old('presentation_sale_price') }}" placeholder="Automático" class="input-field py-1.5 text-sm">
+                        <input id="quickPresentationPrice" name="presentation_sale_price" type="text" inputmode="decimal" value="{{ old('presentation_sale_price') }}" placeholder="Automático" class="input-field py-1.5 text-sm">
                     </div>
                     <div>
                         <label for="quickPresentationBarcode" class="mb-1 block text-xs text-slate-500">Código de barras (opcional)</label>

@@ -13,6 +13,7 @@ use App\Models\ExchangeRate;
 use App\Models\NumberSequence;
 use App\Models\PhoneTradeIn;
 use App\Models\Product;
+use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Tax;
@@ -30,6 +31,7 @@ use App\Services\InventoryService;
 use App\Services\PosCatalogService;
 use App\Services\PricingService;
 use App\Services\ProductGalleryService;
+use App\Services\PurchaseCostingService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -481,6 +483,9 @@ class FacturacionController extends Controller
 
                 // Revert stock changes, but preserve the fiscal document and its detail.
                 foreach ($sale->details as $detail) {
+                    if (! $detail->product) {
+                        continue;
+                    }
                     $this->inventoryService->stockIn(
                         $detail->product,
                         $this->posCatalog->saleDetailBaseQuantity($detail),
@@ -493,6 +498,18 @@ class FacturacionController extends Controller
 
                 $this->accountingService->voidForSource(Sale::class, $sale->id, 'Factura anulada');
                 $sale->update(['status' => 'canceled']);
+                if ($sale->repair_order_id && ($repairOrder = RepairOrder::query()->lockForUpdate()->find($sale->repair_order_id))) {
+                    $repairOrder->creditPayments()
+                        ->where('notes', 'Pago final de la factura '.$sale->invoice_number)
+                        ->delete();
+                    $repairOrder->forceFill([
+                        'sale_id' => null,
+                        'invoiced_at' => null,
+                        'status' => 'ready',
+                        'payment_received_at' => null,
+                    ])->save();
+                    $repairOrder->syncPaymentStatus();
+                }
                 AuditLog::log(
                     'sale.canceled',
                     "Factura #{$sale->id} anulada",
@@ -514,7 +531,9 @@ class FacturacionController extends Controller
     public function pos()
     {
         $userBranchId = request()->user()?->branch_id;
-        $assignedBranch = $userBranchId ? Branch::query()->where('is_active', true)->find($userBranchId) : null;
+        $cashSession = CajaSession::currentForUser(request()->user()?->id);
+        $assignedBranch = $cashSession?->branch
+            ?? ($userBranchId ? Branch::query()->where('is_active', true)->find($userBranchId) : null);
         $defaultWarehouseId = $this->posCatalog->resolveWarehouseId($assignedBranch?->warehouse_id);
         $products = Product::with(['category', 'tax', 'baseUnit', 'unitConversions.unit', 'warehouseStocks.warehouse'])
             ->where('status', 'active')
@@ -552,6 +571,7 @@ class FacturacionController extends Controller
         $companyProfile = $this->companySettings->get();
         $currencySymbol = (string) ($companyProfile['currency_symbol'] ?? 'C$');
         $companyCurrency = (string) ($companyProfile['currency'] ?? 'NIO');
+        $posReferenceFx = app(PurchaseCostingService::class)->posReferenceFx();
 
         return view('facturacion.pos', compact(
             'products',
@@ -564,6 +584,7 @@ class FacturacionController extends Controller
             'companyProfile',
             'currencySymbol',
             'companyCurrency',
+            'posReferenceFx',
         ));
     }
 
@@ -936,7 +957,7 @@ class FacturacionController extends Controller
 
                 $preferredWarehouseId = isset($validated['warehouse_id'])
                     ? (int) $validated['warehouse_id']
-                    : null;
+                    : $cashSession?->branch?->warehouse_id;
                 $resolvedWarehouseId = $this->posCatalog->resolveWarehouseId($preferredWarehouseId);
                 $branch = $this->branches->resolve($resolvedWarehouseId, $cashSession, $request->user()?->branch_id);
                 $resolvedPriceList = $this->pricing->resolvePriceList($client->price_list_id, $branch?->id);

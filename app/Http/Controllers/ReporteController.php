@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BranchProductSource;
 use App\Models\Client;
 use App\Models\InventoryMovement;
 use App\Models\Product;
@@ -44,8 +45,8 @@ class ReporteController extends Controller
                 $data = $this->getKardexReport($request);
                 break;
             case 'profit':
-                $data = $this->getProfitReport($startDate, $endDate);
-                $summary = $this->getProfitSummary($startDate, $endDate);
+                $data = $this->getProfitReport($startDate, $endDate, $request);
+                $summary = $this->getProfitSummary($startDate, $endDate, $request);
                 break;
             case 'abc':
                 $rows = $this->buildAbcRows($startDate, $endDate);
@@ -97,7 +98,7 @@ class ReporteController extends Controller
     private function getSalesReport($startDate, $endDate, $request)
     {
         $query = Sale::with(['client', 'details.product', 'repairOrder'])
-            ->whereBetween('date', [$startDate, $endDate]);
+            ->whereBetween('date', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()]);
 
         if ($request->filled('client_id')) {
             $query->where('client_id', $request->client_id);
@@ -116,7 +117,7 @@ class ReporteController extends Controller
 
     private function getSalesSummary($startDate, $endDate)
     {
-        $sales = Sale::retail()->whereBetween('date', [$startDate, $endDate]);
+        $sales = Sale::retail()->whereBetween('date', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()]);
         $workshopIncome = RepairOrder::supportsPaymentTracking()
             ? (float) RepairOrder::query()
                 ->whereBetween('payment_received_at', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()])
@@ -138,7 +139,7 @@ class ReporteController extends Controller
             'avg_sale' => $salesCount + $workshopCount > 0 ? ($salesTotal + $workshopIncome) / ($salesCount + $workshopCount) : 0,
             'workshop_income' => $workshopIncome,
             'workshop_count' => $workshopCount,
-            'by_status' => Sale::whereBetween('date', [$startDate, $endDate])
+            'by_status' => Sale::whereBetween('date', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()])
                 ->select('status', DB::raw('COUNT(*) as count'), DB::raw('SUM(total) as total'))
                 ->groupBy('status')
                 ->get(),
@@ -241,35 +242,72 @@ class ReporteController extends Controller
         return $query->latest()->paginate(35);
     }
 
-    private function getProfitReport($startDate, $endDate)
+    private function getProfitReport($startDate, $endDate, Request $request)
     {
-        return Sale::with('details.product')
-            ->whereBetween('date', [$startDate, $endDate])
+        $sales = Sale::with(['details.product', 'branch'])
+            ->whereBetween('date', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()])
             ->where('status', 'completed')
+            ->when($request->filled('branch_id'), fn ($query) => $query->where('branch_id', $request->integer('branch_id')))
             ->latest()
             ->paginate(35);
+
+        $this->decorateProfitSales($sales->getCollection());
+
+        return $sales;
     }
 
-    private function getProfitSummary($startDate, $endDate)
+    private function getProfitSummary($startDate, $endDate, Request $request)
     {
-        $sales = Sale::whereBetween('date', [$startDate, $endDate])
+        $sales = Sale::with(['details.product', 'branch'])
+            ->whereBetween('date', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()])
             ->where('status', 'completed')
-            ->sum('total');
+            ->when($request->filled('branch_id'), fn ($query) => $query->where('branch_id', $request->integer('branch_id')))
+            ->get();
+        $this->decorateProfitSales($sales);
+        $salesTotal = (float) $sales->sum('total');
+        $costs = (float) $sales->sum('calculated_cost');
+        $byBranch = $sales->groupBy('branch_id')->map(function (Collection $branchSales, $branchId) {
+            $total = (float) $branchSales->sum('total');
+            $cost = (float) $branchSales->sum('calculated_cost');
 
-        $costs = DB::table('sale_details')
-            ->join('sales', 'sale_details.sale_id', '=', 'sales.id')
-            ->join('products', 'sale_details.product_id', '=', 'products.id')
-            ->whereBetween('sales.date', [$startDate, $endDate])
-            ->where('sales.status', 'completed')
-            ->select(DB::raw('SUM(sale_details.quantity * products.purchase_price) as total_cost'))
-            ->value('total_cost');
+            return (object) [
+                'branch_id' => $branchId === '' ? null : (int) $branchId,
+                'branch_name' => $branchSales->first()?->branch?->name ?? 'Sin sucursal',
+                'total_sales' => $total,
+                'total_cost' => $cost,
+                'gross_profit' => round($total - $cost, 2),
+            ];
+        })->values();
 
         return [
-            'total_sales' => $sales,
-            'total_cost' => $costs ?? 0,
-            'gross_profit' => $sales - ($costs ?? 0),
-            'profit_margin' => $sales > 0 ? (($sales - ($costs ?? 0)) / $sales) * 100 : 0,
+            'total_sales' => $salesTotal,
+            'total_cost' => $costs,
+            'gross_profit' => $salesTotal - $costs,
+            'profit_margin' => $salesTotal > 0 ? (($salesTotal - $costs) / $salesTotal) * 100 : 0,
+            'by_branch' => $byBranch,
         ];
+    }
+
+    private function decorateProfitSales(Collection $sales): void
+    {
+        $costs = BranchProductSource::query()->get(['branch_id', 'product_id', 'source_cost'])
+            ->keyBy(fn (BranchProductSource $source) => $source->branch_id.':'.$source->product_id);
+
+        $sales->each(function (Sale $sale) use ($costs): void {
+            $cost = $sale->details->sum(function ($detail) use ($sale, $costs): float {
+                if (! $detail->product_id) {
+                    return 0;
+                }
+                $source = $costs->get($sale->branch_id.':'.$detail->product_id);
+                $unitCost = $source ? (float) $source->source_cost : (float) $detail->product?->purchase_price;
+
+                return (float) $detail->quantity * $unitCost;
+            });
+            $profit = (float) $sale->total - $cost;
+            $sale->setAttribute('calculated_cost', round($cost, 2));
+            $sale->setAttribute('calculated_profit', round($profit, 2));
+            $sale->setAttribute('calculated_margin', (float) $sale->total > 0 ? ($profit / (float) $sale->total) * 100 : 0);
+        });
     }
 
     public function exportExcel(Request $request)

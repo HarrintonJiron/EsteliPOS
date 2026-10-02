@@ -149,7 +149,14 @@
         No uses Word; imprime directo desde el navegador (Chrome o Edge).
     </div>
     <div class="screen-actions screen-only">
-        <button type="button" onclick="window.print()">Imprimir ticket 80 mm</button>
+        @if(($companyProfile['printing_mode'] ?? 'local') === 'central' && ! request()->boolean('central'))
+            <form method="POST" action="{{ route('printing.sales.enqueue', $sale) }}" style="display:inline">
+                @csrf
+                <button type="submit">Enviar a impresora central</button>
+            </form>
+        @else
+            <button type="button" onclick="window.print()">Imprimir ticket 80 mm</button>
+        @endif
         <button type="button" onclick="window.close()">Cerrar</button>
     </div>
 
@@ -221,6 +228,9 @@
                         @endif
                         @if($invoiceTaxDisplay->showsLineTax((float) $detail->tax_rate)) · IVA {{ number_format($detail->tax_rate * 100, 2) }}%@endif
                     </div>
+                    @foreach($detail->product?->invoiceSpecs() ?? [] as $label => $spec)
+                        <div class="item-meta">{{ $label }}: {{ $spec }}</div>
+                    @endforeach
                 </article>
             @endforeach
 
@@ -253,6 +263,10 @@
                 <span class="item-qty">{{ $totalQuantityFormatted }}</span>
                 <span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format($sale->total, 2) }}</span>
             </div>
+            @if($sale->repairOrder && (float) $sale->repairOrder->advance_payment > 0)
+                <div class="items-footer"><span>ANTICIPO</span><span></span><span class="item-amount">-{{ $companyProfile['currency_symbol'] }}{{ number_format($sale->repairOrder->advance_payment, 2) }}</span></div>
+                <div class="items-footer"><span>PAGO FINAL</span><span></span><span class="item-amount">{{ $companyProfile['currency_symbol'] }}{{ number_format(max(0, $sale->total - $sale->repairOrder->advance_payment), 2) }}</span></div>
+            @endif
             @if($hasDiscount)
                 <div class="center" style="margin-top: 2mm; font-size: 9pt; font-weight: 700;">
                     ¡Ahorraste {{ $companyProfile['currency_symbol'] }}{{ number_format($discountAmount, 2) }}!
@@ -289,4 +303,16 @@
         </footer>
     </main>
 </body>
+@if(request()->boolean('autoprint'))
+<script>
+    window.addEventListener('load', () => window.print());
+    window.addEventListener('afterprint', () => {
+        @if(request()->boolean('central'))
+            window.parent.postMessage({type: 'estelipos-print-complete'}, window.location.origin);
+        @else
+            window.close();
+        @endif
+    });
+</script>
+@endif
 </html>

@@ -169,6 +169,7 @@
                                     <label for="devicePhotoInput" class="mb-1 block text-xs font-medium text-slate-600">Fotos del equipo (hasta 5)</label>
                                     <input id="devicePhotoInput" type="file" name="device_photos[]" accept="image/jpeg,image/png,image/webp" multiple
                                         class="block w-full text-xs text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-slate-800 file:px-2 file:py-1 file:text-xs file:text-white">
+                                    <button type="button" id="devicePhotoAddButton" class="btn-outline mt-2 w-full sm:w-auto">+ Agregar otra foto</button>
                                     <p id="devicePhotoName" class="mt-1 truncate text-[11px] text-slate-500">JPG, PNG o WebP · máximo 8 MB c/u</p>
                                     @error('device_photos')<p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                                 </div>
@@ -296,14 +297,22 @@
                     </div>
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">Descuento %</label>
-                            <input type="number" step="0.01" min="0" max="100" name="discount_percentage" id="discountPercentageInput"
-                                value="{{ old('discount_percentage', $order->discount_percentage ?? 0) }}" class="input-field" oninput="updateTotal()">
+                            <label class="block text-sm text-slate-600 mb-1">Tipo de descuento</label>
+                            @php
+                                $selectedDiscountType = old('discount_type', (float) old('discount_amount', $order->discount_amount ?? 0) > 0 ? 'fixed' : 'percentage');
+                            @endphp
+                            <select name="discount_type" id="discountTypeSelect" class="select-field" onchange="syncDiscountInputs(); updateTotal()">
+                                <option value="percentage" @selected($selectedDiscountType === 'percentage')>Porcentaje (%)</option>
+                                <option value="fixed" @selected($selectedDiscountType === 'fixed')>Monto fijo ({{ $currencySymbol }})</option>
+                            </select>
                         </div>
                         <div>
-                            <label class="block text-sm text-slate-600 mb-1">Descuento Fijo ({{ $currencySymbol }})</label>
-                            <input type="number" step="0.01" min="0" name="discount_amount" id="discountFixedInput"
-                                value="{{ old('discount_amount', $order->discount_amount ?? 0) }}" class="input-field" oninput="updateTotal()">
+                            <label class="block text-sm text-slate-600 mb-1" id="discountValueLabel">Valor del descuento</label>
+                            <input type="number" step="0.01" min="0" id="discountValueInput"
+                                value="{{ $selectedDiscountType === 'fixed' ? old('discount_amount', $order->discount_amount ?? 0) : old('discount_percentage', $order->discount_percentage ?? 0) }}"
+                                class="input-field" oninput="syncDiscountInputs(); updateTotal()">
+                            <input type="hidden" name="discount_percentage" id="discountPercentageInput" value="{{ old('discount_percentage', $order->discount_percentage ?? 0) }}">
+                            <input type="hidden" name="discount_amount" id="discountFixedInput" value="{{ old('discount_amount', $order->discount_amount ?? 0) }}">
                         </div>
                     </div>
                     <div class="bg-slate-50 rounded-xl p-3 space-y-1 text-sm">
@@ -833,6 +842,20 @@ function updateTotal() {
     }
 }
 
+function syncDiscountInputs() {
+    const type = document.getElementById('discountTypeSelect')?.value || 'percentage';
+    const valueInput = document.getElementById('discountValueInput');
+    const value = Math.max(0, parseFloat(valueInput?.value || 0));
+    const percentageInput = document.getElementById('discountPercentageInput');
+    const fixedInput = document.getElementById('discountFixedInput');
+    const label = document.getElementById('discountValueLabel');
+
+    percentageInput.value = type === 'percentage' ? Math.min(value, 100) : 0;
+    fixedInput.value = type === 'fixed' ? value : 0;
+    if (valueInput) valueInput.max = type === 'percentage' ? '100' : '';
+    if (label) label.textContent = type === 'percentage' ? 'Descuento (%)' : 'Descuento fijo ({{ $currencySymbol }})';
+}
+
 function showAddBrandModal() {
     document.getElementById('addBrandModal').classList.remove('hidden');
     document.getElementById('newBrandInput').value = '';
@@ -961,6 +984,7 @@ function initDevicePhoto() {
     const previewContainer = document.getElementById('devicePhotoPreviewContainer');
     const placeholder = document.getElementById('devicePhotoPlaceholder');
     const filename = document.getElementById('devicePhotoName');
+    const addButton = document.getElementById('devicePhotoAddButton');
 
     let filesArray = [];
 
@@ -1016,6 +1040,7 @@ function initDevicePhoto() {
         }
         filename.textContent = total + ' de ' + MAX_PHOTOS + ' fotos'
             + (skipped > 0 ? ' · máximo ' + MAX_PHOTOS + ' por orden' : '');
+        if (addButton) addButton.disabled = total >= MAX_PHOTOS;
     }
 
     input.addEventListener('change', () => {
@@ -1031,6 +1056,8 @@ function initDevicePhoto() {
         render(skipped);
     });
 
+    addButton?.addEventListener('click', () => input.click());
+
     previewContainer.querySelectorAll('.remove-photo').forEach(box => box.addEventListener('change', () => render()));
     render();
 }
@@ -1043,6 +1070,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleWarrantyText();
     initRepairItems();
     initDevicePhoto();
+    syncDiscountInputs();
 
     // Load brands dynamically
     loadBrands();

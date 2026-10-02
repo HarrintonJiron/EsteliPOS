@@ -30,6 +30,7 @@ function validCompanySettings(array $overrides = []): array
         'invoice_footer' => 'Conserve este documento para cualquier reclamo.',
         'receipt_message' => 'Gracias por preferirnos.',
         'repair_warranty_text' => 'Garantía de 60 días por mano de obra en taller.',
+        'printing_mode' => 'local',
         'system_name' => 'EsteliPOS',
     ], $overrides);
 }
