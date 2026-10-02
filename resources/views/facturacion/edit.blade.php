@@ -177,6 +177,14 @@
                     <span id="total">C$ 0.00</span>
                 </div>
 
+                <div id="invoiceAdjustment" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" aria-live="polite">
+                    <div class="flex justify-between gap-3 text-slate-600">
+                        <span>Total original</span>
+                        <span id="originalTotal">C$ {{ number_format((float) $sale->total, 2) }}</span>
+                    </div>
+                    <p id="invoiceAdjustmentMessage" class="mt-1 font-semibold text-slate-700">Sin diferencia por cobrar o devolver.</p>
+                </div>
+
             </div>
 
         </div>
@@ -229,6 +237,7 @@
             address: c.address ?? '',
         }));
         const sale = JSON.parse(document.getElementById('invoiceApp').dataset.sale);
+        const originalTotal = parseFloat(sale.total || 0);
         let index = 0;
 
         function formatMoney(v){ return 'C$ ' + parseFloat(v||0).toFixed(2); }
@@ -260,6 +269,25 @@
             document.getElementById('taxLabel').textContent = uniqueRates.length === 1
                 ? `IVA (${(parseFloat(uniqueRates[0]) * 100).toFixed(2)}%)`
                 : (uniqueRates.length > 1 ? 'IVA (mixto)' : 'IVA (0.00%)');
+
+            const adjustment = total - originalTotal;
+            const adjustmentBox = document.getElementById('invoiceAdjustment');
+            const adjustmentMessage = document.getElementById('invoiceAdjustmentMessage');
+            adjustmentBox.className = 'rounded-lg border px-3 py-2 text-sm';
+
+            if (adjustment > 0.004) {
+                adjustmentBox.classList.add('border-amber-200', 'bg-amber-50');
+                adjustmentMessage.className = 'mt-1 font-semibold text-amber-800';
+                adjustmentMessage.textContent = `El cliente debe pagar una diferencia de ${formatMoney(adjustment)}.`;
+            } else if (adjustment < -0.004) {
+                adjustmentBox.classList.add('border-indigo-200', 'bg-indigo-50');
+                adjustmentMessage.className = 'mt-1 font-semibold text-indigo-800';
+                adjustmentMessage.textContent = `Debes devolver al cliente ${formatMoney(Math.abs(adjustment))}.`;
+            } else {
+                adjustmentBox.classList.add('border-slate-200', 'bg-slate-50');
+                adjustmentMessage.className = 'mt-1 font-semibold text-slate-700';
+                adjustmentMessage.textContent = 'Sin diferencia por cobrar o devolver.';
+            }
         }
 
         function addRow(item){

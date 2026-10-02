@@ -343,6 +343,9 @@ test('the pos invoices two presentations of one product and deducts their combin
         ->get(route('facturacion.edit', $sale->id))
         ->assertOk()
         ->assertSee('Presentación')
+        ->assertSee('Total original')
+        ->assertSee('El cliente debe pagar una diferencia de', false)
+        ->assertSee('Debes devolver al cliente', false)
         ->assertSee('unit-select', false)
         ->assertSee('ristra', false)
         ->assertSee('caja', false);
