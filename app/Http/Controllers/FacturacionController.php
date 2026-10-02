@@ -841,6 +841,7 @@ class FacturacionController extends Controller
             'notes' => 'nullable|string',
             'reference_number' => 'nullable|string|max:100',
             'amount_received' => 'nullable|numeric|min:0',
+            'payment_exact' => 'nullable|boolean',
             'exchange_rate_id' => 'nullable|integer',
             'order_discount_pct' => 'nullable|numeric|min:0|max:100',
             'credit_override_token' => ['nullable', 'string', 'size:64'],
@@ -1076,6 +1077,10 @@ class FacturacionController extends Controller
 
                 $saleTotal = round($subtotalExcl + $taxTotal, 2);
                 $amountDue = max(0, round($saleTotal - $totalTradeInValue, 2));
+                $exactCashPayment = $storedPaymentType === 'cash' && (bool) ($validated['payment_exact'] ?? false);
+                $cashReceived = $exactCashPayment
+                    ? $amountDue
+                    : round((float) ($validated['amount_received'] ?? $amountDue), 2);
 
                 $sale->update([
                     'warehouse_id' => $saleWarehouseId ?? $this->posCatalog->resolveWarehouseId($preferredWarehouseId),
@@ -1086,8 +1091,9 @@ class FacturacionController extends Controller
                     'tax_total' => round($taxTotal, 2),
                     'trade_in_value' => $totalTradeInValue,
                     'total' => $saleTotal,
+                    'amount_paid' => $storedPaymentType === 'cash' ? $cashReceived : 0,
                     'change_amount' => $storedPaymentType === 'cash'
-                        ? max(0, ($validated['amount_received'] ?? $amountDue) - $amountDue)
+                        ? max(0, round($cashReceived - $amountDue, 2))
                         : 0,
                 ]);
 
@@ -1096,7 +1102,7 @@ class FacturacionController extends Controller
                 }
 
                 if ($storedPaymentType === 'cash'
-                    && (float) ($validated['amount_received'] ?? 0) < $amountDue) {
+                    && $cashReceived < $amountDue) {
                     throw new \RuntimeException('El monto recibido es menor que el saldo a pagar después de descontar el equipo recibido.');
                 }
 
@@ -1171,12 +1177,8 @@ class FacturacionController extends Controller
         }
 
         if ($sale) {
-            $amountDue = max(0, (float) $sale->total - (float) $sale->trade_in_value);
-            $amountReceived = $validated['amount_received'] ?? $amountDue;
-            $changeAmount = $amountReceived - $amountDue;
-
             return redirect()->route('facturacion.change', ['saleId' => $sale->id])
-                ->with('changeAmount', max(0, $changeAmount));
+                ->with('changeAmount', (float) $sale->change_amount);
         }
 
         return back()->withErrors(['error' => 'Error al procesar la venta']);

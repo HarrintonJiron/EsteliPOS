@@ -58,7 +58,30 @@ test('sales report includes transactions from the complete end date', function (
         ->assertOk()
         ->assertSee('FAC-END-DATE')
         ->assertSee('1 transacciones')
+        ->assertSee('class="report-print-area"', false)
+        ->assertSee('class="report-print-header hidden"', false)
+        ->assertSee('Información del reporte')
         ->assertDontSee('FAC-NEXT-DAY');
 
     Carbon::setTestNow();
+});
+
+test('every commercial report exports a dedicated PDF document', function () {
+    $role = Role::firstOrCreate(
+        ['slug' => 'admin'],
+        ['name' => 'Administrador', 'is_system' => true],
+    );
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $admin->roles()->sync([$role->id]);
+
+    foreach (['sales', 'purchases', 'inventory', 'kardex', 'profit', 'abc', 'aging', 'slow', 'top_clients', 'sellers', 'categories'] as $type) {
+        $response = $this->actingAs($admin)->get(route('reportes.pdf', [
+            'report_type' => $type,
+            'start_date' => '2026-09-01',
+            'end_date' => '2026-09-30',
+        ]));
+
+        $response->assertOk()->assertHeader('content-type', 'application/pdf');
+        expect($response->getContent())->toStartWith('%PDF-');
+    }
 });

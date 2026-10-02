@@ -217,6 +217,13 @@
                                     <label class="repair-label">{{ $isJewelry ? 'Peso / identificación' : 'IMEI / Serie' }}</label>
                                     <input type="text" name="device_imei" value="{{ old('device_imei') }}" class="input-field w-full" placeholder="{{ $isJewelry ? 'Ej. 8.5 g / sello 925' : '15 dígitos' }}">
                                 </div>
+                                @unless($isJewelry)
+                                    <div>
+                                        <label class="repair-label" for="device_battery">Batería al recibir (%)</label>
+                                        <input type="number" id="device_battery" name="device_battery" value="{{ old('device_battery') }}" min="0" max="100" step="1" inputmode="numeric" class="input-field w-full" placeholder="Ej. 85">
+                                        @error('device_battery')<p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
+                                    </div>
+                                @endunless
                                 <div @class(['hidden' => $isJewelry])>
                                     <label class="repair-label">Bloqueo</label>
                                     <select id="lockTypeSelect" name="lock_type" class="select-field w-full" onchange="toggleLockFields()">

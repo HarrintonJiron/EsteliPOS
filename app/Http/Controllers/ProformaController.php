@@ -160,7 +160,80 @@ class ProformaController extends Controller
         $categories = Category::orderBy('name')->get();
         $defaultTaxRate = $this->defaultTaxRate();
 
-        return view('proformas.pos', compact('products', 'clients', 'categories', 'defaultTaxRate'));
+        return view('proformas.pos', [
+            'products' => $products,
+            'clients' => $clients,
+            'categories' => $categories,
+            'defaultTaxRate' => $defaultTaxRate,
+            'proforma' => null,
+            'initialItems' => [],
+            'initialOrderDiscountPct' => 0,
+            'expiryDays' => 15,
+        ]);
+    }
+
+    public function edit($id)
+    {
+        $proforma = Proforma::with(['details.product', 'client'])->find($id);
+
+        if (! $proforma) {
+            return $this->missingProformaResponse();
+        }
+
+        if ($proforma->sale_id) {
+            return redirect()->route('proformas.show', $proforma->id)
+                ->with('error', 'Esta proforma ya fue convertida en venta y no puede modificarse.');
+        }
+
+        $detailProductIds = $proforma->details->pluck('product_id')->filter()->all();
+        $priceListId = $this->posCatalog->resolvePriceListId($proforma->client_id);
+        $products = Product::with(['category', 'tax', 'baseUnit', 'unitConversions.unit', 'warehouseStocks.warehouse'])
+            ->where(function ($query) use ($detailProductIds) {
+                $query->where('status', 'active');
+                if ($detailProductIds !== []) {
+                    $query->orWhereIn('id', $detailProductIds);
+                }
+            })
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Product $product) => $this->posCatalog->serializeProduct($product, null, $priceListId));
+
+        $initialItems = $proforma->details->map(fn (ProformaDetail $detail): array => [
+            'product_id' => $detail->product_id,
+            'unit_id' => $detail->unit_id,
+            'unit_label' => $detail->unit?->abbreviation ?? $detail->product?->baseUnitLabel() ?? 'und',
+            'unit_factor' => (float) ($detail->unit_factor ?: 1),
+            'name' => $detail->product_name,
+            'price' => (float) $detail->price,
+            'stock' => (float) ($detail->product?->stock ?? 0),
+            'quantity' => (float) $detail->quantity,
+            'discount' => (float) $detail->discount,
+            'tax_rate' => (float) ($detail->product?->effectiveTaxRate() ?? $proforma->tax_rate),
+        ])->values();
+
+        $beforeOrderDiscount = $proforma->details->sum(
+            fn (ProformaDetail $detail): float => (float) $detail->price
+                * (float) $detail->quantity
+                * (1 - ((float) $detail->discount / 100))
+        );
+        $initialOrderDiscountPct = $beforeOrderDiscount > 0
+            ? round(max(0, min(100, (1 - ((float) $proforma->subtotal / $beforeOrderDiscount)) * 100)), 4)
+            : 0;
+        $expiryDays = max(1, min(365, now()->startOfDay()->diffInDays($proforma->expiry_date ?? now()->addDays(15), false)));
+        $clients = Client::orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
+        $defaultTaxRate = $this->defaultTaxRate();
+
+        return view('proformas.pos', compact(
+            'products',
+            'clients',
+            'categories',
+            'defaultTaxRate',
+            'proforma',
+            'initialItems',
+            'initialOrderDiscountPct',
+            'expiryDays',
+        ));
     }
 
     public function products(Request $request)
@@ -282,6 +355,106 @@ class ProformaController extends Controller
         $response = redirect()->route('proformas.show', $proforma->id)
             ->with('success', 'Proforma guardada correctamente.');
 
+        if ($stockWarnings !== []) {
+            $response->with('warning', 'Advertencia de stock: '.implode(' ', $stockWarnings));
+        }
+
+        return $response;
+    }
+
+    public function update(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'client_id' => 'nullable|exists:clients,id',
+            'items' => 'required|json',
+            'notes' => 'nullable|string|max:500',
+            'expiry_days' => 'nullable|integer|min:1|max:365',
+            'order_discount_pct' => 'nullable|numeric|min:0|max:100',
+        ]);
+
+        $items = json_decode($validated['items'], true);
+        if (! is_array($items) || $items === []) {
+            return back()->withErrors(['items' => 'La proforma está vacía.'])->withInput();
+        }
+
+        $stockWarnings = $this->stockWarnings($items);
+        $defaultTaxRate = $this->defaultTaxRate();
+
+        $proforma = DB::transaction(function () use ($id, $validated, $items, $defaultTaxRate): Proforma {
+            $proforma = Proforma::query()->lockForUpdate()->find($id);
+            if (! $proforma) {
+                abort(404);
+            }
+            if ($proforma->sale_id) {
+                abort(409, 'Esta proforma ya fue convertida en venta y no puede modificarse.');
+            }
+
+            $client = ! empty($validated['client_id']) ? Client::find($validated['client_id']) : null;
+            $resolvedPriceList = $this->pricing->resolvePriceList($client?->price_list_id);
+            $orderDiscountPct = (float) ($validated['order_discount_pct'] ?? 0);
+            $linesTotal = 0.0;
+            $taxTotal = 0.0;
+
+            $proforma->details()->delete();
+
+            foreach ($items as $item) {
+                $quantity = (float) ($item['quantity'] ?? 0);
+                if ($quantity <= 0) {
+                    abort(422, 'Todas las cantidades deben ser mayores que cero.');
+                }
+                $discountPct = min(100, max(0, (float) ($item['discount'] ?? 0)));
+                $product = Product::query()
+                    ->with(['tax', 'baseUnit', 'unitConversions.unit'])
+                    ->findOrFail($item['product_id'] ?? null);
+                $line = $this->posCatalog->resolveSaleLine(
+                    $product,
+                    $quantity,
+                    isset($item['unit_id']) ? (int) $item['unit_id'] : null,
+                    $resolvedPriceList?->id,
+                );
+                $subtotal = $line['price'] * $quantity * (1 - $discountPct / 100) * (1 - $orderDiscountPct / 100);
+                $rate = $product->effectiveTaxRate() ?? $defaultTaxRate;
+
+                ProformaDetail::create([
+                    'proforma_id' => $proforma->id,
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'unit_id' => $line['unit_id'],
+                    'unit_factor' => $line['unit_factor'],
+                    'base_quantity' => $line['base_quantity'],
+                    'price_list_item_id' => $line['price_list_item_id'],
+                    'price_min_quantity' => $line['price_min_quantity'],
+                    'quantity' => $quantity,
+                    'price' => $line['price'],
+                    'discount' => $discountPct,
+                    'subtotal' => $subtotal,
+                ]);
+
+                $linesTotal += $subtotal;
+                $taxTotal += $subtotal * $rate;
+            }
+
+            $proforma->update([
+                'client_id' => $client?->id,
+                'price_list_id' => $resolvedPriceList?->id,
+                'price_list_name' => $resolvedPriceList?->name,
+                'client_name' => $client?->name ?? 'Cliente General',
+                'client_phone' => $client?->phone,
+                'client_email' => $client?->email,
+                'client_address' => $client?->address,
+                'expiry_date' => now()->addDays((int) ($validated['expiry_days'] ?? 15))->toDateString(),
+                'notes' => $validated['notes'] ?? null,
+                'tax_rate' => $linesTotal > 0 ? round($taxTotal / $linesTotal, 4) : $defaultTaxRate,
+                'subtotal' => round($linesTotal, 2),
+                'tax_total' => round($taxTotal, 2),
+                'total' => round($linesTotal + $taxTotal, 2),
+            ]);
+
+            return $proforma;
+        });
+
+        $response = redirect()->route('proformas.show', $proforma->id)
+            ->with('success', 'Proforma actualizada correctamente.');
         if ($stockWarnings !== []) {
             $response->with('warning', 'Advertencia de stock: '.implode(' ', $stockWarnings));
         }

@@ -145,6 +145,29 @@ test('creating a repair on credit from the repair form loads it in the credit mo
         ->assertSeeText($order->order_number);
 });
 
+test('repair credit requires an eligible client and available limit', function () {
+    $admin = creditModuleAdmin();
+    $client = creditClient(['credit_limit' => 50]);
+    $payload = [
+        'client_name' => $client->name,
+        'device_brand' => 'Samsung',
+        'device_model' => 'A54',
+        'problem_description' => 'Pantalla',
+        'status' => 'received',
+        'priority' => 'normal',
+        'received_date' => now()->toDateString(),
+        'labor_cost' => 120,
+        'payment_type' => 'credit',
+        'due_date' => now()->addDays(15)->toDateString(),
+    ];
+
+    $this->actingAs($admin)->post(route('reparaciones.store'), $payload)
+        ->assertSessionHasErrors('client_id');
+    $this->actingAs($admin)->post(route('reparaciones.store'), $payload + ['client_id' => $client->id])
+        ->assertSessionHasErrors('payment_type');
+    expect(RepairOrder::query()->count())->toBe(0);
+});
+
 test('an abono from the credit module reduces a repair credit even when the client owes no invoices', function () {
     $admin = creditModuleAdmin();
     $client = creditClient();
@@ -164,6 +187,69 @@ test('an abono from the credit module reduces a repair credit even when the clie
     $payment = RepairCreditPayment::query()->firstOrFail();
     expect($payment->payment_type)->toBe('transfer')->and($payment->user_id)->toBe($admin->id);
     expect(Sale::query()->where('repair_order_id', $repair->id)->count())->toBe(1);
+});
+
+test('a repair credit accepts multiple partial payments until its balance is zero', function () {
+    $admin = creditModuleAdmin();
+    $client = creditClient();
+    $repair = creditRepair($admin, $client);
+
+    foreach ([25, 25, 30] as $amount) {
+        $this->actingAs($admin)->post(route('creditos.store'), abonoPayload($client, ['amount' => $amount, 'apply_to' => 'repair:'.$repair->id]))
+            ->assertRedirect()
+            ->assertSessionHasNoErrors()
+            ->assertSessionMissing('error');
+    }
+
+    expect($repair->fresh()->balance())->toBe(0.0)
+        ->and($repair->fresh()->payment_status)->toBe('paid')
+        ->and(RepairCreditPayment::where('repair_order_id', $repair->id)->count())->toBe(3);
+});
+
+test('the repair page payment form does not duplicate a submitted payment', function () {
+    $admin = creditModuleAdmin();
+    $client = creditClient();
+    $repair = creditRepair($admin, $client);
+    $payload = [
+        'amount' => 80,
+        'payment_type' => 'transfer',
+        'request_token' => (string) Str::uuid(),
+    ];
+
+    $this->actingAs($admin)->post(route('reparaciones.credit-payments.store', $repair), $payload)->assertRedirect();
+    $this->actingAs($admin)->post(route('reparaciones.credit-payments.store', $repair), $payload)->assertRedirect();
+
+    expect($repair->fresh()->balance())->toBe(0.0)
+        ->and(RepairCreditPayment::where('repair_order_id', $repair->id)->count())->toBe(1)
+        ->and(Sale::where('repair_order_id', $repair->id)->count())->toBe(1);
+});
+
+test('editing a paid credit repair keeps its payments and paid status', function () {
+    $admin = creditModuleAdmin();
+    $client = creditClient();
+    $repair = creditRepair($admin, $client);
+    $this->actingAs($admin)->post(route('creditos.store'), abonoPayload($client, [
+        'amount' => 80,
+        'apply_to' => 'repair:'.$repair->id,
+    ]))->assertRedirect();
+
+    $this->actingAs($admin)->put(route('reparaciones.update', $repair), [
+        'client_id' => $client->id,
+        'client_name' => $client->name,
+        'device_brand' => $repair->device_brand,
+        'device_model' => $repair->device_model,
+        'problem_description' => $repair->problem_description,
+        'status' => 'delivered',
+        'priority' => 'normal',
+        'received_date' => $repair->received_date->toDateString(),
+        'due_date' => $repair->due_date->toDateString(),
+        'labor_cost' => 100,
+        'advance_payment' => 20,
+        'payment_type' => 'credit',
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    expect($repair->fresh()->balance())->toBe(0.0)
+        ->and($repair->fresh()->payment_status)->toBe('paid');
 });
 
 test('paying the full balance closes the repair credit and removes it from the credit list', function () {

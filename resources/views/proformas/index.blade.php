@@ -92,6 +92,12 @@
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                 <span>Ver</span>
                             </a>
+                            @if(! $proforma->sale_id && (auth()->user()?->isAdmin() || auth()->user()?->hasPermission('proformas.edit')))
+                                <a href="{{ route('proformas.edit', $proforma->id) }}" class="row-action row-action--view" title="Editar proforma">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 3.487a2.1 2.1 0 0 1 2.97 2.97L9.68 16.61l-4.19.96.96-4.19L16.862 3.487ZM4 20h16"/></svg>
+                                    <span>Editar</span>
+                                </a>
+                            @endif
                             <a href="{{ route('proformas.pdf', $proforma->id) }}" target="print-window" class="row-action row-action--pdf" title="PDF">
                                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                                 <span>PDF</span>

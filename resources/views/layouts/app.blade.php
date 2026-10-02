@@ -786,15 +786,34 @@
     @include('partials.lightbox')
 
     <script>
-        // Se entrega inline para proteger también formularios que generan campos numéricos
-        // dinámicamente, aunque el paquete Vite local todavía no se haya recompilado.
+        // Protege también los campos creados dinámicamente: la rueda debe desplazar
+        // el formulario, nunca cambiar una cantidad, un precio o una opción enfocada.
         document.addEventListener('wheel', (event) => {
             const field = event.target;
 
-            if (field instanceof HTMLInputElement && field.type === 'number' && document.activeElement === field) {
-                field.blur();
+            if (!(field instanceof HTMLInputElement && field.type === 'number')
+                && !(field instanceof HTMLSelectElement)) return;
+            if (document.activeElement !== field) return;
+
+            event.preventDefault();
+
+            const multiplier = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16
+                : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? window.innerHeight : 1;
+            const deltaX = event.deltaX * multiplier;
+            const deltaY = event.deltaY * multiplier;
+            let scroller = field.parentElement;
+
+            while (scroller && scroller !== document.body) {
+                const style = window.getComputedStyle(scroller);
+                if (/(auto|scroll)/.test(style.overflowY) && scroller.scrollHeight > scroller.clientHeight) {
+                    scroller.scrollBy({ left: deltaX, top: deltaY });
+                    return;
+                }
+                scroller = scroller.parentElement;
             }
-        }, { capture: true, passive: true });
+
+            window.scrollBy({ left: deltaX, top: deltaY });
+        }, { capture: true, passive: false });
 
         // La app se desplaza dentro de <main>; el documento nunca debe moverse. Si un campo oculto
         // (p. ej. un input de archivo) recibe el foco, el navegador puede desplazar el <html> y dejar

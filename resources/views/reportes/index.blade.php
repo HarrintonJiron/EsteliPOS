@@ -38,6 +38,9 @@
             <x-ui.export-bar
                 csv-route="reportes.export"
                 :csv-query="request()->except('page')"
+                pdf-route="reportes.pdf"
+                :pdf-query="request()->except('page')"
+                :print="false"
             />
         </x-slot:actions>
     </x-ui.command-hero>
@@ -192,11 +195,20 @@
         @endif
     </form>
 
-    @if(! empty($summary))
-        @include('reportes._summary')
-    @endif
+    <section class="report-print-area" aria-label="Información del reporte">
+        <header class="report-print-header hidden">
+            <h1>{{ $companyProfile['company_name'] ?? config('app.name', 'EsteliPOS') }}</h1>
+            <h2>{{ collect($reportTabs)->firstWhere('active', true)['label'] ?? 'Reporte' }}</h2>
+            <p>Período: {{ $periodLabel }}</p>
+            <p>Generado: {{ now()->format('d/m/Y H:i') }}</p>
+        </header>
 
-    @include('reportes._table')
+        @if(! empty($summary))
+            @include('reportes._summary')
+        @endif
+
+        @include('reportes._table')
+    </section>
 
 </div>
 

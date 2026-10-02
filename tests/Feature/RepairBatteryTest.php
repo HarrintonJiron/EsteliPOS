@@ -37,6 +37,11 @@ function batteryPayload(array $extra = []): array
 test('the battery percentage entered when receiving a repair is saved and printed everywhere', function () {
     $admin = batteryAdmin();
 
+    $this->actingAs($admin)->get(route('reparaciones.create'))
+        ->assertOk()
+        ->assertSee('Batería al recibir (%)')
+        ->assertSee('name="device_battery"', false);
+
     $this->actingAs($admin)->post(route('reparaciones.store'), batteryPayload(['device_battery' => 87]))
         ->assertSessionHasNoErrors();
 

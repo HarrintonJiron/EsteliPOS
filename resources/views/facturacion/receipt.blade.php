@@ -203,6 +203,11 @@
             @if($sale->billing_phone)<div class="info-row"><strong>TEL.</strong><span>{{ $sale->billing_phone }}</span></div>@endif
         </section>
 
+        @if(filled($sale->notes))
+            <div class="separator"></div>
+            <section aria-label="Descripción adicional" style="font-size: 9.5pt; overflow-wrap: anywhere; white-space: pre-wrap;"><strong>DESCRIPCIÓN / NOTAS</strong><br>{{ $sale->notes }}</section>
+        @endif
+
         <div class="separator"></div>
 
         <section aria-label="Productos">

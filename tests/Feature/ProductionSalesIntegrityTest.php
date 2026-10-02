@@ -333,3 +333,29 @@ test('fractional tax rounding keeps the sale details and accounting entry balanc
         ->and((float) $entry->total_debit)->toBe(46.58)
         ->and((float) $entry->total_credit)->toBe(46.58);
 });
+
+test('exact cash payment uses the authoritative taxed total and never returns tax as change', function () {
+    $user = productionSalesUser();
+    $product = productionSalesProduct(price: 40.50);
+    Tax::query()->update(['is_default' => false]);
+    Tax::query()->create([
+        'code' => 'IVA-EXACT-QA',
+        'name' => 'IVA 15% exacto',
+        'rate' => 0.15,
+        'is_default' => true,
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($user)->post(route('facturacion.pos-store'), posPayload($product, [
+        'amount_received' => 52.66,
+        'payment_exact' => true,
+    ]))->assertRedirect()->assertSessionHas('changeAmount', 0.0);
+
+    $sale = Sale::query()->latest('id')->firstOrFail();
+
+    expect((float) $sale->subtotal)->toBe(40.5)
+        ->and((float) $sale->tax_total)->toBe(6.08)
+        ->and((float) $sale->total)->toBe(46.58)
+        ->and((float) $sale->amount_paid)->toBe(46.58)
+        ->and((float) $sale->change_amount)->toBe(0.0);
+});

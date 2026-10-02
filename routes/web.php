@@ -436,6 +436,10 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/proformas/productos', [ProformaController::class, 'products'])->name('proformas.products');
             Route::post('/proformas', [ProformaController::class, 'store'])->name('proformas.store');
         });
+        Route::middleware('permission:proformas.edit')->group(function () {
+            Route::get('/proformas/{id}/editar', [ProformaController::class, 'edit'])->whereNumber('id')->name('proformas.edit');
+            Route::put('/proformas/{id}', [ProformaController::class, 'update'])->whereNumber('id')->name('proformas.update');
+        });
         Route::patch('/proformas/{id}/status', [ProformaController::class, 'updateStatus'])->whereNumber('id')->middleware('permission:proformas.edit')->name('proformas.status');
         Route::delete('/proformas/{id}', [ProformaController::class, 'destroy'])->whereNumber('id')->middleware('permission:proformas.delete')->name('proformas.destroy');
         Route::post('/proformas/{id}/convert', [ProformaController::class, 'convertToSale'])->whereNumber('id')->middleware('permission:proformas.convert')->name('proformas.convert');
@@ -526,6 +530,7 @@ Route::middleware(['auth'])->group(function () {
     // Reportes solo para admin
     Route::middleware(['module:reportes', 'permission:reportes.view'])->group(function () {
         Route::get('/reportes', [ReporteController::class, 'index'])->name('reportes.index');
+        Route::get('/reportes/pdf', [ReporteController::class, 'pdf'])->middleware('permission:reportes.export')->name('reportes.pdf');
         Route::get('/reportes/export', [ReporteController::class, 'exportExcel'])->middleware('permission:reportes.export')->name('reportes.export');
     });
 

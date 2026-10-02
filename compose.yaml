@@ -14,14 +14,13 @@ services:
         environment:
             WWWUSER: '${WWWUSER}'
             LARAVEL_SAIL: 1
-            # The application lives on a Windows bind mount. Without CLI
-            # OPcache, Laravel recompiles and stats hundreds of PHP files on
-            # every request, which makes even /up take several seconds.
+            # Keep CLI OPcache for performance while detecting source edits
+            # in the bind-mounted development checkout.
             SUPERVISOR_PHP_COMMAND: >-
                 /bin/bash -lc "cd /var/www/html/public && exec /usr/bin/php
                 -d variables_order=EGPCS
                 -d opcache.enable_cli=1
-                -d opcache.validate_timestamps=0
+                -d opcache.validate_timestamps=1
                 -S 0.0.0.0:80
                 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php"
             XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'

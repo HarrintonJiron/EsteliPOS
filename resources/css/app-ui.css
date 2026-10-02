@@ -109,6 +109,10 @@ main textarea:focus,
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
 }
 
+.input-field.money-prefix-input {
+    padding-left: 2.75rem !important;
+}
+
 main label,
 .form-label {
     display: block;
@@ -333,14 +337,26 @@ main label,
 }
 
 /* ── Tables ── */
+main table {
+    display: inline-table;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100%;
+    table-layout: auto;
+}
+
 .table-agro {
-    width: 100%;
+    display: inline-table;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100%;
+    table-layout: auto;
     border-collapse: separate;
     border-spacing: 0;
 }
 
 .table-agro thead th {
-    padding: 0.875rem 1.25rem;
+    padding: 0.7rem 0.75rem;
     text-align: left;
     font-size: 0.6875rem;
     font-weight: 600;
@@ -355,7 +371,7 @@ main label,
 .table-agro thead th:first-child { border-radius: 0; }
 
 .table-agro tbody td {
-    padding: 0.875rem 1.25rem;
+    padding: 0.65rem 0.75rem;
     font-size: 0.875rem;
     color: #334155;
     border-bottom: 1px solid #f1f5f9;
@@ -710,9 +726,10 @@ main table.ui-data-grid,
 main table.ui-data-grid.table-agro,
 main table.ui-data-grid.min-w-full,
 .table-agro.ui-data-grid {
-    width: 100% !important;
-    min-width: 100%;
-    max-width: none;
+    display: inline-table;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100%;
     table-layout: auto;
 }
 
@@ -721,8 +738,12 @@ main table.ui-data-grid tbody td {
     width: auto;
     padding-left: 0.55rem;
     padding-right: 0.55rem;
-    white-space: nowrap;
+    white-space: normal;
     vertical-align: middle;
+}
+
+main table.ui-data-grid :where(th, td):not(.table-col-compact) {
+    max-width: 24rem;
 }
 
 main table.ui-data-grid th:last-child,
@@ -738,10 +759,20 @@ main table.ui-data-grid .table-actions {
 main input.ui-data-grid-filter[type='search'],
 main input.ui-data-grid-filter[type='date'],
 main input.ui-data-grid-filter[type='text'] {
-    width: 100%;
+    width: 10rem !important;
+    inline-size: 10rem !important;
     min-width: 0;
+    max-width: 10rem !important;
+    max-inline-size: 10rem !important;
     padding: 0.35rem 0.45rem;
     font-size: 0.75rem;
+}
+
+main .ui-data-grid-filters th.table-col-compact .ui-data-grid-filter {
+    width: 5.5rem !important;
+    inline-size: 5.5rem !important;
+    max-width: 5.5rem !important;
+    max-inline-size: 5.5rem !important;
 }
 
 .ui-data-grid-filter:focus {
@@ -877,20 +908,26 @@ main a.bg-indigo-600:hover {
     transform: translateY(-1px);
 }
 
-main table.min-w-full:not(.table-agro) {
-    width: 100%;
+main table.min-w-full:not(.table-agro),
+main table.w-full:not(.table-agro) {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100%;
+    table-layout: auto;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.875rem;
 }
 
-main table.min-w-full:not(.table-agro) thead {
+main table.min-w-full:not(.table-agro) thead,
+main table.w-full:not(.table-agro) thead {
     background: linear-gradient(180deg, #1e293b, #0f172a);
     color: #f8fafc;
 }
 
-main table.min-w-full:not(.table-agro) thead th {
-    padding: 0.875rem 1.25rem;
+main table.min-w-full:not(.table-agro) thead th,
+main table.w-full:not(.table-agro) thead th {
+    padding: 0.7rem 0.75rem;
     text-align: left;
     font-size: 0.6875rem;
     font-weight: 600;
@@ -910,15 +947,60 @@ main table.min-w-full:not(.table-agro) thead th {
     color: var(--ui-text) !important;
 }
 
-main table.min-w-full:not(.table-agro) tbody td {
-    padding: 0.875rem 1.25rem;
+main table.min-w-full:not(.table-agro) tbody td,
+main table.w-full:not(.table-agro) tbody td {
+    padding: 0.65rem 0.75rem;
     color: #334155;
     border-bottom: 1px solid #f1f5f9;
     vertical-align: middle;
 }
 
-main table.min-w-full:not(.table-agro) tbody tr:hover {
+main table.min-w-full:not(.table-agro) tbody tr:hover,
+main table.w-full:not(.table-agro) tbody tr:hover {
     background: #f8fafc;
+}
+
+/* Densidad común: las cifras, estados y acciones usan solamente el ancho
+   de su contenido; las columnas descriptivas reciben el espacio flexible. */
+main table :where(th, td) {
+    box-sizing: border-box;
+    height: auto;
+    vertical-align: middle;
+}
+
+main table:has(thead):has(tbody) :where(th, td) {
+    padding-inline: clamp(0.4rem, 0.8vw, 0.75rem) !important;
+}
+
+main table :where(th.text-right, td.text-right, th.text-center, td.text-center) {
+    width: 1px !important;
+    white-space: nowrap !important;
+}
+
+main table .table-col-compact {
+    width: 1% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+}
+
+main table td:not(.text-right):not(.text-center) {
+    width: auto;
+    max-width: 28rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+main table td:has(.table-actions),
+main table td:last-child:has(a, button) {
+    width: 1%;
+    max-width: none;
+    white-space: nowrap;
+}
+
+main .card:has(table),
+main .data-card-body:has(table) {
+    overflow-x: auto;
 }
 
 main .divide-y.divide-gray-200 > tr:hover,
@@ -1180,6 +1262,30 @@ main nav[role="navigation"] span.relative.inline-flex {
     transform: translateY(-50%);
     font-size: 0.65rem;
     color: #94a3b8;
+}
+
+/* El catálogo usa el ancho real de cada dato y solo desplaza horizontalmente
+   cuando el contenido completo ya no cabe en la pantalla. */
+.inventory-content-table {
+    width: max-content;
+    min-width: 100%;
+    table-layout: auto;
+    border-collapse: collapse;
+}
+
+.inventory-content-table th,
+.inventory-content-table td {
+    width: 1%;
+    height: auto;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.inventory-content-table th:first-child,
+.inventory-content-table td:first-child {
+    width: auto;
+    min-width: 14rem;
+    white-space: normal;
 }
 
 /* ── Responsive system safeguards ── */
@@ -1513,6 +1619,87 @@ main > div,
 @media print {
     .ui-toast-container, .no-print { display: none !important; }
     .data-card { box-shadow: none !important; break-inside: avoid; }
+
+    body:has(.report-print-area) * {
+        visibility: hidden !important;
+    }
+
+    body:has(.report-print-area) .report-print-area,
+    body:has(.report-print-area) .report-print-area * {
+        visibility: visible !important;
+    }
+
+    body:has(.report-print-area) .report-print-area {
+        position: absolute;
+        inset: 0 auto auto 0;
+        display: block !important;
+        width: 100%;
+        color: #111827;
+        background: #fff;
+    }
+
+    body:has(.report-print-area) .report-print-header {
+        display: block !important;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #0f172a;
+    }
+
+    .report-print-header h1 {
+        margin: 0;
+        font-size: 18pt;
+        font-weight: 700;
+    }
+
+    .report-print-header h2 {
+        margin: 0.2rem 0;
+        font-size: 13pt;
+        font-weight: 600;
+    }
+
+    .report-print-header p {
+        margin: 0.1rem 0;
+        font-size: 9pt;
+    }
+
+    .report-print-area a {
+        color: inherit !important;
+        text-decoration: none !important;
+    }
+
+    .report-print-area button,
+    .report-print-area input,
+    .report-print-area select,
+    .report-print-area textarea,
+    .report-print-area nav,
+    .report-print-area .data-card-footer {
+        display: none !important;
+    }
+
+    .report-print-area .data-card {
+        border: 0 !important;
+    }
+
+    .report-print-area .data-card-body {
+        overflow: visible !important;
+    }
+
+    .report-print-area table {
+        width: 100% !important;
+        font-size: 8pt !important;
+    }
+
+    .report-print-area thead {
+        display: table-header-group;
+    }
+
+    .report-print-area tr {
+        break-inside: avoid;
+    }
+}
+
+@page {
+    margin: 12mm;
 }
 
 /* ── Analítica gerencial ── */
@@ -2760,7 +2947,7 @@ main > div,
     .app-header { min-height: 3.5rem; }
     .btn-primary, .btn-outline, .btn-ghost, button, select { touch-action: manipulation; }
     .input-field, .select-field, textarea { font-size: 16px; }
-    .table-agro { min-width: 42rem; }
+    .table-agro { min-width: 0; }
 }
 
 @media (max-width: 767px) {

@@ -18,6 +18,7 @@ class Sale extends Model
         'branch_id',
         'caja_session_id',
         'repair_order_id',
+        'repair_credit_payment_id',
         'warehouse_id',
         'price_list_id',
         'price_list_name',

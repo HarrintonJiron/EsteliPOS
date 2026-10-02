@@ -617,7 +617,7 @@
 
                     <div class="space-y-2">
                         <label class="text-sm font-semibold text-slate-700">Notas (opcional)</label>
-                        <textarea id="saleNotes" rows="2" placeholder="Observaciones..." class="input-field resize-none"></textarea>
+                        <textarea id="saleNotes" rows="2" placeholder="Descripción u observaciones opcionales..." class="input-field resize-none"></textarea>
                     </div>
                 </div>
 
@@ -628,6 +628,7 @@
                 <input type="hidden" name="trade_ins" id="tradeInsInput" value="[]">
                 <input type="hidden" name="notes" id="notesInput">
                 <input type="hidden" name="amount_received" id="amountReceivedInput">
+                <input type="hidden" name="payment_exact" id="paymentExactInput" value="0">
                 <input type="hidden" name="exchange_rate_id" id="exchangeRateIdInput">
                 <input type="hidden" name="reference_number" id="referenceNumberInput">
                 <input type="hidden" name="order_discount_pct" id="orderDiscountPctInput" value="0">
@@ -1674,6 +1675,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (selectedItemIndex >= 0 && ticket[selectedItemIndex]) {
             document.getElementById('posQuantityTools').classList.toggle('hidden', !quantityEditorOpen);
+            document.getElementById('selectedItemBar').classList.toggle('hidden', !quantityEditorOpen);
             document.getElementById('selectedItemName').textContent = ticket[selectedItemIndex].name;
             document.getElementById('selectedItemQty').value = padBuffer || ticket[selectedItemIndex].quantity;
         }
@@ -1685,13 +1687,14 @@ document.addEventListener('DOMContentLoaded', function() {
         padBuffer = String(ticket[idx].quantity);
         quantityEditorOpen = true;
         replaceQuantityOnNextInput = true;
+        if (mobilePosMedia.matches) setMobilePosView('ticket');
         renderTicket();
         expandPosPad();
         focusQuantityInput();
     };
 
     window.addProductToTicket = function(productId, qty = 1, unitId = null, openQuantityEditor = false) {
-        const shouldOpenQuantityEditor = openQuantityEditor && !mobilePosMedia.matches;
+        const shouldOpenQuantityEditor = openQuantityEditor;
         const product = products.find(p => p.id == productId);
         if (!product) return;
 
@@ -1954,6 +1957,11 @@ document.addEventListener('DOMContentLoaded', function() {
             hideQuantityEditor();
         }
     });
+    quantityInput?.addEventListener('blur', () => {
+        if (quantityEditorOpen && selectedItemIndex >= 0 && padBuffer !== '') {
+            applyTicketQuantity(selectedItemIndex, padBuffer);
+        }
+    });
 
     function renderProducts(filter = '') {
         const grid = document.querySelector('#productsGrid > div');
@@ -2151,7 +2159,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const q = e.target.value.trim();
             const exact = products.find(p => p.code && p.code.toLowerCase() === q.toLowerCase());
             if (exact) {
-                addProductToTicket(exact.id);
+                addProductToTicket(exact.id, 1, null, true);
                 e.target.value = '';
                 renderProducts();
             }
@@ -2263,6 +2271,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const names = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', credit: 'Crédito' };
         document.getElementById('paymentMethodDisplay').textContent = 'Método: ' + names[currentPaymentMethod];
         document.getElementById('paymentModal').classList.remove('hidden');
+        document.getElementById('paymentExactInput').value = '0';
+        document.getElementById('amountReceived').value = '';
+        document.getElementById('amountReceivedInput').value = '';
+        document.getElementById('changeDisplay').textContent = formatMoney(0);
 
         if (currentPaymentMethod === 'cash') {
             document.getElementById('amountReceived').focus();
@@ -2275,14 +2287,19 @@ document.addEventListener('DOMContentLoaded', function() {
         input.dispatchEvent(new Event('input'));
     };
 
+    let settingExactAmount = false;
     window.setExactAmount = function() {
+        settingExactAmount = true;
+        document.getElementById('paymentExactInput').value = '1';
         document.getElementById('amountReceived').value = getAmountDue().toFixed(2);
         document.getElementById('amountReceived').dispatchEvent(new Event('input'));
+        settingExactAmount = false;
     };
 
     document.getElementById('amountReceived').addEventListener('input', (e) => {
         const amount = parseFloat(e.target.value) || 0;
-        const change = amount - getAmountDue();
+        if (!settingExactAmount) document.getElementById('paymentExactInput').value = '0';
+        const change = Math.max(0, roundMoney(amount - getAmountDue()));
         document.getElementById('changeDisplay').textContent = formatMoney(change);
         document.getElementById('amountReceivedInput').value = amount;
     });

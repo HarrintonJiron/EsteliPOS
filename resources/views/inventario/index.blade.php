@@ -101,10 +101,10 @@
                     <option value="discrepancy" @selected(request('stock_status') == 'discrepancy')>Discrepancia</option>
                 </select>
                 <select name="status" class="catalog-filter select-field py-1.5 text-sm">
-                    <option value="">Solo activos</option>
+                    <option value="">Todos los estados</option>
+                    <option value="active" @selected(request('status') === 'active')>Activos</option>
                     <option value="inactive" @selected(request('status') === 'inactive')>Inactivos</option>
                     <option value="discontinued" @selected(request('status') === 'discontinued')>Descontinuados</option>
-                    <option value="all" @selected(request('status') === 'all')>Todos los estados</option>
                 </select>
                 <select name="period" class="catalog-filter select-field py-1.5 text-sm">
                     @foreach([7, 30, 60, 90] as $d)

@@ -58,7 +58,7 @@
         <table class="min-w-full table-agro">
             <thead>
                 <tr>
-                    <th># Factura</th>
+                    <th class="table-col-compact"># Factura</th>
                     <th>Cliente</th>
                     <th>Fecha</th>
                     <th>Método</th>
@@ -70,10 +70,10 @@
             <tbody>
                 @forelse($sales as $sale)
                 <tr>
-                    <td class="font-semibold text-indigo-600">
-                        {{ $sale->invoice_number ?? str_pad($sale->id, 6, '0', STR_PAD_LEFT) }}
+                    <td class="table-col-compact font-semibold text-indigo-600">
+                        <span class="whitespace-nowrap">{{ $sale->invoice_number ?? str_pad($sale->id, 6, '0', STR_PAD_LEFT) }}</span>
                         @if($sale->repair_order_id)
-                            <span class="ml-1 inline-flex rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-violet-700">Taller de reparación</span>
+                            <span class="mt-1 block w-fit rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-violet-700">Taller</span>
                         @endif
                     </td>
                     <td>{{ $sale->client->name ?? $sale->billing_name ?? 'N/A' }}</td>

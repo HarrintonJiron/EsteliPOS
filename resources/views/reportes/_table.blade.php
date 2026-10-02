@@ -349,7 +349,7 @@
     </div>
 
     @if($data->hasPages())
-        <div class="data-card-footer">
+        <div class="data-card-footer no-print">
             {{ $data->appends(request()->except('page'))->links() }}
         </div>
     @endif

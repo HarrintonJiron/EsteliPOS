@@ -77,8 +77,6 @@ class InventarioController extends Controller
 
         if ($request->filled('status') && $request->string('status')->toString() !== 'all') {
             $query->where('status', $request->status);
-        } elseif (! $request->filled('status')) {
-            $query->where('status', 'active');
         }
 
         if ($request->filled('location')) {

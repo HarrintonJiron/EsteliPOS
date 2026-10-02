@@ -42,7 +42,7 @@ class RepairPaymentService
             'request_token' => $requestToken,
         ]);
 
-        $this->recordCollection($order, $amount, $method, $user);
+        $this->recordCollection($order, $payment, $method, $user);
         $order->syncPaymentStatus();
 
         return $payment;
@@ -54,8 +54,9 @@ class RepairPaymentService
      *
      * @throws \RuntimeException si es efectivo y no hay caja abierta
      */
-    public function recordCollection(RepairOrder $order, float $amount, string $paymentType, ?User $user = null): void
+    public function recordCollection(RepairOrder $order, RepairCreditPayment $payment, string $paymentType, ?User $user = null): void
     {
+        $amount = (float) $payment->amount;
         if ($amount <= 0.00001) {
             return;
         }
@@ -100,6 +101,7 @@ class RepairPaymentService
             'branch_id' => $cashSession?->branch_id ?? $user?->branch_id,
             'caja_session_id' => $cashSession?->id,
             'repair_order_id' => $order->id,
+            'repair_credit_payment_id' => $payment->id,
             'billing_name' => $order->client_name,
             'billing_phone' => $order->client_phone,
             'date' => now(),

@@ -129,7 +129,7 @@ class RepairOrder extends Model
 
     public function workshopInvoice()
     {
-        return $this->hasOne(Sale::class);
+        return $this->hasOne(Sale::class)->whereNull('repair_credit_payment_id');
     }
 
     public function sale()

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('hide_back', true)
 
-@section('title', 'Nueva Proforma')
+@section('title', $proforma ? 'Editar Proforma '.$proforma->proforma_number : 'Nueva Proforma')
 @section('hide-header', 'true')
 @section('main-fluid', true)
 @section('main-class', 'p-0')
@@ -13,6 +13,10 @@
      data-products-url="{{ route('proformas.products') }}"
      data-clients='@json($clients)'
      data-categories='@json($categories)'
+     data-initial-items='@json($initialItems)'
+     data-initial-client-id="{{ $proforma?->client_id }}"
+     data-initial-client-name="{{ $proforma?->client_name ?? 'Sin cliente asignado' }}"
+     data-initial-order-discount="{{ $initialOrderDiscountPct }}"
      data-default-tax-rate="{{ $defaultTaxRate }}">
 
     {{-- COLUMNA IZQUIERDA: ITEMS --}}
@@ -21,7 +25,7 @@
         <div class="px-4 py-2 bg-indigo-700 text-white flex items-center justify-between text-xs shrink-0">
             <div class="flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                <span class="font-semibold">Nueva Proforma / Cotización</span>
+                <span class="font-semibold">{{ $proforma ? 'Editar '.$proforma->proforma_number : 'Nueva Proforma / Cotización' }}</span>
             </div>
             <a href="{{ route('proformas.index') }}" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg">← Volver</a>
         </div>
@@ -71,7 +75,7 @@
             <button type="button" onclick="openSaveModal()"
                 class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
-                Guardar Proforma
+                {{ $proforma ? 'Guardar cambios' : 'Guardar Proforma' }}
             </button>
 
             <button type="button" onclick="clearItems()"
@@ -183,11 +187,12 @@
     <div id="saveModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
         <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
             <div class="p-5 border-b border-slate-200 flex justify-between items-center">
-                <h2 class="text-lg font-bold text-slate-900">Guardar Proforma</h2>
+                <h2 class="text-lg font-bold text-slate-900">{{ $proforma ? 'Guardar cambios' : 'Guardar Proforma' }}</h2>
                 <button type="button" onclick="document.getElementById('saveModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <form id="saveForm" action="{{ route('proformas.store') }}" method="POST">
+            <form id="saveForm" action="{{ $proforma ? route('proformas.update', $proforma->id) : route('proformas.store') }}" method="POST">
                 @csrf
+                @if($proforma) @method('PUT') @endif
                 <div class="p-5 space-y-4">
                     <div class="text-center bg-indigo-50 rounded-xl p-4">
                         <p class="text-sm text-slate-600">Total de la cotización</p>
@@ -196,15 +201,16 @@
 
                     <div>
                         <label class="block text-sm font-semibold text-slate-700 mb-1">Vigencia (días)</label>
-                        <input type="number" name="expiry_days" value="15" min="1" max="365"
+                        <input type="number" name="expiry_days" value="{{ old('expiry_days', $expiryDays) }}" min="1" max="365"
                             class="w-full px-4 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
                         <p class="text-xs text-slate-400 mt-1">La proforma vencerá en estos días a partir de hoy</p>
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-slate-700 mb-1">Notas / Condiciones</label>
-                        <textarea name="notes" id="proformaNotes" rows="3" placeholder="Observaciones, condiciones de pago, tiempo de entrega..."
-                            class="w-full px-4 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:border-indigo-500 resize-none"></textarea>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">Descripción / notas (opcional)</label>
+                        <textarea name="notes" id="proformaNotes" rows="3" placeholder="Descripción adicional, condiciones de pago, tiempo de entrega..."
+                            class="w-full px-4 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:border-indigo-500 resize-none">{{ old('notes', $proforma?->notes) }}</textarea>
+                        <p class="mt-1 text-xs text-slate-400">Se mostrará en el ticket de 80 mm y en el PDF de la proforma.</p>
                     </div>
                 </div>
 
@@ -214,7 +220,7 @@
 
                 <div class="p-4 border-t border-slate-200 space-y-2">
                     <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl">
-                        Guardar Cotización
+                        {{ $proforma ? 'Actualizar Cotización' : 'Guardar Cotización' }}
                     </button>
                     <button type="button" onclick="document.getElementById('saveModal').classList.add('hidden')"
                         class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 rounded-xl text-sm">
@@ -262,12 +268,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }));
     const categories = JSON.parse(app.dataset.categories);
 
-    let items = [];
-    let currentClient = null;
+    let items = JSON.parse(app.dataset.initialItems || '[]');
+    let currentClient = app.dataset.initialClientId ? parseInt(app.dataset.initialClientId, 10) : null;
     let selectedIdx = -1;
     let padBuffer = '';
     let currentCategory = 'all';
-    let orderDiscountPct = 0;
+    let orderDiscountPct = parseFloat(app.dataset.initialOrderDiscount || 0);
 
     function fmt(v) { return 'C$ ' + parseFloat(v || 0).toFixed(2); }
 
@@ -710,6 +716,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // Init
+    document.getElementById('clientDisplay').textContent = app.dataset.initialClientName || 'Sin cliente asignado';
     renderClientsList();
     renderCategoryTabs();
     renderProducts();

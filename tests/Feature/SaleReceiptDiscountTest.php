@@ -49,6 +49,7 @@ test('pos receipt shows item and invoice discounts for the customer', function (
         ]]),
         'amount_received' => 1000,
         'order_discount_pct' => 5,
+        'notes' => 'Entregar con empaque reforzado.',
     ])->assertRedirect()->assertSessionHasNoErrors();
 
     $sale = Sale::query()->with('details')->latest('id')->firstOrFail();
@@ -63,5 +64,7 @@ test('pos receipt shows item and invoice discounts for the customer', function (
         ->assertSee('DESCUENTO')
         ->assertSee('Dto. 10.00%')
         ->assertSee('Ahorraste')
-        ->assertSee('5.00% factura');
+        ->assertSee('5.00% factura')
+        ->assertSee('DESCRIPCIÓN / NOTAS')
+        ->assertSee('Entregar con empaque reforzado.');
 });

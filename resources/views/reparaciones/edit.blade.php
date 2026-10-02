@@ -107,8 +107,8 @@
                             <label class="block text-sm text-slate-600 mb-1">IMEI / Serie</label>
                             <input type="text" name="device_imei" value="{{ old('device_imei', $order->device_imei) }}" class="input-field">
                         </div>
-                        <div>
-                            <label class="block text-sm text-slate-600 mb-1" for="device_battery">Batería (%)</label>
+                        <div @class(['hidden' => $isJewelry])>
+                            <label class="block text-sm text-slate-600 mb-1" for="device_battery">Batería al recibir (%)</label>
                             <input type="number" id="device_battery" name="device_battery" value="{{ old('device_battery', $order->device_battery) }}" min="0" max="100" step="1" inputmode="numeric" class="input-field" placeholder="Ej. 85">
                             @error('device_battery')<p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                         </div>

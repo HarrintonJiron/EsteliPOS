@@ -194,7 +194,7 @@ test('catalog search updates results while typing', function () {
         ->assertDontSee('Destornillador plano');
 });
 
-test('inventory can list inactive products and rows open with double click', function () {
+test('inventory lists inactive products by default but the pos never offers them', function () {
     $admin = inventoryAdmin();
     $category = Category::firstOrCreate(['name' => 'Archivados']);
 
@@ -212,7 +212,8 @@ test('inventory can list inactive products and rows open with double click', fun
     $this->actingAs($admin)
         ->get(route('inventario.index'))
         ->assertOk()
-        ->assertDontSee($inactive->name);
+        ->assertSee($inactive->name)
+        ->assertSee('Inactivo');
 
     $this->actingAs($admin)
         ->get(route('inventario.index', ['status' => 'inactive']))
@@ -220,7 +221,17 @@ test('inventory can list inactive products and rows open with double click', fun
         ->assertSee($inactive->name)
         ->assertSee('Doble clic para abrir el producto')
         ->assertSee("window.location.href='".route('inventario.show', $inactive->id)."'", false)
-        ->assertSee('w-max min-w-full table-auto', false);
+        ->assertSee('inventory-content-table', false);
+
+    $this->actingAs($admin)
+        ->get(route('facturacion.pos'))
+        ->assertOk()
+        ->assertDontSee($inactive->name);
+
+    $this->actingAs($admin)
+        ->getJson(route('facturacion.pos-products', ['search' => $inactive->code]))
+        ->assertOk()
+        ->assertJsonMissing(['id' => $inactive->id]);
 });
 
 test('deleting a product without movements releases its code for reuse', function () {

@@ -520,7 +520,18 @@
             </div>
             @endif
             @if($order->balance() > 0)
-            <form method="POST" action="{{ route('reparaciones.credit-payments.store',$order) }}" class="space-y-2">@csrf<input class="input-field" type="number" name="amount" min="0.01" max="{{ $order->balance() }}" step="0.01" required placeholder="Monto del abono"><select name="payment_type" class="select-field"><option value="cash">Efectivo</option><option value="transfer">Transferencia</option><option value="check">Cheque</option><option value="other">Otro</option></select><input class="input-field" name="reference_number" placeholder="Referencia (opcional)"><button class="btn-primary w-full">Registrar abono</button></form>
+            <form method="POST" action="{{ route('reparaciones.credit-payments.store', $order) }}" class="space-y-2">
+                @csrf
+                <input type="hidden" name="request_token" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
+                <label for="repairCreditAmount" class="block text-xs font-semibold text-slate-600">Monto a pagar</label>
+                <div class="flex gap-2">
+                    <input id="repairCreditAmount" class="input-field min-w-0 flex-1" type="number" name="amount" min="0.01" max="{{ $order->balance() }}" step="0.01" required placeholder="Abono parcial o saldo total">
+                    <button type="button" class="btn-outline shrink-0" onclick="document.getElementById('repairCreditAmount').value = this.dataset.balance" data-balance="{{ number_format($order->balance(), 2, '.', '') }}">Pagar total</button>
+                </div>
+                <select name="payment_type" class="select-field"><option value="cash">Efectivo</option><option value="transfer">Transferencia</option><option value="check">Cheque</option><option value="other">Otro</option></select>
+                <input class="input-field" name="reference_number" placeholder="Referencia (opcional)">
+                <button class="btn-primary w-full">Registrar pago</button>
+            </form>
             @endif
             @if($order->creditPayments->isNotEmpty())<div class="border-t pt-2 text-xs space-y-1">@foreach($order->creditPayments as $payment)<div class="flex justify-between"><span>{{ $payment->payment_date->format('d/m/Y') }}</span><span><strong>@money($payment->amount,2)</strong> <a class="ml-1 text-slate-400 hover:text-slate-700" target="print-window" href="{{ route('creditos.repair-receipt', $payment->id) }}">Recibo</a></span></div>@endforeach</div>@endif</div>
             @endif

@@ -357,6 +357,8 @@ class ReparacionController extends Controller
             $totalDiscount = $percentageDiscount + $discountFixed;
             $total = $subtotal - $totalDiscount;
 
+            $this->ensureRepairCreditAvailable($validated, round($total, 2));
+
             if ($total < 0) {
                 throw new \RuntimeException('El descuento total no puede superar el subtotal de la reparación.');
             }
@@ -571,8 +573,16 @@ class ReparacionController extends Controller
                 throw new \RuntimeException('El descuento total no puede superar el subtotal de la reparación.');
             }
 
-            if ($validated['status'] === 'delivered') {
+            if ($validated['status'] === 'delivered' && $validated['payment_type'] !== 'credit') {
                 $advance = $total;
+            }
+
+            $this->ensureRepairCreditAvailable($validated, round($total, 2), $order);
+
+            if ($advance + $order->paymentsTotal() > round($total, 2) + 0.00001) {
+                throw ValidationException::withMessages([
+                    'advance_payment' => 'El total no puede ser menor que los pagos ya recibidos.',
+                ]);
             }
 
             $paymentTrackingEnabled = RepairOrder::supportsPaymentTracking();
@@ -631,7 +641,7 @@ class ReparacionController extends Controller
                 'total' => round($total, 2),
                 'advance_payment' => $advance,
                 'payment_type' => $validated['payment_type'],
-                'payment_status' => $this->calcPaymentStatus($total, $advance),
+                'payment_status' => RepairOrder::paymentStatusFor($total, $advance + $order->paymentsTotal()),
                 'warranty_enabled' => $validated['warranty_enabled'] ?? false,
                 'warranty_text' => $validated['warranty_text'] ?? null,
                 'include_warranty_policy' => $validated['warranty_enabled'] ?? false,
@@ -687,6 +697,44 @@ class ReparacionController extends Controller
     /**
      * A repair may use a percentage or a fixed discount, never both.
      */
+    private function ensureRepairCreditAvailable(array $validated, float $total, ?RepairOrder $existing = null): void
+    {
+        if (($validated['payment_type'] ?? null) !== 'credit') {
+            return;
+        }
+
+        $clientId = $validated['client_id'] ?? null;
+        if (! $clientId) {
+            throw ValidationException::withMessages([
+                'client_id' => 'Selecciona un cliente registrado para conceder crédito a la reparación.',
+            ]);
+        }
+
+        $client = Client::query()->lockForUpdate()->findOrFail($clientId);
+        if (! $client->credit_enabled || $client->status !== 'active') {
+            throw ValidationException::withMessages([
+                'client_id' => 'El cliente debe estar activo y tener crédito habilitado.',
+            ]);
+        }
+
+        $paymentsTotal = $existing?->paymentsTotal() ?? 0;
+        if ($paymentsTotal > 0.00001 && $existing->client_id && (int) $existing->client_id !== (int) $clientId) {
+            throw ValidationException::withMessages([
+                'client_id' => 'No se puede cambiar el cliente de una reparación que ya tiene abonos.',
+            ]);
+        }
+
+        $newBalance = max(0, round($total - (float) ($validated['advance_payment'] ?? 0) - $paymentsTotal, 2));
+        $previousBalance = $existing && $existing->payment_type === 'credit' && (int) $existing->client_id === (int) $clientId
+            ? $existing->balance() : 0;
+        $available = app(CreditService::class)->availableCredit($client);
+        if ($newBalance > $available + $previousBalance + 0.00001) {
+            throw ValidationException::withMessages([
+                'payment_type' => 'El saldo de la reparación supera el crédito disponible del cliente.',
+            ]);
+        }
+    }
+
     private function ensureSingleDiscountType(array $validated): void
     {
         $percentage = (float) ($validated['discount_percentage'] ?? 0);
@@ -720,7 +768,7 @@ class ReparacionController extends Controller
             ]);
         }
 
-        if (($validated['status'] ?? null) !== 'delivered' && $advance > $total) {
+        if ($advance > $total) {
             throw ValidationException::withMessages([
                 'repair' => 'El anticipo no puede superar el total del trabajo.',
             ]);
@@ -811,23 +859,30 @@ class ReparacionController extends Controller
 
     public function storeCreditPayment(Request $request, $id)
     {
-        $data = $request->validate(['amount' => 'required|numeric|min:0.01', 'payment_type' => 'required|in:cash,transfer,check,other', 'reference_number' => 'nullable|string|max:100', 'notes' => 'nullable|string|max:1000']);
+        $data = $request->validate(['amount' => 'required|numeric|min:0.01', 'payment_type' => 'required|in:cash,transfer,check,other', 'reference_number' => 'nullable|string|max:100', 'notes' => 'nullable|string|max:1000', 'request_token' => 'nullable|uuid']);
+        $duplicate = false;
         try {
-            DB::transaction(function () use ($id, $data, $request) {
+            DB::transaction(function () use ($id, $data, $request, &$duplicate) {
                 $order = $this->workshopQuery()->lockForUpdate()->findOrFail($id);
                 if ($order->payment_type !== 'credit' || ! $order->client_id) {
                     throw new \RuntimeException('Esta orden no corresponde a un crédito de cliente.');
                 }
+                if (! empty($data['request_token']) && $order->creditPayments()
+                    ->where('request_token', $data['request_token'])->exists()) {
+                    $duplicate = true;
+
+                    return;
+                }
                 if ((float) $data['amount'] > $order->balance() + 0.00001) {
                     throw new \RuntimeException('El abono supera el saldo pendiente de '.$this->money($order->balance()).'.');
                 }
-                app(RepairPaymentService::class)->pay($order, (float) $data['amount'], $data['payment_type'], $data['reference_number'] ?? null, $data['notes'] ?? null, $request->user());
+                app(RepairPaymentService::class)->pay($order, (float) $data['amount'], $data['payment_type'], $data['reference_number'] ?? null, $data['notes'] ?? null, $request->user(), $data['request_token'] ?? null);
             });
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', 'Abono de taller registrado.');
+        return back()->with('success', $duplicate ? 'El abono ya estaba registrado; no se duplicó.' : 'Abono de taller registrado.');
     }
 
     private function money(float $amount): string
@@ -1252,9 +1307,9 @@ class ReparacionController extends Controller
             : null;
 
         Sale::updateOrCreate(
-            ['repair_order_id' => $order->id],
+            ['repair_order_id' => $order->id, 'repair_credit_payment_id' => null],
             [
-                'invoice_number' => Sale::where('repair_order_id', $order->id)->value('invoice_number') ?? NumberSequence::getNext('factura'),
+                'invoice_number' => Sale::where('repair_order_id', $order->id)->whereNull('repair_credit_payment_id')->value('invoice_number') ?? NumberSequence::getNext('factura'),
                 'client_id' => $client->id,
                 'user_id' => $order->user_id ?? auth()->id() ?? User::query()->where('is_active', true)->value('id'),
                 'branch_id' => $cashSession?->branch_id,

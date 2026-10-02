@@ -10,6 +10,7 @@ use App\Models\Purchase;
 use App\Models\RepairOrder;
 use App\Models\Sale;
 use App\Models\Supplier;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -19,6 +20,28 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReporteController extends Controller
 {
+    private const PDF_MAX_ROWS = 1000;
+
+    public function pdf(Request $request)
+    {
+        $request->merge(['page' => 1]);
+        $report = $this->index($request)->getData();
+
+        if ($report['data']->total() > self::PDF_MAX_ROWS) {
+            return redirect()->route('reportes.index', $request->except('page'))
+                ->with('error', 'El PDF supera 1,000 registros. Reduce el período o aplica más filtros para exportarlo completo.');
+        }
+
+        return Pdf::loadView('reportes.pdf', $report)
+            ->setPaper('a4', 'landscape')
+            ->stream('reporte-'.$report['reportType'].'-'.now()->format('Ymd').'.pdf');
+    }
+
+    private function reportPageSize(): int
+    {
+        return request()->routeIs('reportes.pdf') ? self::PDF_MAX_ROWS : 35;
+    }
+
     public function index(Request $request)
     {
         $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->format('Y-m-d'));
@@ -112,7 +135,7 @@ class ReporteController extends Controller
             $query->where('payment_type', $request->payment_type);
         }
 
-        return $query->latest()->paginate(35);
+        return $query->latest()->paginate($this->reportPageSize());
     }
 
     private function getSalesSummary($startDate, $endDate)
@@ -159,7 +182,7 @@ class ReporteController extends Controller
             $query->where('status', $request->status);
         }
 
-        return $query->latest()->paginate(35);
+        return $query->latest()->paginate($this->reportPageSize());
     }
 
     private function getPurchasesSummary($startDate, $endDate)
@@ -201,7 +224,7 @@ class ReporteController extends Controller
             }
         }
 
-        return $query->orderBy('name')->paginate(35);
+        return $query->orderBy('name')->paginate($this->reportPageSize());
     }
 
     private function getInventorySummary()
@@ -239,7 +262,7 @@ class ReporteController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
 
-        return $query->latest()->paginate(35);
+        return $query->latest()->paginate($this->reportPageSize());
     }
 
     private function getProfitReport($startDate, $endDate, Request $request)
@@ -249,7 +272,7 @@ class ReporteController extends Controller
             ->where('status', 'completed')
             ->when($request->filled('branch_id'), fn ($query) => $query->where('branch_id', $request->integer('branch_id')))
             ->latest()
-            ->paginate(35);
+            ->paginate($this->reportPageSize());
 
         $this->decorateProfitSales($sales->getCollection());
 
@@ -526,8 +549,9 @@ class ReporteController extends Controller
     /**
      * @param  Collection<int, object>  $items
      */
-    private function paginateCollection(Collection $items, int $perPage = 35): LengthAwarePaginator
+    private function paginateCollection(Collection $items): LengthAwarePaginator
     {
+        $perPage = $this->reportPageSize();
         $page = LengthAwarePaginator::resolveCurrentPage();
         $pageItems = $items->slice(($page - 1) * $perPage, $perPage)->values();
 
@@ -668,7 +692,7 @@ class ReporteController extends Controller
             ->where('stock', '>', 0)
             ->when($soldIds->isNotEmpty(), fn ($query) => $query->whereNotIn('id', $soldIds))
             ->orderByDesc(DB::raw('stock * purchase_price'))
-            ->paginate(35);
+            ->paginate($this->reportPageSize());
     }
 
     /**
